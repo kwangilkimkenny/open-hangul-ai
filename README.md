@@ -1,11 +1,13 @@
 # HAN-View React
 
-> 전문적인 웹 기반 HWPX (한컴 워드 프로세서 XML) 뷰어 - **React + TypeScript** 버전
+> 전문적인 웹 기반 HWPX (한컴 워드 프로세서 XML) 뷰어 & AI 문서 편집기
 
-[![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5+-blue.svg)](https://www.typescriptlang.org)
-[![Vite](https://img.shields.io/badge/Vite-7+-646cff.svg)](https://vitejs.dev)
-[![Zustand](https://img.shields.io/badge/Zustand-5+-orange.svg)](https://zustand-demo.pmnd.rs)
+[![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-7-646cff.svg)](https://vitejs.dev)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
 
 ## 🚀 빠른 시작
 
@@ -13,72 +15,152 @@
 # 의존성 설치
 npm install
 
-# 개발 서버 실행
+# 개발 서버 실행 (포트: 5090)
 npm run dev
 
 # 프로덕션 빌드
 npm run build
 ```
 
+---
+
+## ✨ 주요 기능
+
+### 📄 문서 뷰어
+| 기능 | 설명 |
+|------|------|
+| **HWPX 파싱** | 한컴 문서 완벽 파싱 |
+| **드래그 앤 드롭** | 파일을 끌어다 놓으면 바로 열기 |
+| **인쇄** | Ctrl+P로 문서 인쇄 |
+| **PDF 내보내기** | 문서를 PDF로 저장 |
+
+### ✏️ 인라인 편집
+| 기능 | 설명 |
+|------|------|
+| **셀 편집** | 클릭으로 테이블 셀 직접 편집 |
+| **테이블 편집** | 행/열 추가/삭제 (우클릭 메뉴) |
+| **실행취소/다시실행** | Ctrl+Z / Ctrl+Y |
+| **자동저장** | 30초 간격 IndexedDB 저장 |
+| **충돌 복구** | 비정상 종료 시 자동 복구 제안 |
+
+### 🔍 검색 기능
+| 기능 | 설명 |
+|------|------|
+| **빠른 검색** | Ctrl+F로 검색창 열기 |
+| **정규식 지원** | 고급 검색 패턴 |
+| **하이라이팅** | 검색 결과 시각적 표시 |
+| **탐색** | 이전/다음 결과로 이동 |
+
+### 🤖 AI 문서 편집
+| 기능 | 설명 |
+|------|------|
+| **GPT-4 연동** | OpenAI API로 지능형 편집 |
+| **문서 구조 인식** | 헤더-내용 쌍 자동 감지 |
+| **템플릿 생성** | 문서 구조만 추출 |
+| **셀 선택 모드** | 표에서 유지/생성 셀 선택 |
+| **외부 API 연동** | JSON 데이터로 문서 자동 채우기 |
+
+### 🎨 UI/UX
+| 기능 | 설명 |
+|------|------|
+| **다크/라이트 테마** | 시스템 설정 자동 감지 |
+| **북마크** | 페이지 북마크 저장 |
+| **컨텍스트 메뉴** | 우클릭으로 빠른 액션 |
+| **에러 복구** | 사용자 친화적 에러 페이지 |
+
+---
+
+## ⌨️ 키보드 단축키
+
+| 단축키 | 기능 |
+|--------|------|
+| `Ctrl + O` | 파일 열기 |
+| `Ctrl + S` | HWPX 저장 |
+| `Ctrl + P` | 인쇄 |
+| `Ctrl + F` | 검색 |
+| `Ctrl + Z` | 실행취소 |
+| `Ctrl + Y` | 다시실행 |
+| `Ctrl + Shift + Z` | 다시실행 (대체) |
+| `Escape` | 검색창 닫기 / 편집 취소 |
+| `Enter` | 다음 검색 결과 |
+| `Shift + Enter` | 이전 검색 결과 |
+
+---
+
 ## 📦 기술 스택
 
-- **React 18+** - UI 라이브러리
-- **TypeScript 5+** - 타입 안전성
-- **Vite 7+** - 빠른 빌드 도구
-- **Zustand 5+** - 상태 관리
-- **JSZip** - HWPX 파일 파싱
+### Frontend
+- **React 19** - UI 라이브러리
+- **TypeScript 5.9** - 타입 안전성
+- **Vite 7** - 빠른 빌드 도구
+
+### 상태 관리 & 유틸리티
+- **Zustand 5** - 상태 관리
+- **JSZip** - HWPX 파일 처리
 - **Lucide React** - 아이콘
+- **React Hot Toast** - 알림
+
+### AI & API
+- **OpenAI GPT-4** - AI 문서 생성
+- **Custom API 지원** - 외부 API 연동
+
+---
 
 ## 📁 프로젝트 구조
 
 ```
 hanview-react-app/
 ├── src/
-│   ├── components/          # React 컴포넌트
-│   │   ├── viewer/          # 뷰어 컴포넌트
-│   │   │   ├── DocumentViewer.tsx
-│   │   │   ├── PageContainer.tsx
-│   │   │   ├── Paragraph.tsx
-│   │   │   ├── Table.tsx
-│   │   │   ├── Image.tsx
-│   │   │   └── Shape.tsx
-│   │   ├── ai/              # AI 관련 컴포넌트
-│   │   │   └── ChatPanel.tsx
-│   │   ├── ui/              # UI 컴포넌트
-│   │   │   ├── Toolbar.tsx
-│   │   │   └── Toast.tsx
-│   │   └── common/          # 공통 컴포넌트
-│   │       └── LoadingOverlay.tsx
+│   ├── components/              # React 컴포넌트
+│   │   ├── HWPXViewerWrapper.tsx   # 뷰어 래퍼 (드래그앤드롭, 단축키, 검색)
+│   │   ├── SimpleHeader.tsx        # 헤더 컴포넌트
+│   │   └── ErrorBoundary.tsx       # 에러 처리
 │   │
-│   ├── stores/              # Zustand 스토어
-│   │   ├── documentStore.ts # 문서 상태
-│   │   ├── aiStore.ts       # AI 상태
-│   │   └── uiStore.ts       # UI 상태
+│   ├── lib/vanilla/             # Vanilla JS 코어 (포팅됨)
+│   │   ├── core/                   # 핵심 모듈
+│   │   │   ├── parser.js              # HWPX 파서
+│   │   │   ├── renderer.js            # 문서 렌더러
+│   │   │   └── constants.js           # 상수
+│   │   │
+│   │   ├── features/               # 기능 모듈
+│   │   │   ├── inline-editor.js       # 인라인 편집
+│   │   │   ├── table-editor.js        # 테이블 편집
+│   │   │   ├── history-manager.js     # 히스토리 관리
+│   │   │   ├── autosave-manager.js    # 자동저장
+│   │   │   ├── advanced-search.js     # 고급 검색
+│   │   │   ├── bookmark-manager.js    # 북마크
+│   │   │   └── cell-selector.js       # 셀 선택 모드
+│   │   │
+│   │   ├── ai/                     # AI 모듈
+│   │   │   ├── ai-controller.js       # AI 컨트롤러
+│   │   │   ├── structure-extractor.js # 구조 추출
+│   │   │   ├── gpt-content-generator.js # GPT 연동
+│   │   │   └── content-merger.js      # 콘텐츠 병합
+│   │   │
+│   │   ├── export/                 # 내보내기 모듈
+│   │   │   ├── hwpx-safe-exporter.js  # HWPX 저장
+│   │   │   └── pdf-exporter.js        # PDF 내보내기
+│   │   │
+│   │   ├── ui/                     # UI 모듈
+│   │   │   ├── chat-panel.js          # AI 채팅 패널
+│   │   │   ├── context-menu.js        # 컨텍스트 메뉴
+│   │   │   └── theme-manager.js       # 테마 관리
+│   │   │
+│   │   ├── api/                    # API 모듈
+│   │   │   └── external-data-fetcher.js # 외부 API 연동
+│   │   │
+│   │   └── viewer.js               # 메인 뷰어 클래스
 │   │
-│   ├── hooks/               # Custom Hooks
-│   │   ├── useAutoSave.ts   # 자동 저장
-│   │   └── useHistory.ts    # Undo/Redo
-│   │
-│   ├── lib/                 # 순수 JS 로직
-│   │   ├── core/
-│   │   │   ├── parser.ts    # HWPX 파서
-│   │   │   └── constants.ts # 상수
-│   │   └── utils/
-│   │       ├── logger.ts    # 로깅
-│   │       ├── error.ts     # 에러 처리
-│   │       └── format.ts    # 포맷팅
-│   │
-│   ├── types/               # TypeScript 타입
-│   │   └── hwpx.d.ts
-│   │
-│   ├── styles/              # CSS 스타일
+│   ├── styles/vanilla/          # CSS 스타일
 │   │   ├── viewer.css
-│   │   ├── chat-panel.css
-│   │   └── toolbar.css
+│   │   ├── ai-chat.css
+│   │   ├── ai-editor.css
+│   │   ├── cell-selector.css
+│   │   └── external-api.css
 │   │
-│   ├── App.tsx              # 메인 App
-│   ├── App.css              # 글로벌 스타일
-│   └── main.tsx             # 엔트리 포인트
+│   ├── App.tsx                  # 메인 앱
+│   ├── App.css                  # 글로벌 스타일
+│   └── main.tsx                 # 엔트리 포인트
 │
 ├── public/
 ├── package.json
@@ -87,129 +169,124 @@ hanview-react-app/
 └── README.md
 ```
 
-## ✨ 주요 기능
+---
 
-### 📄 문서 뷰어
-- HWPX 파일 파싱 및 렌더링
-- 드래그 앤 드롭으로 파일 열기
-- 확대/축소 (25% ~ 400%)
-- 인쇄 지원
+## 🎯 사용 가이드
 
-### 🎨 렌더링
-- 문단 (단락, 텍스트 스타일)
-- 테이블 (셀 병합, 테두리, 배경색)
-- 이미지
-- 도형 (사각형, 원, 텍스트박스)
+### 1. 기본 사용
 
-### 🤖 AI 기능 (완료 ✅)
-- ✅ AI 채팅 패널
-- ✅ OpenAI GPT-4 API 연동
-- ✅ 문서 구조 자동 인식 및 편집
-- ✅ 헤더-내용 쌍 기반 지능형 편집
-- ✅ 토큰/비용 추적
-- 🔧 커스텀 API 지원 (준비)
-
-### 💾 생산성
-- 자동 저장 (IndexedDB)
-- Undo/Redo 히스토리
-- 토스트 알림
-
-## 🔧 스크립트
-
-```bash
-npm run dev      # 개발 서버 실행
-npm run build    # 프로덕션 빌드
-npm run preview  # 빌드 미리보기
-npm run lint     # ESLint 실행
+```
+1. 파일 열기: 드래그 앤 드롭 또는 Ctrl+O
+2. 문서 편집: 셀 클릭으로 직접 편집
+3. 저장: Ctrl+S (자동저장도 30초마다 동작)
 ```
 
-## 🎯 사용법
+### 2. AI 문서 편집
 
-### 기본 기능
-1. **파일 열기**: 드래그 앤 드롭 또는 "파일 열기" 버튼 클릭 (Ctrl+O)
-2. **HWPX 저장**: 편집된 문서를 HWPX 파일로 저장 (Ctrl+S)
-   - 빠른 저장: Ctrl+S (파일명 재사용)
-   - 다른 이름으로 저장: "HWPX 저장" 버튼 클릭
-   - 수정됨 표시: 문서 수정 시 저장 버튼이 빨간색으로 변경
-3. **PDF 다운로드**: 도구 모음의 "PDF 다운로드" 버튼으로 PDF 저장
-4. **인쇄**: 도구 모음의 인쇄 버튼 클릭 (Ctrl+P)
-5. **자동저장**: 30초마다 자동으로 IndexedDB에 세션 저장 (복원용)
+```
+1. 우측 하단 💬 버튼으로 AI 패널 열기
+2. 🔑 버튼으로 OpenAI API 키 설정
+3. 요청 입력:
+   - "가을 소풍 주제로 내용을 바꿔줘"
+   - "초등학생이 이해할 수 있게 쉽게 바꿔줘"
+   - "더 상세하게 작성해줘"
+4. 결과 확인 후 Ctrl+S로 저장
+```
 
-### 🤖 AI 기능 사용하기
+### 3. 셀 선택 모드 (표 문서)
 
-#### 1. API 키 설정
-1. 우측 하단 💬 채팅 아이콘 클릭
-2. 🔑 아이콘 클릭
-3. OpenAI API 키 입력
-   - API 키 발급: https://platform.openai.com/api-keys
-   - 브라우저 로컬 저장 (안전)
+```
+1. "셀 선택" 버튼 클릭
+2. 유지할 셀 선택 (헤더, 제목 등)
+3. 모드 설정:
+   - ○ 자동: AI가 판단
+   - — 유지: 원본 유지
+   - / 수정: 편집 가능
+   - + 생성: AI가 생성
+4. AI 요청 입력 후 생성
+```
 
-#### 2. AI 문서 편집
-1. HWPX 문서 열기
-2. 채팅 패널에서 요청 입력
-   - 예: "가을 여행 주제로 놀이중심 주간 계획서를 생성해줘"
-   - 예: "초등학생이 이해할 수 있게 쉽게 바꿔줘"
-   - 예: "더 창의적이고 재미있게 만들어줘"
-3. AI가 자동으로 문서 구조를 유지하면서 내용만 변경
-4. 결과 확인 후 저장 또는 추가 수정
+### 4. 외부 API 연동
 
-#### 3. 템플릿 생성
-1. 완성된 문서를 템플릿으로 변환
-2. 채팅 패널 하단 "🎨 템플릿 생성" 버튼 클릭
-3. 옵션 선택:
-   - 제목 유지/삭제
-   - 이미지 유지/삭제
-   - 도형 유지/삭제
-4. 텍스트만 삭제된 템플릿 다운로드
+```
+1. "외부 API" 버튼 클릭
+2. API URL 입력
+3. 필드 매핑 설정 (선택)
+4. "적용" 버튼으로 문서에 데이터 채우기
+```
 
-#### 4. 선택적 AI 생성 (표 기반 문서)
-1. 문서를 열고 채팅 패널에서 "🎯 셀 선택 모드" 클릭
-2. 표에서 유지할 셀 클릭 (제목, 헤더 등)
-3. "🤖 자동 헤더 감지" 버튼으로 자동 선택 가능
-4. AI 요청 입력 (예: "여름 캠프 프로그램으로 내용을 채워줘")
-5. AI가 유지된 셀을 컨텍스트로 사용하여 빈 셀 자동 채움
-6. Ctrl+S로 HWPX 저장
+### 5. 검색
 
-### ⌨️ 키보드 단축키
-
-| 단축키 | 기능 |
-|--------|------|
-| `Ctrl + O` | 파일 열기 |
-| `Ctrl + S` | HWPX 빠른 저장 |
-| `Ctrl + P` | 인쇄 |
-
-> 단축키 목록은 사이드바의 "🎹 키보드 단축키" 패널에서도 확인할 수 있습니다.
-
-## 🔄 기존 프로젝트와의 비교
-
-| 항목 | 기존 (Vanilla JS) | React 버전 |
-|------|-------------------|-----------|
-| 언어 | JavaScript (ES6) | TypeScript |
-| 상태 관리 | 클래스 내부 state | Zustand |
-| UI | DOM 직접 조작 | React 컴포넌트 |
-| 빌드 | 없음 | Vite |
-| 파서 | ✅ 완전 포팅 | ✅ 완전 포팅 |
-| HWPX 저장 | ✅ 완전 포팅 | ✅ 완전 포팅 (참조 구현 100%) |
-| AI 로직 | ✅ 참조 구현 | ✅ 완전 연동 |
-
-## 📝 TODO
-
-- [x] AI Controller 완전 연동
-- [x] HWPX 저장 기능
-- [x] 템플릿 생성 기능
-- [ ] PDF 내보내기 개선
-- [ ] 커스텀 API 연동
-- [ ] 클라우드 동기화
-- [ ] 다크 테마 완성
-
-## 📄 라이선스
-
-MIT License
-
-## 👥 기여
-
-Pull Request와 Issue를 환영합니다!
+```
+1. Ctrl+F로 검색창 열기
+2. 검색어 입력 후 Enter
+3. 이전/다음: Shift+Enter / Enter
+4. ESC로 닫기
+```
 
 ---
 
-**HAN-View React** - React로 재탄생한 전문 HWPX 뷰어 🎉
+## 🔧 개발 스크립트
+
+```bash
+npm run dev      # 개발 서버 (http://localhost:5090)
+npm run build    # 프로덕션 빌드
+npm run preview  # 빌드 미리보기
+npm run lint     # ESLint 검사
+npm run test     # 테스트 실행
+```
+
+---
+
+## 📋 버전 히스토리
+
+### v2.0.0 (Current)
+- ✅ React 19 + TypeScript 마이그레이션
+- ✅ Vanilla JS 뷰어 완벽 통합
+- ✅ 드래그 앤 드롭 파일 열기
+- ✅ 키보드 단축키 (Ctrl+S/Z/Y/O/P/F)
+- ✅ 고급 검색 (Ctrl+F)
+- ✅ 자동저장 & 충돌 복구
+- ✅ 테이블 행/열 편집
+- ✅ 우클릭 컨텍스트 메뉴
+- ✅ 에러 바운더리
+- ✅ 이미지 레이지 로딩
+- ✅ 북마크 기능
+- ✅ 다크/라이트 테마
+
+### v1.0.0
+- 초기 Vanilla JS 버전
+
+---
+
+## 🤝 기여
+
+Pull Request와 Issue를 환영합니다!
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing`)
+5. Open a Pull Request
+
+---
+
+## 📄 라이선스
+
+MIT License - 자유롭게 사용, 수정, 배포 가능
+
+---
+
+## 🙏 감사
+
+- [한글과컴퓨터](https://www.hancom.com/) - HWPX 파일 형식
+- [OpenAI](https://openai.com/) - GPT-4 API
+- [React Team](https://react.dev/) - React 프레임워크
+
+---
+
+<div align="center">
+  <strong>HAN-View React</strong> - React로 재탄생한 전문 HWPX 뷰어 & AI 문서 편집기 🎉
+  <br><br>
+  Made with ❤️ by ISM Team
+</div>
