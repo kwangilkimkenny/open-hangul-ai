@@ -1,0 +1,252 @@
+/**
+ * Edit Mode Styles
+ * 하이브리드 편집 모드 스타일
+ * 
+ * @version 2.0.0
+ */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 1. 편집 모드 토글 버튼
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.editing-mode-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.editing-mode-toggle .btn {
+    background: white;
+    border: 2px solid #667eea;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+    color: #667eea;
+}
+
+.editing-mode-toggle .btn:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.editing-mode-toggle .btn.active {
+    background: #667eea;
+    color: white;
+}
+
+.editing-mode-toggle .btn .icon {
+    font-size: 18px;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 2. 편집 가능한 요소 힌트
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* 편집 가능한 요소 (기본 상태) */
+td[data-editable="true"]:not(.editing),
+th[data-editable="true"]:not(.editing),
+.hwp-paragraph.editable-paragraph:not(.editing) {
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+/* ✅ 편집 가능한 요소 커서 (최우선 - TableResizer보다 우선) */
+td[data-editable="true"],
+th[data-editable="true"],
+.hwp-paragraph.editable-paragraph {
+    cursor: text !important;
+}
+
+/* 호버 시 편집 가능 표시 */
+td[data-editable="true"]:hover:not(.editing),
+th[data-editable="true"]:hover:not(.editing),
+.hwp-paragraph.editable-paragraph:hover:not(.editing) {
+    background: rgba(102, 126, 234, 0.05) !important;
+    outline: 1px dashed rgba(102, 126, 234, 0.3);
+    outline-offset: 2px;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 3. 편집 중인 요소 스타일
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.editing {
+    animation: pulse-edit 2s ease-in-out infinite;
+    cursor: text !important;
+}
+
+@keyframes pulse-edit {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 4. 글로벌 편집 모드 스타일 (v2.1.0: ON/OFF 명확한 구분)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* ✅ 편집 모드 ON 상태 */
+body.global-edit-mode .hwp-paragraph:not(.hwp-table .hwp-paragraph),
+body.global-edit-mode td,
+body.global-edit-mode th {
+    outline: 1px dashed rgba(102, 126, 234, 0.3);
+    outline-offset: 2px;
+    transition: all 0.2s ease;
+}
+
+body.global-edit-mode .hwp-paragraph:hover:not(.hwp-table .hwp-paragraph),
+body.global-edit-mode td:hover,
+body.global-edit-mode th:hover {
+    outline: 2px solid rgba(102, 126, 234, 0.6);
+    background: rgba(102, 126, 234, 0.02) !important;
+}
+
+/* ✅ v2.1.0: 편집 모드 OFF 상태 - 편집 불가 시각적 표시 */
+body:not(.global-edit-mode) td[data-editable="true"],
+body:not(.global-edit-mode) th[data-editable="true"],
+body:not(.global-edit-mode) .editable-paragraph {
+    cursor: default !important;
+    opacity: 0.7;
+    user-select: none; /* 텍스트 선택 방지 */
+}
+
+body:not(.global-edit-mode) td[data-editable="true"]:hover,
+body:not(.global-edit-mode) th[data-editable="true"]:hover,
+body:not(.global-edit-mode) .editable-paragraph:hover {
+    background: transparent !important;
+    outline: none !important;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 5. 편집 가이드 (단축키 안내)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.editing-guide {
+    position: fixed;
+    bottom: 70px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 12px;
+    z-index: 9998;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    animation: slideIn 0.3s ease;
+    pointer-events: none;
+}
+
+.editing-guide .guide-content {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.editing-guide .guide-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.editing-guide kbd {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    font-size: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 6. 편집 모드 강조 (edit-mode-highlight 클래스)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.edit-mode-highlight {
+    outline: 1px dashed rgba(102, 126, 234, 0.4) !important;
+    outline-offset: 2px;
+    transition: all 0.2s ease;
+}
+
+.edit-mode-highlight:hover {
+    outline: 2px solid rgba(102, 126, 234, 0.7) !important;
+    background: rgba(102, 126, 234, 0.03) !important;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 7. 반응형 (모바일)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+@media (max-width: 768px) {
+    .editing-mode-toggle {
+        bottom: 10px;
+        right: 10px;
+    }
+    
+    .editing-mode-toggle .btn {
+        padding: 10px 16px;
+        font-size: 12px;
+    }
+    
+    .editing-mode-toggle .btn .text {
+        display: none;
+    }
+    
+    .editing-guide {
+        bottom: 60px;
+        right: 10px;
+        font-size: 10px;
+        padding: 8px 12px;
+    }
+    
+    .editing-guide .guide-content {
+        gap: 8px;
+    }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 8. 다크 모드 지원
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+@media (prefers-color-scheme: dark) {
+    .editing-mode-toggle .btn {
+        background: #1e1e1e;
+        color: #8b9bea;
+        border-color: #8b9bea;
+    }
+    
+    .editing-mode-toggle .btn:hover {
+        background: #8b9bea;
+        color: white;
+    }
+    
+    .editing-mode-toggle .btn.active {
+        background: #8b9bea;
+        color: white;
+    }
+}
+

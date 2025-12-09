@@ -52,8 +52,10 @@ export class LayoutExtractor {
     let generateCells = 0;
     let clearedCells = 0;
     
-    // 문서 복사
+    // 문서 복사 (이미지 Map은 별도 보존)
+    const originalImages = document.images;
     const layoutDoc = JSON.parse(JSON.stringify(document)) as HWPXDocument;
+    layoutDoc.images = originalImages; // 이미지 정보 복원
     
     // 선택 맵 생성 (빠른 조회)
     const selectionMap = new Map<string, CellSelection>();

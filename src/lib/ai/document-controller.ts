@@ -184,8 +184,10 @@ export class AIDocumentController {
     generatedContent: Record<string, string>,
     structure: EnhancedDocumentStructure
   ): HWPXDocument {
-    // 문서 딥 복사
+    // 문서 딥 복사 (이미지 Map은 별도 보존)
+    const originalImages = document.images;
     const updatedDocument = JSON.parse(JSON.stringify(document)) as HWPXDocument;
+    updatedDocument.images = originalImages; // 이미지 정보 복원
 
     let updatedCount = 0;
     let skippedCount = 0;

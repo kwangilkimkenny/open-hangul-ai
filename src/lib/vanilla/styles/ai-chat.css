@@ -1,0 +1,732 @@
+/**
+ * AI Chat Panel Styles
+ * 채팅 인터페이스 스타일
+ * 
+ * @version 2.1.0
+ */
+
+/* ============================================================
+   Main Chat Panel
+   ============================================================ */
+
+.ai-chat-panel {
+    position: fixed;
+    right: -450px;
+    top: 0;
+    width: 450px;
+    height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: -4px 0 30px rgba(0, 0, 0, 0.3);
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.ai-chat-panel.open {
+    right: 0;
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+
+.ai-chat-header {
+    padding: 24px 20px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ai-chat-header h3 {
+    margin: 0;
+    color: white;
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-chat-toggle {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.ai-chat-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+/* ============================================================
+   Messages Container
+   ============================================================ */
+
+.ai-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Custom scrollbar */
+.ai-chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ai-chat-messages::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.ai-chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.ai-chat-messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================================
+   Messages
+   ============================================================ */
+
+.ai-message {
+    padding: 12px 16px;
+    border-radius: 12px;
+    max-width: 85%;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    line-height: 1.5;
+}
+
+.ai-message.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.ai-message.fade-out {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+/* User Message */
+.ai-message.user {
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    align-self: flex-end;
+    margin-left: 15%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Assistant Message */
+.ai-message.assistant {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    color: white;
+    align-self: flex-start;
+    margin-right: 15%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* System Message */
+.ai-message.system {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    align-self: center;
+    font-size: 13px;
+    padding: 8px 12px;
+    margin: 0 auto;
+    text-align: center;
+    max-width: 90%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Loading Message */
+.ai-message.loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.loading-spinner {
+    display: inline-block;
+    margin-right: 8px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================
+   Input Container
+   ============================================================ */
+
+.ai-chat-input-container {
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ai-chat-input {
+    width: 100%;
+    min-height: 60px;
+    max-height: 150px;
+    padding: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: all 0.2s ease;
+}
+
+.ai-chat-input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.ai-chat-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ai-chat-input::placeholder {
+    color: #999;
+}
+
+.ai-chat-send {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px 20px;
+    background: white;
+    color: #667eea;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ai-chat-send:hover:not(:disabled) {
+    background: #f8f9fa;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.ai-chat-send:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.ai-chat-send:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   Footer / Action Buttons
+   ============================================================ */
+
+.ai-chat-footer {
+    padding: 16px 20px;
+    background: rgba(0, 0, 0, 0.15);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    gap: 8px;
+}
+
+.ai-action-btn {
+    flex: 1;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ai-action-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.ai-action-btn.primary {
+    background: white;
+    color: #667eea;
+}
+
+.ai-action-btn.primary:hover {
+    background: #f8f9fa;
+}
+
+.ai-action-btn.has-key {
+    background: rgba(76, 175, 80, 0.3);
+    border-color: rgba(76, 175, 80, 0.5);
+}
+
+/* ============================================================
+   Toggle Button (floating)
+   ============================================================ */
+
+.ai-panel-toggle {
+    position: fixed;
+    right: 20px;
+    bottom: 80px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+    z-index: 9999;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-panel-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 30px rgba(102, 126, 234, 0.6);
+}
+
+.ai-panel-toggle:active {
+    transform: scale(0.95);
+}
+
+/* 패널이 열렸을 때 토글 버튼 숨김 */
+.ai-chat-panel.open ~ .ai-panel-toggle {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ============================================================
+   Structure Preview Section
+   ============================================================ */
+
+.ai-structure-preview {
+    padding: 12px 20px;
+    background: rgba(0, 0, 0, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-structure-preview {
+    display: flex;
+    flex-wrap: wrap; /* 🆕 버튼 많아지면 줄바꿈 */
+    gap: 8px;
+    width: 100%;
+}
+
+.preview-structure-btn,
+.ai-save-btn {
+    flex: 1 1 calc(50% - 4px); /* 🆕 2열 레이아웃 */
+    min-width: 120px;
+    padding: 10px 8px;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.preview-structure-btn:hover,
+.ai-save-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.ai-save-btn {
+    background: rgba(76, 175, 80, 0.2);
+    border-color: rgba(76, 175, 80, 0.4);
+}
+
+.ai-save-btn:hover {
+    background: rgba(76, 175, 80, 0.3);
+}
+
+.ai-save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   Responsive Design
+   ============================================================ */
+
+@media (max-width: 768px) {
+    .ai-chat-panel {
+        width: 100%;
+        right: -100%;
+    }
+    
+    .ai-chat-panel.open {
+        right: 0;
+    }
+    
+    .ai-panel-toggle {
+        bottom: 20px;
+        right: 20px;
+    }
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ============================================================
+   Utility Classes
+   ============================================================ */
+
+.ai-chat-hidden {
+    display: none !important;
+}
+
+.ai-chat-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* ============================================================
+   Dark Theme Support
+   ============================================================ */
+
+@media (prefers-color-scheme: dark) {
+    .ai-message.user {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+    
+    .ai-chat-input {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .ai-chat-input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+}
+
+/* ============================================================
+   Custom API Modal
+   ============================================================ */
+
+.custom-api-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.custom-api-modal .modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+
+.custom-api-modal .modal-content {
+    position: relative;
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 550px;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.custom-api-modal .modal-header {
+    padding: 24px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.custom-api-modal .modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: white;
+}
+
+.custom-api-modal .modal-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 28px;
+    line-height: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-api-modal .modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.custom-api-modal .modal-body {
+    padding: 24px;
+    max-height: calc(90vh - 200px);
+    overflow-y: auto;
+}
+
+.custom-api-modal .form-group {
+    margin-bottom: 20px;
+}
+
+.custom-api-modal .form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.custom-api-modal .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.custom-api-modal .checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.custom-api-modal .checkbox-label span {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1f2937;
+}
+
+.custom-api-modal input[type="text"],
+.custom-api-modal input[type="password"] {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.custom-api-modal input[type="text"]:focus,
+.custom-api-modal input[type="password"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.custom-api-modal input[type="text"]:disabled,
+.custom-api-modal input[type="password"]:disabled {
+    background: #f3f4f6;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.custom-api-modal .help-text {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 6px 0 0 0;
+}
+
+.custom-api-modal .status-message {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-top: 16px;
+    animation: fadeIn 0.2s;
+}
+
+.custom-api-modal .status-message.success {
+    background: #d1fae5;
+    color: #065f46;
+    border-left: 4px solid #10b981;
+}
+
+.custom-api-modal .status-message.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border-left: 4px solid #ef4444;
+}
+
+.custom-api-modal .status-message.info {
+    background: #dbeafe;
+    color: #1e40af;
+    border-left: 4px solid #3b82f6;
+}
+
+.custom-api-modal .modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    background: #f9fafb;
+}
+
+.custom-api-modal .btn-primary,
+.custom-api-modal .btn-secondary {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.custom-api-modal .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.custom-api-modal .btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.custom-api-modal .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.custom-api-modal .btn-secondary {
+    background: white;
+    color: #374151;
+    border: 2px solid #e5e7eb;
+}
+
+.custom-api-modal .btn-secondary:hover:not(:disabled) {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.custom-api-modal .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   Print Styles
+   ============================================================ */
+
+@media print {
+    .ai-chat-panel,
+    .ai-panel-toggle,
+    .custom-api-modal {
+        display: none !important;
+    }
+}
+

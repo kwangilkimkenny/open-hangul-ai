@@ -165,7 +165,13 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
     try {
       // 세션 ID 생성/유지
       const sessionId = currentSessionId || `session-${Date.now()}`;
-      const documentJson = JSON.stringify(document);
+      
+      // Map을 직렬화 가능한 형태로 변환
+      const serializedDoc = {
+        ...document,
+        images: document.images ? Array.from(document.images.entries()) : [],
+      };
+      const documentJson = JSON.stringify(serializedDoc);
       
       // 기존 세션 조회 (editCount 증가용)
       let editCount = 0;
@@ -280,7 +286,13 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
       const session = await getSessionById(sessionId);
 
       if (session) {
-        setDocument(session.document);
+        // Map 복원
+        const restoredDoc = {
+          ...session.document,
+          images: new Map(session.document.images || []),
+        };
+        
+        setDocument(restoredDoc as HWPXDocument);
         setCurrentSessionId(sessionId);
         setLastSaveTime(new Date(session.timestamp));
         setDirty(false);
@@ -444,8 +456,13 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
         });
       }
 
-      // 문서 복원
-      setDocument(sessionData.document);
+      // 문서 복원 (Map 복원)
+      const restoredDoc = {
+        ...sessionData.document,
+        images: new Map(sessionData.document.images || []),
+      };
+      
+      setDocument(restoredDoc as HWPXDocument);
       setCurrentSessionId(sessionData.id);
       setLastSaveTime(new Date(sessionData.timestamp));
       setDirty(false);
@@ -475,12 +492,19 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
 
     try {
       const sessionId = currentSessionId || `temp-${Date.now()}`;
+      
+      // Map을 직렬화 가능한 형태로 변환
+      const serializedDoc = {
+        ...document,
+        images: document.images ? Array.from(document.images.entries()) : [],
+      };
+      
       const tempData = {
         id: sessionId,
         fileName: fileName || '제목 없음',
         timestamp: Date.now(),
-        document: JSON.parse(JSON.stringify(document)),
-        size: JSON.stringify(document).length
+        document: serializedDoc,
+        size: JSON.stringify(serializedDoc).length
       };
 
       localStorage.setItem(TEMP_STORAGE_KEY, JSON.stringify(tempData));

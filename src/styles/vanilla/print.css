@@ -1,0 +1,135 @@
+/**
+ * Print Styles - 인쇄 최적화
+ */
+
+@media print {
+    /* 기본 페이지 설정 */
+    @page {
+        size: A4;
+        margin: 20mm;
+    }
+    
+    /* 불필요한 요소 숨기기 */
+    #toolbar,
+    #sidebarLeft,
+    #sidebarRight,
+    #statusBar,
+    #hwpx-inspector,
+    .no-print {
+        display: none !important;
+    }
+    
+    /* 컨텐츠 영역 */
+    #contentArea {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+    
+    /* 페이지 구분 */
+    .hwp-section,
+    .page-break {
+        page-break-after: always;
+        page-break-inside: avoid;
+    }
+    
+    /* 마지막 섹션은 페이지 나누기 안 함 */
+    .hwp-section:last-child {
+        page-break-after: auto;
+    }
+    
+    /* 단락 */
+    .hwp-paragraph {
+        page-break-inside: avoid;
+        orphans: 3;
+        widows: 3;
+    }
+    
+    /* 테이블 */
+    .hwp-table {
+        page-break-inside: avoid;
+    }
+    
+    .hwp-table tr {
+        page-break-inside: avoid;
+    }
+    
+    /* 이미지 */
+    .hwp-image {
+        page-break-inside: avoid;
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    
+    /* 배경색 인쇄 */
+    *,
+    *::before,
+    *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+    
+    /* 링크 */
+    a[href]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.8em;
+        color: #666;
+    }
+    
+    /* 검색 하이라이트 제거 */
+    .search-highlight {
+        background: none !important;
+    }
+    
+    /* 북마크 표시 제거 */
+    .bookmark-marker {
+        display: none !important;
+    }
+    
+    /* 주석 (옵션에 따라) */
+    .annotation {
+        border: 1px solid #999 !important;
+        background: #f9f9f9 !important;
+    }
+    
+    /* 그림자 제거 */
+    * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+    
+    /* 폰트 크기 조정 */
+    body {
+        font-size: 12pt;
+        line-height: 1.5;
+    }
+    
+    h1 { font-size: 24pt; }
+    h2 { font-size: 20pt; }
+    h3 { font-size: 16pt; }
+    h4 { font-size: 14pt; }
+    h5 { font-size: 12pt; }
+    h6 { font-size: 10pt; }
+}
+
+/* 인쇄 미리보기 모드 */
+body.print-preview {
+    background: #525659;
+}
+
+body.print-preview #contentArea {
+    background: white;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    margin: 20px auto;
+    padding: 20mm;
+    max-width: 210mm; /* A4 width */
+}
+
+body.print-preview .hwp-section {
+    page-break-after: always;
+    min-height: 297mm; /* A4 height */
+    margin-bottom: 20px;
+}
+

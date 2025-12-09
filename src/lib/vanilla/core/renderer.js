@@ -1,0 +1,631 @@
+/**
+ * Document Renderer
+ * v1.0의 완벽한 렌더링 로직을 모듈화
+ * 
+ * @module renderer
+ * @version 2.0.0
+ */
+
+import { HWPXConstants } from './constants.js';
+import { getLogger } from '../utils/logger.js';
+
+// Renderers
+import { renderParagraph } from '../renderers/paragraph.js';
+import { renderTable } from '../renderers/table.js';
+import { renderImage } from '../renderers/image.js';
+import { renderShape } from '../renderers/shape.js';
+import { renderContainer } from '../renderers/container.js';
+
+// Numbering helpers
+import {
+    toRoman,
+    toLetter
+} from '../utils/numbering.js';
+
+const logger = getLogger();
+
+/**
+ * Document Renderer Class
+ * HWPX 문서를 완벽하게 렌더링 (페이지, 헤더, 푸터, 자동 페이지 나누기 등)
+ */
+export class DocumentRenderer {
+    /**
+     * DocumentRenderer 생성자
+     * @param {HTMLElement} container - 렌더링할 컨테이너
+     * @param {Object} options - 렌더링 옵션
+     */
+    constructor(container, options = {}) {
+        this.container = container;
+        this.options = {
+            enableAutoPagination: options.enableAutoPagination !== false,
+            enableLazyLoading: options.enableLazyLoading !== false,
+            a4Width: HWPXConstants.PAGE_WIDTH_A4_PX,
+            a4Height: HWPXConstants.PAGE_HEIGHT_A4_PX,
+            defaultPadding: HWPXConstants.PAGE_PADDING_DEFAULT,
+            ...options
+        };
+        
+        this.pageNumber = 1;
+        this.totalPages = 0;
+    }
+
+    /**
+     * 문서 렌더링 (v1.0 로직 완전 이식)
+     * @param {Object} hwpxDoc - 파싱된 HWPX 문서
+     * @returns {Promise<number>} 총 페이지 수
+     */
+    async render(hwpxDoc) {
+        logger.info('🎨 Starting document rendering...');
+        logger.time('Document Render');
+
+        try {
+            // 🔥 디버깅: 렌더링할 문서 샘플 확인
+            if (hwpxDoc && hwpxDoc.sections && hwpxDoc.sections[0]) {
+                const firstTable = hwpxDoc.sections[0].elements.find(e => e.type === 'table');
+                if (firstTable && firstTable.rows) {
+                    logger.debug('🔍 Renderer received - First row sample:');
+                    const firstRow = firstTable.rows[0];
+                    firstRow.cells.slice(0, 3).forEach((cell, idx) => {
+                        const text = cell?.elements?.[0]?.runs?.[0]?.text;
+                        logger.debug(`  Cell ${idx}: "${text ? text.substring(0, 40) : '(empty)'}..."`);
+                    });
+                }
+            }
+            
+            this.container.innerHTML = '';
+            logger.debug('✓ Container cleared');
+
+            if (!hwpxDoc || !hwpxDoc.sections || hwpxDoc.sections.length === 0) {
+                this.container.innerHTML = `
+                    <div style="text-align: center; padding: 100px 20px; color: #e74c3c;">
+                        <h2>문서 내용이 없습니다</h2>
+                        <p>파싱된 문서에 섹션이 없습니다.</p>
+                    </div>
+                `;
+                return 0;
+            }
+
+            this.pageNumber = 1;
+
+            // Render each section
+            for (const section of hwpxDoc.sections) {
+                const pageDiv = this.createPageContainer(section, this.pageNumber);
+
+                // 페이지 설정 적용
+                this.applyPageSettings(pageDiv, section);
+
+                // 다단 레이아웃 적용
+                this.applyMultiColumnLayout(pageDiv, section);
+
+                // 홀수/짝수 페이지 판별
+                const isOddPage = (this.pageNumber % 2 === 1);
+
+                // 헤더 렌더링
+                this.renderHeader(pageDiv, section, isOddPage);
+
+                // 페이지 번호 렌더링
+                this.renderPageNumber(pageDiv, section, this.pageNumber);
+
+                // 푸터 렌더링
+                this.renderFooter(pageDiv, section, isOddPage);
+
+                // 본문 요소 렌더링
+                this.renderElements(pageDiv, section, hwpxDoc.images);
+
+                // 컨테이너에 페이지 추가
+                this.container.appendChild(pageDiv);
+
+                // 자동 페이지 나누기
+                if (this.options.enableAutoPagination) {
+                    const createdPages = this.autoPaginateContent(pageDiv, section, this.pageNumber);
+                    this.pageNumber += createdPages;
+                }
+
+                // 테이블 디버그 (개발 모드)
+                this.debugTables(pageDiv);
+
+                this.pageNumber++;
+            }
+
+            this.totalPages = this.pageNumber - 1;
+
+            logger.timeEnd('Document Render');
+            logger.info(`✅ Document rendering completed: ${this.totalPages} pages`);
+
+            return this.totalPages;
+
+        } catch (error) {
+            logger.error('❌ Rendering error:', error);
+            
+            this.container.innerHTML = `
+                <div style="text-align: center; padding: 100px 20px; color: #e74c3c;">
+                    <h2>⚠️ 렌더링 오류</h2>
+                    <p>문서를 화면에 표시하는 중 오류가 발생했습니다.</p>
+                    <details style="margin-top: 20px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
+                        <summary style="cursor: pointer; color: #3498db;">오류 정보</summary>
+                        <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; margin-top: 10px;">${error.stack || error.message}</pre>
+                    </details>
+                    <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        페이지 새로고침
+                    </button>
+                </div>
+            `;
+            
+            throw error;
+        }
+    }
+
+    /**
+     * 페이지 컨테이너 생성
+     * @param {Object} section - 섹션 정보
+     * @param {number} pageNumber - 페이지 번호
+     * @returns {HTMLElement} 페이지 컨테이너
+     * @private
+     */
+    createPageContainer(section, pageNumber) {
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'hwp-page-container';
+        pageDiv.setAttribute('data-page-number', pageNumber);
+        pageDiv.style.position = 'relative';
+        return pageDiv;
+    }
+
+    /**
+     * 페이지 설정 적용 (크기, 여백)
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @private
+     */
+    applyPageSettings(pageDiv, section) {
+        const defaultWidth = `${this.options.a4Width}px`;
+        const defaultHeight = `${this.options.a4Height}px`;
+        const defaultPadding = `${this.options.defaultPadding}px`;
+
+        // ✅ box-sizing: border-box (padding이 높이에 포함됨)
+        pageDiv.style.boxSizing = 'border-box';
+
+        // 페이지 너비
+        if (section.pageSettings?.width) {
+            pageDiv.style.width = section.pageSettings.width;
+            logger.debug(`📐 Page ${this.pageNumber} width (from HWPX): ${section.pageSettings.width}`);
+        } else {
+            pageDiv.style.width = defaultWidth;
+            logger.debug(`📐 Page ${this.pageNumber} width (default A4): ${defaultWidth}`);
+        }
+
+        // ✅ 페이지 높이 (minHeight → height로 변경하여 고정 높이 설정)
+        if (section.pageSettings?.height) {
+            pageDiv.style.height = section.pageSettings.height;
+            logger.debug(`📐 Page ${this.pageNumber} height (from HWPX): ${section.pageSettings.height}`);
+        } else {
+            pageDiv.style.height = defaultHeight;
+            logger.debug(`📐 Page ${this.pageNumber} height (default A4): ${defaultHeight}`);
+        }
+
+        // 여백 (padding으로 적용)
+        if (section.pageSettings && (section.pageSettings.marginLeft || section.pageSettings.marginRight ||
+            section.pageSettings.marginTop || section.pageSettings.marginBottom)) {
+            const padding = `${section.pageSettings.marginTop || defaultPadding} ${section.pageSettings.marginRight || defaultPadding} ${section.pageSettings.marginBottom || defaultPadding} ${section.pageSettings.marginLeft || defaultPadding}`;
+            pageDiv.style.padding = padding;
+            logger.debug(`📐 Page ${this.pageNumber} margins (from HWPX): ${padding}`);
+        } else {
+            pageDiv.style.padding = defaultPadding;
+            logger.debug(`📐 Page ${this.pageNumber} margins (default): ${defaultPadding}`);
+        }
+    }
+
+    /**
+     * 다단 레이아웃 적용
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @private
+     */
+    applyMultiColumnLayout(pageDiv, section) {
+        if (section.colPr && section.colPr.colCount > 1) {
+            pageDiv.style.columnCount = section.colPr.colCount;
+            pageDiv.style.columnGap = '20px';
+            pageDiv.style.columnRule = '1px solid #e0e0e0';
+            logger.debug(`📰 Applied ${section.colPr.colCount}-column layout`);
+        }
+    }
+
+    /**
+     * 헤더 렌더링
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @param {boolean} isOddPage - 홀수 페이지 여부
+     * @private
+     */
+    renderHeader(pageDiv, section, isOddPage) {
+        const header = section.headers?.both || (isOddPage ? section.headers?.odd : section.headers?.even);
+        
+        if (header?.elements?.length > 0) {
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'hwp-page-header';
+            headerDiv.style.position = 'absolute';
+            headerDiv.style.top = '0';
+            headerDiv.style.left = section.pageSettings?.marginLeft || '40px';
+            headerDiv.style.right = section.pageSettings?.marginRight || '40px';
+            headerDiv.style.height = (header.height ? `${header.height}px` : section.pageSettings?.marginTop) || '40px';
+            headerDiv.style.overflow = 'visible';
+
+            header.elements.forEach(element => {
+                if (element.type === 'container') {
+                    headerDiv.appendChild(renderContainer(element));
+                }
+            });
+
+            pageDiv.appendChild(headerDiv);
+            logger.debug(`📄 Header rendered for page ${this.pageNumber} (${isOddPage ? 'ODD' : 'EVEN'})`);
+        }
+    }
+
+    /**
+     * 페이지 번호 렌더링
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @param {number} pageNumber - 페이지 번호
+     * @private
+     */
+    renderPageNumber(pageDiv, section, pageNumber) {
+        if (!section.pageNum) {
+            return;
+        }
+
+        const pageNumDiv = document.createElement('div');
+        pageNumDiv.className = 'hwp-page-number';
+        pageNumDiv.style.position = 'absolute';
+        pageNumDiv.style.fontSize = '10pt';
+        pageNumDiv.style.color = '#666';
+
+        // 위치 설정
+        const pos = section.pageNum.pos;
+        const positions = {
+            'BOTTOM_CENTER': { bottom: '10px', left: '50%', transform: 'translateX(-50%)' },
+            'BOTH_CENTER': { bottom: '10px', left: '50%', transform: 'translateX(-50%)' },
+            'BOTTOM_LEFT': { bottom: '10px', left: '20px' },
+            'BOTTOM_RIGHT': { bottom: '10px', right: '20px' },
+            'TOP_CENTER': { top: '10px', left: '50%', transform: 'translateX(-50%)' },
+            'TOP_LEFT': { top: '10px', left: '20px' },
+            'TOP_RIGHT': { top: '10px', right: '20px' }
+        };
+
+        if (positions[pos]) {
+            Object.assign(pageNumDiv.style, positions[pos]);
+        }
+
+        // 번호 포맷
+        let number = pageNumber;
+        const formatType = section.pageNum.formatType;
+
+        if (formatType === 'LOWER_ROMAN') {
+            number = toRoman(pageNumber).toLowerCase();
+        } else if (formatType === 'UPPER_ROMAN') {
+            number = toRoman(pageNumber);
+        } else if (formatType === 'LOWER_LETTER') {
+            number = toLetter(pageNumber).toLowerCase();
+        } else if (formatType === 'UPPER_LETTER') {
+            number = toLetter(pageNumber);
+        }
+
+        pageNumDiv.textContent = `${section.pageNum.sideChar}${number}${section.pageNum.sideChar}`;
+        pageDiv.appendChild(pageNumDiv);
+        logger.debug(`📄 Page number: ${pageNumDiv.textContent} at ${pos}`);
+    }
+
+    /**
+     * 푸터 렌더링
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @param {boolean} isOddPage - 홀수 페이지 여부
+     * @private
+     */
+    renderFooter(pageDiv, section, isOddPage) {
+        const footer = section.footers?.both || (isOddPage ? section.footers?.odd : section.footers?.even);
+        
+        if (footer?.elements?.length > 0) {
+            const footerDiv = document.createElement('div');
+            footerDiv.className = 'hwp-page-footer';
+            footerDiv.style.position = 'absolute';
+            footerDiv.style.bottom = '0';
+            footerDiv.style.left = section.pageSettings?.marginLeft || '40px';
+            footerDiv.style.right = section.pageSettings?.marginRight || '40px';
+            footerDiv.style.height = (footer.height ? `${footer.height}px` : section.pageSettings?.marginBottom) || '40px';
+            footerDiv.style.overflow = 'visible';
+
+            footer.elements.forEach(element => {
+                if (element.type === 'container') {
+                    footerDiv.appendChild(renderContainer(element));
+                }
+            });
+
+            pageDiv.appendChild(footerDiv);
+            logger.debug(`📄 Footer rendered for page ${this.pageNumber} (${isOddPage ? 'ODD' : 'EVEN'})`);
+        }
+    }
+
+    /**
+     * 본문 요소 렌더링
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @param {Map} images - 이미지 맵
+     * @private
+     */
+    renderElements(pageDiv, section, images) {
+        if (!section.elements || section.elements.length === 0) {
+            return;
+        }
+
+        section.elements.forEach(element => {
+            let renderedElement = null;
+
+            switch (element.type) {
+                case 'paragraph':
+                    renderedElement = renderParagraph(element);
+                    
+                    // ✅ Replace inline table placeholders with actual tables
+                    if (renderedElement) {
+                        const placeholders = renderedElement.querySelectorAll('.hwp-inline-table-placeholder');
+                        placeholders.forEach(placeholder => {
+                            const tableData = placeholder._tableData;
+                            if (tableData) {
+                                const tableElem = renderTable(tableData, images);
+                                placeholder.replaceWith(tableElem);
+                            }
+                        });
+                    }
+                    break;
+                case 'table':
+                    renderedElement = renderTable(element, images);
+                    break;
+                case 'image':
+                    renderedElement = renderImage(element);
+                    break;
+                case 'shape':
+                    renderedElement = renderShape(element, images);
+                    break;
+                case 'container':
+                    renderedElement = renderContainer(element);
+                    break;
+                default:
+                    logger.warn(`Unknown element type: ${element.type}`);
+            }
+
+            if (renderedElement) {
+                pageDiv.appendChild(renderedElement);
+            }
+        });
+    }
+
+    /**
+     * 자동 페이지 나누기 (v1.0 로직 완전 이식)
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @param {number} currentPageNum - 현재 페이지 번호
+     * @returns {number} 추가 생성된 페이지 수
+     * @private
+     */
+    autoPaginateContent(pageDiv, section, currentPageNum) {
+        const container = pageDiv.parentElement;
+        
+        // ✅ clientHeight에서 padding을 제외하여 실제 콘텐츠 영역 계산
+        // clientHeight는 border를 제외하지만 padding은 포함함
+        const computed = window.getComputedStyle(pageDiv);
+        const paddingTop = parseFloat(computed.paddingTop) || 0;
+        const paddingBottom = parseFloat(computed.paddingBottom) || 0;
+        const maxContentHeight = pageDiv.clientHeight - paddingTop - paddingBottom;
+        
+        logger.debug(`📐 Auto-pagination: clientHeight=${pageDiv.clientHeight}px, padding=${paddingTop + paddingBottom}px, maxContent=${maxContentHeight}px`);
+
+        // 실제 컨텐츠 높이
+        const contentHeight = pageDiv.scrollHeight;
+        
+        // clientHeight 기준으로 비교
+        const clientHeight = pageDiv.clientHeight;
+
+        // 강제 페이지 나누기 확인
+        const elementsWithBreak = pageDiv.querySelectorAll('[data-page-break="true"]');
+        const hasPageBreaks = elementsWithBreak.length > 0;
+
+        // ✅ 15px 오버플로우 허용 + lineHeight/margin 압축으로 12-13페이지 목표
+        // lineHeight: 1.6 → 1.5 (6% 압축)
+        // table margin: 15px → 8px (약 3-4% 압축)
+        // 15px: [7] "국정과제 55" 표를 다음 페이지로 보내기 위해
+        const ALLOWED_OVERFLOW = 15;
+        
+        if (contentHeight <= clientHeight + ALLOWED_OVERFLOW && !hasPageBreaks) {
+            // 페이지 나누기 불필요 (허용 오차 범위 내)
+            const overflow = contentHeight - clientHeight;
+            logger.debug(`📄 No pagination needed: overflow=${overflow}px (within ${ALLOWED_OVERFLOW}px tolerance)`);
+            return 0;
+        }
+
+        if (hasPageBreaks) {
+            logger.debug(`📄 Auto-paginating: ${elementsWithBreak.length} forced page break(s) detected`);
+        } else {
+            logger.debug(`📄 Auto-paginating: content=${contentHeight}px > client=${clientHeight}px (overflow=${contentHeight-clientHeight}px)`);
+        }
+
+        // 헤더, 푸터, 페이지 번호를 제외한 본문 요소만 추출
+        const elements = Array.from(pageDiv.children).filter(el =>
+            !el.classList.contains('hwp-page-header') &&
+            !el.classList.contains('hwp-page-footer') &&
+            !el.classList.contains('hwp-page-number')
+        );
+
+        // 페이지 배열
+        const pages = [pageDiv];
+        let currentPage = pageDiv;
+        let currentHeight = 0;
+        let pageCount = 0;
+
+        elements.forEach(element => {
+            const hasPageBreak = element.hasAttribute('data-page-break');
+            
+            // ✅ margin을 포함한 실제 공간 계산
+            const computedStyle = window.getComputedStyle(element);
+            const marginTop = parseFloat(computedStyle.marginTop) || 0;
+            const marginBottom = parseFloat(computedStyle.marginBottom) || 0;
+            const elementHeight = element.offsetHeight;
+            const elementTotalHeight = elementHeight + marginTop + marginBottom;
+
+            // ✅ 표의 경우 특별 처리: 크기에 따라 다른 임계값 적용
+            const isTable = element.classList.contains('hwp-table-wrapper');
+            const remainingSpace = maxContentHeight - currentHeight;
+            
+            // 90% 이상 들어가면 현재 페이지에 유지 (첫 페이지 체계도 표 보호)
+            const threshold = 0.90;
+            const canFitPartially = isTable && remainingSpace > elementTotalHeight * threshold;
+
+            // 페이지 나누기 필요 여부
+            if ((hasPageBreak || (currentHeight + elementTotalHeight > maxContentHeight && !canFitPartially)) && currentHeight > 0) {
+                if (hasPageBreak) {
+                    logger.debug(`  📄 Forced page break detected on element`);
+                } else if (canFitPartially) {
+                    logger.debug(`  📄 Table kept on current page: remaining=${remainingSpace.toFixed(1)}px, table=${elementTotalHeight.toFixed(1)}px (${(remainingSpace/elementTotalHeight*100).toFixed(0)}% fits)`);
+                } else {
+                    logger.debug(`  📄 Breaking page: current=${currentHeight.toFixed(1)}px + element=${elementTotalHeight.toFixed(1)}px > max=${maxContentHeight}px`);
+                }
+
+                // 새 페이지 생성
+                const newPage = document.createElement('div');
+                newPage.className = 'hwp-page-container';
+                newPage.setAttribute('data-page-number', currentPageNum + pageCount + 1);
+                newPage.style.position = 'relative';
+
+                // ✅ 원본 페이지의 스타일 복사 (minHeight → height)
+                newPage.style.width = pageDiv.style.width;
+                newPage.style.height = pageDiv.style.height;
+                newPage.style.boxSizing = pageDiv.style.boxSizing;
+                newPage.style.padding = pageDiv.style.padding;
+
+                // 다음 형제 위치에 삽입
+                const nextSibling = currentPage.nextSibling;
+                if (nextSibling) {
+                    container.insertBefore(newPage, nextSibling);
+                } else {
+                    container.appendChild(newPage);
+                }
+
+                pages.push(newPage);
+                currentPage = newPage;
+                currentHeight = 0;
+                pageCount++;
+
+                logger.debug(`  📄 Created page ${currentPageNum + pageCount} for overflow content`);
+            }
+
+            // ✅ FIX: 요소를 현재 페이지로 이동
+            // appendChild는 DOM 트리의 끝에 추가하므로 table 안으로 들어갈 수 있음
+            // 따라서 명시적으로 page의 직접 자식으로만 추가
+            if (element.parentNode !== currentPage) {
+                currentPage.appendChild(element);
+            }
+            
+            // ✅ 요소를 이동한 후 실제 높이 재측정 (margin-collapse 반영)
+            const actualHeight = element.offsetHeight;
+            const actualMarginTop = parseFloat(window.getComputedStyle(element).marginTop) || 0;
+            const actualMarginBottom = parseFloat(window.getComputedStyle(element).marginBottom) || 0;
+            const actualTotalHeight = actualHeight + actualMarginTop + actualMarginBottom;
+            
+            currentHeight += actualTotalHeight;
+        });
+
+        // ✅ 페이지 분할 후 검증 및 재귀적 분할
+        logger.debug(`✅ Auto-pagination complete: ${pageCount + 1} pages created`);
+        
+        // ✅ 새로 생성된 페이지들(첫 페이지 제외)에 대해서만 재귀 분할
+        // 첫 페이지를 재귀하면 무한 루프 발생 가능성
+        let additionalPages = 0;
+        pages.slice(1).forEach((page, index) => {
+            const pageScrollHeight = page.scrollHeight;
+            const pageClientHeight = page.clientHeight;
+            const overflow = pageScrollHeight - pageClientHeight;
+            
+            if (overflow > ALLOWED_OVERFLOW) {
+                logger.debug(`  🔄 Page ${currentPageNum + index + 1} needs further splitting (overflow: ${overflow.toFixed(1)}px)`);
+                
+                // 재귀적으로 분할
+                const extraPages = this.autoPaginateContent(page, section, currentPageNum + index + 1);
+                additionalPages += extraPages;
+            }
+        });
+        
+        // 모든 페이지 최종 검증
+        pages.forEach((page, index) => {
+            const pageScrollHeight = page.scrollHeight;
+            const pageClientHeight = page.clientHeight;
+            const overflow = pageScrollHeight - pageClientHeight;
+            
+            if (overflow > ALLOWED_OVERFLOW) {
+                logger.warn(`⚠️  Page ${currentPageNum + index}: overflow still detected (${overflow.toFixed(1)}px, exceeds ${ALLOWED_OVERFLOW}px tolerance)`);
+                logger.warn(`    - scrollHeight: ${pageScrollHeight}px`);
+                logger.warn(`    - clientHeight: ${pageClientHeight}px`);
+            }
+        });
+        
+        return pageCount + additionalPages;
+    }
+
+    /**
+     * 테이블 디버그 (개발 모드)
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @private
+     */
+    debugTables(pageDiv) {
+        const tablesInPage = pageDiv.querySelectorAll('.hwp-table');
+        
+        if (tablesInPage.length > 0) {
+            tablesInPage.forEach((table, idx) => {
+                logger.debug(`🔍 TABLE [${idx}] dimensions:`, {
+                    widthStyle: table.style.width,
+                    computedWidth: `${table.offsetWidth}px`,
+                    computedHeight: `${table.offsetHeight}px`,
+                    parentWidth: `${table.parentElement?.offsetWidth}px`,
+                    isVisible: table.offsetWidth > 0 ? '✅ VISIBLE' : '❌ COLLAPSED'
+                });
+            });
+        }
+    }
+
+    /**
+     * 총 페이지 수 가져오기
+     * @returns {number} 총 페이지 수
+     */
+    getTotalPages() {
+        return this.totalPages;
+    }
+
+    /**
+     * 현재 페이지 번호 가져오기
+     * @returns {number} 현재 페이지 번호
+     */
+    getCurrentPageNumber() {
+        return this.pageNumber;
+    }
+
+    /**
+     * 렌더러 리셋
+     */
+    reset() {
+        this.pageNumber = 1;
+        this.totalPages = 0;
+        this.container.innerHTML = '';
+        logger.info('🔄 Renderer reset');
+    }
+}
+
+/**
+ * 편의 함수: 문서 렌더링
+ * @param {HTMLElement} container - 렌더링할 컨테이너
+ * @param {Object} document - 파싱된 문서
+ * @param {Object} options - 렌더링 옵션
+ * @returns {Promise<number>} 총 페이지 수
+ */
+export async function renderDocument(container, document, options = {}) {
+    const renderer = new DocumentRenderer(container, options);
+    return await renderer.render(document);
+}
+
+export default DocumentRenderer;
+

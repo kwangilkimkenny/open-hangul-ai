@@ -1,0 +1,90 @@
+/**
+ * HWPX Inspector 스타일
+ */
+
+/* Inspector Panel */
+#hwpx-inspector {
+    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+    user-select: none;
+}
+
+/* Tab Styles */
+.inspector-tab {
+    transition: all 0.2s;
+}
+
+.inspector-tab:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.inspector-tab.active {
+    color: #4CAF50 !important;
+    border-bottom-color: #4CAF50 !important;
+    font-weight: 600;
+}
+
+/* Dark Theme */
+.inspector-dark .inspector-tab:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Structure View */
+.structure-view .tree-view {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+/* Parsing View */
+.parsing-view .step-item {
+    transition: all 0.2s;
+}
+
+.parsing-view .step-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Performance View */
+.performance-view .metric-item {
+    transition: all 0.2s;
+}
+
+.performance-view .metric-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Scrollbar */
+.inspector-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.inspector-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.inspector-content::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.inspector-dark .inspector-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Animation */
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+#hwpx-inspector {
+    animation: slideIn 0.3s ease-out;
+}
+

@@ -35,6 +35,7 @@ interface DocumentState {
   // Element Updates
   updateElement: (sectionIndex: number, elementIndex: number, element: HWPXElement) => void;
   updateCellText: (path: CellPath, text: string) => void;
+  updateParagraphText: (sectionIndex: number, elementIndex: number, text: string) => void;
 }
 
 interface CellPath {
@@ -100,7 +101,11 @@ export const useDocumentStore = create<DocumentState>()(
         const { document } = get();
         if (!document) return;
         
+        // 이미지 Map 보존
+        const originalImages = document.images;
         const newDocument = JSON.parse(JSON.stringify(document)) as HWPXDocument;
+        newDocument.images = originalImages;
+        
         if (newDocument.sections[sectionIndex]) {
           newDocument.sections[sectionIndex].elements[elementIndex] = element;
         }
@@ -112,7 +117,11 @@ export const useDocumentStore = create<DocumentState>()(
         const { document } = get();
         if (!document) return;
         
+        // 이미지 Map 보존
+        const originalImages = document.images;
         const newDocument = JSON.parse(JSON.stringify(document)) as HWPXDocument;
+        newDocument.images = originalImages;
+        
         const section = newDocument.sections[path.section];
         if (!section) return;
         
@@ -135,6 +144,31 @@ export const useDocumentStore = create<DocumentState>()(
             type: 'paragraph',
             runs: [{ text, style: {} }]
           }];
+        }
+        
+        set({ document: newDocument, isDirty: true });
+      },
+      
+      updateParagraphText: (sectionIndex, elementIndex, text) => {
+        const { document } = get();
+        if (!document) return;
+        
+        // 이미지 Map 보존
+        const originalImages = document.images;
+        const newDocument = JSON.parse(JSON.stringify(document)) as HWPXDocument;
+        newDocument.images = originalImages;
+        
+        const section = newDocument.sections[sectionIndex];
+        if (!section) return;
+        
+        const element = section.elements[elementIndex];
+        if (!element || element.type !== 'paragraph') return;
+        
+        // Update text in first run
+        if (element.runs?.[0]) {
+          element.runs[0].text = text;
+        } else {
+          element.runs = [{ text, style: {} }];
         }
         
         set({ document: newDocument, isDirty: true });

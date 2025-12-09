@@ -9,8 +9,9 @@
 
 export interface HWPXDocument {
   sections: HWPXSection[];
-  images: Map<string, string>;
+  images: Map<string, HWPXImageInfo>;
   metadata?: HWPXMetadata;
+  rawHeaderXml?: string; // 원본 header.xml 저장 (export용)
 }
 
 export interface HWPXMetadata {

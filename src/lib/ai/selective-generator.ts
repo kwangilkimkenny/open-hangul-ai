@@ -345,8 +345,10 @@ ${i + 1}. 위치: [행${t.target.row}, 열${t.target.col}]
   ): HWPXDocument {
     logger.info('🔀 생성된 내용을 문서에 적용 중...');
     
-    // 문서 복사
+    // 문서 복사 (이미지 Map은 별도 보존)
+    const originalImages = document.images;
     const updatedDoc = JSON.parse(JSON.stringify(document)) as HWPXDocument;
+    updatedDoc.images = originalImages; // 이미지 정보 복원
     
     // GPT 응답 파싱
     const contents = this.parseGPTResponse(generatedContent, targets.length);
