@@ -1639,7 +1639,34 @@ export class HwpxSafeExporter {
                 }
             }
             
-            logger.info(`  ✅ 자동 줄바꿈 속성 추가 완료: subList ${modifiedSubListCount}개, paragraph ${modifiedParagraphCount}개`);
+            // 3. 🔥 핵심: 모든 linesegarray 제거!
+            // linesegarray는 이전 레이아웃 계산 정보를 담고 있어,
+            // 텍스트가 변경되면 한글이 잘못된 정보를 사용하여 줄바꿈이 안 됨
+            let removedLinesegCount = 0;
+            
+            // XPath로 모든 linesegarray 요소 찾기
+            const xpathResult = sectionDoc.evaluate(
+                '//*[local-name()="linesegarray"]',
+                sectionDoc,
+                null,
+                XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+                null
+            );
+            
+            // 찾은 모든 linesegarray 제거 (역순으로 제거해야 안전)
+            const linesegNodes = [];
+            for (let i = 0; i < xpathResult.snapshotLength; i++) {
+                linesegNodes.push(xpathResult.snapshotItem(i));
+            }
+            
+            linesegNodes.forEach(lsa => {
+                if (lsa.parentNode) {
+                    lsa.parentNode.removeChild(lsa);
+                    removedLinesegCount++;
+                }
+            });
+            
+            logger.info(`  ✅ 자동 줄바꿈 속성 추가 완료: subList ${modifiedSubListCount}개, paragraph ${modifiedParagraphCount}개, linesegarray ${removedLinesegCount}개 제거`);
             
             // 수정된 XML 반환
             const serializer = new XMLSerializer();
@@ -1677,16 +1704,44 @@ export class HwpxSafeExporter {
                 return;
             }
             
-            // paraPr 태그 찾기 (네임스페이스 고려)
-            const hpNamespace = 'http://www.hancom.co.kr/hwpml/2011/paragraph';
-            let paraPrNodes = headerDoc.getElementsByTagNameNS(hpNamespace, 'paraPr');
+            // paraPr 태그 찾기 (모든 네임스페이스 시도)
+            let paraPrNodes = [];
             
-            // 네임스페이스 없이도 시도
+            // 1. head 네임스페이스 (가장 가능성 높음)
+            const hhNamespace = 'http://www.hancom.co.kr/hwpml/2011/head';
+            paraPrNodes = Array.from(headerDoc.getElementsByTagNameNS(hhNamespace, 'paraPr'));
+            
+            // 2. paragraph 네임스페이스
             if (paraPrNodes.length === 0) {
-                paraPrNodes = headerDoc.getElementsByTagName('hp:paraPr');
+                const hpNamespace = 'http://www.hancom.co.kr/hwpml/2011/paragraph';
+                paraPrNodes = Array.from(headerDoc.getElementsByTagNameNS(hpNamespace, 'paraPr'));
+            }
+            
+            // 3. 네임스페이스 프리픽스로 시도
+            if (paraPrNodes.length === 0) {
+                paraPrNodes = Array.from(headerDoc.getElementsByTagName('hh:paraPr'));
             }
             if (paraPrNodes.length === 0) {
-                paraPrNodes = headerDoc.getElementsByTagName('paraPr');
+                paraPrNodes = Array.from(headerDoc.getElementsByTagName('hp:paraPr'));
+            }
+            
+            // 4. 네임스페이스 없이 시도
+            if (paraPrNodes.length === 0) {
+                paraPrNodes = Array.from(headerDoc.getElementsByTagName('paraPr'));
+            }
+            
+            // 5. XPath로 모든 paraPr 요소 찾기 (최후의 수단)
+            if (paraPrNodes.length === 0) {
+                const xpathResult = headerDoc.evaluate(
+                    '//*[local-name()="paraPr"]',
+                    headerDoc,
+                    null,
+                    XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+                    null
+                );
+                for (let i = 0; i < xpathResult.snapshotLength; i++) {
+                    paraPrNodes.push(xpathResult.snapshotItem(i));
+                }
             }
             
             logger.info(`  🔍 발견된 paraPr: ${paraPrNodes.length}개`);
@@ -1810,6 +1865,7 @@ export class HwpxSafeExporter {
                 }
                 
                 let modifiedParagraphCount = 0;
+                let removedLinesegCount = 0;
                 
                 for (let i = 0; i < paragraphNodes.length; i++) {
                     const p = paragraphNodes[i];
@@ -1832,16 +1888,25 @@ export class HwpxSafeExporter {
                             modifiedParagraphCount++;
                         }
                     }
+                    
+                    // 🔥 핵심 수정: linesegarray 제거 (모든 단락에서)
+                    // linesegarray는 이전 레이아웃 계산 정보를 담고 있어,
+                    // 텍스트가 변경되면 한글이 잘못된 정보를 사용하여 줄바꿈이 안 됨
+                    const linesegArrays = p.querySelectorAll('hp\\:linesegarray, linesegarray');
+                    linesegArrays.forEach(lsa => {
+                        lsa.parentNode.removeChild(lsa);
+                        removedLinesegCount++;
+                    });
                 }
                 
-                if (modifiedSubListCount > 0 || modifiedParagraphCount > 0) {
+                if (modifiedSubListCount > 0 || modifiedParagraphCount > 0 || removedLinesegCount > 0) {
                     // 수정된 section XML을 문자열로 변환
                     const serializer = new XMLSerializer();
                     const modifiedSectionXml = serializer.serializeToString(sectionDoc);
                     
                     // ZIP에 업데이트
                     zip.file(path, modifiedSectionXml);
-                    logger.info(`  ✅ ${path} 수정 완료: subList ${modifiedSubListCount}개, 단락 ${modifiedParagraphCount}개 업데이트`);
+                    logger.info(`  ✅ ${path} 수정 완료: subList ${modifiedSubListCount}개, 단락 ${modifiedParagraphCount}개, linesegarray ${removedLinesegCount}개 제거`);
                 } else {
                     logger.info(`  ✅ ${path} 수정 불필요`);
                 }
