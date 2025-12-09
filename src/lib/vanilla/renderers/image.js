@@ -25,13 +25,34 @@ export function renderImage(image) {
 
     const img = document.createElement('img');
     img.className = 'hwp-image';
-    img.src = image.url || image.src;
     img.alt = image.alt || '';
-
-    if (!img.src) {
+    
+    // ✅ 레이지 로딩 적용
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    
+    const imgSrc = image.url || image.src;
+    if (!imgSrc) {
         console.error(`[Image Renderer] No src for image!`);
         return null;
     }
+    
+    // ✅ Placeholder 표시 후 이미지 로드
+    img.style.backgroundColor = '#f0f0f0';
+    img.style.transition = 'opacity 0.3s ease';
+    img.style.opacity = '0';
+    
+    img.onload = () => {
+        img.style.opacity = '1';
+        img.style.backgroundColor = 'transparent';
+    };
+    
+    img.onerror = () => {
+        img.style.backgroundColor = '#ffebee';
+        img.alt = '이미지 로드 실패';
+    };
+    
+    img.src = imgSrc;
 
     // ✅ v2.2.7f: Set wrapper dimensions with content area constraint
     // If image is inside a container, use 100% to fit container

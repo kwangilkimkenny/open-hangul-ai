@@ -9,6 +9,7 @@ import { useState, useCallback } from 'react';
 import { Toaster } from 'react-hot-toast';
 import SimpleHeader from './components/SimpleHeader';
 import HWPXViewerWrapper from './components/HWPXViewerWrapper';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ✅ 전역 스타일 (레이아웃만)
 import './App.css';
@@ -32,48 +33,50 @@ function App() {
   }, []);
 
   return (
-    <div className="app-container">
-      {/* Toast Notifications */}
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-          success: {
-            duration: 2000,
-            iconTheme: {
-              primary: '#4ade80',
-              secondary: '#fff',
+    <ErrorBoundary>
+      <div className="app-container">
+        {/* Toast Notifications */}
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#363636',
+              color: '#fff',
             },
-          },
-          error: {
-            duration: 4000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
+            success: {
+              duration: 2000,
+              iconTheme: {
+                primary: '#4ade80',
+                secondary: '#fff',
+              },
             },
-          },
-        }}
-      />
+            error: {
+              duration: 4000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
 
-      {/* Header */}
-      <SimpleHeader 
-        onFileSelect={handleFileSelect}
-        viewer={viewerInstance}
-      />
+        {/* Header */}
+        <SimpleHeader 
+          onFileSelect={handleFileSelect}
+          viewer={viewerInstance}
+        />
 
-      {/* HWPX Viewer (Vanilla JS Wrapper) */}
-      <HWPXViewerWrapper
-        className="main-viewer"
-        file={selectedFile}
-        onDocumentLoad={handleViewerReady}
-        onError={handleError}
-        enableAI={true}
-      />
-    </div>
+        {/* HWPX Viewer (Vanilla JS Wrapper) */}
+        <HWPXViewerWrapper
+          className="main-viewer"
+          file={selectedFile}
+          onDocumentLoad={handleViewerReady}
+          onError={handleError}
+          enableAI={true}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }
 

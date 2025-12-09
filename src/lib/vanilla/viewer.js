@@ -18,6 +18,11 @@ import { InlineEditor } from './features/inline-editor.js';
 import { HistoryManager } from './features/history-manager.js';
 import { EditModeManager } from './features/edit-mode-manager.js';
 import { HwpxExporter } from './export/hwpx-exporter.js';
+import { AutoSaveManager } from './features/autosave-manager.js';
+import { TableEditor } from './features/table-editor.js';
+import { AdvancedSearch } from './features/advanced-search.js';
+import { BookmarkManager } from './features/bookmark-manager.js';
+import { ThemeManager } from './ui/theme-manager.js';
 
 // Utils
 import { getLogger, resetLogger } from './utils/logger.js';
@@ -116,6 +121,10 @@ export class HWPXViewer {
         this.inlineEditor = null;
         this.historyManager = null;
         this.editModeManager = null;
+        this.tableEditor = null;
+        this.search = null;
+        this.bookmarkManager = null;
+        this.themeManager = null;
         
         logger.info(`🔧 enableAI option: ${this.options.enableAI}`);
         
@@ -158,15 +167,61 @@ export class HWPXViewer {
             this.editModeManager = new EditModeManager(this.inlineEditor);
             logger.info('✅ EditModeManager initialized');
             
+            this.tableEditor = new TableEditor(this);
+            logger.info('✅ TableEditor initialized');
+            
+            this.search = new AdvancedSearch();
+            logger.info('✅ AdvancedSearch initialized');
+            
+            this.bookmarkManager = new BookmarkManager();
+            logger.info('✅ BookmarkManager initialized');
+            
+            this.themeManager = new ThemeManager();
+            logger.info('✅ ThemeManager initialized');
+            
             // ✅ 전역으로 노출 (InlineEditor가 참조할 수 있도록)
             if (typeof window !== 'undefined') {
                 window.editModeManager = this.editModeManager;
                 logger.info('✅ EditModeManager exposed globally');
             }
             
+            // 테이블 우클릭 컨텍스트 메뉴 설정
+            this._setupTableContextMenu();
+            
         } catch (error) {
             logger.error('❌ Failed to initialize editing features:', error);
             logger.error('Error details:', error.message, error.stack);
+        }
+        
+        // 자동저장 관리자 초기화
+        this.autoSaveManager = null;
+        try {
+            this.autoSaveManager = new AutoSaveManager(this, {
+                interval: 30000, // 30초
+                onSave: (info) => {
+                    updateStatus(`자동저장: ${info.fileName}`);
+                    showToast('info', '자동저장', `${info.fileName} 저장됨`);
+                }
+            });
+            this.autoSaveManager.initialize().then(() => {
+                this.autoSaveManager.enableAutoSave();
+                logger.info('✅ AutoSaveManager initialized and enabled');
+                
+                // 충돌 복구 확인
+                this.autoSaveManager.detectCrashRecovery().then(recovery => {
+                    if (recovery) {
+                        const message = recovery.isCrashRecovery 
+                            ? '이전 작업이 비정상 종료되었습니다. 복구하시겠습니까?'
+                            : '저장되지 않은 작업이 있습니다. 복구하시겠습니까?';
+                        
+                        if (confirm(message)) {
+                            this.autoSaveManager.performCrashRecovery();
+                        }
+                    }
+                });
+            });
+        } catch (error) {
+            logger.error('❌ Failed to initialize AutoSaveManager:', error);
         }
 
         // 상태
@@ -746,7 +801,124 @@ export class HWPXViewer {
             this.workerManager.terminate();
         }
         
+        // 자동저장 정리
+        if (this.autoSaveManager) {
+            this.autoSaveManager.dispose();
+        }
+        
         logger.info('🗑️ Viewer destroyed');
+    }
+    
+    /**
+     * 테이블 우클릭 컨텍스트 메뉴 설정
+     * @private
+     */
+    _setupTableContextMenu() {
+        if (!this.contextMenu || !this.tableEditor) {
+            logger.warn('⚠️ Cannot setup table context menu - missing dependencies');
+            return;
+        }
+        
+        // 테이블 셀에 우클릭 이벤트 추가
+        this.container.addEventListener('contextmenu', (e) => {
+            const cell = e.target.closest('.hwp-table td, .hwp-table th');
+            if (!cell) return;
+            
+            // 글로벌 편집 모드가 아니면 기본 메뉴 허용
+            if (window.editModeManager && !window.editModeManager.isGlobalEditMode) {
+                return;
+            }
+            
+            e.preventDefault();
+            
+            const menuItems = [
+                {
+                    icon: '✏️',
+                    label: '셀 편집',
+                    shortcut: 'Click',
+                    action: (target) => {
+                        const cellData = target._cellData;
+                        if (cellData && this.inlineEditor) {
+                            this.inlineEditor.enableEditMode(target, cellData);
+                        }
+                    }
+                },
+                { separator: true },
+                {
+                    icon: '⬆️',
+                    label: '위에 행 추가',
+                    action: (target) => this.tableEditor.addRowAbove(target)
+                },
+                {
+                    icon: '⬇️',
+                    label: '아래에 행 추가',
+                    action: (target) => this.tableEditor.addRowBelow(target)
+                },
+                {
+                    icon: '⬅️',
+                    label: '왼쪽에 열 추가',
+                    action: (target) => this.tableEditor.addColumnLeft(target)
+                },
+                {
+                    icon: '➡️',
+                    label: '오른쪽에 열 추가',
+                    action: (target) => this.tableEditor.addColumnRight(target)
+                },
+                { separator: true },
+                {
+                    icon: '🗑️',
+                    label: '행 삭제',
+                    action: (target) => this.tableEditor.deleteRow(target)
+                },
+                {
+                    icon: '🗑️',
+                    label: '열 삭제',
+                    action: (target) => this.tableEditor.deleteColumn(target)
+                },
+                { separator: true },
+                {
+                    icon: '📋',
+                    label: '복사',
+                    shortcut: 'Ctrl+C',
+                    action: (target) => {
+                        const text = target.textContent || '';
+                        this.contextMenu.copyToClipboard(text);
+                    }
+                },
+                {
+                    icon: '📋',
+                    label: '붙여넣기',
+                    shortcut: 'Ctrl+V',
+                    action: async (target) => {
+                        const text = await this.contextMenu.pasteFromClipboard();
+                        if (text && target) {
+                            target.textContent = text;
+                            if (this.autoSaveManager) {
+                                this.autoSaveManager.markDirty();
+                            }
+                        }
+                    }
+                },
+                { separator: true },
+                {
+                    icon: '🤖',
+                    label: 'AI로 생성',
+                    action: (target) => {
+                        if (this.chatPanel) {
+                            this.chatPanel.open();
+                            const cellText = target.textContent?.trim() || '';
+                            if (cellText) {
+                                this.chatPanel.setInput(`"${cellText}" 셀의 내용을 더 상세하게 작성해줘`);
+                            }
+                        }
+                    }
+                }
+            ];
+            
+            this.contextMenu.show(e, menuItems);
+        });
+        
+        logger.info('✅ Table context menu setup complete');
     }
 }
 

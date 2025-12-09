@@ -686,6 +686,17 @@ export class ChatPanel {
     }
     
     /**
+     * 입력창에 텍스트 설정
+     * @param {string} text - 설정할 텍스트
+     */
+    setInput(text) {
+        if (this.elements.input) {
+            this.elements.input.value = text;
+            this.elements.input.focus();
+        }
+    }
+    
+    /**
      * 상태 메시지 표시
      * @param {string} message - 상태 메시지
      */

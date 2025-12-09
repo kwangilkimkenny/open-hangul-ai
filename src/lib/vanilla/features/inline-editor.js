@@ -238,6 +238,11 @@ export class InlineEditor {
                     newText
                 });
             }
+            
+            // 자동저장 dirty 플래그 설정
+            if (this.viewer.autoSaveManager) {
+                this.viewer.autoSaveManager.markDirty();
+            }
         }
 
         // ✅ 개선: 편집 모드 유지 옵션

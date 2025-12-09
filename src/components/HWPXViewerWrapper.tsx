@@ -39,6 +39,10 @@ export function HWPXViewerWrapper({
   const viewerRef = useRef<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ count: 0, current: 0 });
 
   // ✅ Viewer 초기화 (마운트 시 1번만)
   useEffect(() => {
@@ -131,20 +135,329 @@ export function HWPXViewerWrapper({
     }
   }, [isInitialized, handleFileOpen]);
 
+  // ✅ 키보드 단축키 핸들러
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd 키 조합
+      const isMod = e.ctrlKey || e.metaKey;
+      
+      if (!isMod) return;
+      
+      switch (e.key.toLowerCase()) {
+        case 's':
+          // Ctrl+S: 저장
+          e.preventDefault();
+          if (viewerRef.current?.saveFile) {
+            console.log('⌨️ Ctrl+S: 저장');
+            viewerRef.current.saveFile().then(() => {
+              toast.success('저장 완료');
+            }).catch((err: Error) => {
+              toast.error(`저장 실패: ${err.message}`);
+            });
+          } else {
+            toast.error('저장할 문서가 없습니다');
+          }
+          break;
+          
+        case 'z':
+          // Ctrl+Z: 실행취소, Ctrl+Shift+Z: 다시실행
+          e.preventDefault();
+          if (viewerRef.current?.historyManager) {
+            if (e.shiftKey) {
+              console.log('⌨️ Ctrl+Shift+Z: 다시실행');
+              viewerRef.current.historyManager.redo();
+              toast('다시실행', { icon: '↷' });
+            } else {
+              console.log('⌨️ Ctrl+Z: 실행취소');
+              viewerRef.current.historyManager.undo();
+              toast('실행취소', { icon: '↶' });
+            }
+          }
+          break;
+          
+        case 'y':
+          // Ctrl+Y: 다시실행
+          e.preventDefault();
+          if (viewerRef.current?.historyManager) {
+            console.log('⌨️ Ctrl+Y: 다시실행');
+            viewerRef.current.historyManager.redo();
+            toast('다시실행', { icon: '↷' });
+          }
+          break;
+          
+        case 'p':
+          // Ctrl+P: 인쇄
+          e.preventDefault();
+          if (viewerRef.current?.printDocument) {
+            console.log('⌨️ Ctrl+P: 인쇄');
+            viewerRef.current.printDocument();
+          }
+          break;
+          
+        case 'o':
+          // Ctrl+O: 파일 열기
+          e.preventDefault();
+          console.log('⌨️ Ctrl+O: 파일 열기');
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.hwpx';
+          input.onchange = (ev) => {
+            const file = (ev.target as HTMLInputElement).files?.[0];
+            if (file) handleFileOpen(file);
+          };
+          input.click();
+          break;
+          
+        case 'f':
+          // Ctrl+F: 검색
+          e.preventDefault();
+          console.log('⌨️ Ctrl+F: 검색');
+          setShowSearch(true);
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleFileOpen]);
+
+  // ✅ 드래그 앤 드롭 핸들러
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 실제로 컨테이너를 벗어났는지 확인
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length === 0) return;
+
+    const droppedFile = files[0];
+    
+    // HWPX 파일 확인
+    if (!droppedFile.name.toLowerCase().endsWith('.hwpx')) {
+      toast.error('HWPX 파일만 지원합니다');
+      return;
+    }
+
+    console.log('📂 File dropped:', droppedFile.name);
+    handleFileOpen(droppedFile);
+  }, [handleFileOpen]);
+  
+  // ✅ 검색 핸들러
+  const handleSearch = useCallback((query: string) => {
+    if (!viewerRef.current?.search || !viewerRef.current?.container) return;
+    
+    const results = viewerRef.current.search.search(query, viewerRef.current.container);
+    setSearchResults({ count: results.length, current: 0 });
+    
+    if (results.length > 0) {
+      viewerRef.current.search.next();
+      setSearchResults({ count: results.length, current: 1 });
+    }
+  }, []);
+  
+  const handleSearchNext = useCallback(() => {
+    if (!viewerRef.current?.search) return;
+    viewerRef.current.search.next();
+    setSearchResults(prev => ({ 
+      ...prev, 
+      current: (prev.current % prev.count) + 1 
+    }));
+  }, []);
+  
+  const handleSearchPrev = useCallback(() => {
+    if (!viewerRef.current?.search) return;
+    viewerRef.current.search.previous();
+    setSearchResults(prev => ({ 
+      ...prev, 
+      current: prev.current === 1 ? prev.count : prev.current - 1 
+    }));
+  }, []);
+  
+  const handleCloseSearch = useCallback(() => {
+    if (viewerRef.current?.search) {
+      viewerRef.current.search.clearHighlights();
+    }
+    setShowSearch(false);
+    setSearchQuery('');
+    setSearchResults({ count: 0, current: 0 });
+  }, []);
+
   return (
     <>
-      {/* Viewer Container */}
+      {/* Viewer Container with Drag & Drop */}
       <div
         ref={containerRef}
         id="hwpx-viewer-root"
-        className={`hwpx-viewer-wrapper ${className}`}
+        className={`hwpx-viewer-wrapper ${className} ${isDragging ? 'dragging' : ''}`}
         style={{
           width: '100%',
           height: '100%',
           position: 'relative',
           overflow: 'auto',
         }}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       />
+
+      {/* ✅ 드래그 오버레이 */}
+      {isDragging && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(17, 24, 39, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '48px 64px',
+              textAlign: 'center',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+              border: '3px dashed #6b7280',
+            }}
+          >
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📄</div>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: '#111827' }}>
+              HWPX 파일을 여기에 놓으세요
+            </div>
+            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '8px' }}>
+              .hwpx 파일만 지원됩니다
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ 검색 바 */}
+      {showSearch && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '80px',
+            right: '20px',
+            background: '#ffffff',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
+            zIndex: 9998,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            border: '1px solid #e5e7eb',
+          }}
+        >
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                  handleSearchPrev();
+                } else if (searchQuery !== e.currentTarget.value || searchResults.count === 0) {
+                  handleSearch(e.currentTarget.value);
+                } else {
+                  handleSearchNext();
+                }
+              } else if (e.key === 'Escape') {
+                handleCloseSearch();
+              }
+            }}
+            placeholder="검색어 입력..."
+            autoFocus
+            style={{
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '14px',
+              width: '200px',
+              outline: 'none',
+            }}
+          />
+          
+          {searchResults.count > 0 && (
+            <span style={{ fontSize: '13px', color: '#6b7280', minWidth: '60px' }}>
+              {searchResults.current}/{searchResults.count}
+            </span>
+          )}
+          
+          <button
+            onClick={handleSearchPrev}
+            style={{
+              background: '#f3f4f6',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 10px',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+            title="이전 (Shift+Enter)"
+          >
+            ▲
+          </button>
+          
+          <button
+            onClick={handleSearchNext}
+            style={{
+              background: '#f3f4f6',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 10px',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+            title="다음 (Enter)"
+          >
+            ▼
+          </button>
+          
+          <button
+            onClick={handleCloseSearch}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              color: '#6b7280',
+            }}
+            title="닫기 (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* ✅ Vanilla JS 필수 UI 요소들 */}
       
@@ -156,7 +469,7 @@ export function HWPXViewerWrapper({
         zIndex: 10000 
       }} />
       
-      {/* Loading Overlay */}
+      {/* ✅ 개선된 Loading Overlay */}
       <div 
         id="loading-overlay" 
         style={{ 
@@ -166,28 +479,80 @@ export function HWPXViewerWrapper({
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(255, 255, 255, 0.95)',
+          background: 'rgba(17, 24, 39, 0.6)',
+          backdropFilter: 'blur(4px)',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 9999,
         }}
       >
-        <div style={{ textAlign: 'center' }}>
-          <div
-            className="loading-spinner"
-            style={{
-              width: '48px',
-              height: '48px',
-              border: '4px solid #e0e0e0',
-              borderTop: '4px solid #667eea',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 16px',
-            }}
-          />
-          <p className="loading-message" style={{ color: '#666', fontSize: '14px' }}>
-            문서 로드 중...
+        <div style={{ 
+          textAlign: 'center',
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '40px 56px',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+        }}>
+          {/* 애니메이션 아이콘 */}
+          <div style={{ marginBottom: '24px', position: 'relative' }}>
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                border: '3px solid #e5e7eb',
+                borderTop: '3px solid #111827',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+                margin: '0 auto',
+              }}
+            />
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              fontSize: '24px',
+            }}>
+              📄
+            </div>
+          </div>
+          
+          {/* 로딩 텍스트 */}
+          <p style={{ 
+            color: '#111827', 
+            fontSize: '16px',
+            fontWeight: 600,
+            marginBottom: '8px',
+          }}>
+            문서 로드 중
           </p>
+          <p className="loading-message" style={{ 
+            color: '#6b7280', 
+            fontSize: '13px',
+            marginBottom: '20px',
+          }}>
+            잠시만 기다려주세요...
+          </p>
+          
+          {/* 프로그레스 바 */}
+          <div style={{
+            width: '200px',
+            height: '4px',
+            background: '#e5e7eb',
+            borderRadius: '2px',
+            overflow: 'hidden',
+          }}>
+            <div 
+              id="loading-progress-bar"
+              style={{
+                width: '30%',
+                height: '100%',
+                background: '#111827',
+                borderRadius: '2px',
+                animation: 'loading-progress 1.5s ease-in-out infinite',
+              }}
+            />
+          </div>
         </div>
       </div>
       
@@ -299,12 +664,54 @@ export function HWPXViewerWrapper({
           100% { transform: rotate(360deg); }
         }
         
+        @keyframes loading-progress {
+          0% { 
+            width: 0%; 
+            margin-left: 0;
+          }
+          50% { 
+            width: 60%; 
+            margin-left: 20%;
+          }
+          100% { 
+            width: 0%; 
+            margin-left: 100%;
+          }
+        }
+        
         .hwpx-viewer-wrapper {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
             'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
             sans-serif;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
+          transition: all 0.2s ease;
+        }
+        
+        .hwpx-viewer-wrapper.dragging {
+          opacity: 0.7;
+        }
+        
+        /* 단축키 힌트 */
+        .shortcut-hint {
+          position: fixed;
+          bottom: 40px;
+          right: 20px;
+          background: rgba(17, 24, 39, 0.9);
+          color: white;
+          padding: 12px 16px;
+          border-radius: 8px;
+          font-size: 12px;
+          z-index: 1000;
+          opacity: 0;
+          transform: translateY(10px);
+          transition: all 0.2s ease;
+          pointer-events: none;
+        }
+        
+        .shortcut-hint.visible {
+          opacity: 1;
+          transform: translateY(0);
         }
       `}</style>
     </>
