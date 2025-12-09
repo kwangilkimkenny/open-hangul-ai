@@ -16,6 +16,7 @@ import { HwpxSafeExporter } from '../export/hwpx-safe-exporter.js';
 import { MultiPageAnalyzer } from './multi-page-analyzer.js';
 import { SequentialPageGenerator } from './sequential-page-generator.js';
 import { PromptBuilder } from './prompt-builder.js';
+import { ExternalDataFetcher } from '../api/external-data-fetcher.js';
 
 const logger = getLogger();
 
@@ -53,6 +54,7 @@ export class AIDocumentController {
         this.generator = null; // API 키 필요
         this.merger = new ContentMerger();
         this.exporter = new HwpxSafeExporter(); // 안전한 HWPX 내보내기
+        this.dataFetcher = new ExternalDataFetcher(); // 외부 API 데이터 가져오기
         
         // 상태 관리
         this.state = {
@@ -845,6 +847,529 @@ export class AIDocumentController {
      */
     getCurrentDocument() {
         return this.state.updatedDocument || this.viewer.getDocument();
+    }
+    
+    /**
+     * 🆕 셀 선택 데이터를 포함한 사용자 요청 처리
+     * @param {string} userMessage - 사용자 요청 메시지
+     * @param {Object} cellSelectionData - 셀 선택 데이터
+     * @returns {Promise<Object>} 처리 결과
+     */
+    async handleUserRequestWithCellSelection(userMessage, cellSelectionData) {
+        logger.info('🎯 Processing request with cell selection data...');
+        logger.time('Cell Selection AI Processing');
+        
+        // 동시 요청 방지
+        if (this.state.isProcessing) {
+            throw new HWPXError(
+                ErrorType.VALIDATION_ERROR,
+                '이미 요청을 처리 중입니다. 완료 후 다시 시도하세요.'
+            );
+        }
+        
+        // API 키 확인
+        if (!this.hasApiKey()) {
+            throw new HWPXError(
+                ErrorType.VALIDATION_ERROR,
+                'API 키가 설정되지 않았습니다.'
+            );
+        }
+        
+        this.state.isProcessing = true;
+        this.state.currentRequest = userMessage;
+        this.state.error = null;
+        
+        try {
+            const currentDocument = this.viewer.getDocument();
+            if (!currentDocument) {
+                throw new HWPXError(
+                    ErrorType.VALIDATION_ERROR,
+                    '문서가 로드되지 않았습니다'
+                );
+            }
+            
+            this.state.originalDocument = currentDocument;
+            
+            // 셀 선택 데이터를 기반으로 헤더-내용 쌍 필터링
+            const { keepCells, editCells, generateCells, autoCells } = cellSelectionData;
+            
+            logger.info(`📊 Cell Selection: Keep=${keepCells.length}, Edit=${editCells.length}, Generate=${generateCells.length}, Auto=${autoCells.length}`);
+            
+            // 생성/수정할 셀만 추출
+            const pairsToProcess = [];
+            
+            // Edit 모드 셀: 기존 내용 포함
+            editCells.forEach(cell => {
+                pairsToProcess.push({
+                    header: cell.header || cell.id,
+                    content: cell.content,
+                    path: cell.path,
+                    mode: 'edit'
+                });
+            });
+            
+            // Generate 모드 셀: 빈 내용
+            generateCells.forEach(cell => {
+                pairsToProcess.push({
+                    header: cell.header || cell.id,
+                    content: '', // 새로 생성
+                    path: cell.path,
+                    mode: 'generate'
+                });
+            });
+            
+            // Auto 모드 셀: 기존 로직 따름 (첫 행/열은 유지, 나머지는 생성)
+            autoCells.forEach(cell => {
+                // 내용이 비어있거나 짧으면 생성, 아니면 수정
+                const hasContent = cell.content && cell.content.trim().length > 5;
+                pairsToProcess.push({
+                    header: cell.header || cell.id,
+                    content: cell.content,
+                    path: cell.path,
+                    mode: hasContent ? 'edit' : 'generate'
+                });
+            });
+            
+            if (pairsToProcess.length === 0) {
+                throw new HWPXError(
+                    ErrorType.VALIDATION_ERROR,
+                    '생성하거나 수정할 셀이 없습니다. 셀 선택을 확인해주세요.'
+                );
+            }
+            
+            logger.info(`📝 Processing ${pairsToProcess.length} cells with cell selection...`);
+            
+            // 프롬프트에 셀 선택 정보 포함
+            const enhancedMessage = this._buildCellSelectionPrompt(userMessage, pairsToProcess, keepCells);
+            
+            // GPT 콘텐츠 생성
+            logger.info('  🤖 Generating content with GPT (cell selection mode)...');
+            const generatedJSON = await this.generateStructuredContent(pairsToProcess, enhancedMessage);
+            
+            logger.info(`    ✓ Generated content for ${Object.keys(generatedJSON).length} items`);
+            
+            // 콘텐츠 병합 (Keep 셀 제외)
+            logger.info('  🔀 Merging generated content (excluding Keep cells)...');
+            const updatedDocument = this._mergeWithCellSelection(
+                currentDocument,
+                generatedJSON,
+                pairsToProcess,
+                keepCells
+            );
+            
+            this.state.updatedDocument = updatedDocument;
+            
+            // 재렌더링
+            if (this.options.autoRender) {
+                logger.info('  🎨 Re-rendering document...');
+                await this.viewer.updateDocument(updatedDocument);
+            }
+            
+            const result = {
+                success: true,
+                updatedDocument: updatedDocument,
+                metadata: {
+                    request: userMessage,
+                    itemsUpdated: Object.keys(generatedJSON).length,
+                    keepCount: keepCells.length,
+                    editCount: editCells.length,
+                    generateCount: generateCells.length,
+                    tokensUsed: 0
+                }
+            };
+            
+            logger.timeEnd('Cell Selection AI Processing');
+            logger.info('✅ Cell selection request processed successfully');
+            
+            return result;
+            
+        } catch (error) {
+            this.state.error = error;
+            logger.error('❌ Cell selection request failed:', error);
+            logger.timeEnd('Cell Selection AI Processing');
+            throw error;
+            
+        } finally {
+            this.state.isProcessing = false;
+            this.state.currentRequest = null;
+        }
+    }
+    
+    /**
+     * 셀 선택 프롬프트 빌드
+     * @private
+     */
+    _buildCellSelectionPrompt(userMessage, pairsToProcess, keepCells) {
+        let prompt = userMessage + '\n\n';
+        
+        prompt += '📋 셀 선택 정보:\n';
+        
+        // 유지할 셀 목록 (참고용)
+        if (keepCells.length > 0) {
+            prompt += '\n🔒 유지할 셀 (변경하지 마세요):\n';
+            keepCells.slice(0, 10).forEach(cell => {
+                prompt += `  - ${cell.header || cell.id}: "${(cell.content || '').substring(0, 30)}..."\n`;
+            });
+            if (keepCells.length > 10) {
+                prompt += `  ... 외 ${keepCells.length - 10}개\n`;
+            }
+        }
+        
+        // 생성/수정할 셀
+        const editCells = pairsToProcess.filter(p => p.mode === 'edit');
+        const genCells = pairsToProcess.filter(p => p.mode === 'generate');
+        
+        if (editCells.length > 0) {
+            prompt += '\n✏️ 수정할 셀 (기존 내용을 참고하여 수정):\n';
+            editCells.forEach(cell => {
+                prompt += `  - ${cell.header}: "${(cell.content || '').substring(0, 50)}..."\n`;
+            });
+        }
+        
+        if (genCells.length > 0) {
+            prompt += '\n✨ 새로 생성할 셀 (적절한 내용 생성):\n';
+            genCells.forEach(cell => {
+                prompt += `  - ${cell.header}\n`;
+            });
+        }
+        
+        return prompt;
+    }
+    
+    /**
+     * 셀 선택 기반 병합
+     * @private
+     */
+    _mergeWithCellSelection(document, generatedJSON, pairsToProcess, keepCells) {
+        // 문서 딥 복사
+        const updatedDocument = JSON.parse(JSON.stringify(document));
+        
+        // Keep 셀의 ID 목록
+        const keepCellIds = new Set(keepCells.map(c => c.id));
+        
+        let updatedCount = 0;
+        
+        // 생성된 JSON으로 업데이트
+        pairsToProcess.forEach(pair => {
+            const newContent = generatedJSON[pair.header];
+            
+            if (!newContent) {
+                logger.warn(`  ⚠️ No content generated for "${pair.header}"`);
+                return;
+            }
+            
+            if (!pair.path) {
+                logger.warn(`  ⚠️ No path for "${pair.header}"`);
+                return;
+            }
+            
+            try {
+                const section = updatedDocument.sections[pair.path.section];
+                if (!section) return;
+                
+                const table = section.elements[pair.path.table];
+                if (!table) return;
+                
+                const row = table.rows[pair.path.row];
+                if (!row) return;
+                
+                const cell = row.cells[pair.path.contentCell !== undefined ? pair.path.contentCell : pair.path.cell];
+                if (!cell) return;
+                
+                // 셀 내용 업데이트
+                if (!cell.elements || cell.elements.length === 0) {
+                    cell.elements = [{
+                        type: 'paragraph',
+                        runs: [{ text: newContent, style: {} }]
+                    }];
+                } else {
+                    const paragraph = cell.elements[0];
+                    if (!paragraph.runs || paragraph.runs.length === 0) {
+                        paragraph.runs = [{ text: newContent, style: {} }];
+                    } else {
+                        paragraph.runs[0].text = newContent;
+                    }
+                }
+                
+                updatedCount++;
+                logger.info(`  ✓ Updated "${pair.header}": "${newContent.substring(0, 30)}..."`);
+                
+            } catch (error) {
+                logger.error(`  ❌ Error updating "${pair.header}":`, error);
+            }
+        });
+        
+        logger.info(`✅ Updated ${updatedCount} / ${pairsToProcess.length} cells`);
+        
+        return updatedDocument;
+    }
+    
+    // ===================================
+    // 외부 API 연동 메서드
+    // ===================================
+    
+    /**
+     * 외부 API에서 데이터를 가져와 문서에 채우기
+     * @param {string} apiUrl - 외부 API URL
+     * @param {Object} options - 옵션
+     * @param {Object} [options.mapping] - 필드 매핑 설정 { templateKey: jsonPath }
+     * @param {Object} [options.headers] - API 요청 헤더
+     * @param {string} [options.method] - HTTP 메서드 (기본: GET)
+     * @param {Object} [options.body] - POST 요청 시 body
+     * @param {boolean} [options.autoMap] - 자동 매핑 사용 여부
+     * @returns {Promise<Object>} 결과
+     */
+    async fillFromExternalAPI(apiUrl, options = {}) {
+        logger.info('External API data fill started...');
+        logger.time('External API Fill');
+        
+        // 동시 요청 방지
+        if (this.state.isProcessing) {
+            throw new HWPXError(
+                ErrorType.VALIDATION_ERROR,
+                '이미 요청을 처리 중입니다.'
+            );
+        }
+        
+        this.state.isProcessing = true;
+        this.state.error = null;
+        
+        try {
+            const currentDocument = this.viewer.getDocument();
+            if (!currentDocument) {
+                throw new HWPXError(
+                    ErrorType.VALIDATION_ERROR,
+                    '문서가 로드되지 않았습니다'
+                );
+            }
+            
+            this.state.originalDocument = currentDocument;
+            
+            // 1. 외부 API에서 데이터 가져오기
+            logger.info('  Fetching data from external API...');
+            const jsonData = await this.dataFetcher.fetchData(apiUrl, {
+                headers: options.headers,
+                method: options.method,
+                body: options.body
+            });
+            
+            logger.info(`  Received data: ${JSON.stringify(jsonData).substring(0, 200)}...`);
+            
+            // 2. 데이터 변환
+            let templateData;
+            
+            if (options.mapping) {
+                // 명시적 매핑 사용
+                logger.info('  Using explicit mapping...');
+                templateData = this.dataFetcher.transformToTemplateFormat(jsonData, options.mapping);
+            } else if (options.autoMap) {
+                // 자동 매핑 사용
+                logger.info('  Using auto-mapping...');
+                const { flattenedData } = this.dataFetcher.autoMapToDocument(currentDocument, jsonData);
+                templateData = flattenedData;
+            } else {
+                // 매핑 없이 직접 사용 (1단계 객체)
+                logger.info('  Using direct data (no mapping)...');
+                templateData = this.dataFetcher.autoExtractKeys(jsonData);
+            }
+            
+            logger.info(`  Template data: ${JSON.stringify(templateData).substring(0, 200)}...`);
+            
+            // 3. 문서에 데이터 병합
+            logger.info('  Merging data into document...');
+            const updatedDocument = this._mergeExternalDataToDocument(currentDocument, templateData);
+            
+            this.state.updatedDocument = updatedDocument;
+            
+            // 4. 렌더링
+            if (this.options.autoRender) {
+                logger.info('  Re-rendering document...');
+                await this.viewer.updateDocument(updatedDocument);
+            }
+            
+            const result = {
+                success: true,
+                updatedDocument: updatedDocument,
+                metadata: {
+                    apiUrl: apiUrl,
+                    itemsUpdated: Object.keys(templateData).length,
+                    data: templateData
+                }
+            };
+            
+            logger.timeEnd('External API Fill');
+            logger.info('External API data fill completed');
+            
+            return result;
+            
+        } catch (error) {
+            this.state.error = error;
+            logger.error('External API fill failed:', error);
+            logger.timeEnd('External API Fill');
+            throw error;
+            
+        } finally {
+            this.state.isProcessing = false;
+        }
+    }
+    
+    /**
+     * 외부 데이터를 문서에 병합 (헤더 매칭 기반)
+     * @private
+     */
+    _mergeExternalDataToDocument(document, templateData) {
+        const updatedDocument = JSON.parse(JSON.stringify(document));
+        
+        let updatedCount = 0;
+        
+        // 모든 섹션의 테이블 순회
+        for (const section of updatedDocument.sections || []) {
+            for (const element of section.elements || []) {
+                if (element.type === 'table') {
+                    updatedCount += this._fillTableWithData(element, templateData);
+                }
+            }
+        }
+        
+        logger.info(`  Merged ${updatedCount} fields from external API`);
+        
+        return updatedDocument;
+    }
+    
+    /**
+     * 테이블에 데이터 채우기
+     * @private
+     */
+    _fillTableWithData(table, templateData) {
+        let updatedCount = 0;
+        
+        for (const row of table.rows || []) {
+            // 헤더-내용 쌍 찾기
+            for (let i = 0; i < row.cells.length - 1; i++) {
+                const headerCell = row.cells[i];
+                const contentCell = row.cells[i + 1];
+                
+                // 헤더 셀 텍스트 추출
+                const headerText = this._getCellText(headerCell);
+                
+                if (!headerText) continue;
+                
+                // 템플릿 데이터에서 매칭되는 값 찾기
+                const matchedValue = this._findMatchingValue(headerText, templateData);
+                
+                if (matchedValue !== null) {
+                    // 내용 셀 업데이트
+                    this._updateCellContent(contentCell, matchedValue);
+                    updatedCount++;
+                    logger.info(`    Updated: "${headerText}" = "${matchedValue.substring(0, 30)}..."`);
+                }
+            }
+        }
+        
+        return updatedCount;
+    }
+    
+    /**
+     * 셀 텍스트 추출
+     * @private
+     */
+    _getCellText(cell) {
+        if (!cell || !cell.elements || cell.elements.length === 0) return '';
+        
+        const paragraph = cell.elements[0];
+        if (!paragraph.runs || paragraph.runs.length === 0) return '';
+        
+        return paragraph.runs.map(r => r.text || '').join('').trim();
+    }
+    
+    /**
+     * 템플릿 데이터에서 매칭 값 찾기
+     * @private
+     */
+    _findMatchingValue(headerText, templateData) {
+        const normalizedHeader = headerText.toLowerCase().replace(/\s+/g, '');
+        
+        // 완전 일치
+        if (templateData[headerText] !== undefined) {
+            return String(templateData[headerText]);
+        }
+        
+        // 키 정규화 후 매칭
+        for (const [key, value] of Object.entries(templateData)) {
+            const normalizedKey = key.toLowerCase().replace(/[_\-\s]+/g, '');
+            
+            if (normalizedKey === normalizedHeader) {
+                return String(value);
+            }
+            
+            // 부분 매칭
+            if (normalizedHeader.includes(normalizedKey) || normalizedKey.includes(normalizedHeader)) {
+                return String(value);
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 셀 내용 업데이트
+     * @private
+     */
+    _updateCellContent(cell, newContent) {
+        if (!cell.elements || cell.elements.length === 0) {
+            cell.elements = [{
+                type: 'paragraph',
+                runs: [{ text: newContent, style: {} }]
+            }];
+        } else {
+            const paragraph = cell.elements[0];
+            if (!paragraph.runs || paragraph.runs.length === 0) {
+                paragraph.runs = [{ text: newContent, style: {} }];
+            } else {
+                paragraph.runs[0].text = newContent;
+            }
+        }
+    }
+    
+    /**
+     * 샘플 데이터로 미리보기
+     * @returns {Promise<Object>} 결과
+     */
+    async previewWithSampleData() {
+        logger.info('Preview with sample data...');
+        
+        const sampleData = ExternalDataFetcher.getSampleData();
+        const currentDocument = this.viewer.getDocument();
+        
+        if (!currentDocument) {
+            throw new HWPXError(
+                ErrorType.VALIDATION_ERROR,
+                '문서가 로드되지 않았습니다'
+            );
+        }
+        
+        const templateData = this.dataFetcher.autoExtractKeys(sampleData);
+        const updatedDocument = this._mergeExternalDataToDocument(currentDocument, templateData);
+        
+        this.state.updatedDocument = updatedDocument;
+        
+        if (this.options.autoRender) {
+            await this.viewer.updateDocument(updatedDocument);
+        }
+        
+        return {
+            success: true,
+            sampleData: sampleData,
+            templateData: templateData
+        };
+    }
+    
+    /**
+     * ExternalDataFetcher 인스턴스 반환
+     * @returns {ExternalDataFetcher} 데이터 fetcher
+     */
+    getDataFetcher() {
+        return this.dataFetcher;
     }
 }
 

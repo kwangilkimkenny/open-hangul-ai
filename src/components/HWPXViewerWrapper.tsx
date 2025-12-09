@@ -17,6 +17,8 @@ import '../styles/vanilla/ai-chat.css';
 import '../styles/vanilla/ai-editor.css';
 import '../styles/vanilla/ai-text-editor.css';
 import '../styles/vanilla/edit-mode.css';
+import '../styles/vanilla/cell-selector.css';
+import '../styles/vanilla/external-api.css';
 
 interface HWPXViewerWrapperProps {
   className?: string;
@@ -236,6 +238,12 @@ export function HWPXViewerWrapper({
               </button>
               <button className="ai-save-btn" id="extract-template-btn" title="헤더만 남기고 내용 제거">
                 템플릿 추출
+              </button>
+              <button className="preview-structure-btn" id="cell-select-mode-btn" title="셀 단위로 유지/수정/생성 모드 설정">
+                셀 선택
+              </button>
+              <button className="ai-save-btn" id="external-api-btn" title="외부 API에서 JSON 데이터를 가져와 문서에 채우기">
+                외부 API
               </button>
               <button className="ai-save-btn" id="ai-regenerate-btn" title="다른 주제/난이도로 재생성">
                 다시 생성

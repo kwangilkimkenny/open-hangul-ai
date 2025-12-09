@@ -1,0 +1,306 @@
+/**
+ * External API Modal Styles
+ * 외부 API 연동 모달 스타일
+ * 
+ * @version 1.0.0
+ */
+
+/* ============================================================
+   Modal Overlay
+   ============================================================ */
+
+.external-api-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ============================================================
+   Modal Container
+   ============================================================ */
+
+.external-api-modal {
+    background: #ffffff;
+    border-radius: 8px;
+    width: 480px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================
+   Modal Header
+   ============================================================ */
+
+.external-api-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.external-api-modal-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+    letter-spacing: -0.02em;
+}
+
+.external-api-modal-close {
+    background: transparent;
+    border: 1px solid #d1d5db;
+    color: #6b7280;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.external-api-modal-close:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+/* ============================================================
+   Modal Body
+   ============================================================ */
+
+.external-api-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.external-api-section {
+    margin-bottom: 16px;
+}
+
+.external-api-section:last-child {
+    margin-bottom: 0;
+}
+
+.external-api-section label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.external-api-section input,
+.external-api-section select,
+.external-api-section textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #111827;
+    background: #ffffff;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.external-api-section input:focus,
+.external-api-section select:focus,
+.external-api-section textarea:focus {
+    outline: none;
+    border-color: #6b7280;
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.1);
+}
+
+.external-api-section textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px;
+}
+
+.external-api-section input::placeholder,
+.external-api-section textarea::placeholder {
+    color: #9ca3af;
+}
+
+/* ============================================================
+   Modal Footer
+   ============================================================ */
+
+.external-api-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.external-api-btn-secondary,
+.external-api-btn-primary {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.external-api-btn-secondary {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    color: #374151;
+}
+
+.external-api-btn-secondary:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+}
+
+.external-api-btn-primary {
+    background: #111827;
+    border: 1px solid #111827;
+    color: #ffffff;
+}
+
+.external-api-btn-primary:hover {
+    background: #1f2937;
+}
+
+/* ============================================================
+   Responsive Design
+   ============================================================ */
+
+@media (max-width: 520px) {
+    .external-api-modal {
+        width: calc(100% - 24px);
+        margin: 12px;
+    }
+    
+    .external-api-modal-header,
+    .external-api-modal-body,
+    .external-api-modal-footer {
+        padding: 14px 16px;
+    }
+    
+    .external-api-modal-footer {
+        flex-direction: column;
+    }
+    
+    .external-api-btn-secondary,
+    .external-api-btn-primary {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* ============================================================
+   Dark Theme Support
+   ============================================================ */
+
+@media (prefers-color-scheme: dark) {
+    .external-api-modal-overlay {
+        background: rgba(0, 0, 0, 0.7);
+    }
+    
+    .external-api-modal {
+        background: #1f2937;
+    }
+    
+    .external-api-modal-header {
+        background: #111827;
+        border-color: #374151;
+    }
+    
+    .external-api-modal-header h3 {
+        color: #f9fafb;
+    }
+    
+    .external-api-modal-close {
+        border-color: #4b5563;
+        color: #9ca3af;
+    }
+    
+    .external-api-modal-close:hover {
+        background: #374151;
+    }
+    
+    .external-api-section label {
+        color: #e5e7eb;
+    }
+    
+    .external-api-section input,
+    .external-api-section select,
+    .external-api-section textarea {
+        background: #374151;
+        border-color: #4b5563;
+        color: #f9fafb;
+    }
+    
+    .external-api-section input:focus,
+    .external-api-section select:focus,
+    .external-api-section textarea:focus {
+        border-color: #6b7280;
+    }
+    
+    .external-api-modal-footer {
+        background: #111827;
+        border-color: #374151;
+    }
+    
+    .external-api-btn-secondary {
+        background: #374151;
+        border-color: #4b5563;
+        color: #e5e7eb;
+    }
+    
+    .external-api-btn-secondary:hover {
+        background: #4b5563;
+    }
+    
+    .external-api-btn-primary {
+        background: #f9fafb;
+        border-color: #f9fafb;
+        color: #111827;
+    }
+    
+    .external-api-btn-primary:hover {
+        background: #e5e7eb;
+    }
+}
+
