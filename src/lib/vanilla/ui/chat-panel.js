@@ -575,7 +575,7 @@ export class ChatPanel {
             logger.debug(`💬 Chat panel ${isOpen ? 'opened' : 'closed'}`);
 
             // 뷰어 컨테이너 조정
-            const viewerContainer = document.querySelector('.viewer-container');
+            const viewerContainer = document.querySelector('.viewer-container') || document.querySelector('.hanview-body-container');
             if (viewerContainer) {
                 if (isOpen) {
                     viewerContainer.classList.add('ai-panel-open');
@@ -1154,20 +1154,63 @@ export class ChatPanel {
                     if (element.type === 'table') {
                         element.rows?.forEach((row, rowIdx) => {
                             row.cells?.forEach((cell, cellIdx) => {
-                                // 첫 번째 행 또는 첫 번째 열은 헤더로 유지
-                                const isHeader = rowIdx === 0 || cellIdx === 0;
+                                // 헤더 판별 개선: 첫 번째 행은 무조건 헤더
+                                if (rowIdx === 0) {
+                                    return; // 첫 행은 건너뜀
+                                }
                                 
-                                if (!isHeader && cell.elements) {
-                                    cell.elements.forEach(para => {
-                                        if (para.runs) {
-                                            para.runs.forEach(run => {
-                                                if (run.text && run.text.trim()) {
-                                                    run.text = '';  // 내용 제거
-                                                    clearedCount++;
-                                                }
+                                // 셀의 전체 텍스트 추출 (재귀적)
+                                const getCellText = (elements) => {
+                                    let text = '';
+                                    elements?.forEach(el => {
+                                        if (el.type === 'paragraph' && el.runs) {
+                                            el.runs.forEach(run => {
+                                                text += run.text || '';
                                             });
+                                        } else if (el.type === 'container' && el.elements) {
+                                            text += getCellText(el.elements);
                                         }
                                     });
+                                    return text;
+                                };
+                                
+                                const cellText = getCellText(cell.elements);
+                                const cellTextLength = cellText.trim().length;
+                                
+                                // 디버깅: 첫 번째 열의 셀 정보 출력
+                                if (cellIdx === 0) {
+                                    const preview = cellText.trim().substring(0, 50);
+                                    logger.debug(`[템플릿추출] Row ${rowIdx}, Col ${cellIdx}: "${preview}..." (${cellTextLength}자)`);
+                                }
+                                
+                                // 첫 번째 열이면서 30자 이하면 헤더로 유지
+                                const isHeaderLabel = cellIdx === 0 && cellTextLength <= 30;
+                                
+                                if (!isHeaderLabel && cell.elements) {
+                                    // 재귀적으로 모든 텍스트 제거
+                                    const clearText = (elements) => {
+                                        elements?.forEach(el => {
+                                            if (el.type === 'paragraph' && el.runs) {
+                                                el.runs.forEach(run => {
+                                                    if (run.text && run.text.trim()) {
+                                                        run.text = '';  // 내용 제거
+                                                        clearedCount++;
+                                                    }
+                                                });
+                                            } else if (el.type === 'container' && el.elements) {
+                                                clearText(el.elements);
+                                            }
+                                        });
+                                    };
+                                    
+                                    clearText(cell.elements);
+                                    
+                                    // 디버깅: 제거 확인
+                                    if (cellIdx === 0) {
+                                        logger.debug(`  → 제거됨 (${cellTextLength}자 > 30자)`);
+                                    }
+                                } else if (cellIdx === 0) {
+                                    logger.debug(`  → 유지됨 (${cellTextLength}자 ≤ 30자, 헤더)`);
                                 }
                             });
                         });

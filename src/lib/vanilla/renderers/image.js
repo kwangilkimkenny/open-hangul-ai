@@ -26,32 +26,32 @@ export function renderImage(image) {
     const img = document.createElement('img');
     img.className = 'hwp-image';
     img.alt = image.alt || '';
-    
+
     // ✅ 레이지 로딩 적용
     img.loading = 'lazy';
     img.decoding = 'async';
-    
+
     const imgSrc = image.url || image.src;
     if (!imgSrc) {
         console.error(`[Image Renderer] No src for image!`);
         return null;
     }
-    
+
     // ✅ Placeholder 표시 후 이미지 로드
     img.style.backgroundColor = '#f0f0f0';
     img.style.transition = 'opacity 0.3s ease';
     img.style.opacity = '0';
-    
+
     img.onload = () => {
         img.style.opacity = '1';
         img.style.backgroundColor = 'transparent';
     };
-    
+
     img.onerror = () => {
         img.style.backgroundColor = '#ffebee';
         img.alt = '이미지 로드 실패';
     };
-    
+
     img.src = imgSrc;
 
     // ✅ v2.2.7f: Set wrapper dimensions with content area constraint
@@ -62,10 +62,10 @@ export function renderImage(image) {
         const width = typeof image.width === 'number'
             ? `${image.width}px`
             : image.width;
-        
+
         // ✅ v2.2.7f: 컨텐츠 영역 제한 (A4 페이지 794px - padding 114px = 680px)
         const MAX_CONTENT_WIDTH = 680; // A4 페이지 실제 컨텐츠 영역
-        
+
         // Check if this is likely inside a container (has position data)
         if (image.position && (image.position.x !== undefined || image.position.y !== undefined)) {
             // Inside container - fill container
@@ -98,14 +98,29 @@ export function renderImage(image) {
             wrapper.style.display = 'inline-block';
             wrapper.style.verticalAlign = 'middle';
         } else {
+            // ✅ v2.2.9: IN_FRONT_OF_TEXT 등 절대 위치가 필요한 이미지
             wrapper.style.position = 'absolute';
+
+            // ✅ horzOffset/vertOffset에서 파싱된 위치 적용
             if (image.position.x !== undefined && image.position.x !== null) {
                 wrapper.style.left = `${image.position.x}px`;
+                console.log(`[Image Renderer] Applied left: ${image.position.x}px`);
+            } else {
+                wrapper.style.left = '0';
             }
             if (image.position.y !== undefined && image.position.y !== null) {
-                // ✅ Clamp negative y to 0 for images inside containers
-                const yPos = image.position.y < 0 ? 0 : image.position.y;
-                wrapper.style.top = `${yPos}px`;
+                wrapper.style.top = `${image.position.y}px`;
+                console.log(`[Image Renderer] Applied top: ${image.position.y}px`);
+            } else {
+                wrapper.style.top = '0';
+            }
+
+            // ✅ 절대 위치 이미지는 정확한 크기 필요
+            if (image.width) {
+                wrapper.style.width = typeof image.width === 'number' ? `${image.width}px` : image.width;
+            }
+            if (image.height) {
+                wrapper.style.height = typeof image.height === 'number' ? `${image.height}px` : image.height;
             }
         }
     } else {
@@ -114,6 +129,7 @@ export function renderImage(image) {
         wrapper.style.left = '0';
         wrapper.style.top = '0';
     }
+
 
     // ✅ v2.2.7e: Image should fill its wrapper with proper constraints
     img.style.display = 'block';
@@ -130,13 +146,13 @@ export function renderImage(image) {
     if (image.children && image.children.length > 0) {
         image.children.forEach((child, idx) => {
             let renderedChild;
-            
+
             if (child.type === 'container') {
                 renderedChild = renderContainer(child);
             } else if (child.type === 'shape') {
                 renderedChild = renderShape(child);
             }
-            
+
             if (renderedChild) {
                 // ✅ Ensure children are positioned absolutely on top of the image
                 renderedChild.style.position = renderedChild.style.position || 'absolute';

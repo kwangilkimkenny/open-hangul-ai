@@ -8,6 +8,8 @@
  * @author HWPX Viewer Team
  */
 
+// ✅ JSZip을 직접 import (패키지에 번들됨)
+import JSZip from 'jszip';
 import { getLogger } from '../utils/logger.js';
 import { HWPXError, ErrorType } from '../utils/error.js';
 import { HeaderBasedReplacer } from './header-based-replacer.js';
@@ -20,14 +22,6 @@ const logger = getLogger('HwpxSafeExporter');
  */
 export class HwpxSafeExporter {
     constructor() {
-        // JSZip이 로드되었는지 확인
-        if (typeof window.JSZip === 'undefined') {
-            throw new HWPXError(
-                ErrorType.EXPORT_ERROR,
-                'JSZip 라이브러리가 로드되지 않았습니다'
-            );
-        }
-        
         // 헤더 기반 교체 시스템 초기화
         this.headerReplacer = new HeaderBasedReplacer();
         logger.info('✅ HwpxSafeExporter initialized with HeaderBasedReplacer');
@@ -46,7 +40,7 @@ export class HwpxSafeExporter {
             logger.time('Safe HWPX Export');
 
             // 1. 원본 HWPX ZIP 로드
-            const originalZip = await window.JSZip.loadAsync(originalHwpxFile);
+            const originalZip = await JSZip.loadAsync(originalHwpxFile);
             logger.info('  ✅ 원본 HWPX ZIP 로드 완료');
             
             // ✅ 이미지 파일 확인 (디버깅용)

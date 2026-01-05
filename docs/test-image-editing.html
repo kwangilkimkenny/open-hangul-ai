@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Editing Test - HWPX Viewer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .toolbar {
+            background: #f5f5f5;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar-section {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toolbar-section::after {
+            content: '';
+            width: 1px;
+            height: 24px;
+            background: #ddd;
+            margin: 0 8px;
+        }
+
+        .toolbar-section:last-child::after {
+            display: none;
+        }
+
+        .toolbar-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #1976D2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.danger {
+            background: #f44336;
+        }
+
+        button.danger:hover {
+            background: #d32f2f;
+        }
+
+        button.success {
+            background: #4CAF50;
+        }
+
+        button.success:hover {
+            background: #388E3C;
+        }
+
+        input[type="number"], input[type="text"], input[type="file"], input[type="range"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input[type="number"], input[type="text"] {
+            width: 80px;
+        }
+
+        input[type="range"] {
+            width: 120px;
+        }
+
+        #viewer-container {
+            border: 1px solid #ddd;
+            min-height: 600px;
+            border-radius: 4px;
+            background: white;
+            position: relative;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status-item {
+            margin: 4px 0;
+        }
+
+        .success-text {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .error-text {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .warning-text {
+            color: #ff9800;
+            font-weight: bold;
+        }
+
+        .selected-image {
+            outline: 3px solid #2196F3;
+            outline-offset: 3px;
+        }
+
+        .sample-images {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .sample-images img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sample-images img:hover {
+            border-color: #2196F3;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ Image Editing Test</h1>
+
+        <div class="info">
+            <strong>테스트 시나리오:</strong>
+            <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+                <li>이미지 삽입 (파일 업로드 또는 샘플 이미지)</li>
+                <li>이미지 클릭으로 선택</li>
+                <li>크기 조정, 정렬, 위치 변경</li>
+                <li>회전, 테두리, 불투명도 설정</li>
+                <li>이미지 삭제</li>
+                <li>Undo/Redo 테스트</li>
+            </ol>
+            <div style="margin-top: 12px; padding: 8px; background: #fff3cd; border-radius: 4px;">
+                <strong>💡 Tip:</strong> 이미지를 클릭하면 선택됩니다. 선택된 이미지에 대해 편집을 수행할 수 있습니다.
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <!-- Insert Image -->
+            <div class="toolbar-section">
+                <span class="toolbar-label">이미지:</span>
+                <input type="file" id="input-file" accept="image/*" style="display: none;">
+                <button id="btn-upload" class="success">📁 파일 업로드</button>
+                <input type="text" id="input-url" placeholder="Image URL" style="width: 200px;" disabled>
+                <button id="btn-insert-url" class="success" disabled>🔗 URL 삽입</button>
+            </div>
+
+            <!-- Sample Images -->
+            <div class="toolbar-section">
+                <span class="toolbar-label">샘플:</span>
+                <button id="btn-sample" class="success">🖼️ 샘플 이미지</button>
+            </div>
+
+            <!-- Size -->
+            <div class="toolbar-section" id="size-section" style="display: none;">
+                <span class="toolbar-label">크기:</span>
+                <input type="number" id="input-width" placeholder="너비" min="50" max="800" disabled>
+                <span style="font-size: 12px;">x</span>
+                <input type="number" id="input-height" placeholder="높이" min="50" max="800" disabled>
+                <button id="btn-resize" disabled>적용</button>
+            </div>
+
+            <!-- Alignment -->
+            <div class="toolbar-section" id="align-section" style="display: none;">
+                <span class="toolbar-label">정렬:</span>
+                <button id="btn-align-inline" disabled>Inline</button>
+                <button id="btn-align-left" disabled>Left</button>
+                <button id="btn-align-center" disabled>Center</button>
+                <button id="btn-align-right" disabled>Right</button>
+            </div>
+
+            <!-- Position -->
+            <div class="toolbar-section" id="pos-section" style="display: none;">
+                <span class="toolbar-label">위치:</span>
+                <input type="number" id="input-x" placeholder="X" min="0" max="600" disabled>
+                <input type="number" id="input-y" placeholder="Y" min="0" max="600" disabled>
+                <button id="btn-set-pos" disabled>적용</button>
+            </div>
+
+            <!-- Rotate -->
+            <div class="toolbar-section" id="rotate-section" style="display: none;">
+                <span class="toolbar-label">회전:</span>
+                <button id="btn-rotate-0" disabled>0°</button>
+                <button id="btn-rotate-90" disabled>90°</button>
+                <button id="btn-rotate-180" disabled>180°</button>
+                <button id="btn-rotate-270" disabled>270°</button>
+            </div>
+
+            <!-- Style -->
+            <div class="toolbar-section" id="style-section" style="display: none;">
+                <span class="toolbar-label">스타일:</span>
+                <button id="btn-border" disabled>🖼️ 테두리</button>
+                <label style="font-size: 12px;">불투명도:</label>
+                <input type="range" id="input-opacity" min="0" max="100" value="100" disabled>
+                <span id="opacity-value">100%</span>
+            </div>
+
+            <!-- Delete -->
+            <div class="toolbar-section" id="delete-section" style="display: none;">
+                <button id="btn-delete" class="danger" disabled>🗑️ 삭제</button>
+            </div>
+
+            <!-- Undo/Redo -->
+            <div class="toolbar-section" id="undo-section" style="display: none;">
+                <button id="btn-undo" disabled>↶ Undo</button>
+                <button id="btn-redo" disabled>↷ Redo</button>
+            </div>
+        </div>
+
+        <div id="viewer-container"></div>
+
+        <div class="status" id="status">
+            <div class="status-item">상태: 대기 중...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { HWPXViewer } from '../src/lib/vanilla/viewer.js';
+
+        let viewer;
+        let selectedImage = null;
+
+        const buttons = {
+            upload: document.getElementById('btn-upload'),
+            insertUrl: document.getElementById('btn-insert-url'),
+            sample: document.getElementById('btn-sample'),
+            resize: document.getElementById('btn-resize'),
+            alignInline: document.getElementById('btn-align-inline'),
+            alignLeft: document.getElementById('btn-align-left'),
+            alignCenter: document.getElementById('btn-align-center'),
+            alignRight: document.getElementById('btn-align-right'),
+            setPos: document.getElementById('btn-set-pos'),
+            rotate0: document.getElementById('btn-rotate-0'),
+            rotate90: document.getElementById('btn-rotate-90'),
+            rotate180: document.getElementById('btn-rotate-180'),
+            rotate270: document.getElementById('btn-rotate-270'),
+            border: document.getElementById('btn-border'),
+            delete: document.getElementById('btn-delete'),
+            undo: document.getElementById('btn-undo'),
+            redo: document.getElementById('btn-redo')
+        };
+
+        const inputs = {
+            file: document.getElementById('input-file'),
+            url: document.getElementById('input-url'),
+            width: document.getElementById('input-width'),
+            height: document.getElementById('input-height'),
+            x: document.getElementById('input-x'),
+            y: document.getElementById('input-y'),
+            opacity: document.getElementById('input-opacity')
+        };
+
+        const statusDiv = document.getElementById('status');
+        const opacityValue = document.getElementById('opacity-value');
+
+        function updateStatus(message, type = 'success') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error-text' : type === 'warning' ? 'warning-text' : 'success-text';
+            statusDiv.innerHTML += `<div class="status-item ${className}">[${timestamp}] ${message}</div>`;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function enableButtons(...buttonNames) {
+            buttonNames.forEach(name => {
+                if (buttons[name]) {
+                    buttons[name].disabled = false;
+                }
+            });
+        }
+
+        function clearSelection() {
+            if (selectedImage) {
+                selectedImage.classList.remove('selected-image');
+            }
+            selectedImage = null;
+            updateButtonStates();
+        }
+
+        function selectImage(imgElement) {
+            clearSelection();
+            selectedImage = imgElement;
+            imgElement.classList.add('selected-image');
+            updateButtonStates();
+            updateStatus('이미지 선택됨');
+        }
+
+        function updateButtonStates() {
+            const hasSelection = selectedImage !== null;
+
+            // Size operations
+            buttons.resize.disabled = !hasSelection;
+            inputs.width.disabled = !hasSelection;
+            inputs.height.disabled = !hasSelection;
+
+            // Alignment
+            buttons.alignInline.disabled = !hasSelection;
+            buttons.alignLeft.disabled = !hasSelection;
+            buttons.alignCenter.disabled = !hasSelection;
+            buttons.alignRight.disabled = !hasSelection;
+
+            // Position
+            buttons.setPos.disabled = !hasSelection;
+            inputs.x.disabled = !hasSelection;
+            inputs.y.disabled = !hasSelection;
+
+            // Rotate
+            buttons.rotate0.disabled = !hasSelection;
+            buttons.rotate90.disabled = !hasSelection;
+            buttons.rotate180.disabled = !hasSelection;
+            buttons.rotate270.disabled = !hasSelection;
+
+            // Style
+            buttons.border.disabled = !hasSelection;
+            inputs.opacity.disabled = !hasSelection;
+
+            // Delete
+            buttons.delete.disabled = !hasSelection;
+        }
+
+        function setupImageSelection() {
+            const images = document.querySelectorAll('.hwp-image-wrapper');
+            images.forEach(img => {
+                img.style.cursor = 'pointer';
+                img.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectImage(img);
+                });
+            });
+        }
+
+        // Initialize viewer
+        async function initViewer() {
+            try {
+                updateStatus('뷰어 초기화 중...');
+
+                // Create empty document
+                const emptyDocument = {
+                    sections: [{
+                        elements: []
+                    }]
+                };
+
+                viewer = new HWPXViewer('viewer-container', { editable: true });
+                await viewer.loadDocument(emptyDocument);
+
+                updateStatus('✅ 뷰어 초기화 완료');
+                updateStatus('💡 이미지를 삽입해보세요!', 'warning');
+
+                // Show controls
+                document.getElementById('size-section').style.display = 'flex';
+                document.getElementById('align-section').style.display = 'flex';
+                document.getElementById('pos-section').style.display = 'flex';
+                document.getElementById('rotate-section').style.display = 'flex';
+                document.getElementById('style-section').style.display = 'flex';
+                document.getElementById('delete-section').style.display = 'flex';
+                document.getElementById('undo-section').style.display = 'flex';
+
+                inputs.url.disabled = false;
+                buttons.insertUrl.disabled = false;
+                enableButtons('undo', 'redo');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        }
+
+        // Upload Image
+        buttons.upload.addEventListener('click', () => {
+            inputs.file.click();
+        });
+
+        inputs.file.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                updateStatus(`이미지 업로드 중: ${file.name}...`);
+
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const imageUrl = event.target.result;
+                    viewer.command.insertImage(imageUrl, { width: 300, height: 200 });
+
+                    // Wait for render
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    setupImageSelection();
+
+                    updateStatus(`✅ 이미지 삽입 완료: ${file.name}`);
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Insert from URL
+        buttons.insertUrl.addEventListener('click', async () => {
+            try {
+                const url = inputs.url.value;
+                if (!url) {
+                    updateStatus('⚠️ URL을 입력하세요', 'warning');
+                    return;
+                }
+
+                updateStatus('이미지 삽입 중...');
+                viewer.command.insertImage(url, { width: 300, height: 200 });
+
+                // Wait for render
+                await new Promise(resolve => setTimeout(resolve, 300));
+                setupImageSelection();
+
+                updateStatus('✅ 이미지 삽입 완료');
+                inputs.url.value = '';
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Sample Image
+        buttons.sample.addEventListener('click', async () => {
+            try {
+                // Use a placeholder image service
+                const sampleUrl = 'https://via.placeholder.com/300x200/4CAF50/ffffff?text=Sample+Image';
+
+                updateStatus('샘플 이미지 삽입 중...');
+                viewer.command.insertImage(sampleUrl, { width: 300, height: 200 });
+
+                // Wait for render
+                await new Promise(resolve => setTimeout(resolve, 300));
+                setupImageSelection();
+
+                updateStatus('✅ 샘플 이미지 삽입 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Resize
+        buttons.resize.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+
+                const width = parseInt(inputs.width.value);
+                const height = parseInt(inputs.height.value);
+
+                if (!width || !height) {
+                    updateStatus('⚠️ 너비와 높이를 입력하세요', 'warning');
+                    return;
+                }
+
+                viewer.command.resizeImage(selectedImage, width, height);
+                updateStatus(`✅ 이미지 크기 조정: ${width}x${height}`);
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Alignment
+        buttons.alignInline.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+                viewer.command.setImageAlignment(selectedImage, 'inline');
+                updateStatus('✅ 이미지 정렬: Inline');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.alignLeft.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+                viewer.command.setImageAlignment(selectedImage, 'left');
+                updateStatus('✅ 이미지 정렬: Left');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.alignCenter.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+                viewer.command.setImageAlignment(selectedImage, 'center');
+                updateStatus('✅ 이미지 정렬: Center');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.alignRight.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+                viewer.command.setImageAlignment(selectedImage, 'right');
+                updateStatus('✅ 이미지 정렬: Right');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Position
+        buttons.setPos.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+
+                const x = parseInt(inputs.x.value) || 0;
+                const y = parseInt(inputs.y.value) || 0;
+
+                viewer.command.setImagePosition(selectedImage, x, y);
+                updateStatus(`✅ 이미지 위치: (${x}, ${y})`);
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Rotate
+        [0, 90, 180, 270].forEach(degrees => {
+            const btnName = `rotate${degrees}`;
+            buttons[btnName].addEventListener('click', () => {
+                try {
+                    if (!selectedImage) return;
+                    viewer.command.rotateImage(selectedImage, degrees);
+                    updateStatus(`✅ 이미지 회전: ${degrees}°`);
+                } catch (error) {
+                    updateStatus(`❌ 오류: ${error.message}`, 'error');
+                }
+            });
+        });
+
+        // Border
+        buttons.border.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+                viewer.command.setImageBorder(selectedImage, '3px solid #2196F3');
+                updateStatus('✅ 이미지 테두리 설정');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Opacity
+        inputs.opacity.addEventListener('input', (e) => {
+            const opacity = e.target.value / 100;
+            opacityValue.textContent = `${e.target.value}%`;
+
+            if (selectedImage) {
+                viewer.command.setImageOpacity(selectedImage, opacity);
+                updateStatus(`✅ 이미지 불투명도: ${e.target.value}%`);
+            }
+        });
+
+        // Delete
+        buttons.delete.addEventListener('click', () => {
+            try {
+                if (!selectedImage) return;
+                viewer.command.deleteImage(selectedImage);
+                clearSelection();
+                updateStatus('✅ 이미지 삭제 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Undo/Redo
+        buttons.undo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.undo();
+                if (success) {
+                    setupImageSelection();
+                    clearSelection();
+                    updateStatus('✅ Undo 완료');
+                } else {
+                    updateStatus('⚠️ Undo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.redo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.redo();
+                if (success) {
+                    setupImageSelection();
+                    clearSelection();
+                    updateStatus('✅ Redo 완료');
+                } else {
+                    updateStatus('⚠️ Redo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Clear selection on document click
+        document.getElementById('viewer-container').addEventListener('click', (e) => {
+            if (e.target.id === 'viewer-container' || e.target.classList.contains('hwp-page')) {
+                clearSelection();
+                updateStatus('선택 해제');
+            }
+        });
+
+        // Initialize on load
+        initViewer();
+    </script>
+</body>
+</html>

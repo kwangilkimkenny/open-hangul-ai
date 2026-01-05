@@ -1,0 +1,273 @@
+/**
+ * HAN-View React - CSS Variables
+ * 모든 스타일을 CSS 변수로 정의하여 사용자 커스터마이징 지원
+ * 
+ * 사용법:
+ * :root {
+ *   --hanview-primary-color: #your-color;
+ * }
+ */
+
+:root {
+  /* ============================================
+   * 🎨 색상 팔레트
+   * ============================================ */
+  
+  /* Primary Colors */
+  --hanview-primary-color: #667eea;
+  --hanview-primary-hover: #5a6fd6;
+  --hanview-primary-light: rgba(102, 126, 234, 0.1);
+  
+  /* Secondary Colors */
+  --hanview-secondary-color: #764ba2;
+  --hanview-secondary-hover: #6a4292;
+  
+  /* Accent Colors */
+  --hanview-accent-color: #4CAF50;
+  --hanview-accent-hover: #45a049;
+  --hanview-accent-light: rgba(76, 175, 80, 0.1);
+  
+  /* Semantic Colors */
+  --hanview-success-color: #10b981;
+  --hanview-warning-color: #f59e0b;
+  --hanview-error-color: #ef4444;
+  --hanview-info-color: #3b82f6;
+  
+  /* Neutral Colors */
+  --hanview-white: #ffffff;
+  --hanview-black: #000000;
+  --hanview-gray-50: #f9fafb;
+  --hanview-gray-100: #f3f4f6;
+  --hanview-gray-200: #e5e7eb;
+  --hanview-gray-300: #d1d5db;
+  --hanview-gray-400: #9ca3af;
+  --hanview-gray-500: #6b7280;
+  --hanview-gray-600: #4b5563;
+  --hanview-gray-700: #374151;
+  --hanview-gray-800: #1f2937;
+  --hanview-gray-900: #111827;
+
+  /* ============================================
+   * 📐 레이아웃
+   * ============================================ */
+  
+  /* Page */
+  --hanview-page-width: 794px;
+  --hanview-page-height: 1123px;
+  --hanview-page-padding: 57px;
+  --hanview-page-margin: 20px;
+  --hanview-page-bg: var(--hanview-white);
+  --hanview-page-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  --hanview-page-border-radius: 4px;
+  
+  /* Container */
+  --hanview-container-bg: #f5f7fa;
+  --hanview-container-padding: 20px;
+  
+  /* Header */
+  --hanview-header-height: 60px;
+  --hanview-header-bg: linear-gradient(135deg, var(--hanview-primary-color), var(--hanview-secondary-color));
+  --hanview-header-text-color: var(--hanview-white);
+  --hanview-header-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  
+  /* Footer */
+  --hanview-footer-height: 32px;
+  --hanview-footer-bg: var(--hanview-gray-100);
+  --hanview-footer-text-color: var(--hanview-gray-600);
+  
+  /* ============================================
+   * 🔤 타이포그래피
+   * ============================================ */
+  
+  /* Font Family */
+  --hanview-font-family: 'Malgun Gothic', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --hanview-font-family-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+  
+  /* Font Size */
+  --hanview-font-size-xs: 11px;
+  --hanview-font-size-sm: 12px;
+  --hanview-font-size-base: 14px;
+  --hanview-font-size-md: 16px;
+  --hanview-font-size-lg: 18px;
+  --hanview-font-size-xl: 20px;
+  --hanview-font-size-2xl: 24px;
+  --hanview-font-size-3xl: 30px;
+  
+  /* Font Weight */
+  --hanview-font-weight-light: 300;
+  --hanview-font-weight-normal: 400;
+  --hanview-font-weight-medium: 500;
+  --hanview-font-weight-semibold: 600;
+  --hanview-font-weight-bold: 700;
+  
+  /* Line Height */
+  --hanview-line-height-tight: 1.25;
+  --hanview-line-height-normal: 1.5;
+  --hanview-line-height-relaxed: 1.75;
+
+  /* ============================================
+   * 🎯 컴포넌트별 스타일
+   * ============================================ */
+  
+  /* Buttons */
+  --hanview-btn-padding: 8px 16px;
+  --hanview-btn-border-radius: 6px;
+  --hanview-btn-font-size: var(--hanview-font-size-sm);
+  --hanview-btn-transition: all 0.2s ease;
+  
+  --hanview-btn-primary-bg: var(--hanview-primary-color);
+  --hanview-btn-primary-text: var(--hanview-white);
+  --hanview-btn-primary-hover-bg: var(--hanview-primary-hover);
+  
+  --hanview-btn-secondary-bg: var(--hanview-gray-100);
+  --hanview-btn-secondary-text: var(--hanview-gray-700);
+  --hanview-btn-secondary-border: var(--hanview-gray-300);
+  --hanview-btn-secondary-hover-bg: var(--hanview-gray-200);
+  
+  /* Input */
+  --hanview-input-padding: 10px 12px;
+  --hanview-input-border-radius: 6px;
+  --hanview-input-border: 1px solid var(--hanview-gray-300);
+  --hanview-input-bg: var(--hanview-white);
+  --hanview-input-focus-border: var(--hanview-primary-color);
+  --hanview-input-focus-shadow: 0 0 0 3px var(--hanview-primary-light);
+  
+  /* Table */
+  --hanview-table-border-color: var(--hanview-gray-300);
+  --hanview-table-header-bg: var(--hanview-gray-100);
+  --hanview-table-row-hover-bg: var(--hanview-gray-50);
+  --hanview-table-cell-padding: 8px 10px;
+  
+  /* ============================================
+   * 💬 AI 채팅 패널
+   * ============================================ */
+  
+  --hanview-ai-panel-width: 450px;
+  --hanview-ai-panel-bg: #1e1e2e;
+  --hanview-ai-panel-border: rgba(255, 255, 255, 0.1);
+  --hanview-ai-panel-shadow: -5px 0 30px rgba(0, 0, 0, 0.3);
+  
+  --hanview-ai-header-bg: rgba(0, 0, 0, 0.2);
+  --hanview-ai-header-text: var(--hanview-white);
+  
+  --hanview-ai-message-user-bg: var(--hanview-primary-color);
+  --hanview-ai-message-user-text: var(--hanview-white);
+  --hanview-ai-message-assistant-bg: rgba(255, 255, 255, 0.1);
+  --hanview-ai-message-assistant-text: var(--hanview-gray-100);
+  --hanview-ai-message-system-bg: rgba(59, 130, 246, 0.2);
+  --hanview-ai-message-system-text: #93c5fd;
+  
+  --hanview-ai-input-bg: rgba(255, 255, 255, 0.05);
+  --hanview-ai-input-border: rgba(255, 255, 255, 0.1);
+  --hanview-ai-input-text: var(--hanview-white);
+  
+  /* ============================================
+   * 📋 컨텍스트 메뉴
+   * ============================================ */
+  
+  --hanview-context-menu-bg: var(--hanview-white);
+  --hanview-context-menu-border: var(--hanview-gray-200);
+  --hanview-context-menu-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  --hanview-context-menu-item-hover: var(--hanview-gray-100);
+  --hanview-context-menu-text: var(--hanview-gray-700);
+  --hanview-context-menu-icon-color: var(--hanview-gray-500);
+  
+  /* ============================================
+   * 🔍 검색
+   * ============================================ */
+  
+  --hanview-search-highlight-color: #ffeb3b;
+  --hanview-search-highlight-current: #ff9800;
+  --hanview-search-panel-bg: var(--hanview-white);
+  --hanview-search-panel-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  
+  /* ============================================
+   * 🔄 로딩
+   * ============================================ */
+  
+  --hanview-loading-overlay-bg: rgba(17, 24, 39, 0.6);
+  --hanview-loading-spinner-color: var(--hanview-gray-900);
+  --hanview-loading-spinner-size: 64px;
+  
+  /* ============================================
+   * 🎭 애니메이션
+   * ============================================ */
+  
+  --hanview-transition-fast: 0.15s ease;
+  --hanview-transition-normal: 0.2s ease;
+  --hanview-transition-slow: 0.3s ease;
+  
+  --hanview-animation-spin: spin 0.8s linear infinite;
+  --hanview-animation-fade-in: fadeIn 0.2s ease;
+  --hanview-animation-slide-in: slideIn 0.3s ease;
+  
+  /* ============================================
+   * 📱 반응형 브레이크포인트
+   * ============================================ */
+  
+  --hanview-breakpoint-sm: 640px;
+  --hanview-breakpoint-md: 768px;
+  --hanview-breakpoint-lg: 1024px;
+  --hanview-breakpoint-xl: 1280px;
+  
+  /* ============================================
+   * 🌙 다크 모드 (자동 적용)
+   * ============================================ */
+}
+
+/* 다크 모드 */
+[data-theme="dark"],
+.theme-dark {
+  --hanview-page-bg: #1e1e1e;
+  --hanview-container-bg: #121212;
+  
+  --hanview-gray-50: #1f1f1f;
+  --hanview-gray-100: #2d2d2d;
+  --hanview-gray-200: #3c3c3c;
+  --hanview-gray-300: #4d4d4d;
+  --hanview-gray-400: #6b6b6b;
+  --hanview-gray-500: #8c8c8c;
+  --hanview-gray-600: #a3a3a3;
+  --hanview-gray-700: #c4c4c4;
+  --hanview-gray-800: #e0e0e0;
+  --hanview-gray-900: #f5f5f5;
+  
+  --hanview-context-menu-bg: #2d2d2d;
+  --hanview-context-menu-border: #404040;
+  --hanview-context-menu-text: #e0e0e0;
+  
+  --hanview-search-panel-bg: #2d2d2d;
+  
+  --hanview-input-bg: #2d2d2d;
+  --hanview-input-border: 1px solid #404040;
+}
+
+/* 시스템 다크 모드 자동 감지 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hanview-page-bg: #1e1e1e;
+    --hanview-container-bg: #121212;
+  }
+}
+
+/* 키프레임 */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideIn {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  0% { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+

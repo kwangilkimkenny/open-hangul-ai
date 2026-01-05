@@ -28,15 +28,15 @@ export function renderContainer(container) {
     // ✅ Use container's own size (don't expand to children)
     // Children (especially images) should fit within the container
     const items = container.elements || container.children || [];
-    
+
     if (container.width) {
-        wrapper.style.width = typeof container.width === 'number' 
-            ? `${container.width}px` 
+        wrapper.style.width = typeof container.width === 'number'
+            ? `${container.width}px`
             : container.width;
     }
     if (container.height) {
-        wrapper.style.height = typeof container.height === 'number' 
-            ? `${container.height}px` 
+        wrapper.style.height = typeof container.height === 'number'
+            ? `${container.height}px`
             : container.height;
     }
 
@@ -57,7 +57,7 @@ export function renderContainer(container) {
             }
         }
     }
-    
+
     // ✅ Allow children to overflow for proper layering
     wrapper.style.overflow = 'visible';
 
@@ -66,27 +66,43 @@ export function renderContainer(container) {
         let renderedElement;
 
         switch (element.type) {
-        case 'paragraph':
-            renderedElement = renderParagraph(element);
-            break;
-        case 'image':
-            renderedElement = renderImage(element);
-            break;
-        case 'shape':
-            renderedElement = renderShape(element);
-            break;
-        case 'table':
-            renderedElement = renderTable(element);
-            break;
-        case 'container':
-            renderedElement = renderContainer(element); // Recursive
-            break;
-        default:
-            console.warn(`[Container] Unknown element type: ${element.type}`);
-            return;
+            case 'paragraph':
+                renderedElement = renderParagraph(element);
+                break;
+            case 'image':
+                renderedElement = renderImage(element);
+                break;
+            case 'shape':
+                renderedElement = renderShape(element);
+                break;
+            case 'table':
+                renderedElement = renderTable(element);
+                break;
+            case 'container':
+                renderedElement = renderContainer(element); // Recursive
+                break;
+            default:
+                console.warn(`[Container] Unknown element type: ${element.type}`);
+                return;
         }
 
         if (renderedElement) {
+            // ✅ 자식 요소의 position.x, position.y가 있으면 절대 위치 적용
+            // HWPX 컨테이너 내 도형들은 offset으로 위치가 지정됨
+            if (element.position && (element.position.x !== undefined || element.position.y !== undefined)) {
+                // shape 렌더러가 이미 position을 처리할 수 있지만, 
+                // 컨테이너 맥락에서 다시 확인하여 확실히 적용
+                if (!renderedElement.style.position || renderedElement.style.position === 'static') {
+                    renderedElement.style.position = 'absolute';
+                }
+                if (element.position.x !== undefined && !renderedElement.style.left) {
+                    renderedElement.style.left = `${element.position.x}px`;
+                }
+                if (element.position.y !== undefined && !renderedElement.style.top) {
+                    renderedElement.style.top = `${element.position.y}px`;
+                }
+            }
+
             // ✅ Set z-index for proper layering: images first (lower), then shapes/containers (higher)
             // Images should be behind, shapes and containers should be on top
             if (element.type === 'image') {
@@ -98,6 +114,7 @@ export function renderContainer(container) {
             wrapper.appendChild(renderedElement);
         }
     });
+
 
     return wrapper;
 }

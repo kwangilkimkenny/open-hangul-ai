@@ -14,15 +14,25 @@ import { DocumentRenderer } from './core/renderer.js';
 import { AIDocumentController } from './ai/ai-controller.js';
 import { ChatPanel } from './ui/chat-panel.js';
 import { ContextMenu } from './ui/context-menu.js';
+import { SearchDialog } from './ui/search-dialog.js';
 import { InlineEditor } from './features/inline-editor.js';
 import { HistoryManager } from './features/history-manager.js';
+import { HistoryManagerV2 } from './features/history-manager-v2.js';
 import { EditModeManager } from './features/edit-mode-manager.js';
+import { Command } from './command/command.js';
+import { CommandAdapt } from './command/command-adapt.js';
 import { HwpxExporter } from './export/hwpx-exporter.js';
 import { AutoSaveManager } from './features/autosave-manager.js';
 import { TableEditor } from './features/table-editor.js';
+import { ImageEditor } from './features/image-editor.js';
+import { ShapeEditor } from './features/shape-editor.js';
 import { AdvancedSearch } from './features/advanced-search.js';
 import { BookmarkManager } from './features/bookmark-manager.js';
 import { ThemeManager } from './ui/theme-manager.js';
+import { PositionManager } from './features/position-manager.js';
+import { RangeManager } from './features/range-manager.js';
+import { SearchManager } from './features/search-manager.js';
+import { Cursor } from './features/cursor.js';
 
 // Utils
 import { getLogger, resetLogger } from './utils/logger.js';
@@ -116,15 +126,24 @@ export class HWPXViewer {
         this.aiController = null;
         this.chatPanel = null;
         this.contextMenu = null;
+        this.searchDialog = null;
         
         // 편집 기능 (항상 활성화)
         this.inlineEditor = null;
         this.historyManager = null;
         this.editModeManager = null;
         this.tableEditor = null;
+        this.imageEditor = null;
+        this.shapeEditor = null;
         this.search = null;
         this.bookmarkManager = null;
         this.themeManager = null;
+        this.positionManager = null;
+        this.rangeManager = null;
+        this.searchManager = null;
+        this.cursor = null;
+        this.command = null;
+        this.commandAdapt = null;
         
         logger.info(`🔧 enableAI option: ${this.options.enableAI}`);
         
@@ -157,25 +176,53 @@ export class HWPXViewer {
         // 편집 기능 초기화 (AI와 독립적으로 작동)
         try {
             logger.info('🚀 Initializing editing features...');
-            
+
+            this.positionManager = new PositionManager(this);
+            logger.info('✅ PositionManager initialized');
+
+            this.rangeManager = new RangeManager(this);
+            logger.info('✅ RangeManager initialized');
+
+            this.searchManager = new SearchManager(this);
+            logger.info('✅ SearchManager initialized');
+
+            this.cursor = new Cursor(this);
+            logger.info('✅ Cursor initialized');
+
+            // HistoryManager V2 (함수 기반)
+            this.historyManager = new HistoryManagerV2(this);
+            logger.info('✅ HistoryManagerV2 initialized (function-based)');
+
+            // Command 시스템
+            this.commandAdapt = new CommandAdapt(this);
+            this.command = new Command(this.commandAdapt);
+            logger.info('✅ Command system initialized');
+
+            // Search Dialog 초기화
+            this.searchDialog = new SearchDialog(this);
+            logger.info('✅ SearchDialog initialized');
+
             this.inlineEditor = new InlineEditor(this);
             logger.info('✅ InlineEditor initialized');
-            
-            this.historyManager = new HistoryManager(this);
-            logger.info('✅ HistoryManager initialized');
-            
+
             this.editModeManager = new EditModeManager(this.inlineEditor);
             logger.info('✅ EditModeManager initialized');
-            
+
             this.tableEditor = new TableEditor(this);
             logger.info('✅ TableEditor initialized');
-            
+
+            this.imageEditor = new ImageEditor(this);
+            logger.info('✅ ImageEditor initialized');
+
+            this.shapeEditor = new ShapeEditor(this);
+            logger.info('✅ ShapeEditor initialized');
+
             this.search = new AdvancedSearch();
             logger.info('✅ AdvancedSearch initialized');
-            
+
             this.bookmarkManager = new BookmarkManager();
             logger.info('✅ BookmarkManager initialized');
-            
+
             this.themeManager = new ThemeManager();
             logger.info('✅ ThemeManager initialized');
             
@@ -352,8 +399,21 @@ export class HWPXViewer {
         // DocumentRenderer를 사용하여 완전한 렌더링 수행
         // (페이지 컨테이너, 헤더, 푸터, 페이지 번호, 자동 페이지 나누기 등)
         const totalPages = await this.renderer.render(document);
-        
+
         logger.info(`✅ Rendered ${document.sections?.length || 0} sections, ${totalPages} pages`);
+
+        // 위치 정보 수집
+        if (this.positionManager) {
+            try {
+                await this.positionManager.computePositions(this.container);
+
+                // 통계 정보 출력
+                const stats = this.positionManager.getStats();
+                logger.info(`📊 Position Stats: ${stats.totalCharacters} chars, ${stats.pages} pages, ${stats.paragraphs} paragraphs, ${stats.tableCells} cells`);
+            } catch (error) {
+                logger.error('❌ Failed to compute positions:', error);
+            }
+        }
     }
 
     /**
@@ -428,6 +488,15 @@ export class HWPXViewer {
         try {
             logger.info('🎯 Enabling editing features...');
 
+            // 클릭-투-포지션 기능 활성화
+            this._setupClickToPosition();
+
+            // 범위 선택 기능 활성화
+            if (this.rangeManager) {
+                this.rangeManager.enableSelection();
+                logger.info('  ✅ Range selection enabled');
+            }
+
             // 테이블 편집 활성화
             const tables = this.container.querySelectorAll('.hwp-table');
             logger.info(`  - Found ${tables.length} tables`);
@@ -487,6 +556,52 @@ export class HWPXViewer {
         }
     }
     
+    /**
+     * 클릭-투-포지션 기능 설정
+     * @private
+     */
+    _setupClickToPosition() {
+        if (!this.positionManager || !this.positionManager.isPositionReady()) {
+            logger.warn('⚠️ PositionManager not ready for click-to-position');
+            return;
+        }
+
+        // 클릭 이벤트 리스너 추가 (Ctrl+Shift+Click으로 위치 정보 확인)
+        this.container.addEventListener('click', (e) => {
+            // Ctrl+Shift+Click으로 디버그 모드
+            if (e.ctrlKey && e.shiftKey) {
+                e.preventDefault();
+
+                const position = this.positionManager.getPositionByXY(e.clientX, e.clientY);
+
+                if (position) {
+                    logger.info('📍 Click-to-Position Debug Info:');
+                    logger.info(`  - Character: "${position.value}" (${position.isWhitespace ? 'whitespace' : 'visible'})`);
+                    logger.info(`  - Index: ${position.index}`);
+                    logger.info(`  - Page: ${position.pageNumber}`);
+                    logger.info(`  - Element Type: ${position.elementType}`);
+                    logger.info(`  - Coordinate:`, position.coordinate);
+
+                    // 시각적 하이라이트
+                    if (position.parentElement) {
+                        const originalBg = position.parentElement.style.backgroundColor;
+                        position.parentElement.style.backgroundColor = 'yellow';
+                        setTimeout(() => {
+                            position.parentElement.style.backgroundColor = originalBg;
+                        }, 500);
+                    }
+
+                    // 콘솔에 position 객체 전체 출력
+                    console.log('Position Object:', position);
+                } else {
+                    logger.warn('⚠️ No position found at click location');
+                }
+            }
+        });
+
+        logger.info('✅ Click-to-position enabled (Ctrl+Shift+Click to debug)');
+    }
+
     /**
      * 인덱스로 테이블 데이터 찾기
      * @private
@@ -720,6 +835,151 @@ export class HWPXViewer {
     }
 
     /**
+     * PositionManager 가져오기
+     * @returns {PositionManager|null} PositionManager 인스턴스
+     */
+    getPositionManager() {
+        return this.positionManager;
+    }
+
+    /**
+     * RangeManager 가져오기
+     * @returns {RangeManager|null} RangeManager 인스턴스
+     */
+    getRangeManager() {
+        return this.rangeManager;
+    }
+
+    /**
+     * Command 가져오기
+     * @returns {Command|null} Command 인스턴스
+     */
+    getCommand() {
+        return this.command;
+    }
+
+    /**
+     * Cursor 가져오기
+     * @returns {Cursor|null} Cursor 인스턴스
+     */
+    getCursor() {
+        return this.cursor;
+    }
+
+    /**
+     * SearchManager 가져오기
+     * @returns {SearchManager|null} SearchManager 인스턴스
+     */
+    getSearchManager() {
+        return this.searchManager;
+    }
+
+    /**
+     * 텍스트 검색 (위치 기반)
+     * @param {string} searchText - 검색할 텍스트
+     * @param {boolean} caseSensitive - 대소문자 구분 여부
+     * @returns {Array} 검색 결과 [{startIndex, endIndex, text}]
+     */
+    searchText(searchText, caseSensitive = false) {
+        if (!this.positionManager) {
+            logger.warn('⚠️ PositionManager not available');
+            return [];
+        }
+
+        return this.positionManager.searchText(searchText, caseSensitive);
+    }
+
+    /**
+     * 범위 하이라이트
+     * @param {number} startIndex - 시작 인덱스
+     * @param {number} endIndex - 끝 인덱스
+     * @param {string} color - 하이라이트 색상
+     */
+    highlightRange(startIndex, endIndex, color = 'yellow') {
+        if (!this.positionManager) {
+            logger.warn('⚠️ PositionManager not available');
+            return;
+        }
+
+        this.positionManager.highlightRange(startIndex, endIndex, color);
+    }
+
+    /**
+     * 하이라이트 제거
+     */
+    clearHighlight() {
+        if (!this.positionManager) {
+            return;
+        }
+
+        this.positionManager.clearHighlight();
+    }
+
+    /**
+     * 선택된 텍스트 가져오기
+     * @returns {string} 선택된 텍스트
+     */
+    getSelectedText() {
+        if (!this.rangeManager) {
+            logger.warn('⚠️ RangeManager not available');
+            return '';
+        }
+
+        return this.rangeManager.getSelectedText();
+    }
+
+    /**
+     * 범위 설정
+     * @param {number} startIndex - 시작 인덱스
+     * @param {number} endIndex - 끝 인덱스
+     */
+    setRange(startIndex, endIndex) {
+        if (!this.rangeManager) {
+            logger.warn('⚠️ RangeManager not available');
+            return;
+        }
+
+        this.rangeManager.setRange(startIndex, endIndex);
+    }
+
+    /**
+     * 선택 해제
+     */
+    clearSelection() {
+        if (!this.rangeManager) {
+            return;
+        }
+
+        this.rangeManager.clearSelection();
+    }
+
+    /**
+     * 전체 선택
+     */
+    selectAll() {
+        if (!this.rangeManager) {
+            logger.warn('⚠️ RangeManager not available');
+            return;
+        }
+
+        this.rangeManager.selectAll();
+    }
+
+    /**
+     * 선택 범위에 포맷 적용
+     * @param {string} format - 포맷 타입 ('bold', 'italic', 'underline', 'color')
+     * @param {*} value - 포맷 값
+     */
+    applyFormat(format, value = true) {
+        if (!this.rangeManager) {
+            logger.warn('⚠️ RangeManager not available');
+            return;
+        }
+
+        this.rangeManager.applyFormat(format, value);
+    }
+
+    /**
      * HWPX 파일 저장 (원본 기반 안전한 저장)
      * @param {string} filename - 저장할 파일명 (기본값: 원본 파일명)
      * @returns {Promise<Object>} 저장 결과
@@ -786,6 +1046,15 @@ export class HWPXViewer {
         this.state.document = null;
         this.state.currentFile = null;
         this.parser.reset();
+
+        if (this.positionManager) {
+            this.positionManager.reset();
+        }
+
+        if (this.rangeManager) {
+            this.rangeManager.reset();
+        }
+
         logger.info('🔄 Viewer reset');
     }
 
@@ -795,17 +1064,27 @@ export class HWPXViewer {
     destroy() {
         this.reset();
         this.parser.cleanup();
-        
+
         // Worker 종료
         if (this.workerManager) {
             this.workerManager.terminate();
         }
-        
+
         // 자동저장 정리
         if (this.autoSaveManager) {
             this.autoSaveManager.dispose();
         }
-        
+
+        // RangeManager 정리
+        if (this.rangeManager) {
+            this.rangeManager.destroy();
+        }
+
+        // Cursor 정리
+        if (this.cursor) {
+            this.cursor.destroy();
+        }
+
         logger.info('🗑️ Viewer destroyed');
     }
     
@@ -901,6 +1180,64 @@ export class HWPXViewer {
                 },
                 { separator: true },
                 {
+                    icon: '🧹',
+                    label: '내용 비우기',
+                    shortcut: 'Delete',
+                    action: (target) => {
+                        try {
+                            logger.info(`🧹 셀 내용 비우기 시작`, target);
+                            
+                            const cellData = target._cellData;
+                            if (!cellData) {
+                                logger.info(`📝 셀에 _cellData가 없음, textContent만 비움`);
+                                target.textContent = '';
+                                if (this.autoSaveManager) {
+                                    this.autoSaveManager.markDirty();
+                                }
+                                return;
+                            }
+                            
+                            logger.info(`📦 셀 데이터 확인:`, cellData);
+                            
+                            // 셀 데이터의 모든 텍스트 제거 (재귀적)
+                            const clearCellText = (elements) => {
+                                if (!elements) {
+                                    logger.warn(`⚠️ elements가 undefined 또는 null`);
+                                    return;
+                                }
+                                elements.forEach(el => {
+                                    if (el.type === 'paragraph' && el.runs) {
+                                        el.runs.forEach(run => {
+                                            if (run.text) {
+                                                run.text = '';
+                                            }
+                                        });
+                                    } else if (el.type === 'container' && el.elements) {
+                                        clearCellText(el.elements);
+                                    }
+                                });
+                            };
+                            
+                            clearCellText(cellData.elements);
+                            
+                            // UI 업데이트
+                            target.textContent = '';
+                            
+                            // 자동 저장 트리거
+                            if (this.autoSaveManager) {
+                                this.autoSaveManager.markDirty();
+                                logger.info(`💾 자동 저장 트리거됨`);
+                            }
+                            
+                            logger.info(`✅ 셀 내용 비우기 완료`);
+                        } catch (error) {
+                            logger.error(`❌ 셀 내용 비우기 실패:`, error);
+                            // 에러가 발생해도 최소한 UI는 비움
+                            target.textContent = '';
+                        }
+                    }
+                },
+                {
                     icon: '🤖',
                     label: 'AI로 생성',
                     action: (target) => {
@@ -916,6 +1253,65 @@ export class HWPXViewer {
             ];
             
             this.contextMenu.show(e, menuItems);
+        });
+        
+        // Delete 키로 셀 내용 비우기
+        this.container.addEventListener('keydown', (e) => {
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            
+            // 편집 모드가 아니면 무시
+            if (window.editModeManager && !window.editModeManager.isGlobalEditMode) {
+                return;
+            }
+            
+            // 현재 포커스된 셀 찾기
+            const activeElement = document.activeElement;
+            const cell = activeElement?.closest('.hwp-table td, .hwp-table th');
+            
+            if (!cell) return;
+            
+            // 인라인 편집 중이면 무시 (일반 텍스트 삭제)
+            if (cell.contentEditable === 'true') {
+                return;
+            }
+            
+            e.preventDefault();
+            
+            const cellData = cell._cellData;
+            if (!cellData) {
+                cell.textContent = '';
+                if (this.autoSaveManager) {
+                    this.autoSaveManager.markDirty();
+                }
+                return;
+            }
+            
+            // 셀 데이터의 모든 텍스트 제거 (재귀적)
+            const clearCellText = (elements) => {
+                elements?.forEach(el => {
+                    if (el.type === 'paragraph' && el.runs) {
+                        el.runs.forEach(run => {
+                            if (run.text) {
+                                run.text = '';
+                            }
+                        });
+                    } else if (el.type === 'container' && el.elements) {
+                        clearCellText(el.elements);
+                    }
+                });
+            };
+            
+            clearCellText(cellData.elements);
+            
+            // UI 업데이트
+            cell.textContent = '';
+            
+            // 자동 저장 트리거
+            if (this.autoSaveManager) {
+                this.autoSaveManager.markDirty();
+            }
+            
+            logger.info(`🧹 셀 내용 비우기 완료 (Delete 키)`);
         });
         
         logger.info('✅ Table context menu setup complete');

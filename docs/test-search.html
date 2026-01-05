@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find/Replace Test - HWPX Viewer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .keyboard-shortcuts {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .keyboard-shortcuts h3 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .keyboard-shortcuts ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .keyboard-shortcuts code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #1976D2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        #viewer-container {
+            border: 1px solid #ddd;
+            min-height: 500px;
+            border-radius: 4px;
+            background: white;
+            position: relative;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status-item {
+            margin: 4px 0;
+        }
+
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #ff9800;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Find/Replace Command Test</h1>
+
+        <div class="info">
+            <strong>테스트 시나리오:</strong>
+            <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+                <li>문서 로드 (다양한 텍스트 포함)</li>
+                <li>Ctrl+F로 찾기 다이얼로그 열기</li>
+                <li>텍스트 검색 및 하이라이트</li>
+                <li>다음/이전 찾기 (F3/Shift+F3 또는 다이얼로그 버튼)</li>
+                <li>Ctrl+H로 바꾸기 모드 전환</li>
+                <li>개별 교체 및 모두 교체</li>
+                <li>Undo/Redo 테스트</li>
+            </ol>
+        </div>
+
+        <div class="keyboard-shortcuts">
+            <h3>⌨️ 키보드 단축키</h3>
+            <ul>
+                <li><code>Ctrl+F</code> (Mac: <code>Cmd+F</code>) - 찾기 다이얼로그</li>
+                <li><code>Ctrl+H</code> (Mac: <code>Cmd+H</code>) - 바꾸기 다이얼로그</li>
+                <li><code>Enter</code> - 다음 찾기</li>
+                <li><code>Shift+Enter</code> - 이전 찾기</li>
+                <li><code>ESC</code> - 다이얼로그 닫기</li>
+                <li><code>Ctrl+Z</code> - 실행 취소</li>
+                <li><code>Ctrl+Y</code> - 다시 실행</li>
+            </ul>
+        </div>
+
+        <div class="test-controls">
+            <button id="btn-load">1. 테스트 문서 로드</button>
+            <button id="btn-show-find" disabled>2. 찾기 (Ctrl+F)</button>
+            <button id="btn-show-replace" disabled>3. 바꾸기 (Ctrl+H)</button>
+            <button id="btn-find-hello" disabled>4. "Hello" 찾기</button>
+            <button id="btn-replace-demo" disabled>5. "Hello" → "Hi" 교체</button>
+            <button id="btn-replace-all-demo" disabled>6. "World" → "Universe" 모두 교체</button>
+        </div>
+
+        <div id="viewer-container"></div>
+
+        <div class="status" id="status">
+            <div class="status-item">상태: 대기 중...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { HWPXViewer } from '../src/lib/vanilla/viewer.js';
+
+        let viewer;
+
+        const buttons = {
+            load: document.getElementById('btn-load'),
+            showFind: document.getElementById('btn-show-find'),
+            showReplace: document.getElementById('btn-show-replace'),
+            findHello: document.getElementById('btn-find-hello'),
+            replaceDemo: document.getElementById('btn-replace-demo'),
+            replaceAllDemo: document.getElementById('btn-replace-all-demo')
+        };
+
+        const statusDiv = document.getElementById('status');
+
+        function updateStatus(message, type = 'success') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'success';
+            statusDiv.innerHTML += `<div class="status-item ${className}">[${timestamp}] ${message}</div>`;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function enableButtons(...buttonNames) {
+            buttonNames.forEach(name => {
+                if (buttons[name]) {
+                    buttons[name].disabled = false;
+                }
+            });
+        }
+
+        // 1. 문서 로드
+        buttons.load.addEventListener('click', async () => {
+            try {
+                updateStatus('테스트 문서 로드 중...');
+
+                // 찾기/바꾸기 테스트용 문서 생성
+                const testDocument = {
+                    header: { title: 'Find/Replace Test Document' },
+                    sections: [{
+                        paragraphs: [
+                            {
+                                text: 'Hello World! This is a test document.',
+                                runs: [{ text: 'Hello World! This is a test document.' }]
+                            },
+                            {
+                                text: 'Hello again! We can search for Hello multiple times.',
+                                runs: [{ text: 'Hello again! We can search for Hello multiple times.' }]
+                            },
+                            {
+                                text: 'The World is beautiful. World peace is important.',
+                                runs: [{ text: 'The World is beautiful. World peace is important.' }]
+                            },
+                            {
+                                text: 'Find and Replace functionality makes editing easier.',
+                                runs: [{ text: 'Find and Replace functionality makes editing easier.' }]
+                            },
+                            {
+                                text: 'hello world hello HELLO Hello',
+                                runs: [{ text: 'hello world hello HELLO Hello' }]
+                            }
+                        ]
+                    }]
+                };
+
+                viewer = new HWPXViewer('viewer-container', { editable: true });
+                await viewer.loadDocument(testDocument);
+
+                // 커서 초기화
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const cursor = viewer.getCursor();
+                cursor.setCursorPosition(0);
+                cursor.show();
+                cursor.focus();
+
+                updateStatus('✅ 문서 로드 완료');
+                updateStatus('💡 Ctrl+F를 눌러 찾기 다이얼로그를 열어보세요!', 'warning');
+
+                buttons.load.disabled = true;
+                enableButtons('showFind', 'showReplace', 'findHello', 'replaceDemo', 'replaceAllDemo');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 2. 찾기 다이얼로그
+        buttons.showFind.addEventListener('click', () => {
+            if (viewer && viewer.searchDialog) {
+                viewer.searchDialog.show('find');
+                updateStatus('🔍 찾기 다이얼로그 열림');
+            }
+        });
+
+        // 3. 바꾸기 다이얼로그
+        buttons.showReplace.addEventListener('click', () => {
+            if (viewer && viewer.searchDialog) {
+                viewer.searchDialog.show('replace');
+                updateStatus('🔄 바꾸기 다이얼로그 열림');
+            }
+        });
+
+        // 4. "Hello" 찾기
+        buttons.findHello.addEventListener('click', () => {
+            try {
+                const count = viewer.command.find('Hello');
+                updateStatus(`✅ "Hello" 검색 완료: ${count}개 발견`);
+
+                if (count > 0) {
+                    updateStatus('💡 Enter 키 또는 다이얼로그 버튼으로 다음 결과로 이동하세요', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 5. "Hello" → "Hi" 교체 (첫 번째 매치)
+        buttons.replaceDemo.addEventListener('click', () => {
+            try {
+                // 먼저 찾기
+                const count = viewer.command.find('Hello');
+                if (count > 0) {
+                    // 첫 번째 매치 교체
+                    const success = viewer.command.replace('Hi');
+                    if (success) {
+                        updateStatus('✅ "Hello" → "Hi" 교체 완료 (첫 번째)');
+                        updateStatus('💡 Ctrl+Z로 실행 취소 가능', 'warning');
+                    }
+                } else {
+                    updateStatus('⚠️ "Hello"를 찾을 수 없습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 6. "World" → "Universe" 모두 교체
+        buttons.replaceAllDemo.addEventListener('click', () => {
+            try {
+                const count = viewer.command.replaceAll('World', 'Universe');
+                updateStatus(`✅ "World" → "Universe" 모두 교체 완료: ${count}개`);
+
+                if (count > 0) {
+                    updateStatus('💡 Ctrl+Z로 모든 교체를 한 번에 실행 취소 가능', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 키보드 이벤트 로깅
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'f') {
+                    updateStatus('🔍 Ctrl+F 감지됨', 'warning');
+                } else if (e.key === 'h') {
+                    updateStatus('🔄 Ctrl+H 감지됨', 'warning');
+                }
+            }
+        });
+
+        updateStatus('준비 완료. "1. 테스트 문서 로드" 버튼을 클릭하세요.');
+        updateStatus('💡 문서 로드 후 Ctrl+F (찾기) 또는 Ctrl+H (바꾸기) 단축키를 사용할 수 있습니다.', 'warning');
+    </script>
+</body>
+</html>

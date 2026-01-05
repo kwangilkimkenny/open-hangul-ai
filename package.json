@@ -1,11 +1,27 @@
 {
   "name": "hanview-react-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "ISM Team <license@ism-team.com>",
   "type": "module",
+  "main": "./dist/hanview-react.umd.js",
+  "module": "./dist/hanview-react.es.js",
+  "types": "./dist/hanview-react.es.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/hanview-react.es.d.ts",
+      "import": "./dist/hanview-react.es.js",
+      "require": "./dist/hanview-react.umd.js"
+    },
+    "./dist/hanview-react.css": "./dist/hanview-react.css"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:lib": "vite build --config vite.config.lib.ts",
+    "build:lib:watch": "vite build --config vite.config.lib.ts --watch",
+    "package": "npm run build:lib && node scripts/prepare-package.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
@@ -34,9 +50,11 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "jsdom": "^27.2.0",
+    "terser": "^5.44.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
+    "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.15"
   }
 }

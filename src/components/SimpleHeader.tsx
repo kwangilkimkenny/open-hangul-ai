@@ -2,33 +2,66 @@
  * Simple Header for HWPX Viewer
  * 파일 열기, 저장, 인쇄 등 기본 기능
  * 
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-import { useRef } from 'react';
+import { ReactNode, useRef, useId } from 'react';
 import { toast } from 'react-hot-toast';
+
+interface AdditionalButton {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary' | 'danger';
+}
 
 interface SimpleHeaderProps {
   onFileSelect?: (file: File) => void;
-  viewer?: any; // ✅ Vanilla Viewer 인스턴스
+  viewer?: any;
+  /** 헤더 제목 */
+  title?: string;
+  /** 부제목 */
+  subtitle?: string;
+  /** 로고 (ReactNode 또는 이미지 URL) */
+  logo?: ReactNode | string;
+  /** 추가 버튼 */
+  additionalButtons?: AdditionalButton[];
+  /** 헤더 배경 그라디언트 */
+  backgroundGradient?: string;
 }
 
-export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
+export function SimpleHeader({
+  onFileSelect,
+  viewer,
+  title = 'HAN-View',
+  subtitle = 'HWPX Viewer & AI Editor',
+  logo,
+  additionalButtons = [],
+  backgroundGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+}: SimpleHeaderProps) {
+  // 파일 입력 ref - 디버깅용
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileClick = () => {
-    fileInputRef.current?.click();
-  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log('📁 [SimpleHeader] File change event triggered');
+    console.log('📁 [SimpleHeader] Selected file:', file?.name, 'size:', file?.size);
+
     if (file) {
-      if (!file.name.endsWith('.hwpx')) {
+      if (!file.name.toLowerCase().endsWith('.hwpx')) {
         toast.error('HWPX 파일만 지원됩니다');
         return;
       }
+      console.log('✅ [SimpleHeader] Calling onFileSelect with:', file.name);
       onFileSelect?.(file);
+    } else {
+      console.warn('⚠️ [SimpleHeader] No file selected');
     }
+
+    // 같은 파일 다시 선택할 수 있도록 초기화
+    e.target.value = '';
   };
 
   const handleSave = async () => {
@@ -36,11 +69,11 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
       toast.error('뷰어가 초기화되지 않았습니다');
       return;
     }
-    
+
     console.log('💾 Save button clicked');
     console.log('🔍 Has saveFile?', typeof viewer.saveFile);
     console.log('🔍 Has aiController?', !!viewer.aiController);
-    
+
     // Vanilla Viewer의 saveFile 메서드 호출
     if (typeof viewer.saveFile === 'function') {
       try {
@@ -64,7 +97,7 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
       toast.error('뷰어가 초기화되지 않았습니다');
       return;
     }
-    
+
     // Vanilla Viewer의 printDocument 메서드 호출
     if (viewer.printDocument) {
       viewer.printDocument();
@@ -73,12 +106,38 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
     }
   };
 
+  // 버튼 스타일 헬퍼
+  const getButtonStyle = (variant?: 'primary' | 'secondary' | 'danger') => {
+    const baseStyle = {
+      padding: '10px 20px',
+      border: '1px solid rgba(255, 255, 255, 0.3)',
+      borderRadius: '8px',
+      color: 'white',
+      fontSize: '14px',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+    };
+
+    switch (variant) {
+      case 'primary':
+        return { ...baseStyle, background: 'rgba(76, 175, 80, 0.3)' };
+      case 'danger':
+        return { ...baseStyle, background: 'rgba(239, 68, 68, 0.3)' };
+      default:
+        return { ...baseStyle, background: 'rgba(255, 255, 255, 0.2)' };
+    }
+  };
+
   return (
     <>
       <header
         style={{
           height: '64px',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: backgroundGradient,
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
           display: 'flex',
           alignItems: 'center',
@@ -90,6 +149,12 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
       >
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* 커스텀 로고 */}
+          {logo && (
+            typeof logo === 'string'
+              ? <img src={logo} alt="Logo" style={{ height: '32px' }} />
+              : logo
+          )}
           <h1
             style={{
               fontSize: '24px',
@@ -99,24 +164,27 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
               letterSpacing: '-0.5px',
             }}
           >
-            HAN-View
+            {title}
           </h1>
-          <span
-            style={{
-              fontSize: '12px',
-              color: 'rgba(255, 255, 255, 0.8)',
-              fontWeight: 500,
-            }}
-          >
-            HWPX Viewer & AI Editor
-          </span>
+          {subtitle && (
+            <span
+              style={{
+                fontSize: '12px',
+                color: 'rgba(255, 255, 255, 0.8)',
+                fontWeight: 500,
+              }}
+            >
+              {subtitle}
+            </span>
+          )}
         </div>
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            onClick={handleFileClick}
+          {/* 파일 열기 - 파일 입력을 버튼 스타일 div 위에 겹쳐서 실제 클릭 */}
+          <label
             style={{
+              position: 'relative',
               padding: '10px 20px',
               background: 'rgba(255, 255, 255, 0.2)',
               border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -138,7 +206,22 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
             }}
           >
             📁 파일 열기
-          </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".hwpx"
+              onChange={handleFileChange}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                opacity: 0,
+                cursor: 'pointer',
+              }}
+            />
+          </label>
 
           <button
             onClick={handleSave}
@@ -170,6 +253,8 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
           <button
             onClick={handlePrint}
             style={{
+              visibility: 'hidden',  // 임시로 숨김
+              position: 'absolute',  // 레이아웃에서 제거
               padding: '10px 20px',
               background: 'rgba(255, 255, 255, 0.2)',
               border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -179,7 +264,6 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'all 0.2s',
-              display: 'flex',
               alignItems: 'center',
               gap: '8px',
             }}
@@ -193,17 +277,37 @@ export function SimpleHeader({ onFileSelect, viewer }: SimpleHeaderProps) {
           >
             🖨️ 인쇄
           </button>
+
+          {/* 추가 버튼 */}
+          {additionalButtons.map((btn) => (
+            <button
+              key={btn.id}
+              onClick={btn.onClick}
+              disabled={btn.disabled}
+              style={{
+                ...getButtonStyle(btn.variant),
+                opacity: btn.disabled ? 0.5 : 1,
+                cursor: btn.disabled ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                if (!btn.disabled) {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!btn.disabled) {
+                  e.currentTarget.style.background = getButtonStyle(btn.variant).background as string;
+                }
+              }}
+            >
+              {btn.icon}
+              {btn.label}
+            </button>
+          ))}
         </div>
       </header>
 
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".hwpx"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
+      {/* 파일 입력은 이제 버튼 위에 직접 배치됨 - 브라우저 보안 정책 준수 */}
     </>
   );
 }

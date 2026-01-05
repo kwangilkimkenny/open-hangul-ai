@@ -20,13 +20,13 @@ const logger = getLogger('TableRenderer');
  */
 export function renderTable(table, images) {
     logger.debug('🔷 Rendering table...');
-    
+
     // ✅ images가 Map이 아닐 경우 빈 Map으로 대체
     if (!images || !(images instanceof Map)) {
         logger.warn('⚠️ Images is not a Map, using empty Map');
         images = new Map();
     }
-    
+
     const wrapper = document.createElement('div');
     wrapper.className = 'hwp-table-wrapper';
     wrapper.style.maxWidth = '100%'; // ✅ 페이지 폭 절대 초과 금지
@@ -37,7 +37,7 @@ export function renderTable(table, images) {
 
     // ✅ 테이블 데이터 연결 (InlineEditor에서 사용)
     tableEl._tableData = table;
-    
+
     // Apply table-level styles for maximum precision
     tableEl.style.borderCollapse = 'separate';
     tableEl.style.borderSpacing = '0';
@@ -56,12 +56,14 @@ export function renderTable(table, images) {
         tableEl.style.width = '100%';
     }
 
-    // Apply table height
+    // Apply table height - ✅ v2.2.10: 표 높이 HWPX 정의값으로 제한
     if (table.style && table.style.height) {
         tableEl.style.height = table.style.height;
         tableEl.style.maxHeight = table.style.height;
-        logger.debug(`  Table height: ${table.style.height}`);
+        tableEl.style.overflow = 'hidden'; // 콘텐츠가 정의된 높이를 초과하면 숨김
+        logger.debug(`  Table height constrained: ${table.style.height}`);
     }
+
 
     // Create colgroup for explicit column widths
     // Use percentage for better responsive behavior (like v1.0)
@@ -108,6 +110,7 @@ export function renderTable(table, images) {
                     tr.style.height = maxHeight + 'px';
                     tr.style.maxHeight = maxHeight + 'px';
                     tr.style.minHeight = maxHeight + 'px';
+                    tr.style.overflow = 'hidden'; // ✅ v2.2.10: 행 높이 초과 콘텐츠 숨김
                 }
             }
 
@@ -133,25 +136,25 @@ export function renderTable(table, images) {
                             // 🆕 Image background
                             const binaryItemIDRef = cell.style.backgroundImage.binaryItemIDRef;
                             const mode = cell.style.backgroundImage.mode || 'TILE';
-                            
+
                             // Get image by ID (stored as 'image1', 'image2', etc.)
                             const imageData = images.get(binaryItemIDRef);
-                            
+
                             if (imageData && imageData.url) {
                                 // Apply as background-image
-                                const backgroundSize = mode === 'TOTAL' ? 'cover' : 
-                                                      mode === 'TILE' ? 'auto' : 
-                                                      mode === 'CENTER' ? 'contain' : '100% 100%';
+                                const backgroundSize = mode === 'TOTAL' ? 'cover' :
+                                    mode === 'TILE' ? 'auto' :
+                                        mode === 'CENTER' ? 'contain' : '100% 100%';
                                 const backgroundRepeat = mode === 'TILE' ? 'repeat' : 'no-repeat';
                                 const backgroundPosition = mode === 'CENTER' ? 'center' : '0 0';
-                                
+
                                 td.style.backgroundImage = `url(${imageData.url})`;
                                 td.style.backgroundSize = backgroundSize;
                                 td.style.backgroundRepeat = backgroundRepeat;
                                 td.style.backgroundPosition = backgroundPosition;
                                 td.style.setProperty('background-image', `url(${imageData.url})`, 'important');
                                 td.style.setProperty('background-size', backgroundSize, 'important');
-                                
+
                                 logger.debug(`  🖼️ Applied background image: ${binaryItemIDRef} (mode: ${mode})`);
                             }
                         } else if (cell.style.backgroundGradient) {
@@ -160,7 +163,7 @@ export function renderTable(table, images) {
                         } else if (cell.style.backgroundColor) {
                             td.style.backgroundColor = cell.style.backgroundColor;
                             td.style.setProperty('background-color', cell.style.backgroundColor, 'important');
-                            
+
                             // Apply opacity if available
                             if (cell.style.opacity !== undefined && cell.style.opacity !== 1.0) {
                                 td.style.opacity = cell.style.opacity;
@@ -265,23 +268,23 @@ export function renderTable(table, images) {
                             td.style.padding = '3px 5px';
                         }
 
-                    // Diagonal lines (slash, backSlash)
-                    // ✅ Only render if visible=true (prevent empty SVG creation)
-                    if ((cell.style.slashDef && cell.style.slashDef.visible) || 
-                        (cell.style.backSlashDef && cell.style.backSlashDef.visible)) {
-                        renderDiagonalLines(td, cell.style);
+                        // Diagonal lines (slash, backSlash)
+                        // ✅ Only render if visible=true (prevent empty SVG creation)
+                        if ((cell.style.slashDef && cell.style.slashDef.visible) ||
+                            (cell.style.backSlashDef && cell.style.backSlashDef.visible)) {
+                            renderDiagonalLines(td, cell.style);
+                        }
                     }
-                }
 
-                // ✅ 셀 데이터 연결 (InlineEditor에서 사용)
-                td._cellData = cell;
+                    // ✅ 셀 데이터 연결 (InlineEditor에서 사용)
+                    td._cellData = cell;
 
-                // Render cell content with enhanced styling
-                if (cell.elements && cell.elements.length > 0) {
+                    // Render cell content with enhanced styling
+                    if (cell.elements && cell.elements.length > 0) {
                         cell.elements.forEach((element, elementIndex) => {
                             if (element.type === 'paragraph') {
                                 const paraDiv = renderParagraph(element);
-                                
+
                                 // ✅ Replace inline table placeholders with actual tables
                                 if (paraDiv) {
                                     const placeholders = paraDiv.querySelectorAll('.hwp-inline-table-placeholder');
@@ -299,10 +302,10 @@ export function renderTable(table, images) {
                                         }
                                     });
                                 }
-                                
+
                                 // Enhanced paragraph styling for table cells
                                 enhanceParagraphInCell(paraDiv, element, cell, elementIndex);
-                                
+
                                 td.appendChild(paraDiv);
                             } else if (element.type === 'table') {
                                 // Nested table
@@ -310,21 +313,21 @@ export function renderTable(table, images) {
                             }
                         });
                     }
-                    
+
                     // ✅ 긴 내용 셀 추가 압축 (놀이방법(전개), 놀이속배움 등)
                     const cellTextLength = cell.elements?.reduce((total, elem) => {
                         if (elem.type === 'paragraph' && elem.runs) {
-                            return total + elem.runs.reduce((sum, run) => 
+                            return total + elem.runs.reduce((sum, run) =>
                                 sum + (run.text?.length || 0), 0);
                         }
                         return total;
                     }, 0) || 0;
-                    
+
                     // 긴 내용(100자 이상)이면 초압축 모드
                     if (cellTextLength > 100) {
                         td.style.padding = '0'; // 여백 완전 제거
                         td.style.lineHeight = '1.1'; // 최소 줄간격
-                        
+
                         // 내부 모든 단락에도 적용
                         const paragraphs = td.querySelectorAll('.hwp-paragraph');
                         paragraphs.forEach((para, idx) => {
@@ -353,13 +356,13 @@ export function renderTable(table, images) {
         captionDiv.style.marginBottom = '8px';
         captionDiv.style.fontSize = '13.33px';
         captionDiv.style.lineHeight = '1.5';
-        
+
         // Render each paragraph in caption
         table.caption.paragraphs.forEach(para => {
             const paraDiv = renderParagraph(para, images);
             captionDiv.appendChild(paraDiv);
         });
-        
+
         // Insert caption based on side (TOP or BOTTOM)
         if (table.caption.side === 'BOTTOM') {
             wrapper.appendChild(tableEl);
@@ -369,12 +372,12 @@ export function renderTable(table, images) {
             wrapper.appendChild(captionDiv);
             wrapper.appendChild(tableEl);
         }
-        
+
         logger.debug(`  ✅ Caption rendered (side: ${table.caption.side})`);
     } else {
         wrapper.appendChild(tableEl);
     }
-    
+
     return wrapper;
 }
 
@@ -407,7 +410,7 @@ function enhanceParagraphInCell(paraDiv, para, cell, paraIndex) {
     if (para.style?.textAlign) {
         paraDiv.style.textAlign = para.style.textAlign;
         paraDiv.style.setProperty('text-align', para.style.textAlign, 'important');
-        
+
         // Special handling for justify alignment
         if (para.style.textAlign === 'justify') {
             paraDiv.style.textJustify = 'inter-word';
@@ -416,7 +419,7 @@ function enhanceParagraphInCell(paraDiv, para, cell, paraIndex) {
     } else if (cell.style?.textAlign) {
         paraDiv.style.textAlign = cell.style.textAlign;
         paraDiv.style.setProperty('text-align', cell.style.textAlign, 'important');
-        
+
         // Special handling for justify alignment
         if (cell.style.textAlign === 'justify') {
             paraDiv.style.textJustify = 'inter-word';

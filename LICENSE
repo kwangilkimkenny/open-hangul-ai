@@ -1,0 +1,147 @@
+HAN-View React Commercial License
+==================================
+
+Copyright (c) 2024-2025 ISM Team. All rights reserved.
+
+본 소프트웨어 및 관련 문서 파일("소프트웨어")에 대한 모든 권리는 ISM Team에 귀속됩니다.
+
+1. 라이선스 부여
+----------------
+본 라이선스 계약에 동의하고 유효한 라이선스를 구매한 경우에 한하여,
+ISM Team은 귀하에게 다음의 비독점적, 양도 불가능한 권리를 부여합니다:
+
+  a) 라이선스 조건에 명시된 수의 프로젝트에서 소프트웨어를 사용할 수 있는 권리
+  b) 귀하의 프로젝트에 소프트웨어를 통합할 수 있는 권리
+  c) 소프트웨어가 통합된 최종 제품을 배포할 수 있는 권리
+
+2. 제한사항
+-----------
+다음 행위는 명시적으로 금지됩니다:
+
+  a) 소프트웨어의 소스 코드를 재배포하거나 판매하는 행위
+  b) 소프트웨어를 서브라이선스, 임대, 대여 또는 리스하는 행위
+  c) 라이선스 계약에 명시된 수를 초과하는 프로젝트에서 사용하는 행위
+  d) 소프트웨어의 저작권 표시, 상표, 기타 소유권 표시를 제거하는 행위
+  e) 소프트웨어를 역컴파일, 역어셈블 또는 역공학하는 행위
+  f) 소프트웨어를 경쟁 제품 개발에 사용하는 행위
+
+3. 라이선스 유형
+----------------
+
+  [개인용 라이선스]
+  - 1개의 상업적 프로젝트에서 사용 가능
+  - 단일 개발자 사용
+  
+  [팀 라이선스]
+  - 5개의 상업적 프로젝트에서 사용 가능
+  - 최대 10명의 개발자 사용
+  
+  [엔터프라이즈 라이선스]
+  - 무제한 프로젝트에서 사용 가능
+  - 무제한 개발자 사용
+  - 우선 기술 지원 포함
+
+4. 지적 재산권
+--------------
+소프트웨어 및 모든 사본에 대한 소유권, 저작권 및 기타 지적 재산권은
+ISM Team에 독점적으로 귀속됩니다. 본 계약은 소프트웨어에 대한 어떠한
+소유권도 귀하에게 이전하지 않습니다.
+
+5. 보증의 부인
+--------------
+소프트웨어는 "있는 그대로" 제공되며, 상품성, 특정 목적에의 적합성,
+비침해성에 대한 묵시적 보증을 포함하여 명시적이든 묵시적이든
+어떠한 종류의 보증도 하지 않습니다.
+
+6. 책임의 제한
+--------------
+어떠한 경우에도 ISM Team은 소프트웨어의 사용 또는 사용 불능으로 인해
+발생하는 직접적, 간접적, 부수적, 특별, 결과적 또는 징벌적 손해에 대해
+책임을 지지 않습니다.
+
+7. 계약의 종료
+--------------
+본 계약의 조건을 위반할 경우, 라이선스는 자동으로 종료됩니다.
+종료 시 귀하는 소프트웨어의 모든 사본을 파기해야 합니다.
+
+8. 준거법
+---------
+본 계약은 대한민국 법률에 따라 해석되고 규율됩니다.
+
+9. 연락처
+---------
+라이선스 문의: license@ism-team.com
+기술 지원: support@ism-team.com
+웹사이트: https://ism-team.com
+
+---
+
+HAN-View React Commercial License
+==================================
+
+Copyright (c) 2024-2025 ISM Team. All rights reserved.
+
+This software and associated documentation files (the "Software") are the
+exclusive property of ISM Team.
+
+TERMS AND CONDITIONS
+
+1. LICENSE GRANT
+Upon acceptance of this agreement and purchase of a valid license, ISM Team
+grants you a non-exclusive, non-transferable right to:
+
+  a) Use the Software in the number of projects specified in your license
+  b) Integrate the Software into your projects
+  c) Distribute end products that incorporate the Software
+
+2. RESTRICTIONS
+The following activities are expressly prohibited:
+
+  a) Redistributing or selling the Software source code
+  b) Sublicensing, renting, leasing, or lending the Software
+  c) Using the Software in more projects than specified in your license
+  d) Removing copyright notices, trademarks, or other proprietary notices
+  e) Decompiling, disassembling, or reverse engineering the Software
+  f) Using the Software to develop competing products
+
+3. LICENSE TYPES
+
+  [Personal License]
+  - Use in 1 commercial project
+  - Single developer use
+  
+  [Team License]
+  - Use in up to 5 commercial projects
+  - Up to 10 developers
+  
+  [Enterprise License]
+  - Unlimited projects
+  - Unlimited developers
+  - Priority technical support
+
+4. INTELLECTUAL PROPERTY
+All ownership, copyright, and other intellectual property rights in the
+Software remain exclusively with ISM Team.
+
+5. DISCLAIMER OF WARRANTIES
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+6. LIMITATION OF LIABILITY
+IN NO EVENT SHALL ISM TEAM BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM THE USE OR INABILITY
+TO USE THE SOFTWARE.
+
+7. TERMINATION
+This license automatically terminates upon breach of any terms. Upon
+termination, you must destroy all copies of the Software.
+
+8. GOVERNING LAW
+This agreement shall be governed by the laws of the Republic of Korea.
+
+9. CONTACT
+License inquiries: license@ism-team.com
+Technical support: support@ism-team.com
+Website: https://ism-team.com
+

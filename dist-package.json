@@ -1,0 +1,66 @@
+{
+  "name": "hanview-react",
+  "version": "2.0.0",
+  "description": "Professional HWPX (Hancom Word Processor XML) Viewer & AI Document Editor for React - Commercial License",
+  "author": "ISM Team <license@ism-team.com>",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": false,
+  "keywords": [
+    "hwpx",
+    "hwp",
+    "hancom",
+    "viewer",
+    "editor",
+    "react",
+    "typescript",
+    "ai",
+    "document",
+    "word-processor",
+    "commercial",
+    "enterprise"
+  ],
+  "homepage": "https://ism-team.com/hanview-react",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ism-team/hanview-react.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ism-team/hanview-react/issues",
+    "email": "support@ism-team.com"
+  },
+  "main": "./hanview-react.umd.js",
+  "module": "./hanview-react.es.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./hanview-react.es.js",
+      "require": "./hanview-react.umd.js",
+      "types": "./index.d.ts"
+    },
+    "./styles": "./hanview-react.css",
+    "./css": "./hanview-react.css"
+  },
+  "files": [
+    "hanview-react.es.js",
+    "hanview-react.umd.js",
+    "hanview-react.css",
+    "index.d.ts",
+    "*.d.ts"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react-hot-toast": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
+

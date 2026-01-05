@@ -8,7 +8,8 @@
             font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
             height: 100vh;
             overflow: hidden;
-            background: #2c3e50;
+            /* 패키지에서는 body 배경색을 설정하지 않음 - 사용자 CSS에서 설정하도록 함 */
+            /* background: #f5f7fa; */
         }
 
         /* Main Layout */
@@ -3246,7 +3247,360 @@
         }
 
         /* 편집 모드 힌트 (단락용) - 제거됨 (v2.0) */
-        
+
         /* 편집 가능 표시 (단락 호버) - 제거됨 (v2.0) */
-        
+
         /* 테이블 내부 단락은 편집 힌트 표시 안 함 - 제거됨 (v2.0) */
+
+        /* ===========================
+         * Range Selection Styles
+         * ===========================*/
+
+        /* 선택 하이라이트 오버레이 */
+        .hwpx-selection-highlight {
+            position: absolute;
+            background-color: rgba(0, 120, 215, 0.3);
+            pointer-events: none;
+            z-index: 10;
+            transition: none;
+        }
+
+        /* 선택 중일 때 커서 변경 */
+        .hwpx-selecting {
+            cursor: text;
+            user-select: none;
+        }
+
+        /* 선택 가능한 컨테이너 */
+        .hwpx-selectable {
+            cursor: text;
+        }
+
+        /* 선택된 텍스트 애니메이션 */
+        @keyframes selection-pulse {
+            0%, 100% {
+                background-color: rgba(0, 120, 215, 0.3);
+            }
+            50% {
+                background-color: rgba(0, 120, 215, 0.4);
+            }
+        }
+
+        /* 포커스된 컨테이너 */
+        #hwpx-viewer:focus {
+            outline: none;
+        }
+
+        /* 드래그 중일 때 */
+        .hwpx-dragging .hwpx-selection-highlight {
+            transition: all 0.05s ease-out;
+        }
+
+        /* 선택 정보 툴팁 (선택 완료 시) */
+        .hwpx-selection-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: tooltip-fade-in 0.2s ease-out;
+        }
+
+        @keyframes tooltip-fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 선택 범위 경계선 (디버그용) */
+        .hwpx-selection-debug .hwpx-selection-highlight {
+            border: 1px solid rgba(0, 120, 215, 0.6);
+            background-color: rgba(0, 120, 215, 0.2);
+        }
+
+        /* 다중 선택 영역 (미래 기능) */
+        .hwpx-multi-selection .hwpx-selection-highlight {
+            background-color: rgba(255, 165, 0, 0.3);
+        }
+
+        /* 읽기 전용 모드에서는 선택 비활성화 */
+        .hwpx-readonly .hwpx-selection-highlight {
+            display: none;
+        }
+
+        /* ===========================
+         * Cursor Styles
+         * ===========================*/
+
+        /* 커서 */
+        .hwpx-cursor {
+            position: absolute;
+            width: 2px;
+            background-color: #000;
+            pointer-events: none;
+            z-index: 100;
+            transition: none;
+            animation: cursor-blink 1.06s step-end infinite;
+        }
+
+        /* 커서 깜빡임 애니메이션 */
+        @keyframes cursor-blink {
+            0%, 49% {
+                opacity: 1;
+            }
+            50%, 100% {
+                opacity: 0;
+            }
+        }
+
+        /* 커서 깜빡임 비활성화 */
+        .hwpx-cursor.no-blink {
+            animation: none;
+            opacity: 1;
+        }
+
+        /* 커서 에이전트 (입력 캡처) */
+        .hwpx-cursor-agent {
+            position: fixed;
+            left: -9999px;
+            top: -9999px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            z-index: -1;
+            resize: none;
+            border: none;
+            outline: none;
+            background: transparent;
+        }
+
+        /* 커서 활성 상태 */
+        .hwpx-cursor.active {
+            background-color: #0078d4;
+            box-shadow: 0 0 4px rgba(0, 120, 212, 0.5);
+        }
+
+        /* 읽기 전용 모드 커서 */
+        .hwpx-readonly .hwpx-cursor {
+            display: none;
+        }
+
+        /* 커서 색상 테마 */
+        .hwpx-cursor.theme-blue {
+            background-color: #0078d4;
+        }
+
+        .hwpx-cursor.theme-red {
+            background-color: #e74c3c;
+        }
+
+        .hwpx-cursor.theme-green {
+            background-color: #27ae60;
+        }
+
+        /* IME 조합 중 커서 (두꺼운 커서) */
+        .hwpx-cursor.composing {
+            width: 4px;
+            background-color: #0078d4;
+            opacity: 0.7;
+        }
+
+        /* ================================
+         * Search Highlights
+         * ================================ */
+
+        /* 일반 검색 하이라이트 */
+        .hwpx-search-highlight {
+            background-color: rgba(255, 235, 59, 0.4);
+            border: 1px solid rgba(255, 235, 59, 0.6);
+            border-radius: 2px;
+        }
+
+        /* 현재 선택된 검색 하이라이트 */
+        .hwpx-search-highlight-current {
+            background-color: rgba(255, 152, 0, 0.4);
+            border: 1px solid #ff9800;
+            border-radius: 2px;
+            box-shadow: 0 0 4px rgba(255, 152, 0, 0.5);
+        }
+
+        /* ================================
+         * Search Dialog
+         * ================================ */
+
+        .hwpx-search-dialog {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 400px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .hwpx-search-dialog-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .hwpx-search-dialog-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .hwpx-search-tab {
+            padding: 6px 16px;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .hwpx-search-tab:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .hwpx-search-tab.active {
+            background: #2196F3;
+            color: white;
+        }
+
+        .hwpx-search-close {
+            width: 28px;
+            height: 28px;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 24px;
+            line-height: 1;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .hwpx-search-close:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .hwpx-search-dialog-body {
+            padding: 16px;
+        }
+
+        .hwpx-search-input-group,
+        .hwpx-replace-input-group {
+            margin-bottom: 12px;
+        }
+
+        .hwpx-search-input,
+        .hwpx-replace-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .hwpx-search-input:focus,
+        .hwpx-replace-input:focus {
+            outline: none;
+            border-color: #2196F3;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+        }
+
+        .hwpx-search-match-info {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #666;
+            height: 18px;
+        }
+
+        .hwpx-search-options {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hwpx-search-options label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+        }
+
+        .hwpx-search-options input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .hwpx-search-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .hwpx-btn {
+            padding: 8px 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .hwpx-btn:hover {
+            background: #1976D2;
+        }
+
+        .hwpx-btn:active {
+            transform: scale(0.98);
+        }
+
+        .hwpx-btn-find-prev,
+        .hwpx-btn-find-next {
+            background: #607D8B;
+        }
+
+        .hwpx-btn-find-prev:hover,
+        .hwpx-btn-find-next:hover {
+            background: #455A64;
+        }
+
+        .hwpx-btn-replace {
+            background: #FF9800;
+        }
+
+        .hwpx-btn-replace:hover {
+            background: #F57C00;
+        }
+
+        .hwpx-btn-replace-all {
+            background: #F44336;
+        }
+
+        .hwpx-btn-replace-all:hover {
+            background: #D32F2F;
+        }

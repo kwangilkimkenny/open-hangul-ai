@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line Spacing Test - HWPX Viewer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .toolbar {
+            background: #f5f5f5;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar-section {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toolbar-section::after {
+            content: '';
+            width: 1px;
+            height: 24px;
+            background: #ddd;
+            margin: 0 8px;
+        }
+
+        .toolbar-section:last-child::after {
+            display: none;
+        }
+
+        .toolbar-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #1976D2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-spacing {
+            min-width: 70px;
+        }
+
+        input[type="number"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 80px;
+        }
+
+        #viewer-container {
+            border: 1px solid #ddd;
+            min-height: 600px;
+            border-radius: 4px;
+            background: white;
+            position: relative;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status-item {
+            margin: 4px 0;
+        }
+
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #ff9800;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📏 Line Spacing (줄 간격) Test</h1>
+
+        <div class="info">
+            <strong>테스트 시나리오:</strong>
+            <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+                <li>문서 로드 (다양한 줄 간격의 단락 포함)</li>
+                <li>단락에 커서 위치 또는 여러 단락 선택</li>
+                <li>줄 간격 버튼 클릭 또는 커스텀 값 입력</li>
+                <li>줄 간격 변경 확인</li>
+                <li>Undo/Redo 테스트</li>
+            </ol>
+            <div style="margin-top: 12px; padding: 8px; background: #fff3cd; border-radius: 4px;">
+                <strong>💡 Tip:</strong> 줄 간격 1.0 = 단일 간격, 1.5 = 1.5줄, 2.0 = 2줄 간격입니다.
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <button id="btn-load">1. 테스트 문서 로드</button>
+
+            <div class="toolbar-section" id="preset-section" style="display: none;">
+                <span class="toolbar-label">프리셋:</span>
+                <button class="btn-spacing" id="btn-single" title="단일 간격 (1.0)" disabled>1.0</button>
+                <button class="btn-spacing" id="btn-115" title="1.15줄 간격" disabled>1.15</button>
+                <button class="btn-spacing" id="btn-15" title="1.5줄 간격" disabled>1.5</button>
+                <button class="btn-spacing" id="btn-double" title="2줄 간격 (2.0)" disabled>2.0</button>
+            </div>
+
+            <div class="toolbar-section" id="custom-section" style="display: none;">
+                <span class="toolbar-label">커스텀:</span>
+                <input type="number" id="input-spacing" min="0.5" max="3.0" step="0.1" value="1.0" disabled>
+                <button id="btn-apply-custom" disabled>적용</button>
+            </div>
+
+            <div class="toolbar-section" id="undo-section" style="display: none;">
+                <button id="btn-undo" disabled>↶ Undo</button>
+                <button id="btn-redo" disabled>↷ Redo</button>
+            </div>
+        </div>
+
+        <div id="viewer-container"></div>
+
+        <div class="status" id="status">
+            <div class="status-item">상태: 대기 중...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { HWPXViewer } from '../src/lib/vanilla/viewer.js';
+
+        let viewer;
+
+        const buttons = {
+            load: document.getElementById('btn-load'),
+            single: document.getElementById('btn-single'),
+            _115: document.getElementById('btn-115'),
+            _15: document.getElementById('btn-15'),
+            double: document.getElementById('btn-double'),
+            applyCustom: document.getElementById('btn-apply-custom'),
+            undo: document.getElementById('btn-undo'),
+            redo: document.getElementById('btn-redo')
+        };
+
+        const inputSpacing = document.getElementById('input-spacing');
+        const statusDiv = document.getElementById('status');
+
+        function updateStatus(message, type = 'success') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'success';
+            statusDiv.innerHTML += `<div class="status-item ${className}">[${timestamp}] ${message}</div>`;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function enableButtons(...buttonNames) {
+            buttonNames.forEach(name => {
+                if (buttons[name]) {
+                    buttons[name].disabled = false;
+                }
+            });
+        }
+
+        function applyLineSpacing(spacing) {
+            try {
+                viewer.command.lineSpacing(spacing);
+                updateStatus(`✅ 줄 간격 적용: ${spacing}`);
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        }
+
+        // 1. 문서 로드
+        buttons.load.addEventListener('click', async () => {
+            try {
+                updateStatus('테스트 문서 로드 중...');
+
+                // 줄 간격 테스트용 문서 생성
+                const testDocument = {
+                    header: { title: 'Line Spacing Test Document' },
+                    sections: [{
+                        paragraphs: [
+                            {
+                                text: 'Single Spacing (1.0): Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                runs: [{
+                                    text: 'Single Spacing (1.0): Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                    style: { fontSize: '14pt' }
+                                }],
+                                style: { lineHeight: '1.0' }
+                            },
+                            {
+                                text: '1.15 Line Spacing: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                runs: [{
+                                    text: '1.15 Line Spacing: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                    style: { fontSize: '14pt' }
+                                }],
+                                style: { lineHeight: '1.15' }
+                            },
+                            {
+                                text: '1.5 Line Spacing: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                runs: [{
+                                    text: '1.5 Line Spacing: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                    style: { fontSize: '14pt' }
+                                }],
+                                style: { lineHeight: '1.5' }
+                            },
+                            {
+                                text: 'Double Spacing (2.0): Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                runs: [{
+                                    text: 'Double Spacing (2.0): Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                                    style: { fontSize: '14pt' }
+                                }],
+                                style: { lineHeight: '2.0' }
+                            },
+                            {
+                                text: 'Korean Text (한글 텍스트): 줄 간격은 단락의 세로 간격을 조절하는 기능입니다. 1.0은 단일 간격, 1.5는 1.5줄 간격, 2.0은 2줄 간격을 의미합니다.',
+                                runs: [{
+                                    text: 'Korean Text (한글 텍스트): 줄 간격은 단락의 세로 간격을 조절하는 기능입니다. 1.0은 단일 간격, 1.5는 1.5줄 간격, 2.0은 2줄 간격을 의미합니다.',
+                                    style: { fontSize: '14pt' }
+                                }],
+                                style: { lineHeight: '1.3' }
+                            },
+                            {
+                                text: 'Multi-line paragraph: This is a longer paragraph with multiple lines to better demonstrate line spacing. You can see how the spacing between lines changes based on the line height value. Try selecting this paragraph and applying different line spacing values.',
+                                runs: [{
+                                    text: 'Multi-line paragraph: This is a longer paragraph with multiple lines to better demonstrate line spacing. You can see how the spacing between lines changes based on the line height value. Try selecting this paragraph and applying different line spacing values.',
+                                    style: { fontSize: '14pt' }
+                                }],
+                                style: { lineHeight: '1.2' }
+                            },
+                            {
+                                text: 'Click on any paragraph and change its line spacing using the toolbar!',
+                                runs: [{
+                                    text: 'Click on any paragraph and change its line spacing using the toolbar!',
+                                    style: { fontSize: '14pt', color: '#666' }
+                                }]
+                            }
+                        ]
+                    }]
+                };
+
+                viewer = new HWPXViewer('viewer-container', { editable: true });
+                await viewer.loadDocument(testDocument);
+
+                // 커서 초기화
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const cursor = viewer.getCursor();
+                cursor.setCursorPosition(0);
+                cursor.show();
+                cursor.focus();
+
+                updateStatus('✅ 문서 로드 완료');
+                updateStatus('💡 단락을 클릭하고 줄 간격을 변경해보세요!', 'warning');
+
+                buttons.load.disabled = true;
+                document.getElementById('preset-section').style.display = 'flex';
+                document.getElementById('custom-section').style.display = 'flex';
+                document.getElementById('undo-section').style.display = 'flex';
+
+                inputSpacing.disabled = false;
+                enableButtons('single', '_115', '_15', 'double', 'applyCustom', 'undo', 'redo');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 프리셋 버튼들
+        buttons.single.addEventListener('click', () => {
+            applyLineSpacing(1.0);
+        });
+
+        buttons._115.addEventListener('click', () => {
+            applyLineSpacing(1.15);
+        });
+
+        buttons._15.addEventListener('click', () => {
+            applyLineSpacing(1.5);
+        });
+
+        buttons.double.addEventListener('click', () => {
+            applyLineSpacing(2.0);
+        });
+
+        // 커스텀 값 적용
+        buttons.applyCustom.addEventListener('click', () => {
+            const spacing = parseFloat(inputSpacing.value);
+            if (spacing >= 0.5 && spacing <= 3.0) {
+                applyLineSpacing(spacing);
+            } else {
+                updateStatus('⚠️ 줄 간격은 0.5 ~ 3.0 사이 값이어야 합니다.', 'warning');
+            }
+        });
+
+        // Undo/Redo
+        buttons.undo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.undo();
+                if (success) {
+                    updateStatus('✅ Undo 완료');
+                } else {
+                    updateStatus('⚠️ Undo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.redo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.redo();
+                if (success) {
+                    updateStatus('✅ Redo 완료');
+                } else {
+                    updateStatus('⚠️ Redo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        updateStatus('준비 완료. "1. 테스트 문서 로드" 버튼을 클릭하세요.');
+        updateStatus('💡 문서 로드 후 단락을 클릭하고 줄 간격 버튼을 클릭하세요.', 'warning');
+    </script>
+</body>
+</html>

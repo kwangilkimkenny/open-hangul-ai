@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Superscript & Subscript Test - HWPX Viewer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .examples {
+            background: #f0f7ff;
+            border-left: 4px solid #4CAF50;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .examples h3 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: #2e7d32;
+        }
+
+        .examples ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .toolbar {
+            background: #f5f5f5;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar-section {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toolbar-section::after {
+            content: '';
+            width: 1px;
+            height: 24px;
+            background: #ddd;
+            margin: 0 8px;
+        }
+
+        .toolbar-section:last-child::after {
+            display: none;
+        }
+
+        .toolbar-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #1976D2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-script {
+            min-width: 80px;
+            position: relative;
+        }
+
+        .btn-script.active {
+            background: #4CAF50;
+        }
+
+        #viewer-container {
+            border: 1px solid #ddd;
+            min-height: 600px;
+            border-radius: 4px;
+            background: white;
+            position: relative;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status-item {
+            margin: 4px 0;
+        }
+
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #ff9800;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⬆️⬇️ Superscript & Subscript Test</h1>
+
+        <div class="info">
+            <strong>테스트 시나리오:</strong>
+            <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+                <li>문서 로드 (위 첨자/아래 첨자 예제 포함)</li>
+                <li>텍스트 선택</li>
+                <li>위 첨자 또는 아래 첨자 버튼 클릭</li>
+                <li>첨자 적용 확인 (작은 글씨 + 위/아래 정렬)</li>
+                <li>일반 텍스트로 되돌리기</li>
+                <li>Undo/Redo 테스트</li>
+            </ol>
+        </div>
+
+        <div class="examples">
+            <h3>📚 실제 사용 예시</h3>
+            <ul>
+                <li><strong>수학:</strong> x² + y³ = z, E = mc²</li>
+                <li><strong>화학:</strong> H₂O, CO₂, C₆H₁₂O₆</li>
+                <li><strong>주석:</strong> 텍스트¹, 참고문헌²</li>
+                <li><strong>서수:</strong> 1st, 2nd, 3rd</li>
+                <li><strong>분수:</strong> ½, ¾ (위/아래 첨자 조합)</li>
+            </ul>
+        </div>
+
+        <div class="toolbar">
+            <button id="btn-load">1. 테스트 문서 로드</button>
+
+            <div class="toolbar-section" id="script-section" style="display: none;">
+                <span class="toolbar-label">첨자:</span>
+                <button class="btn-script" id="btn-superscript" title="위 첨자 (x²)" disabled>
+                    x<sup>2</sup> 위 첨자
+                </button>
+                <button class="btn-script" id="btn-subscript" title="아래 첨자 (H₂O)" disabled>
+                    H<sub>2</sub>O 아래 첨자
+                </button>
+                <button class="btn-script" id="btn-normal" title="일반 텍스트" disabled>
+                    일반 텍스트
+                </button>
+            </div>
+
+            <div class="toolbar-section" id="undo-section" style="display: none;">
+                <button id="btn-undo" disabled>↶ Undo</button>
+                <button id="btn-redo" disabled>↷ Redo</button>
+            </div>
+        </div>
+
+        <div id="viewer-container"></div>
+
+        <div class="status" id="status">
+            <div class="status-item">상태: 대기 중...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { HWPXViewer } from '../src/lib/vanilla/viewer.js';
+
+        let viewer;
+
+        const buttons = {
+            load: document.getElementById('btn-load'),
+            superscript: document.getElementById('btn-superscript'),
+            subscript: document.getElementById('btn-subscript'),
+            normal: document.getElementById('btn-normal'),
+            undo: document.getElementById('btn-undo'),
+            redo: document.getElementById('btn-redo')
+        };
+
+        const statusDiv = document.getElementById('status');
+
+        function updateStatus(message, type = 'success') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'success';
+            statusDiv.innerHTML += `<div class="status-item ${className}">[${timestamp}] ${message}</div>`;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function enableButtons(...buttonNames) {
+            buttonNames.forEach(name => {
+                if (buttons[name]) {
+                    buttons[name].disabled = false;
+                }
+            });
+        }
+
+        function setActiveButton(buttonName) {
+            // 모든 script 버튼의 active 클래스 제거
+            buttons.superscript.classList.remove('active');
+            buttons.subscript.classList.remove('active');
+            buttons.normal.classList.remove('active');
+
+            // 선택된 버튼에 active 클래스 추가
+            if (buttonName && buttons[buttonName]) {
+                buttons[buttonName].classList.add('active');
+            }
+        }
+
+        // 1. 문서 로드
+        buttons.load.addEventListener('click', async () => {
+            try {
+                updateStatus('테스트 문서 로드 중...');
+
+                // 위 첨자/아래 첨자 테스트용 문서 생성
+                const testDocument = {
+                    header: { title: 'Superscript & Subscript Test Document' },
+                    sections: [{
+                        paragraphs: [
+                            {
+                                text: 'Normal text without any script formatting.',
+                                runs: [{
+                                    text: 'Normal text without any script formatting.',
+                                    style: { fontSize: '14pt' }
+                                }]
+                            },
+                            {
+                                text: 'Mathematical: E = mc² (Einstein\'s equation)',
+                                runs: [{
+                                    text: 'Mathematical: E = mc',
+                                    style: { fontSize: '14pt' }
+                                }, {
+                                    text: '²',
+                                    style: { fontSize: '14pt', verticalAlign: 'super' }
+                                }, {
+                                    text: ' (Einstein\'s equation)',
+                                    style: { fontSize: '14pt' }
+                                }]
+                            },
+                            {
+                                text: 'Chemical: H₂O is the chemical formula for water.',
+                                runs: [{
+                                    text: 'Chemical: H',
+                                    style: { fontSize: '14pt' }
+                                }, {
+                                    text: '₂',
+                                    style: { fontSize: '14pt', verticalAlign: 'sub' }
+                                }, {
+                                    text: 'O is the chemical formula for water.',
+                                    style: { fontSize: '14pt' }
+                                }]
+                            },
+                            {
+                                text: 'Reference: This is a footnote¹ and another².',
+                                runs: [{
+                                    text: 'Reference: This is a footnote',
+                                    style: { fontSize: '14pt' }
+                                }, {
+                                    text: '¹',
+                                    style: { fontSize: '14pt', verticalAlign: 'super' }
+                                }, {
+                                    text: ' and another',
+                                    style: { fontSize: '14pt' }
+                                }, {
+                                    text: '²',
+                                    style: { fontSize: '14pt', verticalAlign: 'super' }
+                                }, {
+                                    text: '.',
+                                    style: { fontSize: '14pt' }
+                                }]
+                            },
+                            {
+                                text: 'Powers: x² + y³ = z⁴',
+                                runs: [{
+                                    text: 'Powers: x',
+                                    style: { fontSize: '14pt' }
+                                }, {
+                                    text: '²',
+                                    style: { fontSize: '14pt', verticalAlign: 'super' }
+                                }, {
+                                    text: ' + y',
+                                    style: { fontSize: '14pt' }
+                                }, {
+                                    text: '³',
+                                    style: { fontSize: '14pt', verticalAlign: 'super' }
+                                }, {
+                                    text: ' = z',
+                                    style: { fontSize: '14pt' }
+                                }, {
+                                    text: '⁴',
+                                    style: { fontSize: '14pt', verticalAlign: 'super' }
+                                }]
+                            },
+                            {
+                                text: 'Select any text and apply superscript or subscript!',
+                                runs: [{
+                                    text: 'Select any text and apply superscript or subscript!',
+                                    style: { fontSize: '14pt', color: '#666' }
+                                }]
+                            }
+                        ]
+                    }]
+                };
+
+                viewer = new HWPXViewer('viewer-container', { editable: true });
+                await viewer.loadDocument(testDocument);
+
+                // 커서 초기화
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const cursor = viewer.getCursor();
+                cursor.setCursorPosition(0);
+                cursor.show();
+                cursor.focus();
+
+                updateStatus('✅ 문서 로드 완료');
+                updateStatus('💡 텍스트를 선택하고 위 첨자 또는 아래 첨자를 적용하세요!', 'warning');
+
+                buttons.load.disabled = true;
+                document.getElementById('script-section').style.display = 'flex';
+                document.getElementById('undo-section').style.display = 'flex';
+
+                enableButtons('superscript', 'subscript', 'normal', 'undo', 'redo');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 위 첨자 버튼
+        buttons.superscript.addEventListener('click', () => {
+            try {
+                viewer.command.superscript(true);
+                setActiveButton('superscript');
+                updateStatus('✅ 위 첨자 적용');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 아래 첨자 버튼
+        buttons.subscript.addEventListener('click', () => {
+            try {
+                viewer.command.subscript(true);
+                setActiveButton('subscript');
+                updateStatus('✅ 아래 첨자 적용');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // 일반 텍스트 버튼
+        buttons.normal.addEventListener('click', () => {
+            try {
+                viewer.command.superscript(false); // verticalAlign = 'baseline'
+                setActiveButton('normal');
+                updateStatus('✅ 일반 텍스트로 변경');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Undo/Redo
+        buttons.undo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.undo();
+                if (success) {
+                    updateStatus('✅ Undo 완료');
+                } else {
+                    updateStatus('⚠️ Undo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.redo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.redo();
+                if (success) {
+                    updateStatus('✅ Redo 완료');
+                } else {
+                    updateStatus('⚠️ Redo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        updateStatus('준비 완료. "1. 테스트 문서 로드" 버튼을 클릭하세요.');
+        updateStatus('💡 문서 로드 후 텍스트를 드래그로 선택하고 첨자 버튼을 클릭하세요.', 'warning');
+    </script>
+</body>
+</html>

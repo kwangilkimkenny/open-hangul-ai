@@ -6,15 +6,12 @@
  * @version 2.0.0
  */
 
-// JSZip is loaded via CDN in index-professional.html
-// import JSZip from 'jszip';
+// ✅ JSZip을 직접 import (패키지에 번들됨)
+import JSZip from 'jszip';
 import { getLogger } from '../utils/logger.js';
 import { HWPXConstants } from './constants.js';
 
 const logger = getLogger();
-
-// Use global JSZip from CDN
-const JSZip = window.JSZip;
 
 /**
  * HWPX 파서 클래스
@@ -52,7 +49,7 @@ export class SimpleHWPXParser {
             parseStyles: options.parseStyles !== false,
             ...options
         };
-        
+
         // Internal state
         this.entries = new Map();
         this.images = new Map();
@@ -126,13 +123,13 @@ export class SimpleHWPXParser {
             logger.info('✅ HWPX parsed successfully');
             logger.debug('Document structure:', document);
             logger.timeEnd('HWPX Parse');
-            
+
             return document;
 
         } catch (error) {
             logger.error('❌ HWPX parsing error:', error);
             logger.timeEnd('HWPX Parse');
-            
+
             const parseError = new Error(`HWPX 파싱 실패: ${error.message}`);
             parseError.originalError = error;
             parseError.stack = error.stack;
@@ -148,10 +145,10 @@ export class SimpleHWPXParser {
      */
     async unzip(buffer) {
         logger.debug('📦 Unzipping HWPX file...');
-        
+
         const zip = new JSZip();
         const zipData = await zip.loadAsync(buffer);
-        
+
         // ✅ JSZip 인스턴스 저장 (rawHeaderXml 추출용)
         this.zip = zipData;
 
@@ -231,7 +228,7 @@ export class SimpleHWPXParser {
         logger.debug('🎨 Loading borderFill definitions...');
 
         const headData = this.entries.get('Contents/header.xml') ||
-                        this.entries.get('Contents/head.xml');
+            this.entries.get('Contents/head.xml');
 
         if (!headData) {
             logger.warn('⚠️  No header.xml found, skipping borderFill parsing');
@@ -342,11 +339,11 @@ export class SimpleHWPXParser {
                 // Solid color fill - try multiple attribute names
                 // Priority: winBrush faceColor > fillElem attributes
                 const bgColor = faceColor ||
-                               fillElem.getAttribute('backgroundColor') ||
-                               fillElem.getAttribute('color') ||
-                               fillElem.getAttribute('rgb') ||
-                               fillElem.getAttribute('bgColor') ||
-                               fillElem.getAttribute('fillColor');
+                    fillElem.getAttribute('backgroundColor') ||
+                    fillElem.getAttribute('color') ||
+                    fillElem.getAttribute('rgb') ||
+                    fillElem.getAttribute('bgColor') ||
+                    fillElem.getAttribute('fillColor');
 
                 if (bgColor && bgColor !== 'none') {
                     borderFill.fill.backgroundColor = this.normalizeColor(bgColor);
@@ -359,7 +356,7 @@ export class SimpleHWPXParser {
                 if (patternType && patternType !== 'none') {
                     borderFill.fill.patternType = patternType;
                     const fgColor = fillElem.getAttribute('patternColor') ||
-                                  fillElem.getAttribute('foregroundColor');
+                        fillElem.getAttribute('foregroundColor');
                     if (fgColor) {
                         borderFill.fill.patternForeground = this.normalizeColor(fgColor);
                     }
@@ -394,7 +391,7 @@ export class SimpleHWPXParser {
                     if (imgElem) {
                         const binaryItemIDRef = imgElem.getAttribute('binaryItemIDRef');
                         const mode = imgBrushElem.getAttribute('mode') || 'TILE';
-                        
+
                         if (binaryItemIDRef) {
                             borderFill.fill.backgroundImage = {
                                 binaryItemIDRef: binaryItemIDRef,
@@ -420,9 +417,9 @@ export class SimpleHWPXParser {
      */
     async loadParaProperties() {
         logger.debug('📐 Loading paragraph properties...');
-        
+
         const headData = this.entries.get('Contents/header.xml') ||
-                        this.entries.get('Contents/head.xml');
+            this.entries.get('Contents/head.xml');
 
         if (!headData) {
             logger.warn('⚠️  No header.xml found');
@@ -492,7 +489,7 @@ export class SimpleHWPXParser {
             if (lineSpacingElem) {
                 const type = lineSpacingElem.getAttribute('type');
                 const value = lineSpacingElem.getAttribute('value');
-                
+
                 if (type && value) {
                     // type: PERCENT, FIXED, AT_LEAST, BETWEEN_LINES
                     if (type === 'PERCENT' || type === 'RATIO') {
@@ -502,7 +499,7 @@ export class SimpleHWPXParser {
                     }
                 }
             }
-            
+
             // Fallback: check fontLineHeight attribute (0=100%, 1=custom)
             const fontLineHeight = elem.getAttribute('fontLineHeight');
             if (fontLineHeight === '0' && !paraProp.lineHeight) {
@@ -523,9 +520,9 @@ export class SimpleHWPXParser {
      */
     async loadCharProperties() {
         logger.debug('🔤 Loading character properties...');
-        
+
         const headData = this.entries.get('Contents/header.xml') ||
-                        this.entries.get('Contents/head.xml');
+            this.entries.get('Contents/head.xml');
 
         if (!headData) {
             logger.warn('⚠️  No header.xml found');
@@ -553,8 +550,8 @@ export class SimpleHWPXParser {
             if (height) {
                 const ptSize = parseInt(height) / 100;
                 const pxSize = HWPXConstants.ptToPx(ptSize);
-                charProp.fontSize = `${ptSize  }pt`;
-                charProp.fontSizePx = `${pxSize.toFixed(2)  }px`;
+                charProp.fontSize = `${ptSize}pt`;
+                charProp.fontSizePx = `${pxSize.toFixed(2)}px`;
             }
 
             // Font face
@@ -586,19 +583,19 @@ export class SimpleHWPXParser {
             }
 
             // Parse child elements for detailed styling
-            
+
             // Bold (child element)
             const boldElem = cpElem.querySelector('bold, hh\\:bold');
             if (boldElem) {
                 charProp.bold = true;
             }
-            
+
             // Italic (child element)
             const italicElem = cpElem.querySelector('italic, hh\\:italic');
             if (italicElem) {
                 charProp.italic = true;
             }
-            
+
             // Underline (child element with details)
             const underlineElem = cpElem.querySelector('underline, hh\\:underline');
             if (underlineElem) {
@@ -612,7 +609,7 @@ export class SimpleHWPXParser {
                     }
                 }
             }
-            
+
             // Strikeout (취소선) - type 속성으로 판단
             const strikeoutElem = cpElem.querySelector('strikeout, hh\\:strikeout');
             if (strikeoutElem) {
@@ -626,7 +623,7 @@ export class SimpleHWPXParser {
                     }
                 }
             }
-            
+
             // Outline (외곽선)
             const outlineElem = cpElem.querySelector('outline, hh\\:outline');
             if (outlineElem) {
@@ -635,7 +632,7 @@ export class SimpleHWPXParser {
                     charProp.outline = true;
                 }
             }
-            
+
             // Shadow (그림자)
             const shadowElem = cpElem.querySelector('shadow, hh\\:shadow');
             if (shadowElem) {
@@ -645,7 +642,7 @@ export class SimpleHWPXParser {
                     const shadowColor = shadowElem.getAttribute('color');
                     const offsetX = shadowElem.getAttribute('offsetX');
                     const offsetY = shadowElem.getAttribute('offsetY');
-                    
+
                     if (shadowColor && offsetX && offsetY) {
                         // Convert HWPU to px
                         const offsetXPx = parseInt(offsetX) / 7200 * 96;
@@ -654,7 +651,7 @@ export class SimpleHWPXParser {
                     }
                 }
             }
-            
+
             // Spacing (자간)
             const spacingElem = cpElem.querySelector('spacing, hh\\:spacing');
             if (spacingElem) {
@@ -665,7 +662,7 @@ export class SimpleHWPXParser {
                     charProp.letterSpacing = `${spacingPercent.toFixed(2)}em`;
                 }
             }
-            
+
             // Ratio (장평 - 글자 폭 비율)
             const ratioElem = cpElem.querySelector('ratio, hh\\:ratio');
             if (ratioElem) {
@@ -676,7 +673,7 @@ export class SimpleHWPXParser {
                     charProp.scaleX = ratioPercent / 100;
                 }
             }
-            
+
             // Offset (위첨자/아래첨자)
             const offsetElem = cpElem.querySelector('offset, hh\\:offset');
             if (offsetElem) {
@@ -690,7 +687,7 @@ export class SimpleHWPXParser {
                     }
                 }
             }
-            
+
             // Background color (shadeColor)
             const shadeColor = cpElem.getAttribute('shadeColor');
             if (shadeColor && shadeColor !== 'none' && shadeColor !== 'auto') {
@@ -710,9 +707,9 @@ export class SimpleHWPXParser {
      */
     async loadFontFaces() {
         logger.debug('🔤 Loading font faces...');
-        
+
         const headData = this.entries.get('Contents/header.xml') ||
-                        this.entries.get('Contents/head.xml');
+            this.entries.get('Contents/head.xml');
 
         if (!headData) {
             logger.warn('⚠️  No header.xml found');
@@ -863,7 +860,7 @@ export class SimpleHWPXParser {
                     section.pageSettings.marginRight = `${marginRightPx}px`;
                     section.pageSettings.marginTop = `${marginTopPx}px`;
                     section.pageSettings.marginBottom = `${marginBottomPx}px`;
-                    
+
                     // Direct properties for easy access
                     section.marginLeft = marginLeftPx;
                     section.marginRight = marginRightPx;
@@ -906,52 +903,52 @@ export class SimpleHWPXParser {
         if (possibleBody) {
             bodyElem = possibleBody;
         }
-        
+
         // Get all direct children of body/section in document order
         const children = Array.from(bodyElem.children);
         logger.debug(`  Found ${children.length} top-level elements`);
-        
+
         let parsedCount = 0;
         children.forEach((child, idx) => {
             const localName = (child.localName || child.tagName).toLowerCase().replace(/^hp:|^hh:|^hs:/, '');
-            
+
             // Skip headers, footers (already parsed)
             if (localName === 'header' || localName === 'footer') {
                 return;
             }
-            
+
             // Handle paragraph
             if (localName === 'p') {
                 // Skip if inside table/container/etc (defensive, shouldn't happen at top level)
                 if (child.closest('tbl, hp\\:tbl, tc, hp\\:tc, container, hp\\:container')) {
                     return;
                 }
-                
+
                 const containsTable = child.querySelector('tbl, hp\\:tbl');
                 const containsContainer = child.querySelector('container, hp\\:container');
                 const hasRuns = child.querySelectorAll('run, hp\\:run').length > 0;
                 const containsStandaloneShapes = !hasRuns && child.querySelector('rect, hp\\:rect, ellipse, hp\\:ellipse, polygon, hp\\:polygon');
-                
+
                 // ✅ Don't skip container paragraphs - they should be parsed normally
                 // The containers inside will be parsed by parseParagraph
                 // Skip only standalone shapes without runs
                 if (containsStandaloneShapes && !containsContainer) {
                     return;
                 }
-                
+
                 // ✅ CRITICAL: Parse tables INSIDE this paragraph (p > run > tbl)
                 // MAINTAIN EXACT RUN ORDER: text runs and tables in original sequence
                 if (containsTable) {
                     const runs = child.querySelectorAll(':scope > run, :scope > hp\\:run');
                     let currentTextRuns = [];
-                    
+
                     runs.forEach((runElem, runIdx) => {
                         const children = Array.from(runElem.children);
                         const hasTableInRun = children.some(c => {
                             const ln = (c.localName || c.tagName).toLowerCase();
                             return ln === 'tbl' || ln.endsWith(':tbl');
                         });
-                        
+
                         if (hasTableInRun && this.options.parseTables) {
                             // Flush accumulated text runs as a paragraph
                             if (currentTextRuns.length > 0) {
@@ -965,7 +962,7 @@ export class SimpleHWPXParser {
                                 parsedCount++;
                                 currentTextRuns = [];
                             }
-                            
+
                             // Parse and add ALL tables in this run (not just the first one!)
                             const tblElems = runElem.querySelectorAll('tbl, hp\\:tbl');
                             tblElems.forEach(tblElem => {
@@ -979,23 +976,23 @@ export class SimpleHWPXParser {
                             // Accumulate text runs
                             const tElem = runElem.querySelector('t, hp\\:t');
                             const text = tElem ? tElem.textContent : '';
-                            
+
                             if (text.trim()) {
                                 const charPrId = runElem.getAttribute('charPrIDRef');
                                 const run = { text: text };  // Keep original text (with spaces)
-                                
+
                                 // Apply character properties from reference
                                 if (charPrId && this.charProperties.has(charPrId)) {
                                     run.style = { ...this.charProperties.get(charPrId) };
                                 } else {
                                     run.style = {};
                                 }
-                                
+
                                 currentTextRuns.push(run);
                             }
                         }
                     });
-                    
+
                     // Flush any remaining text runs
                     if (currentTextRuns.length > 0) {
                         const para = {
@@ -1037,7 +1034,7 @@ export class SimpleHWPXParser {
                 });
             }
         });
-        
+
         logger.debug(`  Parsed ${parsedCount} elements in document order`);
 
         // ✅ Parse standalone images (not inside paragraphs/tables)
@@ -1046,24 +1043,24 @@ export class SimpleHWPXParser {
         if (this.options.parseImages) {
             const allImages = doc.querySelectorAll('pic, hp\\:pic');
             let standaloneCount = 0;
-            
+
             allImages.forEach(picElem => {
                 // Check if this image is NOT inside a paragraph or table
                 const parent = picElem.parentElement;
                 const parentTag = parent ? (parent.localName || parent.tagName).toLowerCase().replace('hp:', '') : '';
-                
+
                 // Skip if parent is 'run' (inline in paragraph) or inside table
                 if (parentTag === 'run' || picElem.closest('p, hp\\:p, tbl, hp\\:tbl')) {
                     return;
                 }
-                
+
                 const image = this.parseImage(picElem);
                 if (image) {
                     section.elements.push(image);
                     standaloneCount++;
                 }
             });
-            
+
             if (standaloneCount > 0) {
                 logger.debug(`  Found ${standaloneCount} standalone images (${allImages.length - standaloneCount} inline)`);
             }
@@ -1083,7 +1080,7 @@ export class SimpleHWPXParser {
             if (shapeElem.closest('run, hp\\:run')) {
                 return;
             }
-            
+
             const shape = this.parseShape(shapeElem);
             if (shape) {
                 section.elements.push(shape);
@@ -1117,7 +1114,7 @@ export class SimpleHWPXParser {
             if (containerElem.closest('run, hp\\:run')) {
                 return;
             }
-            
+
             const container = this.parseContainer(containerElem);
             if (container) {
                 section.elements.push(container);
@@ -1164,35 +1161,48 @@ export class SimpleHWPXParser {
 
         if (runs.length > 0) {
             let skipRemainingRuns = false; // Flag to skip runs after inline object
-            
+
             runs.forEach(runElem => {
                 // ✅ Skip runs after an inline table/image (they are duplicates of content inside the object)
                 if (skipRemainingRuns) {
                     return;
                 }
-                
+
                 const charPrId = runElem.getAttribute('charPrIDRef');
                 const ns = 'http://www.hancom.co.kr/hwpml/2011/paragraph';
-                
+
                 // ✅ Check if this run contains inline object (tbl, pic, shape)
                 const hasInlineObject = runElem.querySelector('tbl, hp\\:tbl, pic, hp\\:pic, rect, hp\\:rect, ellipse, hp\\:ellipse');
-                
+
                 // ✅ Process ALL children in the run (a run can have multiple elements)
                 const children = Array.from(runElem.children || []);
-                
+
                 children.forEach(child => {
                     const localName = child.localName || child.tagName.split(':').pop();
-                    
+
                     // ✅ Skip secPr (section properties) and ctrl (control) - metadata, not content
                     if (localName === 'secPr' || localName === 'ctrl') {
                         return;
                     }
-                    
+
                     // Check for inline images (pic)
                     if (localName === 'pic') {
                         const image = this.parseImage(child);
                         if (image) {
-                            image.treatAsChar = true;
+                            // ✅ v2.2.9: 이미지가 절대 위치(horzOffset/vertOffset)를 가진 경우
+                            // treatAsChar를 강제로 true로 설정하지 않음
+                            const hasAbsolutePosition =
+                                (image.position?.x !== undefined && image.position?.x !== 0) ||
+                                (image.position?.y !== undefined && image.position?.y !== 0);
+
+                            if (hasAbsolutePosition) {
+                                // 절대 위치가 있으면 파싱된 treatAsChar 값 유지 (기본 false)
+                                console.log(`[parseParagraph] Image with absolute position: x=${image.position?.x}, y=${image.position?.y}, treatAsChar=${image.position?.treatAsChar}`);
+                            } else if (!image.position?.treatAsChar) {
+                                // 절대 위치가 없고 treatAsChar가 명시적으로 false가 아니면 inline으로 처리
+                                image.treatAsChar = true;
+                            }
+
                             if (!para.images) para.images = [];
                             para.images.push(image);
 
@@ -1205,6 +1215,7 @@ export class SimpleHWPXParser {
                             });
                         }
                     }
+
                     // Check for inline containers (group objects with images/shapes)
                     else if (localName === 'container') {
                         console.log(`[parseParagraph] Found inline container in run`);
@@ -1227,18 +1238,27 @@ export class SimpleHWPXParser {
                         console.log(`[parseParagraph] Found inline shape (${localName}) in run`);
                         const shape = this.parseShape(child);
                         if (shape) {
-                            shape.treatAsChar = true;
-                            para.shapes.push(shape);
-                            console.log(`  → Added shape with text "${shape.drawText?.paragraphs?.[0]?.text || 'no text'}" to para.shapes`);
+                            // ✅ v2.2.10: 배경 도형(BEHIND_TEXT)은 treatAsChar 강제 설정 안 함
+                            if (shape.isBackground || shape.position?.textWrap === 'BEHIND_TEXT') {
+                                // 배경 도형은 별도 배열에 저장
+                                if (!para.backgroundShapes) para.backgroundShapes = [];
+                                para.backgroundShapes.push(shape);
+                                console.log(`  → Added background shape to para.backgroundShapes`);
+                            } else {
+                                shape.treatAsChar = true;
+                                para.shapes.push(shape);
+                                console.log(`  → Added shape with text "${shape.drawText?.paragraphs?.[0]?.text || 'no text'}" to para.shapes`);
 
-                            para.runs.push({
-                                text: '',
-                                hasShape: true,
-                                style: {},
-                                charPrIDRef: charPrId
-                            });
+                                para.runs.push({
+                                    text: '',
+                                    hasShape: true,
+                                    style: {},
+                                    charPrIDRef: charPrId
+                                });
+                            }
                         }
                     }
+
                     // Check for inline tables (tbl)
                     else if (localName === 'tbl') {
                         const table = this.parseTable(child);
@@ -1260,55 +1280,55 @@ export class SimpleHWPXParser {
                     else if (localName === 't') {
                         // ✅ Check if <t> contains <tab> elements (nested structure)
                         const nestedTabs = child.querySelectorAll('tab, hp\\:tab');
-                        
+
                         if (nestedTabs.length > 0) {
                             // Parse text and tabs in order
                             const childNodes = Array.from(child.childNodes);
-                            
+
                             childNodes.forEach(node => {
                                 if (node.nodeType === 3) { // Text node
                                     const text = node.textContent || '';
                                     if (text.length > 0) {
                                         const run = { text, style: {} };
-                                        
+
                                         if (charPrId) {
                                             run.charPrIDRef = charPrId;
                                         }
-                                        
+
                                         if (charPrId && this.charProperties.has(charPrId)) {
                                             const charProp = this.charProperties.get(charPrId);
                                             run.style = { ...charProp };
                                         }
-                                        
+
                                         para.runs.push(run);
                                     }
                                 } else if (node.nodeType === 1) { // Element node
                                     const nodeName = node.localName || node.tagName.split(':').pop();
-                                    
+
                                     if (nodeName === 'tab') {
                                         // Parse nested tab
                                         const tab = {
                                             type: 'tab',
                                             style: {}
                                         };
-                                        
+
                                         const width = node.getAttribute('width');
                                         const leader = node.getAttribute('leader');
                                         const tabType = node.getAttribute('type');
-                                        
+
                                         if (width) {
                                             tab.widthHWPU = parseInt(width);
                                             tab.widthPx = HWPXConstants.hwpuToPx(tab.widthHWPU);
                                         }
-                                        
+
                                         if (leader) {
                                             tab.leader = parseInt(leader);
                                         }
-                                        
+
                                         if (tabType) {
                                             tab.tabType = parseInt(tabType);
                                         }
-                                        
+
                                         para.runs.push(tab);
                                     }
                                 }
@@ -1360,7 +1380,7 @@ export class SimpleHWPXParser {
                         para.runs.push(tab);
                     }
                 });
-                
+
                 // ✅ If this run had an inline object, skip all remaining runs (they are duplicates)
                 if (hasInlineObject) {
                     skipRemainingRuns = true;
@@ -1413,7 +1433,7 @@ export class SimpleHWPXParser {
      */
     parseTable(tblElem) {
         logger.debug('🔷 Parsing table...');
-        
+
         const table = {
             type: 'table',
             rows: [],
@@ -1439,14 +1459,16 @@ export class SimpleHWPXParser {
                 table.style.widthPrecise = widthPx;
                 table.style.widthRelTo = widthRelTo;
             }
+            // ✅ v2.2.10: 표 높이는 스케일 팩터 없이 원본 크기 사용
             if (height) {
                 table.heightHWPU = parseInt(height);
-                const heightPx = HWPXConstants.hwpuToPx(table.heightHWPU);
+                const heightPx = HWPXConstants.hwpuToPxUnscaled(table.heightHWPU);
                 table.style.height = heightPx.toFixed(2) + 'px';
                 table.style.heightPrecise = heightPx;
                 table.style.heightRelTo = heightRelTo;
             }
             logger.debug(`  Table size: ${width} HWPU (${table.style.width}) x ${height} HWPU (${table.style.height})`);
+
         }
 
         // ✅ Parse table caption (제목)
@@ -1454,19 +1476,19 @@ export class SimpleHWPXParser {
         if (captionElem) {
             const side = captionElem.getAttribute('side'); // TOP or BOTTOM
             const subListElem = captionElem.querySelector('subList, hp\\:subList');
-            
+
             if (subListElem) {
                 // Parse paragraphs inside caption
                 const captionParas = [];
                 const parasInCaption = subListElem.querySelectorAll('p, hp\\:p');
-                
+
                 parasInCaption.forEach(pElem => {
                     const para = this.parseParagraph(pElem);
                     if (para) {
                         captionParas.push(para);
                     }
                 });
-                
+
                 if (captionParas.length > 0) {
                     table.caption = {
                         side: side || 'TOP',  // TOP | BOTTOM
@@ -1547,20 +1569,20 @@ export class SimpleHWPXParser {
                     });
 
                     // ✅ Fallback: If cell borders are all invisible/NONE, inherit from table
-                    const hasVisibleBorder = ['left', 'right', 'top', 'bottom'].some(side => 
+                    const hasVisibleBorder = ['left', 'right', 'top', 'bottom'].some(side =>
                         borderFillDef.borders[side] && borderFillDef.borders[side].visible
                     );
-                    
+
                     if (!hasVisibleBorder && table.style.borderFillId && this.borderFills.has(table.style.borderFillId)) {
                         const tableBorderFillDef = this.borderFills.get(table.style.borderFillId);
-                        
+
                         // Override with table borders
                         ['left', 'right', 'top', 'bottom'].forEach(side => {
                             if (tableBorderFillDef.borders[side] && tableBorderFillDef.borders[side].visible) {
                                 cell.style[`border${side.charAt(0).toUpperCase() + side.slice(1)}Def`] = tableBorderFillDef.borders[side];
                             }
                         });
-                        
+
                         logger.debug(`  ✅ Cell inherited borders from table borderFillID=${table.style.borderFillId}`);
                     }
 
@@ -1593,7 +1615,7 @@ export class SimpleHWPXParser {
                         logger.debug(`  ✅ Cell has backgroundImage: ${borderFillDef.fill.backgroundImage.binaryItemIDRef}`);
                     }
                 }
-                
+
                 // ✅ Also check for direct fillBrush element (inline fill definition)
                 // This is used when a cell has a custom fill not defined in borderFills
                 const cellFillBrushElem = tcElem.querySelector('fillBrush, hp\\:fillBrush, hc\\:fillBrush');
@@ -1602,16 +1624,16 @@ export class SimpleHWPXParser {
                     if (winBrushElem) {
                         const faceColor = winBrushElem.getAttribute('faceColor');
                         const alpha = winBrushElem.getAttribute('alpha');
-                        
+
                         if (faceColor && faceColor !== 'none') {
                             cell.style.backgroundColor = this.normalizeColor(faceColor);
-                            
+
                             // Apply alpha (transparency): 0 = opaque, 255 = transparent
                             if (alpha) {
                                 const alphaValue = parseInt(alpha);
                                 cell.style.opacity = 1.0 - (alphaValue / 255.0);
                             }
-                            
+
                             logger.debug(`  ✓ Cell fillBrush: ${cell.style.backgroundColor} (alpha: ${alpha || 0})`);
                         }
                     }
@@ -1633,10 +1655,12 @@ export class SimpleHWPXParser {
                     }
                     if (height) {
                         cell.heightHWPU = parseInt(height);
-                        const heightPx = HWPXConstants.hwpuToPx(cell.heightHWPU);
+                        // ✅ v2.2.10: 셀 높이도 스케일 없이 원본 크기 유지
+                        const heightPx = HWPXConstants.hwpuToPxUnscaled(cell.heightHWPU);
                         cell.style.height = heightPx.toFixed(2) + 'px';
                         cell.style.heightPrecise = heightPx;
                     }
+
                 }
 
                 // Parse cell margin from cellMargin element
@@ -1713,22 +1737,39 @@ export class SimpleHWPXParser {
                     }
                 });
 
-                // ✅ Parse cell paragraphs - ALL descendants, but exclude nested tables
+                // ✅ Parse cell paragraphs - ALL descendants, but exclude nested tables AND shape texts
                 // v2.2.7i: Changed from :scope > p to all descendants to capture nested paragraphs
+                // ✅ v2.2.8: Also exclude paragraphs inside drawText/container/shapes to prevent text duplication
                 if (subListElem) {
                     // Get all paragraphs (including nested ones)
                     const allParas = subListElem.querySelectorAll('p, hp\\:p');
-                    
-                    // Filter out paragraphs that are inside nested tables (already parsed above)
+
+                    // Filter out paragraphs that are inside:
+                    // 1. Nested tables (already parsed above)
+                    // 2. drawText elements (text inside shapes)
+                    // 3. container/rect/ellipse elements (shapes with embedded text)
                     const parasToProcess = Array.from(allParas).filter(pElem => {
                         // Check if this paragraph is inside a nested table within this cell
                         const parentTable = pElem.closest('tbl, hp\\:tbl');
-                        if (!parentTable) return true; // Not in a table, include it
-                        
-                        // Check if the parent table is one of the nested tables we already parsed
-                        return !nestedTables || !Array.from(nestedTables).includes(parentTable);
+                        if (parentTable && nestedTables && Array.from(nestedTables).includes(parentTable)) {
+                            return false; // Inside nested table, skip
+                        }
+
+                        // ✅ Check if this paragraph is inside a drawText element (shape text)
+                        const parentDrawText = pElem.closest('drawText, hp\\:drawText');
+                        if (parentDrawText) {
+                            return false; // Inside shape text, skip (will be rendered by shape renderer)
+                        }
+
+                        // ✅ Check if inside a container or shape (rect, ellipse, etc.)
+                        const parentContainer = pElem.closest('container, hp\\:container, rect, hp\\:rect, ellipse, hp\\:ellipse');
+                        if (parentContainer) {
+                            return false; // Inside container/shape, skip
+                        }
+
+                        return true;
                     });
-                    
+
                     parasToProcess.forEach(pElem => {
                         const para = this.parseParagraph(pElem);
                         if (para) {
@@ -1736,6 +1777,7 @@ export class SimpleHWPXParser {
                         }
                     });
                 }
+
 
                 row.cells.push(cell);
             });
@@ -1747,32 +1789,32 @@ export class SimpleHWPXParser {
         if (table.rows.length > 0) {
             table.colWidths = [];
             table.colWidthsPercent = [];
-            
+
             // Get actual column count from table attributes
             const colCnt = parseInt(tblElem.getAttribute('colCnt')) || table.rows[0].cells.length;
-            
+
             // Initialize column widths array
             const colWidthsHWPU = new Array(colCnt).fill(0);
-            
+
             // Find a row without colspan to get accurate column widths
             let referenceRow = null;
             for (let r = 0; r < table.rows.length; r++) {
                 const row = table.rows[r];
                 let hasColspan = false;
-                
+
                 for (let c = 0; c < row.cells.length; c++) {
                     if ((row.cells[c].colSpan || 1) > 1) {
                         hasColspan = true;
                         break;
                     }
                 }
-                
+
                 if (!hasColspan && row.cells.length === colCnt) {
                     referenceRow = row;
                     break;
                 }
             }
-            
+
             if (referenceRow) {
                 // Use reference row without colspan
                 for (let i = 0; i < referenceRow.cells.length; i++) {
@@ -1783,13 +1825,13 @@ export class SimpleHWPXParser {
                 // Fallback: use first row and divide colspan widths equally
                 const firstRow = table.rows[0];
                 let colIndex = 0;
-                
+
                 for (let i = 0; i < firstRow.cells.length; i++) {
                     const cell = firstRow.cells[i];
                     const colspan = cell.colSpan || 1;
                     const cellWidth = cell.widthHWPU || 0;
                     const widthPerCol = cellWidth / colspan;
-                    
+
                     for (let span = 0; span < colspan; span++) {
                         if (colIndex < colCnt) {
                             colWidthsHWPU[colIndex] = widthPerCol;
@@ -1799,19 +1841,19 @@ export class SimpleHWPXParser {
                 }
                 logger.debug(`  ⚠️ No row without colspan found, using first row with equal division`);
             }
-            
+
             // Calculate total width
             const totalWidthHWPU = colWidthsHWPU.reduce((sum, w) => sum + w, 0);
-            
+
             // Convert to pixels and percentages
             for (let i = 0; i < colCnt; i++) {
                 const widthPx = HWPXConstants.hwpuToPx(colWidthsHWPU[i]);
                 const widthPercent = totalWidthHWPU > 0 ? (colWidthsHWPU[i] / totalWidthHWPU * 100) : 0;
-                
+
                 table.colWidths.push(widthPx.toFixed(2) + 'px');
                 table.colWidthsPercent.push(widthPercent.toFixed(4) + '%');
             }
-            
+
             logger.debug(`  ✅ Column widths: ${table.colWidths.length} columns - ${table.colWidthsPercent.join(', ')}`);
         }
 
@@ -1880,14 +1922,38 @@ export class SimpleHWPXParser {
             image.position.horzAlign = posElem.getAttribute('horzAlign') || 'LEFT';
             image.position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
             image.position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
+
+            // ✅ v2.2.9: horzOffset과 vertOffset으로 정확한 이미지 위치 계산
+            // 이 값들이 이미지의 실제 절대 위치를 결정함
+            const horzOffset = posElem.getAttribute('horzOffset');
+            const vertOffset = posElem.getAttribute('vertOffset');
+
+            console.log(`[parseImage] pos element found: treatAsChar=${image.position.treatAsChar}, horzOffset=${horzOffset}, vertOffset=${vertOffset}`);
+
+            if (horzOffset) {
+                const horzOffsetVal = parseInt(horzOffset);
+                image.position.x = HWPXConstants.hwpuToPx(horzOffsetVal);
+                console.log(`  → Image horzOffset: ${horzOffset} HWPU = ${image.position.x}px`);
+            }
+            if (vertOffset) {
+                const vertOffsetVal = parseInt(vertOffset);
+                image.position.y = HWPXConstants.hwpuToPx(vertOffsetVal);
+                console.log(`  → Image vertOffset: ${vertOffset} HWPU = ${image.position.y}px`);
+            }
+        } else {
+            console.log(`[parseImage] No pos element found in picElem`);
         }
 
-        // Parse offset
+
+        // Parse offset (hp:offset) - only if hp:pos horzOffset/vertOffset didn't set position
+        // ✅ v2.2.9: hp:pos horzOffset/vertOffset이 이미 설정된 경우 hp:offset으로 덮어쓰지 않음
         const offsetElem = picElem.querySelector('offset, hp\\:offset');
         if (offsetElem) {
             const x = offsetElem.getAttribute('x');
             const y = offsetElem.getAttribute('y');
-            if (x) {
+
+            // Only apply hp:offset if hp:pos horzOffset didn't set position.x
+            if (x && image.position.x === undefined) {
                 let xVal = parseInt(x);
                 // ✅ Handle 32-bit unsigned integers that represent negative numbers
                 // Values > 2^31 are actually negative in two's complement
@@ -1895,20 +1961,22 @@ export class SimpleHWPXParser {
                     xVal = xVal - 4294967296; // Convert to signed 32-bit
                 }
                 // ✅ Clamp to reasonable range (prevent extreme positioning)
-                const MAX_OFFSET = 10000;
+                const MAX_OFFSET = 50000;
                 if (Math.abs(xVal) > MAX_OFFSET) {
                     xVal = 0;
                 }
                 image.position.x = HWPXConstants.hwpuToPx(xVal);
             }
-            if (y) {
+
+            // Only apply hp:offset if hp:pos vertOffset didn't set position.y
+            if (y && image.position.y === undefined) {
                 let yVal = parseInt(y);
                 // ✅ Handle 32-bit unsigned integers that represent negative numbers
                 if (yVal > 2147483647) {
                     yVal = yVal - 4294967296; // Convert to signed 32-bit
                 }
                 // ✅ Clamp to reasonable range (prevent extreme positioning)
-                const MAX_OFFSET = 10000;
+                const MAX_OFFSET = 50000;
                 if (Math.abs(yVal) > MAX_OFFSET) {
                     yVal = 0;
                 }
@@ -1920,6 +1988,7 @@ export class SimpleHWPXParser {
         const textWrap = picElem.getAttribute('textWrap');
         if (textWrap) {
             image.position.textWrap = textWrap.toLowerCase();
+
         }
 
         // ✅ Parse children (containers/shapes inside imgRect)
@@ -1928,15 +1997,15 @@ export class SimpleHWPXParser {
         const imgRectElem = picElem.querySelector('imgRect, hp\\:imgRect, hc\\:imgRect');
         if (imgRectElem) {
             console.log(`[parseImage] Found imgRect, checking for children...`);
-            
+
             // ✅ Iterate through direct children instead of querySelectorAll (namespace issues)
             for (let i = 0; i < imgRectElem.children.length; i++) {
                 const child = imgRectElem.children[i];
                 const tagName = (child.tagName || child.nodeName || '').toLowerCase();
                 const localName = tagName.replace(/^.*:/, ''); // Remove namespace prefix
-                
+
                 console.log(`  → Child ${i + 1}: tagName=${tagName}, localName=${localName}`);
-                
+
                 if (localName === 'container') {
                     const container = this.parseContainer(child);
                     if (container) {
@@ -1951,7 +2020,7 @@ export class SimpleHWPXParser {
                     }
                 }
             }
-            
+
             console.log(`  → Total children in imgRect: ${image.children.length}`);
         }
 
@@ -1971,13 +2040,14 @@ export class SimpleHWPXParser {
             shapeType: 'rectangle',
             style: {},
             position: {},
-            drawText: null
+            drawText: null,
+            borderRadius: 0 // ✅ 둥근 모서리 비율 (0-100)
         };
 
         // Check if shapeElem is already a rect/ellipse/line element
         const tagName = (shapeElem.tagName || shapeElem.nodeName).toLowerCase().replace('hp:', '');
         let rectElem, ellipseElem, lineElem;
-        
+
         if (tagName === 'rect') {
             rectElem = shapeElem;
             shape.shapeType = 'rectangle';
@@ -1992,7 +2062,7 @@ export class SimpleHWPXParser {
             rectElem = shapeElem.querySelector('rect, hp\\:rect');
             ellipseElem = shapeElem.querySelector('ellipse, hp\\:ellipse');
             lineElem = shapeElem.querySelector('line, hp\\:line');
-            
+
             if (ellipseElem) {
                 shape.shapeType = 'ellipse';
             } else if (lineElem) {
@@ -2002,19 +2072,43 @@ export class SimpleHWPXParser {
             }
         }
 
-        // Parse size (try curSz first, then sz)
-        const curSzElem = shapeElem.querySelector('curSz, hp\\:curSz');
-        const szElem = curSzElem || shapeElem.querySelector('sz, hp\\:sz');
-        if (szElem) {
-            const width = szElem.getAttribute('width');
-            const height = szElem.getAttribute('height');
-            if (width) {
-                shape.width = HWPXConstants.hwpuToPx(parseInt(width));
-            }
-            if (height) {
-                shape.height = HWPXConstants.hwpuToPx(parseInt(height));
-            }
+        // ✅ Parse ratio attribute (둥근 모서리 비율, 0-100)
+        const ratio = parseInt(shapeElem.getAttribute('ratio')) || 0;
+        if (ratio > 0) {
+            shape.borderRadius = ratio;
+            logger.debug(`  🔲 Shape ratio: ${ratio}% (rounded corners)`);
         }
+
+        // ✅ Parse size - try curSz first, fallback to orgSz if curSz is 0
+        const curSzElem = shapeElem.querySelector('curSz, hp\\:curSz');
+        const orgSzElem = shapeElem.querySelector('orgSz, hp\\:orgSz');
+        const szElem = curSzElem || shapeElem.querySelector('sz, hp\\:sz');
+
+        let widthParsed = 0;
+        let heightParsed = 0;
+
+        if (szElem) {
+            widthParsed = parseInt(szElem.getAttribute('width')) || 0;
+            heightParsed = parseInt(szElem.getAttribute('height')) || 0;
+        }
+
+        // ✅ curSz가 0이면 orgSz 사용 (HWPX 스펙)
+        if ((widthParsed === 0 || heightParsed === 0) && orgSzElem) {
+            const orgWidth = parseInt(orgSzElem.getAttribute('width')) || 0;
+            const orgHeight = parseInt(orgSzElem.getAttribute('height')) || 0;
+            if (orgWidth > 0) widthParsed = orgWidth;
+            if (orgHeight > 0) heightParsed = orgHeight;
+            logger.debug(`  📐 Using orgSz: ${orgWidth}x${orgHeight}`);
+        }
+
+        // ✅ v2.2.12: 도형은 스케일 없이 원본 크기 사용 (이미지와 다름)
+        if (widthParsed > 0) {
+            shape.width = HWPXConstants.hwpuToPxUnscaled(widthParsed);
+        }
+        if (heightParsed > 0) {
+            shape.height = HWPXConstants.hwpuToPxUnscaled(heightParsed);
+        }
+
 
         // Parse position
         const posElem = shapeElem.querySelector('pos, hp\\:pos');
@@ -2024,7 +2118,43 @@ export class SimpleHWPXParser {
             shape.position.horzAlign = posElem.getAttribute('horzAlign') || 'LEFT';
             shape.position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
             shape.position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
+
+            // ✅ v2.2.10: horzOffset과 vertOffset으로 정확한 도형 위치 계산
+            const horzOffset = posElem.getAttribute('horzOffset');
+            const vertOffset = posElem.getAttribute('vertOffset');
+
+            if (horzOffset) {
+                let horzOffsetVal = parseInt(horzOffset);
+                // Handle 32-bit unsigned integers that represent negative numbers
+                if (horzOffsetVal > 2147483647) {
+                    horzOffsetVal = horzOffsetVal - 4294967296;
+                }
+                shape.position.x = HWPXConstants.hwpuToPx(horzOffsetVal);
+                console.log(`[parseShape] horzOffset: ${horzOffset} → ${shape.position.x}px`);
+            }
+            if (vertOffset) {
+                let vertOffsetVal = parseInt(vertOffset);
+                // Handle 32-bit unsigned integers that represent negative numbers
+                if (vertOffsetVal > 2147483647) {
+                    vertOffsetVal = vertOffsetVal - 4294967296;
+                }
+                shape.position.y = HWPXConstants.hwpuToPx(vertOffsetVal);
+                console.log(`[parseShape] vertOffset: ${vertOffset} → ${shape.position.y}px`);
+            }
         }
+
+        // ✅ v2.2.10: textWrap 속성 파싱 - BEHIND_TEXT면 배경 도형
+        const textWrap = shapeElem.getAttribute('textWrap');
+        if (textWrap) {
+            shape.position.textWrap = textWrap;
+            // BEHIND_TEXT: 본문 뒤에 배치 (배경)
+            // IN_FRONT_OF_TEXT: 본문 앞에 배치
+            if (textWrap === 'BEHIND_TEXT') {
+                shape.isBackground = true;
+                console.log(`[parseShape] BEHIND_TEXT shape detected - treating as background`);
+            }
+        }
+
 
         // Parse offset
         const offsetElem = shapeElem.querySelector('offset, hp\\:offset');
@@ -2037,9 +2167,10 @@ export class SimpleHWPXParser {
                 if (xVal > 2147483647) {
                     xVal = xVal - 4294967296;
                 }
-                // ✅ Clamp to reasonable range
-                const MAX_OFFSET = 10000;
+                // ✅ Clamp to reasonable range (컨테이너 내 도형은 큰 offset 가질 수 있음)
+                const MAX_OFFSET = 50000;
                 if (Math.abs(xVal) > MAX_OFFSET) {
+                    logger.warn(`  ⚠️ X offset too large: ${xVal}, clamping to 0`);
                     xVal = 0;
                 }
                 shape.position.x = HWPXConstants.hwpuToPx(xVal);
@@ -2050,9 +2181,10 @@ export class SimpleHWPXParser {
                 if (yVal > 2147483647) {
                     yVal = yVal - 4294967296;
                 }
-                // ✅ Clamp to reasonable range
-                const MAX_OFFSET = 10000;
+                // ✅ Clamp to reasonable range (컨테이너 내 도형은 큰 offset 가질 수 있음)
+                const MAX_OFFSET = 50000;
                 if (Math.abs(yVal) > MAX_OFFSET) {
+                    logger.warn(`  ⚠️ Y offset too large: ${yVal}, clamping to 0`);
                     yVal = 0;
                 }
                 shape.position.y = HWPXConstants.hwpuToPx(yVal);
@@ -2065,7 +2197,7 @@ export class SimpleHWPXParser {
             const lineColor = lineShapeElem.getAttribute('color');
             const lineWidth = lineShapeElem.getAttribute('width');
             const lineStyle = lineShapeElem.getAttribute('style');
-            
+
             // ✅ Only apply border if:
             // 1. lineWidth > 0
             // 2. lineStyle is not "NONE" (HWPX uses style="NONE" for invisible borders)
@@ -2073,7 +2205,7 @@ export class SimpleHWPXParser {
             if (lineWidth && lineStyle !== 'NONE') {
                 const widthHWPU = parseInt(lineWidth);
                 const widthPx = HWPXConstants.hwpuToPx(widthHWPU);
-                
+
                 // Only render border if width is at least 0.5px
                 if (widthPx >= 0.5) {
                     if (lineColor) {
@@ -2097,43 +2229,43 @@ export class SimpleHWPXParser {
         // Parse fill - check multiple locations
         // 1. Try fillColor attribute on shape element
         let fillColor = shapeElem.getAttribute('fillColor');
-        
+
         // 2. If no fillColor, look inside rect/ellipse element for fillBrush
         let actualShapeElem = rectElem || ellipseElem || shapeElem;
-        
+
         // 3. Check borderFillIDRef
         let borderFillIDRef = shapeElem.getAttribute('borderFillIDRef');
-        
+
         // DEBUG: Log for small shapes (disabled in production)
         // if (shape.width && shape.width < 100) {
         //     console.log(`[Shape Fill] Small shape ${shape.width.toFixed(0)}x${shape.height.toFixed(0)}`);
         //     console.log(`  fillColor="${fillColor}"`);
         //     console.log(`  borderFillIDRef="${borderFillIDRef}"`);
         // }
-        
+
         if (fillColor && fillColor !== 'none') {
             const bgColor = this.normalizeColor(fillColor);
             shape.style.backgroundColor = bgColor;
-            
+
             if (shape.width && shape.width < 100) {
                 console.log(`  ✅ backgroundColor from fillColor: ${bgColor}`);
             }
         } else if (borderFillIDRef && this.borderFills.has(borderFillIDRef)) {
             // Try borderFill definition
             const borderFillDef = this.borderFills.get(borderFillIDRef);
-            
+
             if (shape.width && shape.width < 100) {
                 console.log(`  Checking borderFill[${borderFillIDRef}]...`);
                 console.log(`  borderFillDef.fill:`, borderFillDef.fill);
             }
-            
+
             if (borderFillDef.fill && borderFillDef.fill.backgroundColor) {
                 shape.style.backgroundColor = borderFillDef.fill.backgroundColor;
-                
+
                 if (borderFillDef.fill.opacity !== undefined) {
                     shape.style.opacity = borderFillDef.fill.opacity;
                 }
-                
+
                 if (shape.width && shape.width < 100) {
                     console.log(`  ✅ backgroundColor from borderFill: ${borderFillDef.fill.backgroundColor}`);
                 }
@@ -2144,19 +2276,19 @@ export class SimpleHWPXParser {
             // ✅ Try fillBrush (for rect/ellipse with fill) - check all namespaces
             // querySelector 대신 직접 자식 요소 순회 (네임스페이스 문제 회피)
             let fillBrushElem = null;
-            
+
             // 모든 자식 요소를 순회하면서 fillBrush 찾기
             for (let i = 0; i < actualShapeElem.children.length; i++) {
                 const child = actualShapeElem.children[i];
                 const tagName = (child.tagName || child.nodeName || '').toLowerCase();
                 const localName = tagName.replace(/^.*:/, ''); // 네임스페이스 제거
-                
+
                 if (localName === 'fillbrush') {
                     fillBrushElem = child;
                     break;
                 }
             }
-            
+
             if (fillBrushElem) {
                 // winBrush도 동일하게 자식 요소 순회
                 let winBrushElem = null;
@@ -2168,15 +2300,15 @@ export class SimpleHWPXParser {
                         break;
                     }
                 }
-                
+
                 if (winBrushElem) {
                     const faceColor = winBrushElem.getAttribute('faceColor');
                     const alpha = winBrushElem.getAttribute('alpha');
-                    
+
                     if (faceColor && faceColor !== 'none') {
                         const bgColor = this.normalizeColor(faceColor);
                         shape.style.backgroundColor = bgColor;
-                        
+
                         // ✅ Apply alpha (transparency): 0 = opaque, 255 = transparent
                         if (alpha) {
                             const alphaValue = parseInt(alpha);
@@ -2189,22 +2321,22 @@ export class SimpleHWPXParser {
 
         // ✅ Parse DrawText (텍스트가 포함된 도형)
         const drawTextElem = shapeElem.querySelector('drawText, hp\\:drawText');
-        
+
         console.log(`[parseShape] Checking drawText for ${shape.shapeType} (${shape.width?.toFixed(0)}x${shape.height?.toFixed(0)})`);
         console.log(`  drawTextElem found: ${!!drawTextElem}`);
-        
+
         if (drawTextElem) {
             // Find subList which contains paragraphs
             const subListElem = drawTextElem.querySelector('subList, hp\\:subList');
             console.log(`  subListElem found: ${!!subListElem}`);
-            
+
             if (subListElem) {
                 const paragraphs = subListElem.querySelectorAll('p, hp\\:p');
                 console.log(`  paragraphs found: ${paragraphs.length}`);
-                
+
                 // ✅ Parse vertical alignment
                 const vertAlign = subListElem.getAttribute('vertAlign');
-                
+
                 if (paragraphs.length > 0) {
                     shape.drawText = {
                         paragraphs: [],
@@ -2219,7 +2351,7 @@ export class SimpleHWPXParser {
                             console.log(`    ✓ Paragraph ${idx + 1}: "${para.text?.substring(0, 20) || 'no text'}"`);
                         }
                     });
-                    
+
                     // ✅ Parse textMargin
                     const textMarginElem = drawTextElem.querySelector('textMargin, hp\\:textMargin');
                     if (textMarginElem) {
@@ -2227,15 +2359,15 @@ export class SimpleHWPXParser {
                         const right = textMarginElem.getAttribute('right');
                         const top = textMarginElem.getAttribute('top');
                         const bottom = textMarginElem.getAttribute('bottom');
-                        
+
                         if (left) shape.drawText.margin.left = HWPXConstants.hwpuToPx(parseInt(left));
                         if (right) shape.drawText.margin.right = HWPXConstants.hwpuToPx(parseInt(right));
                         if (top) shape.drawText.margin.top = HWPXConstants.hwpuToPx(parseInt(top));
                         if (bottom) shape.drawText.margin.bottom = HWPXConstants.hwpuToPx(parseInt(bottom));
-                        
+
                         console.log(`  ✅ TextMargin: top=${shape.drawText.margin.top}px, vertAlign=${vertAlign}`);
                     }
-                    
+
                     console.log(`  ✅ DrawText parsed: ${shape.drawText.paragraphs.length} paragraphs`);
                     logger.debug(`  📝 DrawText found: ${shape.drawText.paragraphs.length} paragraphs`);
                 } else {
@@ -2290,7 +2422,7 @@ export class SimpleHWPXParser {
         // Parse border and background
         const borderColor = textboxElem.getAttribute('borderColor');
         const fillColor = textboxElem.getAttribute('fillColor');
-        
+
         if (borderColor) {
             textbox.style.borderColor = this.normalizeColor(borderColor);
         }
@@ -2325,19 +2457,35 @@ export class SimpleHWPXParser {
             children: []
         };
 
-        // Parse size (try curSz first, then sz)
+        // ✅ Parse size - try curSz first, fallback to orgSz if curSz is 0 (parseShape와 동일)
         const curSzElem = containerElem.querySelector('curSz, hp\\:curSz');
+        const orgSzElem = containerElem.querySelector('orgSz, hp\\:orgSz');
         const szElem = curSzElem || containerElem.querySelector('sz, hp\\:sz');
+
+        let widthParsed = 0;
+        let heightParsed = 0;
+
         if (szElem) {
-            const width = szElem.getAttribute('width');
-            const height = szElem.getAttribute('height');
-            if (width) {
-                container.width = HWPXConstants.hwpuToPx(parseInt(width));
-            }
-            if (height) {
-                container.height = HWPXConstants.hwpuToPx(parseInt(height));
-            }
+            widthParsed = parseInt(szElem.getAttribute('width')) || 0;
+            heightParsed = parseInt(szElem.getAttribute('height')) || 0;
         }
+
+        // ✅ curSz가 0이면 orgSz 사용 (HWPX 스펙)
+        if ((widthParsed === 0 || heightParsed === 0) && orgSzElem) {
+            const orgWidth = parseInt(orgSzElem.getAttribute('width')) || 0;
+            const orgHeight = parseInt(orgSzElem.getAttribute('height')) || 0;
+            if (orgWidth > 0) widthParsed = orgWidth;
+            if (orgHeight > 0) heightParsed = orgHeight;
+            logger.debug(`  📐 Container using orgSz: ${orgWidth}x${orgHeight}`);
+        }
+
+        if (widthParsed > 0) {
+            container.width = HWPXConstants.hwpuToPx(widthParsed);
+        }
+        if (heightParsed > 0) {
+            container.height = HWPXConstants.hwpuToPx(heightParsed);
+        }
+
 
         // Parse position (for positioning the container)
         const posElem = containerElem.querySelector('pos, hp\\:pos');
@@ -2350,16 +2498,17 @@ export class SimpleHWPXParser {
         if (offsetElem) {
             const x = offsetElem.getAttribute('x');
             const y = offsetElem.getAttribute('y');
-            
+
             if (x) {
                 let xVal = parseInt(x);
                 // ✅ Handle 32-bit unsigned integers that represent negative numbers
                 if (xVal > 2147483647) {
                     xVal = xVal - 4294967296;
                 }
-                // ✅ Clamp to reasonable range
-                const MAX_OFFSET = 10000;
+                // ✅ Clamp to reasonable range (컨테이너는 큰 오프셋을 가질 수 있음)
+                const MAX_OFFSET = 50000;
                 if (Math.abs(xVal) > MAX_OFFSET) {
+                    logger.warn(`  ⚠️ Container X offset too large: ${xVal}, clamping to 0`);
                     xVal = 0;
                 }
                 container.position.x = HWPXConstants.hwpuToPx(xVal);
@@ -2370,12 +2519,13 @@ export class SimpleHWPXParser {
                 if (yVal > 2147483647) {
                     yVal = yVal - 4294967296;
                 }
-                // ✅ Clamp to reasonable range
-                const MAX_OFFSET = 10000;
+                // ✅ Clamp to reasonable range (컨테이너는 큰 오프셋을 가질 수 있음)
+                const MAX_OFFSET = 50000;
                 if (Math.abs(yVal) > MAX_OFFSET) {
+                    logger.warn(`  ⚠️ Container Y offset too large: ${yVal}, clamping to 0`);
                     yVal = 0;
                 }
-                
+
                 // ✅ For nested containers inside image containers, reset y to 0
                 // Individual shapes will be adjusted in renderer
                 const parentIsImageContainer = containerElem.parentElement?.querySelector('pic, hp\\:pic');
@@ -2395,7 +2545,7 @@ export class SimpleHWPXParser {
         // ✅ Parse child images FIRST so they render as background
         const allImages = containerElem.querySelectorAll('pic, hp\\:pic');
         logger.debug(`  Found ${allImages.length} images (all levels)`);
-        
+
         allImages.forEach((picElem, idx) => {
             const image = this.parseImage(picElem);
             if (image) {
@@ -2422,7 +2572,7 @@ export class SimpleHWPXParser {
             ...Array.from(containerElem.querySelectorAll(':scope > curve, :scope > hp\\:curve')),
             ...Array.from(containerElem.querySelectorAll(':scope > polygon, :scope > hp\\:polygon'))
         ];
-        
+
         logger.debug(`  Found ${directShapeChildren.length} direct shape children`);
         directShapeChildren.forEach(shapeElem => {
             const shape = this.parseShape(shapeElem);
@@ -2450,7 +2600,7 @@ export class SimpleHWPXParser {
             return color;
         }
         // HWPX color format: RRGGBB (without #)
-        return `#${  color}`;
+        return `#${color}`;
     }
 
     /**
@@ -2482,10 +2632,10 @@ export class SimpleHWPXParser {
         if (!borderStr) {
             return {};
         }
-        
+
         const parts = borderStr.trim().split(/\s+/);
         const result = {};
-        
+
         if (parts.length >= 1) {
             result.width = parts[0];
         }
@@ -2495,7 +2645,7 @@ export class SimpleHWPXParser {
         if (parts.length >= 3) {
             result.color = parts[2];
         }
-        
+
         return result;
     }
 
@@ -2510,7 +2660,7 @@ export class SimpleHWPXParser {
         this.charProperties.clear();
         this.fontFaces.clear();
         this.numberings.clear();
-        
+
         logger.debug('🔄 Parser state reset');
     }
 
@@ -2523,7 +2673,7 @@ export class SimpleHWPXParser {
                 URL.revokeObjectURL(image.url);
             }
         });
-        
+
         this.reset();
         logger.debug('🧹 Parser cleanup complete');
     }

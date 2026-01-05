@@ -8,7 +8,8 @@
             font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
             height: 100vh;
             overflow: hidden;
-            background: #2c3e50;
+            /* 패키지에서는 body 배경색을 설정하지 않음 - 사용자 CSS에서 설정하도록 함 */
+            /* background: #f5f7fa; */
         }
 
         /* Main Layout */
@@ -24,6 +25,16 @@
         /* AI 패널이 열렸을 때 뷰어 조정 */
         .viewer-container.ai-panel-open {
             margin-right: 450px;
+        }
+
+        /* React HanViewApp용 컨테이너 조정 */
+        .hanview-body-container {
+            transition: padding-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-right: 0;
+        }
+
+        .hanview-body-container.ai-panel-open {
+            padding-right: 450px;
         }
 
         /* Header */

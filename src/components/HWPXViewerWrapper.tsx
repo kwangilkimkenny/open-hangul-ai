@@ -11,6 +11,9 @@ import { toast } from 'react-hot-toast';
 // ✅ 기존 작동하는 vanilla JS 뷰어 import
 import HWPXViewer from '../lib/vanilla/viewer.js';
 
+// ✅ CSS 변수 (테마 시스템)
+import '../styles/vanilla/variables.css';
+
 // ✅ Vanilla CSS import
 import '../styles/vanilla/viewer.css';
 import '../styles/vanilla/ai-chat.css';
@@ -46,7 +49,18 @@ export function HWPXViewerWrapper({
 
   // ✅ Viewer 초기화 (마운트 시 1번만)
   useEffect(() => {
-    if (!containerRef.current || viewerRef.current) return;
+    // Debug: 글로벌에 상태 저장
+    (window as any).__DEBUG_HWPX = {
+      hasContainer: !!containerRef.current,
+      hasViewer: !!viewerRef.current,
+      timestamp: new Date().toISOString()
+    };
+
+    if (!containerRef.current || viewerRef.current) {
+      (window as any).__DEBUG_HWPX.skipped = true;
+      (window as any).__DEBUG_HWPX.skipReason = !containerRef.current ? 'no container' : 'viewer exists';
+      return;
+    }
 
     console.log('🚀 Initializing HWPX Viewer (Vanilla JS)...');
 
@@ -73,12 +87,16 @@ export function HWPXViewerWrapper({
       viewerRef.current = viewer;
       setIsInitialized(true);
       console.log('✅ HWPX Viewer initialized');
-      
+
       // ✅ Viewer 인스턴스를 부모 컴포넌트로 전달
       onDocumentLoad?.(viewer);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to initialize viewer:', error);
+      console.error('❌ Error message:', error?.message);
+      console.error('❌ Error stack:', error?.stack);
+      // Also show error details in alert for debugging
+      alert(`뷰어 초기화 실패:\n${error?.message || error}`);
       toast.error('뷰어 초기화 실패');
       setIsInitialized(false);
     }
@@ -105,9 +123,9 @@ export function HWPXViewerWrapper({
     try {
       setIsLoading(true);
       toast.loading('문서 로드 중...', { id: 'loading' });
-      
+
       await viewerRef.current.loadFile(file);
-      
+
       toast.dismiss('loading');
     } catch (error) {
       console.error('❌ Failed to load file:', error);
@@ -140,9 +158,9 @@ export function HWPXViewerWrapper({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/Cmd 키 조합
       const isMod = e.ctrlKey || e.metaKey;
-      
+
       if (!isMod) return;
-      
+
       switch (e.key.toLowerCase()) {
         case 's':
           // Ctrl+S: 저장
@@ -158,7 +176,7 @@ export function HWPXViewerWrapper({
             toast.error('저장할 문서가 없습니다');
           }
           break;
-          
+
         case 'z':
           // Ctrl+Z: 실행취소, Ctrl+Shift+Z: 다시실행
           e.preventDefault();
@@ -174,7 +192,7 @@ export function HWPXViewerWrapper({
             }
           }
           break;
-          
+
         case 'y':
           // Ctrl+Y: 다시실행
           e.preventDefault();
@@ -184,7 +202,7 @@ export function HWPXViewerWrapper({
             toast('다시실행', { icon: '↷' });
           }
           break;
-          
+
         case 'p':
           // Ctrl+P: 인쇄
           e.preventDefault();
@@ -193,7 +211,7 @@ export function HWPXViewerWrapper({
             viewerRef.current.printDocument();
           }
           break;
-          
+
         case 'o':
           // Ctrl+O: 파일 열기
           e.preventDefault();
@@ -207,7 +225,7 @@ export function HWPXViewerWrapper({
           };
           input.click();
           break;
-          
+
         case 'f':
           // Ctrl+F: 검색
           e.preventDefault();
@@ -216,7 +234,7 @@ export function HWPXViewerWrapper({
           break;
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleFileOpen]);
@@ -251,7 +269,7 @@ export function HWPXViewerWrapper({
     if (files.length === 0) return;
 
     const droppedFile = files[0];
-    
+
     // HWPX 파일 확인
     if (!droppedFile.name.toLowerCase().endsWith('.hwpx')) {
       toast.error('HWPX 파일만 지원합니다');
@@ -261,38 +279,38 @@ export function HWPXViewerWrapper({
     console.log('📂 File dropped:', droppedFile.name);
     handleFileOpen(droppedFile);
   }, [handleFileOpen]);
-  
+
   // ✅ 검색 핸들러
   const handleSearch = useCallback((query: string) => {
     if (!viewerRef.current?.search || !viewerRef.current?.container) return;
-    
+
     const results = viewerRef.current.search.search(query, viewerRef.current.container);
     setSearchResults({ count: results.length, current: 0 });
-    
+
     if (results.length > 0) {
       viewerRef.current.search.next();
       setSearchResults({ count: results.length, current: 1 });
     }
   }, []);
-  
+
   const handleSearchNext = useCallback(() => {
     if (!viewerRef.current?.search) return;
     viewerRef.current.search.next();
-    setSearchResults(prev => ({ 
-      ...prev, 
-      current: (prev.current % prev.count) + 1 
+    setSearchResults(prev => ({
+      ...prev,
+      current: (prev.current % prev.count) + 1
     }));
   }, []);
-  
+
   const handleSearchPrev = useCallback(() => {
     if (!viewerRef.current?.search) return;
     viewerRef.current.search.previous();
-    setSearchResults(prev => ({ 
-      ...prev, 
-      current: prev.current === 1 ? prev.count : prev.current - 1 
+    setSearchResults(prev => ({
+      ...prev,
+      current: prev.current === 1 ? prev.count : prev.current - 1
     }));
   }, []);
-  
+
   const handleCloseSearch = useCallback(() => {
     if (viewerRef.current?.search) {
       viewerRef.current.search.clearHighlights();
@@ -405,13 +423,13 @@ export function HWPXViewerWrapper({
               outline: 'none',
             }}
           />
-          
+
           {searchResults.count > 0 && (
             <span style={{ fontSize: '13px', color: '#6b7280', minWidth: '60px' }}>
               {searchResults.current}/{searchResults.count}
             </span>
           )}
-          
+
           <button
             onClick={handleSearchPrev}
             style={{
@@ -426,7 +444,7 @@ export function HWPXViewerWrapper({
           >
             ▲
           </button>
-          
+
           <button
             onClick={handleSearchNext}
             style={{
@@ -441,7 +459,7 @@ export function HWPXViewerWrapper({
           >
             ▼
           </button>
-          
+
           <button
             onClick={handleCloseSearch}
             style={{
@@ -460,19 +478,19 @@ export function HWPXViewerWrapper({
       )}
 
       {/* ✅ Vanilla JS 필수 UI 요소들 */}
-      
+
       {/* Toast Container */}
-      <div id="toast-container" style={{ 
-        position: 'fixed', 
-        top: '20px', 
-        right: '20px', 
-        zIndex: 10000 
+      <div id="toast-container" style={{
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        zIndex: 10000
       }} />
-      
+
       {/* ✅ 개선된 Loading Overlay */}
-      <div 
-        id="loading-overlay" 
-        style={{ 
+      <div
+        id="loading-overlay"
+        style={{
           display: isLoading ? 'flex' : 'none',
           position: 'fixed',
           top: 0,
@@ -486,7 +504,7 @@ export function HWPXViewerWrapper({
           zIndex: 9999,
         }}
       >
-        <div style={{ 
+        <div style={{
           textAlign: 'center',
           background: '#ffffff',
           borderRadius: '16px',
@@ -516,24 +534,24 @@ export function HWPXViewerWrapper({
               📄
             </div>
           </div>
-          
+
           {/* 로딩 텍스트 */}
-          <p style={{ 
-            color: '#111827', 
+          <p style={{
+            color: '#111827',
             fontSize: '16px',
             fontWeight: 600,
             marginBottom: '8px',
           }}>
             문서 로드 중
           </p>
-          <p className="loading-message" style={{ 
-            color: '#6b7280', 
+          <p className="loading-message" style={{
+            color: '#6b7280',
             fontSize: '13px',
             marginBottom: '20px',
           }}>
             잠시만 기다려주세요...
           </p>
-          
+
           {/* 프로그레스 바 */}
           <div style={{
             width: '200px',
@@ -542,7 +560,7 @@ export function HWPXViewerWrapper({
             borderRadius: '2px',
             overflow: 'hidden',
           }}>
-            <div 
+            <div
               id="loading-progress-bar"
               style={{
                 width: '30%',
@@ -555,7 +573,7 @@ export function HWPXViewerWrapper({
           </div>
         </div>
       </div>
-      
+
       {/* Status Text (하단 상태 표시줄) */}
       <div id="status-text" style={{
         position: 'fixed',
@@ -574,26 +592,26 @@ export function HWPXViewerWrapper({
       }}>
         준비됨
       </div>
-      
+
       {/* Progress Container */}
       <div id="progress-container" style={{ display: 'none' }}>
         <div id="progress-bar" style={{ width: '0%' }} />
         <div id="progress-text">0%</div>
       </div>
 
-      {/* ✅ AI Chat Panel (Vanilla JS UI) */}
-      {enableAI && (
+      {/* ✅ AI Chat Panel (Vanilla JS UI) - 임시로 숨김 */}
+      {false && enableAI && (
         <>
           <div className="ai-chat-panel" id="ai-chat-panel">
             <div className="ai-chat-header">
               <h3>AI 문서 편집</h3>
               <button className="ai-chat-toggle" id="ai-chat-toggle">✕</button>
             </div>
-            
+
             <div className="ai-chat-messages" id="ai-chat-messages">
               {/* Messages will be dynamically added here */}
             </div>
-            
+
             <div className="ai-structure-preview">
               <button className="preview-structure-btn" id="preview-structure-btn">
                 문서 구조 보기
@@ -626,7 +644,7 @@ export function HWPXViewerWrapper({
                 HWPX 저장
               </button>
             </div>
-            
+
             <div className="ai-chat-input-container">
               <textarea
                 className="ai-chat-input"
@@ -649,7 +667,7 @@ export function HWPXViewerWrapper({
               </button>
             </div>
           </div>
-          
+
           {/* AI Toggle Button (floating) */}
           <button className="ai-panel-toggle" id="ai-panel-toggle">
             AI

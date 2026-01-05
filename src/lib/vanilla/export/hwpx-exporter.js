@@ -6,10 +6,10 @@
  * @module export/hwpx-exporter
  * @version 1.0.0
  * @author HWPX Viewer Team
- * 
- * Note: JSZip은 index-professional.html에서 CDN으로 로드됩니다.
  */
 
+// ✅ JSZip을 직접 import (패키지에 번들됨)
+import JSZip from 'jszip';
 import { JsonToXmlConverter } from './json-to-xml.js';
 import { getLogger } from '../utils/logger.js';
 import { HWPXError, ErrorType } from '../utils/error.js';
@@ -22,14 +22,7 @@ const logger = getLogger('HwpxExporter');
 export class HwpxExporter {
     constructor() {
         this.xmlConverter = new JsonToXmlConverter();
-        
-        // JSZip이 로드되었는지 확인
-        if (typeof JSZip === 'undefined') {
-            throw new HWPXError(
-                ErrorType.EXPORT_ERROR,
-                'JSZip 라이브러리가 로드되지 않았습니다. index.html에서 JSZip CDN을 로드해주세요.'
-            );
-        }
+        // JSZip은 이제 import로 로드됨
     }
 
     /**
@@ -76,8 +69,8 @@ export class HwpxExporter {
      * @returns {Promise<JSZip>} JSZip 객체
      */
     async createHwpxZip(document) {
-        // JSZip은 전역 변수로 CDN에서 로드됨
-        const zip = new window.JSZip();
+        // JSZip은 import로 로드됨
+        const zip = new JSZip();
 
         logger.info('  📋 1/6: mimetype 생성...');
         // 1. mimetype (압축 없이 저장)

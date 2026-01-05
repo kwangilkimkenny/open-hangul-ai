@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Editing Test - HWPX Viewer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .toolbar {
+            background: #f5f5f5;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar-section {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toolbar-section::after {
+            content: '';
+            width: 1px;
+            height: 24px;
+            background: #ddd;
+            margin: 0 8px;
+        }
+
+        .toolbar-section:last-child::after {
+            display: none;
+        }
+
+        .toolbar-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #1976D2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.danger {
+            background: #f44336;
+        }
+
+        button.danger:hover {
+            background: #d32f2f;
+        }
+
+        button.success {
+            background: #4CAF50;
+        }
+
+        button.success:hover {
+            background: #388E3C;
+        }
+
+        input[type="number"], input[type="color"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input[type="number"] {
+            width: 60px;
+        }
+
+        #viewer-container {
+            border: 1px solid #ddd;
+            min-height: 600px;
+            border-radius: 4px;
+            background: white;
+            position: relative;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status-item {
+            margin: 4px 0;
+        }
+
+        .success-text {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .error-text {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .warning-text {
+            color: #ff9800;
+            font-weight: bold;
+        }
+
+        .selected-cell {
+            outline: 3px solid #2196F3;
+            outline-offset: -3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Table Editing Test</h1>
+
+        <div class="info">
+            <strong>테스트 시나리오:</strong>
+            <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+                <li>테이블 삽입</li>
+                <li>행/열 추가 및 삭제</li>
+                <li>셀 선택 (클릭) 및 다중 선택 (Shift+클릭)</li>
+                <li>셀 병합 및 분할</li>
+                <li>셀 배경색 및 테두리 설정</li>
+                <li>Undo/Redo 테스트</li>
+            </ol>
+            <div style="margin-top: 12px; padding: 8px; background: #fff3cd; border-radius: 4px;">
+                <strong>💡 Tip:</strong> 셀을 클릭하면 선택됩니다. Shift+클릭으로 다중 선택 가능합니다.
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <!-- Insert Table -->
+            <div class="toolbar-section">
+                <span class="toolbar-label">테이블:</span>
+                <input type="number" id="input-rows" min="1" max="20" value="3">
+                <span style="font-size: 12px;">행 x</span>
+                <input type="number" id="input-cols" min="1" max="20" value="3">
+                <span style="font-size: 12px;">열</span>
+                <button id="btn-insert-table" class="success">테이블 삽입</button>
+            </div>
+
+            <!-- Row Operations -->
+            <div class="toolbar-section" id="row-section" style="display: none;">
+                <span class="toolbar-label">행:</span>
+                <button id="btn-add-row-above" disabled>↑ 위에 추가</button>
+                <button id="btn-add-row-below" disabled>↓ 아래 추가</button>
+                <button id="btn-delete-row" class="danger" disabled>🗑️ 삭제</button>
+            </div>
+
+            <!-- Column Operations -->
+            <div class="toolbar-section" id="col-section" style="display: none;">
+                <span class="toolbar-label">열:</span>
+                <button id="btn-add-col-left" disabled>← 왼쪽 추가</button>
+                <button id="btn-add-col-right" disabled>→ 오른쪽 추가</button>
+                <button id="btn-delete-col" class="danger" disabled>🗑️ 삭제</button>
+            </div>
+
+            <!-- Cell Operations -->
+            <div class="toolbar-section" id="cell-section" style="display: none;">
+                <span class="toolbar-label">셀:</span>
+                <button id="btn-merge-cells" disabled>🔗 병합</button>
+                <button id="btn-split-cell" disabled>✂️ 분할</button>
+            </div>
+
+            <!-- Cell Styling -->
+            <div class="toolbar-section" id="style-section" style="display: none;">
+                <span class="toolbar-label">스타일:</span>
+                <input type="color" id="input-bg-color" value="#ffffff" disabled>
+                <button id="btn-set-bg-color" disabled>배경색</button>
+                <button id="btn-set-border" disabled>테두리</button>
+            </div>
+
+            <!-- Table Operations -->
+            <div class="toolbar-section" id="table-section" style="display: none;">
+                <button id="btn-delete-table" class="danger" disabled>🗑️ 테이블 삭제</button>
+            </div>
+
+            <!-- Undo/Redo -->
+            <div class="toolbar-section" id="undo-section" style="display: none;">
+                <button id="btn-undo" disabled>↶ Undo</button>
+                <button id="btn-redo" disabled>↷ Redo</button>
+            </div>
+        </div>
+
+        <div id="viewer-container"></div>
+
+        <div class="status" id="status">
+            <div class="status-item">상태: 대기 중...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { HWPXViewer } from '../src/lib/vanilla/viewer.js';
+
+        let viewer;
+        let selectedCells = [];
+
+        const buttons = {
+            insertTable: document.getElementById('btn-insert-table'),
+            addRowAbove: document.getElementById('btn-add-row-above'),
+            addRowBelow: document.getElementById('btn-add-row-below'),
+            deleteRow: document.getElementById('btn-delete-row'),
+            addColLeft: document.getElementById('btn-add-col-left'),
+            addColRight: document.getElementById('btn-add-col-right'),
+            deleteCol: document.getElementById('btn-delete-col'),
+            mergeCells: document.getElementById('btn-merge-cells'),
+            splitCell: document.getElementById('btn-split-cell'),
+            setBgColor: document.getElementById('btn-set-bg-color'),
+            setBorder: document.getElementById('btn-set-border'),
+            deleteTable: document.getElementById('btn-delete-table'),
+            undo: document.getElementById('btn-undo'),
+            redo: document.getElementById('btn-redo')
+        };
+
+        const inputs = {
+            rows: document.getElementById('input-rows'),
+            cols: document.getElementById('input-cols'),
+            bgColor: document.getElementById('input-bg-color')
+        };
+
+        const statusDiv = document.getElementById('status');
+
+        function updateStatus(message, type = 'success') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error-text' : type === 'warning' ? 'warning-text' : 'success-text';
+            statusDiv.innerHTML += `<div class="status-item ${className}">[${timestamp}] ${message}</div>`;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function enableButtons(...buttonNames) {
+            buttonNames.forEach(name => {
+                if (buttons[name]) {
+                    buttons[name].disabled = false;
+                }
+            });
+        }
+
+        function clearSelection() {
+            selectedCells.forEach(cell => {
+                cell.classList.remove('selected-cell');
+            });
+            selectedCells = [];
+            updateButtonStates();
+        }
+
+        function selectCell(cell, multiSelect = false) {
+            if (!multiSelect) {
+                clearSelection();
+            }
+
+            if (selectedCells.includes(cell)) {
+                // Deselect
+                cell.classList.remove('selected-cell');
+                selectedCells = selectedCells.filter(c => c !== cell);
+            } else {
+                // Select
+                cell.classList.add('selected-cell');
+                selectedCells.push(cell);
+            }
+
+            updateButtonStates();
+        }
+
+        function updateButtonStates() {
+            const hasSelection = selectedCells.length > 0;
+            const hasSingleCell = selectedCells.length === 1;
+            const hasMultipleCells = selectedCells.length > 1;
+
+            // Row/Column operations (single cell required)
+            buttons.addRowAbove.disabled = !hasSingleCell;
+            buttons.addRowBelow.disabled = !hasSingleCell;
+            buttons.deleteRow.disabled = !hasSingleCell;
+            buttons.addColLeft.disabled = !hasSingleCell;
+            buttons.addColRight.disabled = !hasSingleCell;
+            buttons.deleteCol.disabled = !hasSingleCell;
+
+            // Merge (multiple cells required)
+            buttons.mergeCells.disabled = !hasMultipleCells;
+
+            // Split (single merged cell required)
+            buttons.splitCell.disabled = !hasSingleCell;
+
+            // Styling (at least one cell required)
+            buttons.setBgColor.disabled = !hasSelection;
+            buttons.setBorder.disabled = !hasSelection;
+            inputs.bgColor.disabled = !hasSelection;
+
+            // Delete table (single cell required)
+            buttons.deleteTable.disabled = !hasSingleCell;
+        }
+
+        function setupCellSelection() {
+            const cells = document.querySelectorAll('.hwp-table-cell');
+            cells.forEach(cell => {
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectCell(cell, e.shiftKey);
+                    updateStatus(`셀 선택: ${selectedCells.length}개`);
+                });
+            });
+        }
+
+        // Initialize viewer
+        async function initViewer() {
+            try {
+                updateStatus('뷰어 초기화 중...');
+
+                // Create empty document
+                const emptyDocument = {
+                    sections: [{
+                        elements: []
+                    }]
+                };
+
+                viewer = new HWPXViewer('viewer-container', { editable: true });
+                await viewer.loadDocument(emptyDocument);
+
+                updateStatus('✅ 뷰어 초기화 완료');
+                updateStatus('💡 테이블 삽입 버튼을 클릭하여 시작하세요!', 'warning');
+
+                // Show controls
+                document.getElementById('row-section').style.display = 'flex';
+                document.getElementById('col-section').style.display = 'flex';
+                document.getElementById('cell-section').style.display = 'flex';
+                document.getElementById('style-section').style.display = 'flex';
+                document.getElementById('table-section').style.display = 'flex';
+                document.getElementById('undo-section').style.display = 'flex';
+
+                enableButtons('undo', 'redo');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        }
+
+        // Insert Table
+        buttons.insertTable.addEventListener('click', async () => {
+            try {
+                const rows = parseInt(inputs.rows.value) || 3;
+                const cols = parseInt(inputs.cols.value) || 3;
+
+                updateStatus(`테이블 삽입 중 (${rows}x${cols})...`);
+                viewer.command.insertTable(rows, cols);
+
+                // Wait for render
+                await new Promise(resolve => setTimeout(resolve, 300));
+                setupCellSelection();
+
+                updateStatus(`✅ 테이블 삽입 완료 (${rows}x${cols})`);
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Row Operations
+        buttons.addRowAbove.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.addRowAbove(selectedCells[0]);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus('✅ 위에 행 추가 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.addRowBelow.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.addRowBelow(selectedCells[0]);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus('✅ 아래에 행 추가 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.deleteRow.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.deleteRow(selectedCells[0]);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus('✅ 행 삭제 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Column Operations
+        buttons.addColLeft.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.addColumnLeft(selectedCells[0]);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus('✅ 왼쪽에 열 추가 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.addColRight.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.addColumnRight(selectedCells[0]);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus('✅ 오른쪽에 열 추가 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.deleteCol.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.deleteColumn(selectedCells[0]);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus('✅ 열 삭제 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Cell Operations
+        buttons.mergeCells.addEventListener('click', () => {
+            try {
+                if (selectedCells.length < 2) return;
+                viewer.command.mergeCells(selectedCells);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus(`✅ 셀 병합 완료 (${selectedCells.length}개)`);
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.splitCell.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.splitCell(selectedCells[0]);
+                setTimeout(() => {
+                    setupCellSelection();
+                    clearSelection();
+                }, 300);
+                updateStatus('✅ 셀 분할 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Cell Styling
+        buttons.setBgColor.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                const color = inputs.bgColor.value;
+                selectedCells.forEach(cell => {
+                    viewer.command.setCellBackgroundColor(cell, color);
+                });
+                updateStatus(`✅ 배경색 설정: ${color}`);
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.setBorder.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                const borders = {
+                    top: '2px solid #000',
+                    bottom: '2px solid #000',
+                    left: '2px solid #000',
+                    right: '2px solid #000'
+                };
+                selectedCells.forEach(cell => {
+                    viewer.command.setCellBorders(cell, borders);
+                });
+                updateStatus('✅ 테두리 설정 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Delete Table
+        buttons.deleteTable.addEventListener('click', () => {
+            try {
+                if (selectedCells.length === 0) return;
+                viewer.command.deleteTable(selectedCells[0]);
+                clearSelection();
+                updateStatus('✅ 테이블 삭제 완료');
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Undo/Redo
+        buttons.undo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.undo();
+                if (success) {
+                    setupCellSelection();
+                    clearSelection();
+                    updateStatus('✅ Undo 완료');
+                } else {
+                    updateStatus('⚠️ Undo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        buttons.redo.addEventListener('click', () => {
+            try {
+                const success = viewer.command.redo();
+                if (success) {
+                    setupCellSelection();
+                    clearSelection();
+                    updateStatus('✅ Redo 완료');
+                } else {
+                    updateStatus('⚠️ Redo 스택이 비어있습니다', 'warning');
+                }
+            } catch (error) {
+                updateStatus(`❌ 오류: ${error.message}`, 'error');
+            }
+        });
+
+        // Clear selection on document click
+        document.getElementById('viewer-container').addEventListener('click', (e) => {
+            if (e.target.id === 'viewer-container' || e.target.classList.contains('hwp-page')) {
+                clearSelection();
+                updateStatus('선택 해제');
+            }
+        });
+
+        // Initialize on load
+        initViewer();
+    </script>
+</body>
+</html>

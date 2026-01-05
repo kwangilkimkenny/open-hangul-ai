@@ -44,7 +44,7 @@ export class DocumentRenderer {
             defaultPadding: HWPXConstants.PAGE_PADDING_DEFAULT,
             ...options
         };
-        
+
         this.pageNumber = 1;
         this.totalPages = 0;
     }
@@ -71,7 +71,7 @@ export class DocumentRenderer {
                     });
                 }
             }
-            
+
             this.container.innerHTML = '';
             logger.debug('✓ Container cleared');
 
@@ -136,7 +136,7 @@ export class DocumentRenderer {
 
         } catch (error) {
             logger.error('❌ Rendering error:', error);
-            
+
             this.container.innerHTML = `
                 <div style="text-align: center; padding: 100px 20px; color: #e74c3c;">
                     <h2>⚠️ 렌더링 오류</h2>
@@ -150,7 +150,7 @@ export class DocumentRenderer {
                     </button>
                 </div>
             `;
-            
+
             throw error;
         }
     }
@@ -238,7 +238,7 @@ export class DocumentRenderer {
      */
     renderHeader(pageDiv, section, isOddPage) {
         const header = section.headers?.both || (isOddPage ? section.headers?.odd : section.headers?.even);
-        
+
         if (header?.elements?.length > 0) {
             const headerDiv = document.createElement('div');
             headerDiv.className = 'hwp-page-header';
@@ -322,7 +322,7 @@ export class DocumentRenderer {
      */
     renderFooter(pageDiv, section, isOddPage) {
         const footer = section.footers?.both || (isOddPage ? section.footers?.odd : section.footers?.even);
-        
+
         if (footer?.elements?.length > 0) {
             const footerDiv = document.createElement('div');
             footerDiv.className = 'hwp-page-footer';
@@ -362,7 +362,7 @@ export class DocumentRenderer {
             switch (element.type) {
                 case 'paragraph':
                     renderedElement = renderParagraph(element);
-                    
+
                     // ✅ Replace inline table placeholders with actual tables
                     if (renderedElement) {
                         const placeholders = renderedElement.querySelectorAll('.hwp-inline-table-placeholder');
@@ -407,19 +407,19 @@ export class DocumentRenderer {
      */
     autoPaginateContent(pageDiv, section, currentPageNum) {
         const container = pageDiv.parentElement;
-        
+
         // ✅ clientHeight에서 padding을 제외하여 실제 콘텐츠 영역 계산
         // clientHeight는 border를 제외하지만 padding은 포함함
         const computed = window.getComputedStyle(pageDiv);
         const paddingTop = parseFloat(computed.paddingTop) || 0;
         const paddingBottom = parseFloat(computed.paddingBottom) || 0;
         const maxContentHeight = pageDiv.clientHeight - paddingTop - paddingBottom;
-        
+
         logger.debug(`📐 Auto-pagination: clientHeight=${pageDiv.clientHeight}px, padding=${paddingTop + paddingBottom}px, maxContent=${maxContentHeight}px`);
 
         // 실제 컨텐츠 높이
         const contentHeight = pageDiv.scrollHeight;
-        
+
         // clientHeight 기준으로 비교
         const clientHeight = pageDiv.clientHeight;
 
@@ -427,12 +427,11 @@ export class DocumentRenderer {
         const elementsWithBreak = pageDiv.querySelectorAll('[data-page-break="true"]');
         const hasPageBreaks = elementsWithBreak.length > 0;
 
-        // ✅ 15px 오버플로우 허용 + lineHeight/margin 압축으로 12-13페이지 목표
-        // lineHeight: 1.6 → 1.5 (6% 압축)
-        // table margin: 15px → 8px (약 3-4% 압축)
-        // 15px: [7] "국정과제 55" 표를 다음 페이지로 보내기 위해
-        const ALLOWED_OVERFLOW = 15;
-        
+        // ✅ v2.2.10: 허용 오차 증가 (15 → 20)
+        // 빈 단락의 line-height 등으로 인한 미세 오버플로우 허용
+        const ALLOWED_OVERFLOW = 20;
+
+
         if (contentHeight <= clientHeight + ALLOWED_OVERFLOW && !hasPageBreaks) {
             // 페이지 나누기 불필요 (허용 오차 범위 내)
             const overflow = contentHeight - clientHeight;
@@ -443,7 +442,7 @@ export class DocumentRenderer {
         if (hasPageBreaks) {
             logger.debug(`📄 Auto-paginating: ${elementsWithBreak.length} forced page break(s) detected`);
         } else {
-            logger.debug(`📄 Auto-paginating: content=${contentHeight}px > client=${clientHeight}px (overflow=${contentHeight-clientHeight}px)`);
+            logger.debug(`📄 Auto-paginating: content=${contentHeight}px > client=${clientHeight}px (overflow=${contentHeight - clientHeight}px)`);
         }
 
         // 헤더, 푸터, 페이지 번호를 제외한 본문 요소만 추출
@@ -461,7 +460,7 @@ export class DocumentRenderer {
 
         elements.forEach(element => {
             const hasPageBreak = element.hasAttribute('data-page-break');
-            
+
             // ✅ margin을 포함한 실제 공간 계산
             const computedStyle = window.getComputedStyle(element);
             const marginTop = parseFloat(computedStyle.marginTop) || 0;
@@ -472,7 +471,7 @@ export class DocumentRenderer {
             // ✅ 표의 경우 특별 처리: 크기에 따라 다른 임계값 적용
             const isTable = element.classList.contains('hwp-table-wrapper');
             const remainingSpace = maxContentHeight - currentHeight;
-            
+
             // 90% 이상 들어가면 현재 페이지에 유지 (첫 페이지 체계도 표 보호)
             const threshold = 0.90;
             const canFitPartially = isTable && remainingSpace > elementTotalHeight * threshold;
@@ -482,7 +481,7 @@ export class DocumentRenderer {
                 if (hasPageBreak) {
                     logger.debug(`  📄 Forced page break detected on element`);
                 } else if (canFitPartially) {
-                    logger.debug(`  📄 Table kept on current page: remaining=${remainingSpace.toFixed(1)}px, table=${elementTotalHeight.toFixed(1)}px (${(remainingSpace/elementTotalHeight*100).toFixed(0)}% fits)`);
+                    logger.debug(`  📄 Table kept on current page: remaining=${remainingSpace.toFixed(1)}px, table=${elementTotalHeight.toFixed(1)}px (${(remainingSpace / elementTotalHeight * 100).toFixed(0)}% fits)`);
                 } else {
                     logger.debug(`  📄 Breaking page: current=${currentHeight.toFixed(1)}px + element=${elementTotalHeight.toFixed(1)}px > max=${maxContentHeight}px`);
                 }
@@ -521,19 +520,19 @@ export class DocumentRenderer {
             if (element.parentNode !== currentPage) {
                 currentPage.appendChild(element);
             }
-            
+
             // ✅ 요소를 이동한 후 실제 높이 재측정 (margin-collapse 반영)
             const actualHeight = element.offsetHeight;
             const actualMarginTop = parseFloat(window.getComputedStyle(element).marginTop) || 0;
             const actualMarginBottom = parseFloat(window.getComputedStyle(element).marginBottom) || 0;
             const actualTotalHeight = actualHeight + actualMarginTop + actualMarginBottom;
-            
+
             currentHeight += actualTotalHeight;
         });
 
         // ✅ 페이지 분할 후 검증 및 재귀적 분할
         logger.debug(`✅ Auto-pagination complete: ${pageCount + 1} pages created`);
-        
+
         // ✅ 새로 생성된 페이지들(첫 페이지 제외)에 대해서만 재귀 분할
         // 첫 페이지를 재귀하면 무한 루프 발생 가능성
         let additionalPages = 0;
@@ -541,29 +540,29 @@ export class DocumentRenderer {
             const pageScrollHeight = page.scrollHeight;
             const pageClientHeight = page.clientHeight;
             const overflow = pageScrollHeight - pageClientHeight;
-            
+
             if (overflow > ALLOWED_OVERFLOW) {
                 logger.debug(`  🔄 Page ${currentPageNum + index + 1} needs further splitting (overflow: ${overflow.toFixed(1)}px)`);
-                
+
                 // 재귀적으로 분할
                 const extraPages = this.autoPaginateContent(page, section, currentPageNum + index + 1);
                 additionalPages += extraPages;
             }
         });
-        
+
         // 모든 페이지 최종 검증
         pages.forEach((page, index) => {
             const pageScrollHeight = page.scrollHeight;
             const pageClientHeight = page.clientHeight;
             const overflow = pageScrollHeight - pageClientHeight;
-            
+
             if (overflow > ALLOWED_OVERFLOW) {
                 logger.warn(`⚠️  Page ${currentPageNum + index}: overflow still detected (${overflow.toFixed(1)}px, exceeds ${ALLOWED_OVERFLOW}px tolerance)`);
                 logger.warn(`    - scrollHeight: ${pageScrollHeight}px`);
                 logger.warn(`    - clientHeight: ${pageClientHeight}px`);
             }
         });
-        
+
         return pageCount + additionalPages;
     }
 
@@ -574,7 +573,7 @@ export class DocumentRenderer {
      */
     debugTables(pageDiv) {
         const tablesInPage = pageDiv.querySelectorAll('.hwp-table');
-        
+
         if (tablesInPage.length > 0) {
             tablesInPage.forEach((table, idx) => {
                 logger.debug(`🔍 TABLE [${idx}] dimensions:`, {

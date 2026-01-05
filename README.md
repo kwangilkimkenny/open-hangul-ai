@@ -5,7 +5,7 @@
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-7-646cff.svg)](https://vitejs.dev)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Commercial-blue.svg)](LICENSE)
 
 ---
 
@@ -259,21 +259,27 @@ npm run test     # 테스트 실행
 
 ---
 
-## 🤝 기여
-
-Pull Request와 Issue를 환영합니다!
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing`)
-5. Open a Pull Request
-
----
-
 ## 📄 라이선스
 
-MIT License - 자유롭게 사용, 수정, 배포 가능
+**Commercial License** - 상업용 라이선스
+
+본 소프트웨어는 상업용 라이선스로 제공됩니다. 사용 전 라이선스 구매가 필요합니다.
+
+### 라이선스 유형
+
+| 유형 | 프로젝트 수 | 개발자 수 | 기술 지원 |
+|------|------------|----------|----------|
+| **Personal** | 1개 | 1명 | 이메일 |
+| **Team** | 5개 | 10명 | 이메일 + 채팅 |
+| **Enterprise** | 무제한 | 무제한 | 우선 지원 |
+
+### 문의
+
+- 라이선스 구매: license@ism-team.com
+- 기술 지원: support@ism-team.com
+- 웹사이트: https://ism-team.com
+
+자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ---
 
