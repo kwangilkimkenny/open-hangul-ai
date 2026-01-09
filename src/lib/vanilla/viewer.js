@@ -16,7 +16,8 @@ import { ChatPanel } from './ui/chat-panel.js';
 import { ContextMenu } from './ui/context-menu.js';
 import { SearchDialog } from './ui/search-dialog.js';
 import { InlineEditor } from './features/inline-editor.js';
-import { HistoryManager } from './features/history-manager.js';
+// HistoryManager v1 제거 - v2로 통합 (2026-01-09)
+// import { HistoryManager } from './features/history-manager.js';
 import { HistoryManagerV2 } from './features/history-manager-v2.js';
 import { EditModeManager } from './features/edit-mode-manager.js';
 import { Command } from './command/command.js';

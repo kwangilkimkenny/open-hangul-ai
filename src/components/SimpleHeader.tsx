@@ -8,6 +8,7 @@
 import { ReactNode, useRef, useId } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';
+import { devLog, devWarn } from '../utils/logger';
 
 interface AdditionalButton {
   id: string;
@@ -47,18 +48,18 @@ export function SimpleHeader({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    console.log('📁 [SimpleHeader] File change event triggered');
-    console.log('📁 [SimpleHeader] Selected file:', file?.name, 'size:', file?.size);
+    devLog('📁 [SimpleHeader] File change event triggered');
+    devLog('📁 [SimpleHeader] Selected file:', file?.name, 'size:', file?.size);
 
     if (file) {
       if (!file.name.toLowerCase().endsWith('.hwpx')) {
         toast.error('HWPX 파일만 지원됩니다');
         return;
       }
-      console.log('✅ [SimpleHeader] Calling onFileSelect with:', file.name);
+      devLog('✅ [SimpleHeader] Calling onFileSelect with:', file.name);
       onFileSelect?.(file);
     } else {
-      console.warn('⚠️ [SimpleHeader] No file selected');
+      devWarn('⚠️ [SimpleHeader] No file selected');
     }
 
     // 같은 파일 다시 선택할 수 있도록 초기화
@@ -71,9 +72,9 @@ export function SimpleHeader({
       return;
     }
 
-    console.log('💾 Save button clicked');
-    console.log('🔍 Has saveFile?', typeof viewer.saveFile);
-    console.log('🔍 Has aiController?', !!viewer.aiController);
+    devLog('💾 Save button clicked');
+    devLog('🔍 Has saveFile?', typeof viewer.saveFile);
+    devLog('🔍 Has aiController?', !!viewer.aiController);
 
     // Vanilla Viewer의 saveFile 메서드 호출
     if (typeof viewer.saveFile === 'function') {
@@ -83,12 +84,12 @@ export function SimpleHeader({
         toast.dismiss('saving');
         toast.success('✅ 저장 완료!');
       } catch (error) {
-        console.error('❌ Save error:', error);
+        devError('❌ Save error:', error);
         toast.dismiss('saving');
         toast.error(`저장 실패: ${error.message}`);
       }
     } else {
-      console.error('❌ saveFile method not found on viewer');
+      devError('❌ saveFile method not found on viewer');
       toast.error('저장 기능이 지원되지 않습니다');
     }
   };

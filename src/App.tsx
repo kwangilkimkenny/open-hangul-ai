@@ -11,6 +11,7 @@ import SimpleHeader from './components/SimpleHeader';
 import HWPXViewerWrapper from './components/HWPXViewerWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import type { HWPXViewerInstance } from './types/viewer';
+import { devLog, devError } from './utils/logger';
 
 // ✅ 전역 스타일 (레이아웃만)
 import './App.css';
@@ -20,17 +21,17 @@ function App() {
   const [viewerInstance, setViewerInstance] = useState<HWPXViewerInstance | null>(null);
 
   const handleFileSelect = useCallback((file: File) => {
-    console.log('📁 File selected:', file.name);
+    devLog('📁 File selected:', file.name);
     setSelectedFile(file);
   }, []);
 
   const handleViewerReady = useCallback((viewer: HWPXViewerInstance) => {
-    console.log('✅ Viewer instance ready:', viewer);
+    devLog('✅ Viewer instance ready:', viewer);
     setViewerInstance(viewer);
   }, []);
 
   const handleError = useCallback((error: Error) => {
-    console.error('❌ Error in App:', error);
+    devError('❌ Error in App:', error);
   }, []);
 
   return (

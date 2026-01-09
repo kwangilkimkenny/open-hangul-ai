@@ -8,6 +8,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';
+import { devLog, devError, devWarn } from '../utils/logger';
 
 // ✅ 기존 작동하는 vanilla JS 뷰어 import
 import HWPXViewer from '../lib/vanilla/viewer.js';
@@ -65,7 +66,7 @@ export function HWPXViewerWrapper({
       return;
     }
 
-    console.log('🚀 Initializing HWPX Viewer (Vanilla JS)...');
+    devLog('🚀 Initializing HWPX Viewer (Vanilla JS)...');
 
     try {
       // Viewer 인스턴스 생성
@@ -74,13 +75,13 @@ export function HWPXViewerWrapper({
         enableAI,
         useWorker: false, // ✅ Worker 비활성화 (Vite 호환성 문제)
         onLoad: (doc: any) => {
-          console.log('✅ Document loaded:', doc);
+          devLog('✅ Document loaded:', doc);
           setIsLoading(false);
           toast.success('문서 로드 완료!');
           // ❌ Document 객체가 아니라 Viewer 인스턴스를 전달해야 함
         },
         onError: (err: Error) => {
-          console.error('❌ Viewer error:', err);
+          devError('❌ Viewer error:', err);
           setIsLoading(false);
           toast.error(`오류: ${err.message}`);
           onError?.(err);
@@ -89,15 +90,15 @@ export function HWPXViewerWrapper({
 
       viewerRef.current = viewer;
       setIsInitialized(true);
-      console.log('✅ HWPX Viewer initialized');
+      devLog('✅ HWPX Viewer initialized');
 
       // ✅ Viewer 인스턴스를 부모 컴포넌트로 전달
       onDocumentLoad?.(viewer);
 
     } catch (error: any) {
-      console.error('❌ Failed to initialize viewer:', error);
-      console.error('❌ Error message:', error?.message);
-      console.error('❌ Error stack:', error?.stack);
+      devError('❌ Failed to initialize viewer:', error);
+      devError('❌ Error message:', error?.message);
+      devError('❌ Error stack:', error?.stack);
       // Also show error details in alert for debugging
       alert(`뷰어 초기화 실패:\n${error?.message || error}`);
       toast.error('뷰어 초기화 실패');
@@ -107,7 +108,7 @@ export function HWPXViewerWrapper({
     // Cleanup (컴포넌트 언마운트 시에만)
     return () => {
       if (viewerRef.current) {
-        console.log('🧹 Cleaning up viewer...');
+        devLog('🧹 Cleaning up viewer...');
         viewerRef.current.destroy?.();
         viewerRef.current = null;
         setIsInitialized(false);
@@ -123,6 +124,16 @@ export function HWPXViewerWrapper({
       return;
     }
 
+    // 🔒 Security: 파일 크기 제한 (최대 50MB)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
+      const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+      toast.error(`파일 크기가 너무 큽니다. 최대 ${maxSizeMB}MB까지 지원됩니다. (현재: ${fileSizeMB}MB)`);
+      devWarn(`⚠️ File size exceeds limit: ${fileSizeMB}MB (max: ${maxSizeMB}MB)`);
+      return;
+    }
+
     try {
       setIsLoading(true);
       toast.loading('문서 로드 중...', { id: 'loading' });
@@ -131,7 +142,7 @@ export function HWPXViewerWrapper({
 
       toast.dismiss('loading');
     } catch (error) {
-      console.error('❌ Failed to load file:', error);
+      devError('❌ Failed to load file:', error);
       toast.dismiss('loading');
       toast.error('파일 로드 실패');
       setIsLoading(false);
@@ -141,7 +152,7 @@ export function HWPXViewerWrapper({
   // ✅ 파일 prop 변경 시 자동 로드
   useEffect(() => {
     if (file && viewerRef.current && isInitialized) {
-      console.log('📂 Loading file:', file.name);
+      devLog('📂 Loading file:', file.name);
       handleFileOpen(file);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,7 +180,7 @@ export function HWPXViewerWrapper({
           // Ctrl+S: 저장
           e.preventDefault();
           if (viewerRef.current?.saveFile) {
-            console.log('⌨️ Ctrl+S: 저장');
+            devLog('⌨️ Ctrl+S: 저장');
             viewerRef.current.saveFile().then(() => {
               toast.success('저장 완료');
             }).catch((err: Error) => {
@@ -185,11 +196,11 @@ export function HWPXViewerWrapper({
           e.preventDefault();
           if (viewerRef.current?.historyManager) {
             if (e.shiftKey) {
-              console.log('⌨️ Ctrl+Shift+Z: 다시실행');
+              devLog('⌨️ Ctrl+Shift+Z: 다시실행');
               viewerRef.current.historyManager.redo();
               toast('다시실행', { icon: '↷' });
             } else {
-              console.log('⌨️ Ctrl+Z: 실행취소');
+              devLog('⌨️ Ctrl+Z: 실행취소');
               viewerRef.current.historyManager.undo();
               toast('실행취소', { icon: '↶' });
             }
@@ -200,7 +211,7 @@ export function HWPXViewerWrapper({
           // Ctrl+Y: 다시실행
           e.preventDefault();
           if (viewerRef.current?.historyManager) {
-            console.log('⌨️ Ctrl+Y: 다시실행');
+            devLog('⌨️ Ctrl+Y: 다시실행');
             viewerRef.current.historyManager.redo();
             toast('다시실행', { icon: '↷' });
           }
@@ -210,7 +221,7 @@ export function HWPXViewerWrapper({
           // Ctrl+P: 인쇄
           e.preventDefault();
           if (viewerRef.current?.printDocument) {
-            console.log('⌨️ Ctrl+P: 인쇄');
+            devLog('⌨️ Ctrl+P: 인쇄');
             viewerRef.current.printDocument();
           }
           break;
@@ -218,7 +229,7 @@ export function HWPXViewerWrapper({
         case 'o':
           // Ctrl+O: 파일 열기
           e.preventDefault();
-          console.log('⌨️ Ctrl+O: 파일 열기');
+          devLog('⌨️ Ctrl+O: 파일 열기');
           const input = document.createElement('input');
           input.type = 'file';
           input.accept = '.hwpx';
@@ -232,7 +243,7 @@ export function HWPXViewerWrapper({
         case 'f':
           // Ctrl+F: 검색
           e.preventDefault();
-          console.log('⌨️ Ctrl+F: 검색');
+          devLog('⌨️ Ctrl+F: 검색');
           setShowSearch(true);
           break;
       }
@@ -279,7 +290,7 @@ export function HWPXViewerWrapper({
       return;
     }
 
-    console.log('📂 File dropped:', droppedFile.name);
+    devLog('📂 File dropped:', droppedFile.name);
     handleFileOpen(droppedFile);
   }, [handleFileOpen]);
 

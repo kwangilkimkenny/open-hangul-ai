@@ -76,7 +76,9 @@ export { TableEditor } from './vanilla/features/table-editor.js';
 export { AdvancedSearch } from './vanilla/features/advanced-search.js';
 export { BookmarkManager } from './vanilla/features/bookmark-manager.js';
 export { AutoSaveManager } from './vanilla/features/autosave-manager.js';
-export { HistoryManager } from './vanilla/features/history-manager.js';
+// HistoryManager v1은 deprecated - v2 사용 권장 (2026-01-09)
+// export { HistoryManager } from './vanilla/features/history-manager.js';
+export { HistoryManagerV2 as HistoryManager } from './vanilla/features/history-manager-v2.js';
 
 // ✅ UI 모듈
 export { ChatPanel } from './vanilla/ui/chat-panel.js';

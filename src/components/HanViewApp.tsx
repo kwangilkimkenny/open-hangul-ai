@@ -17,6 +17,7 @@ import SimpleHeader from './SimpleHeader';
 import HWPXViewerWrapper from './HWPXViewerWrapper';
 import ErrorBoundary from './ErrorBoundary';
 import Sidebar from './Sidebar';
+import { devLog } from '../utils/logger';
 
 // ============================================
 // Props 타입 정의
@@ -140,7 +141,7 @@ export function HanViewApp({
 
   // 파일 선택 핸들러
   const handleFileSelect = useCallback((file: File) => {
-    console.log('📁 File selected:', file.name);
+    devLog('📁 File selected:', file.name);
     setSelectedFile(file);
     setIsLoading(true);
     onFileSelect?.(file);
@@ -148,7 +149,7 @@ export function HanViewApp({
 
   // 뷰어 준비 완료 핸들러
   const handleViewerReady = useCallback((viewer: any) => {
-    console.log('✅ Viewer instance ready');
+    devLog('✅ Viewer instance ready');
     setViewerInstance(viewer);
     setIsLoading(false);
     
@@ -158,7 +159,7 @@ export function HanViewApp({
 
   // 에러 핸들러
   const handleError = useCallback((error: Error) => {
-    console.error('❌ Error:', error);
+    devError('❌ Error:', error);
     setIsLoading(false);
     onError?.(error);
     
