@@ -124,6 +124,7 @@ export class InlineEditor {
 
     /**
      * 이벤트 리스너 추가
+     * ✅ Phase 1 P0: IME 처리 강화 - compositionstart/end 이벤트 추가
      * @private
      */
     _attachEventListeners(cellElement) {
@@ -134,6 +135,38 @@ export class InlineEditor {
         if (this.blurHandler) {
             cellElement.removeEventListener('blur', this.blurHandler);
         }
+        if (this._compositionHandlers) {
+            cellElement.removeEventListener('compositionstart', this._compositionHandlers.start);
+            cellElement.removeEventListener('compositionend', this._compositionHandlers.end);
+        }
+
+        // ✅ IME Composition 상태 추적
+        this.isComposing = false;
+
+        const compositionStartHandler = () => {
+            this.isComposing = true;
+            logger.debug('🎌 IME composition started');
+        };
+
+        const compositionEndHandler = (e) => {
+            logger.debug('🎌 IME composition ended:', e.data);
+
+            // ✅ 조합 완료 후 10ms 안정화 대기
+            // 일부 브라우저에서 compositionend 직후 keydown 이벤트가 즉시 발생할 수 있음
+            setTimeout(() => {
+                this.isComposing = false;
+                logger.debug('🎌 IME composition stabilized');
+            }, 10);
+        };
+
+        cellElement.addEventListener('compositionstart', compositionStartHandler);
+        cellElement.addEventListener('compositionend', compositionEndHandler);
+
+        // ✅ Cleanup을 위해 핸들러 저장
+        this._compositionHandlers = {
+            start: compositionStartHandler,
+            end: compositionEndHandler
+        };
 
         // 키보드 이벤트
         this.keydownHandler = this._handleKeydown.bind(this);
@@ -146,17 +179,18 @@ export class InlineEditor {
 
     /**
      * 키보드 이벤트 처리 (Phase 2: 키보드 네비게이션 지원)
+     * ✅ Phase 1 P0: IME 처리 강화 - 정확한 상태 추적
      * @private
      */
     _handleKeydown(e) {
         if (!this.editingCell) return;
 
-        // ✅ Phase 1 Senior Upgrade: IME Composition Guard
+        // ✅ Phase 1 P0: IME Composition Guard (개선)
         // Korean/Japanese/Chinese input methods use composition events.
-        // During composition (isComposing=true or keyCode=229), ignore key events
-        // to prevent double-characters or broken input.
-        if (e.isComposing || e.keyCode === 229) {
-            return; // Let the IME handle the event
+        // During composition, ignore ALL key events to prevent double-characters or broken input.
+        if (this.isComposing) {
+            logger.debug('⏸️  Ignored key during IME composition:', e.key);
+            return;
         }
 
         // Tab: 다음/이전 편집 가능한 요소로 이동
@@ -389,6 +423,7 @@ export class InlineEditor {
 
     /**
      * 편집 모드 비활성화
+     * ✅ Phase 1 P0: IME 이벤트 제거 추가
      * @private
      */
     _disableEditMode() {
@@ -402,6 +437,13 @@ export class InlineEditor {
             this.editingCell.removeEventListener('blur', this.blurHandler);
         }
 
+        // ✅ IME composition 이벤트 제거
+        if (this._compositionHandlers) {
+            this.editingCell.removeEventListener('compositionstart', this._compositionHandlers.start);
+            this.editingCell.removeEventListener('compositionend', this._compositionHandlers.end);
+            this._compositionHandlers = null;
+        }
+
         this.editingCell.classList.remove('editing');
         this.editingCell.contentEditable = false;
         this.editingCell.style.outline = '';
@@ -413,6 +455,7 @@ export class InlineEditor {
         this.cellData = null;
         this.keydownHandler = null;
         this.blurHandler = null;
+        this.isComposing = false;
     }
 
     /**
@@ -442,6 +485,7 @@ export class InlineEditor {
 
     /**
      * 셀/단락 데이터 업데이트
+     * ✅ Phase 1 P0: 양방향 변환 통일 - 하나의 paragraph에 linebreak run 사용
      * @private
      */
     _updateCellData(data, newText) {
@@ -455,25 +499,38 @@ export class InlineEditor {
                 charShapeId: firstPara.runs?.[0]?.charShapeId // 첫 번째 run의 스타일
             } : {};
 
-            // 기존 단락 제거
+            // ✅ 개선: 하나의 paragraph에 runs 배열로 저장 (여러 paragraph 대신)
             data.elements = data.elements.filter(e => e.type !== 'paragraph');
 
-            // 줄바꿈으로 분리하여 각각 단락으로 추가
+            // ✅ 줄바꿈을 linebreak run으로 변환
+            const runs = [];
             const lines = newText.split('\n');
-            lines.forEach(line => {
-                const newPara = {
-                    type: 'paragraph',
-                    paraShapeId: styleProps.paraShapeId, // 스타일 유지
-                    styleId: styleProps.styleId,       // 스타일 유지
-                    runs: [{
+            lines.forEach((line, idx) => {
+                if (idx > 0) {
+                    // 줄바꿈 추가
+                    runs.push({
+                        type: 'linebreak',
+                        charShapeId: styleProps.charShapeId
+                    });
+                }
+                // ✅ 빈 줄도 보존 (빈 문자열 허용)
+                if (line || idx === lines.length - 1) {
+                    runs.push({
                         text: line,
-                        charShapeId: styleProps.charShapeId // 문자 스타일 유지
-                    }]
-                };
-                data.elements.push(newPara);
+                        charShapeId: styleProps.charShapeId
+                    });
+                }
             });
 
-            logger.debug(`  ✓ Cell data updated with ${lines.length} paragraphs (style preserved)`);
+            // ✅ 단일 paragraph 추가
+            data.elements.push({
+                type: 'paragraph',
+                paraShapeId: styleProps.paraShapeId,
+                styleId: styleProps.styleId,
+                runs
+            });
+
+            logger.debug(`  ✓ Cell data updated with single paragraph (${lines.length} lines, ${runs.length} runs, style preserved)`);
         }
         // 일반 단락인 경우
         else if (data.runs) {
@@ -484,25 +541,26 @@ export class InlineEditor {
             // runs 배열 업데이트
             data.runs = [];
 
-            // 줄바꿈 처리: 여러 줄이면 linebreak로 분리
+            // ✅ 줄바꿈 처리: linebreak run 사용
             const lines = newText.split('\n');
             lines.forEach((line, idx) => {
                 if (idx > 0) {
                     // 줄바꿈 추가
                     data.runs.push({
                         type: 'linebreak',
-                        charShapeId: charShapeId // 줄바꿈에도 스타일 적용
+                        charShapeId: charShapeId
                     });
                 }
-                if (line) {
+                // ✅ 빈 줄도 보존
+                if (line || idx === lines.length - 1) {
                     data.runs.push({
                         text: line,
-                        charShapeId: charShapeId // 스타일 유지
+                        charShapeId: charShapeId
                     });
                 }
             });
 
-            logger.debug(`  ✓ Paragraph data updated with ${lines.length} lines (style preserved)`);
+            logger.debug(`  ✓ Paragraph data updated with ${lines.length} lines (${data.runs.length} runs, style preserved)`);
         }
     }
 
