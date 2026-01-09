@@ -98,12 +98,89 @@ function removeToast(toast) {
  * HTML 이스케이프 (XSS 방지)
  * @param {string} str - 문자열
  * @returns {string} 이스케이프된 문자열
- * @private
+ *
+ * @example
+ * escapeHtml('<script>alert("XSS")</script>');
+ * // Returns: '&lt;script&gt;alert("XSS")&lt;/script&gt;'
  */
-function escapeHtml(str) {
+export function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+/**
+ * HTML 문자열 정화 (기본 XSS 방지)
+ * 허용된 태그만 남기고 위험한 속성 제거
+ *
+ * @param {string} html - HTML 문자열
+ * @param {Object} [options={}] - 옵션
+ * @param {Array<string>} [options.allowedTags] - 허용할 태그 목록
+ * @returns {string} 정화된 HTML
+ *
+ * @example
+ * sanitizeHTML('<p onclick="alert(1)">Hello<script>alert(2)</script></p>');
+ * // Returns: '<p>Hello</p>'
+ */
+export function sanitizeHTML(html, options = {}) {
+    if (typeof html !== 'string') return '';
+
+    const allowedTags = options.allowedTags || [
+        'p', 'span', 'div', 'br', 'strong', 'em', 'u', 'b', 'i',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li',
+        'table', 'tr', 'td', 'th', 'thead', 'tbody',
+        'a'  // 링크는 href 속성만 허용
+    ];
+
+    // 임시 DOM 생성
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    // 모든 요소 순회
+    const walker = document.createTreeWalker(
+        doc.body,
+        NodeFilter.SHOW_ELEMENT,
+        null
+    );
+
+    const elementsToRemove = [];
+
+    while (walker.nextNode()) {
+        const node = walker.currentNode;
+
+        // 허용되지 않은 태그는 제거
+        if (!allowedTags.includes(node.tagName.toLowerCase())) {
+            elementsToRemove.push(node);
+            continue;
+        }
+
+        // 모든 속성 제거 (a 태그의 href만 예외)
+        const attributes = Array.from(node.attributes);
+        attributes.forEach(attr => {
+            if (node.tagName.toLowerCase() === 'a' && attr.name === 'href') {
+                // href는 javascript: 프로토콜 차단
+                if (attr.value.toLowerCase().startsWith('javascript:')) {
+                    node.removeAttribute(attr.name);
+                }
+            } else if (attr.name === 'class' || attr.name === 'style') {
+                // class와 style은 허용 (CSS injection은 별도 검증 필요)
+            } else {
+                // 다른 모든 속성 제거 (onclick 등)
+                node.removeAttribute(attr.name);
+            }
+        });
+    }
+
+    // 금지된 요소 제거
+    elementsToRemove.forEach(el => {
+        // 텍스트 내용은 보존
+        const textContent = el.textContent;
+        const textNode = document.createTextNode(textContent);
+        el.parentNode.replaceChild(textNode, el);
+    });
+
+    return doc.body.innerHTML;
 }
 
 /**

@@ -7,6 +7,7 @@
 
 import { ReactNode, useRef, useId } from 'react';
 import { toast } from 'react-hot-toast';
+import type { HWPXViewerInstance } from '../types/viewer';
 
 interface AdditionalButton {
   id: string;
@@ -19,7 +20,7 @@ interface AdditionalButton {
 
 interface SimpleHeaderProps {
   onFileSelect?: (file: File) => void;
-  viewer?: any;
+  viewer?: HWPXViewerInstance | null;
   /** 헤더 제목 */
   title?: string;
   /** 부제목 */

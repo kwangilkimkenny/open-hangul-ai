@@ -10,20 +10,21 @@ import { Toaster } from 'react-hot-toast';
 import SimpleHeader from './components/SimpleHeader';
 import HWPXViewerWrapper from './components/HWPXViewerWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
+import type { HWPXViewerInstance } from './types/viewer';
 
 // ✅ 전역 스타일 (레이아웃만)
 import './App.css';
 
 function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [viewerInstance, setViewerInstance] = useState<any>(null);
+  const [viewerInstance, setViewerInstance] = useState<HWPXViewerInstance | null>(null);
 
   const handleFileSelect = useCallback((file: File) => {
     console.log('📁 File selected:', file.name);
     setSelectedFile(file);
   }, []);
 
-  const handleViewerReady = useCallback((viewer: any) => {
+  const handleViewerReady = useCallback((viewer: HWPXViewerInstance) => {
     console.log('✅ Viewer instance ready:', viewer);
     setViewerInstance(viewer);
   }, []);

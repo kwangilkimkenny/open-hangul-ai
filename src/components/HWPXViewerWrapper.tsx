@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import type { HWPXViewerInstance } from '../types/viewer';
 
 // ✅ 기존 작동하는 vanilla JS 뷰어 import
 import HWPXViewer from '../lib/vanilla/viewer.js';
@@ -26,7 +27,7 @@ import '../styles/vanilla/external-api.css';
 interface HWPXViewerWrapperProps {
   className?: string;
   file?: File | null;
-  onDocumentLoad?: (viewer: any) => void; // ✅ viewer 인스턴스 전달
+  onDocumentLoad?: (viewer: HWPXViewerInstance) => void; // ✅ viewer 인스턴스 전달
   onError?: (error: Error) => void;
   enableAI?: boolean;
 }
@@ -39,7 +40,7 @@ export function HWPXViewerWrapper({
   enableAI = true,
 }: HWPXViewerWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<any>(null);
+  const viewerRef = useRef<HWPXViewerInstance | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -57,8 +58,10 @@ export function HWPXViewerWrapper({
     };
 
     if (!containerRef.current || viewerRef.current) {
-      (window as any).__DEBUG_HWPX.skipped = true;
-      (window as any).__DEBUG_HWPX.skipReason = !containerRef.current ? 'no container' : 'viewer exists';
+      if ((window as any).__DEBUG_HWPX) {
+        (window as any).__DEBUG_HWPX.skipped = true;
+        (window as any).__DEBUG_HWPX.skipReason = !containerRef.current ? 'no container' : 'viewer exists';
+      }
       return;
     }
 

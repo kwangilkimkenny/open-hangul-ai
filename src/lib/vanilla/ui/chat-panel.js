@@ -1908,6 +1908,71 @@ export class ChatPanel {
             showToast('error', '실패', error.message);
         }
     }
+
+    /**
+     * 리소스 정리 및 이벤트 리스너 제거
+     * 메모리 누수 방지를 위한 destroy 메서드
+     */
+    destroy() {
+        logger.info('🧹 Cleaning up ChatPanel resources...');
+
+        // 1. 모든 타이머 정리
+        if (this.loadingIntervals) {
+            this.loadingIntervals.forEach((interval) => {
+                clearInterval(interval);
+            });
+            this.loadingIntervals.clear();
+        }
+
+        // 2. CellSelector 정리
+        if (this.cellSelector && typeof this.cellSelector.destroy === 'function') {
+            this.cellSelector.destroy();
+            this.cellSelector = null;
+        }
+
+        // 3. 이벤트 리스너 제거 (attachEventListeners에서 등록한 것들)
+        if (this.elements.sendButton) {
+            this.elements.sendButton.replaceWith(this.elements.sendButton.cloneNode(true));
+        }
+        if (this.elements.input) {
+            this.elements.input.replaceWith(this.elements.input.cloneNode(true));
+        }
+        if (this.elements.toggleButton) {
+            this.elements.toggleButton.replaceWith(this.elements.toggleButton.cloneNode(true));
+        }
+        if (this.elements.closeButton) {
+            this.elements.closeButton.replaceWith(this.elements.closeButton.cloneNode(true));
+        }
+
+        // 4. 모든 기능 버튼들 정리
+        const buttonIds = [
+            'apiKeyButton', 'customApiButton', 'saveButton',
+            'previewStructureBtn', 'applyStyleBtn', 'extractTemplateBtn',
+            'regenerateBtn', 'partialEditBtn', 'validateBtn',
+            'batchGenerateBtn', 'clearBtn', 'cellSelectModeBtn', 'externalApiBtn'
+        ];
+
+        buttonIds.forEach(btnId => {
+            const btn = this.elements[btnId];
+            if (btn) {
+                btn.replaceWith(btn.cloneNode(true));
+            }
+        });
+
+        // 5. 글로벌 이벤트 리스너 제거
+        document.removeEventListener('cellSelectionApplied', this._handleCellSelectionApplied);
+
+        // 6. DOM 참조 제거
+        Object.keys(this.elements).forEach(key => {
+            this.elements[key] = null;
+        });
+
+        // 7. 기타 참조 제거
+        this.aiController = null;
+        this.externalApiConfig = null;
+
+        logger.info('✅ ChatPanel cleaned up successfully');
+    }
 }
 
 /**

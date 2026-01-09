@@ -1,12 +1,13 @@
 /**
  * Inline Editor
  * 테이블 셀 인라인 편집 기능 (하이브리드 편집 방식)
- * 
+ *
  * @module features/inline-editor
  * @version 2.0.0
  */
 
 import { getLogger } from '../utils/logger.js';
+import { sanitizeHTML } from '../utils/ui.js';
 
 const logger = getLogger('InlineEditor');
 
@@ -59,8 +60,9 @@ export class InlineEditor {
 
         logger.debug('✏️ Enabling edit mode for element');
 
-        // 원본 내용 백업
-        this.originalContent = cellElement.innerHTML;
+        // 원본 내용 백업 (XSS 방지를 위해 sanitize)
+        // ⚠️ Security: 악의적인 스크립트가 포함된 내용을 방지
+        this.originalContent = sanitizeHTML(cellElement.innerHTML);
         this.editingCell = cellElement;
         this.cellData = cellData;
 
@@ -333,8 +335,9 @@ export class InlineEditor {
 
                         // 편집 중인 셀이라면 화면 업데이트
                         if (this.editingCell && this.cellData === targetData) {
-                            // 줄바꿈 보존을 위해 HTML로 변환
-                            this.editingCell.innerHTML = captureOldText.replace(/\n/g, '<br>');
+                            // 줄바꿈 보존을 위해 HTML로 변환 (XSS 방지)
+                            const safeHTML = sanitizeHTML(captureOldText.replace(/\n/g, '<br>'));
+                            this.editingCell.innerHTML = safeHTML;
                         }
                     },
                     '텍스트 편집'

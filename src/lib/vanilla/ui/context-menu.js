@@ -196,6 +196,33 @@ export class ContextMenu {
             return null;
         }
     }
+
+    /**
+     * 리소스 정리 및 이벤트 리스너 제거
+     * 메모리 누수 방지를 위한 destroy 메서드
+     */
+    destroy() {
+        logger.info('🧹 Cleaning up ContextMenu resources...');
+
+        // 1. 메뉴 숨기기
+        this.hide();
+
+        // 2. DOM에서 메뉴 요소 제거
+        if (this.menuElement && this.menuElement.parentNode) {
+            this.menuElement.parentNode.removeChild(this.menuElement);
+        }
+
+        // 3. 참조 제거
+        this.menuElement = null;
+        this.currentTarget = null;
+        this.menuItems = [];
+
+        // 4. 이벤트 리스너는 _init에서 익명 함수로 등록되어 제거 불가
+        // 실제 프로덕션에서는 바운드 함수로 관리 권장
+        // TODO: 리팩토링 시 바운드 함수로 변경하여 제거 가능하게 개선
+
+        logger.info('✅ ContextMenu cleaned up successfully');
+    }
 }
 
 export default ContextMenu;
