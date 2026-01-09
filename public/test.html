@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWPX 파일 자동 테스트</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .status.loading {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        .status.success {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+        }
+        .status.error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 6px;
+        }
+        .results h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .results pre {
+            background: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 0 0;
+        }
+        button:hover {
+            background: #1976d2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 HWPX 파일 자동 테스트</h1>
+
+        <div id="status" class="status loading">
+            ⏳ 샘플 파일 로딩 중...
+        </div>
+
+        <div>
+            <button id="testBtn" onclick="loadSampleFile()">샘플 파일 테스트</button>
+            <button onclick="window.location.href='/'">메인 앱으로 이동</button>
+        </div>
+
+        <div id="results" class="results" style="display: none;">
+            <h3>📊 테스트 결과</h3>
+            <pre id="resultsContent"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        window.loadSampleFile = async function() {
+            const statusEl = document.getElementById('status');
+            const resultsEl = document.getElementById('results');
+            const resultsContent = document.getElementById('resultsContent');
+            const testBtn = document.getElementById('testBtn');
+
+            try {
+                testBtn.disabled = true;
+                statusEl.className = 'status loading';
+                statusEl.textContent = '⏳ 샘플 파일 다운로드 중...';
+
+                // 1. 파일 다운로드
+                const response = await fetch('/놀이아이디어(월안-출력값 포함).hwpx');
+                if (!response.ok) {
+                    throw new Error(`파일 다운로드 실패: ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                statusEl.textContent = `⏳ 파일 크기: ${(blob.size / 1024).toFixed(1)}KB`;
+
+                // 2. File 객체 생성
+                const file = new File([blob], '놀이아이디어(월안-출력값 포함).hwpx', {
+                    type: 'application/vnd.hancom.hwpx'
+                });
+
+                statusEl.textContent = '⏳ 파서 로딩 중...';
+
+                // 3. 파서 import
+                const { SimpleHWPXParser } = await import('/src/lib/vanilla/core/parser.js');
+
+                statusEl.textContent = '⏳ 파일 파싱 중...';
+
+                // 4. 파싱 실행
+                const parser = new SimpleHWPXParser({
+                    parseImages: true,
+                    parseTables: true,
+                    parseStyles: true
+                });
+
+                const startTime = performance.now();
+                const arrayBuffer = await file.arrayBuffer();
+                const document = await parser.parse(arrayBuffer);
+                const parseTime = (performance.now() - startTime).toFixed(1);
+
+                // 5. 결과 출력
+                const result = {
+                    파싱시간: `${parseTime}ms`,
+                    파일크기: `${(blob.size / 1024).toFixed(1)}KB`,
+                    섹션수: document.sections?.length || 0,
+                    이미지수: document.images?.size || 0,
+                    메타데이터: document.metadata ? '✅' : '❌',
+                    원본ZIP: document.rawZip ? '✅' : '❌'
+                };
+
+                if (document.sections && document.sections.length > 0) {
+                    const firstSection = document.sections[0];
+                    result['첫_섹션_요소'] = firstSection.elements?.length || 0;
+
+                    // 요소 타입별 카운트
+                    if (firstSection.elements) {
+                        const elementTypes = {};
+                        firstSection.elements.forEach(el => {
+                            elementTypes[el.type] = (elementTypes[el.type] || 0) + 1;
+                        });
+                        result['요소_타입'] = elementTypes;
+                    }
+                }
+
+                if (document.images && document.images.size > 0) {
+                    const imageList = {};
+                    document.images.forEach((value, key) => {
+                        imageList[key] = `${(value.length / 1024).toFixed(1)}KB`;
+                    });
+                    result['이미지_목록'] = imageList;
+                }
+
+                resultsContent.textContent = JSON.stringify(result, null, 2);
+                resultsEl.style.display = 'block';
+
+                statusEl.className = 'status success';
+                statusEl.textContent = `✅ 파싱 성공! (${parseTime}ms)`;
+
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ 에러: ${error.message}`;
+
+                resultsContent.textContent = JSON.stringify({
+                    error: error.message,
+                    stack: error.stack
+                }, null, 2);
+                resultsEl.style.display = 'block';
+
+                console.error('테스트 에러:', error);
+            } finally {
+                testBtn.disabled = false;
+            }
+        };
+
+        // 페이지 로드 시 자동 실행
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('status').className = 'status';
+                document.getElementById('status').textContent = '준비 완료! 버튼을 클릭하여 테스트하세요.';
+            }, 500);
+        });
+    </script>
+</body>
+</html>

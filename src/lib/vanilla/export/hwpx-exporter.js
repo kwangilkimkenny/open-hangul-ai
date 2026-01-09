@@ -40,7 +40,7 @@ export class HwpxExporter {
             const hwpxZip = await this.createHwpxZip(document);
 
             // 2. Blob 생성
-            const blob = await hwpxZip.generateAsync({ 
+            const blob = await hwpxZip.generateAsync({
                 type: 'blob',
                 compression: 'DEFLATE'
             });
@@ -69,6 +69,9 @@ export class HwpxExporter {
      * @returns {Promise<JSZip>} JSZip 객체
      */
     async createHwpxZip(document) {
+        // ✅ Phase 3 Senior Upgrade: Reference Validation
+        this._validateReferences(document);
+
         // JSZip은 import로 로드됨
         const zip = new JSZip();
 
@@ -247,25 +250,25 @@ export class HwpxExporter {
      */
     async _addImages(zip, images) {
         logger.info(`📷 ${images.size}개 이미지 추가 중...`);
-        
+
         for (const [imageId, imageInfo] of images.entries()) {
             try {
                 const imageUrl = imageInfo.url || imageInfo;
-                
+
                 // Blob URL에서 이미지 데이터 가져오기
                 const response = await fetch(imageUrl);
                 const blob = await response.blob();
                 const arrayBuffer = await blob.arrayBuffer();
-                
+
                 // 파일명 결정 (원본 파일명 또는 imageId 사용)
                 const filename = imageInfo.filename || imageInfo.path || `${imageId}`;
-                
+
                 // BinData 폴더에 추가
                 zip.file(`BinData/${filename}`, arrayBuffer, { binary: true });
-                
+
                 const sizeKB = (arrayBuffer.byteLength / 1024).toFixed(2);
                 logger.info(`  ✓ ${filename} 추가 완료 (${sizeKB} KB)`);
-                
+
             } catch (error) {
                 logger.error(`  ✗ ${imageId} 추가 실패:`, error);
             }
@@ -280,7 +283,7 @@ export class HwpxExporter {
     async getPreviewUrl(document) {
         try {
             const hwpxZip = await this.createHwpxZip(document);
-            const blob = await hwpxZip.generateAsync({ 
+            const blob = await hwpxZip.generateAsync({
                 type: 'blob',
                 compression: 'DEFLATE'
             });
@@ -290,7 +293,77 @@ export class HwpxExporter {
             throw error;
         }
     }
+
+    /**
+     * ✅ Phase 3 Senior Upgrade: ID 참조 유효성 검증
+     * ParaShape, CharShape, Style ID가 header에 정의되어 있는지 검증합니다.
+     * 유효하지 않은 ID는 기본값(0)으로 대체합니다.
+     * @param {Object} document - HWPX 문서 JSON 객체
+     * @private
+     */
+    _validateReferences(document) {
+        logger.info('🔍 Validating ID references...');
+
+        // Header에서 정의된 ID 개수 확인
+        const header = document.header || {};
+        const maxParaShapeId = (header.paraProps?.length || 1) - 1;
+        const maxCharShapeId = (header.charProps?.length || 1) - 1;
+
+        let invalidCount = 0;
+
+        // 모든 섹션의 요소를 순회
+        const sections = document.sections || [];
+        sections.forEach(section => {
+            const elements = section.elements || [];
+            elements.forEach(element => {
+                // 문단 요소 검증
+                if (element.type === 'paragraph') {
+                    if (element.paraShapeId > maxParaShapeId) {
+                        logger.warn(`  ⚠️ Invalid ParaShapeId ${element.paraShapeId} -> 0`);
+                        element.paraShapeId = 0;
+                        invalidCount++;
+                    }
+                    // 각 run 검증
+                    (element.runs || []).forEach(run => {
+                        if (run.charShapeId > maxCharShapeId) {
+                            logger.warn(`  ⚠️ Invalid CharShapeId ${run.charShapeId} -> 0`);
+                            run.charShapeId = 0;
+                            invalidCount++;
+                        }
+                    });
+                }
+                // 테이블 요소 검증
+                else if (element.type === 'table') {
+                    (element.rows || []).forEach(row => {
+                        (row.cells || []).forEach(cell => {
+                            (cell.elements || []).forEach(cellElement => {
+                                if (cellElement.type === 'paragraph') {
+                                    if (cellElement.paraShapeId > maxParaShapeId) {
+                                        cellElement.paraShapeId = 0;
+                                        invalidCount++;
+                                    }
+                                    (cellElement.runs || []).forEach(run => {
+                                        if (run.charShapeId > maxCharShapeId) {
+                                            run.charShapeId = 0;
+                                            invalidCount++;
+                                        }
+                                    });
+                                }
+                            });
+                        });
+                    });
+                }
+            });
+        });
+
+        if (invalidCount > 0) {
+            logger.warn(`  ⚠️ Fixed ${invalidCount} invalid ID references (set to default 0)`);
+        } else {
+            logger.info('  ✅ All ID references are valid');
+        }
+    }
 }
+
 
 export default HwpxExporter;
 

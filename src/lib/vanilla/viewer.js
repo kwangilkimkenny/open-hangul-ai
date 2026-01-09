@@ -127,7 +127,7 @@ export class HWPXViewer {
         this.chatPanel = null;
         this.contextMenu = null;
         this.searchDialog = null;
-        
+
         // 편집 기능 (항상 활성화)
         this.inlineEditor = null;
         this.historyManager = null;
@@ -144,26 +144,26 @@ export class HWPXViewer {
         this.cursor = null;
         this.command = null;
         this.commandAdapt = null;
-        
+
         logger.info(`🔧 enableAI option: ${this.options.enableAI}`);
-        
+
         if (this.options.enableAI) {
             try {
                 logger.info('🚀 Initializing AI Controller...');
                 this.aiController = new AIDocumentController(this);
                 logger.info('✅ AI Controller initialized');
-                
+
                 // Chat Panel 초기화
                 logger.info('🚀 Initializing Chat Panel...');
                 this.chatPanel = new ChatPanel(this.aiController);
                 this.chatPanel.init();
                 logger.info('✅ Chat Panel initialized');
-                
+
                 // Context Menu 초기화 (생성자에서 자동 초기화됨)
                 logger.info('🚀 Initializing Context Menu...');
                 this.contextMenu = new ContextMenu();
                 logger.info('✅ Context Menu initialized');
-                
+
             } catch (error) {
                 logger.error('❌ Failed to initialize AI features:', error);
                 logger.error('Error details:', error.message, error.stack);
@@ -172,7 +172,7 @@ export class HWPXViewer {
         } else {
             logger.warn('⚠️ AI features disabled (enableAI = false)');
         }
-        
+
         // 편집 기능 초기화 (AI와 독립적으로 작동)
         try {
             logger.info('🚀 Initializing editing features...');
@@ -203,6 +203,36 @@ export class HWPXViewer {
             logger.info('✅ SearchDialog initialized');
 
             this.inlineEditor = new InlineEditor(this);
+
+            // ✅ Phase 4 Senior Upgrade: Debounced Pagination Check
+            // Debounce helper to reduce layout thrashing during rapid typing
+            const debounce = (fn, delay) => {
+                let timeoutId;
+                return (...args) => {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+                };
+            };
+
+            // Debounced pagination function (300ms delay after user stops typing)
+            const debouncedPaginationCheck = debounce((page) => {
+                if (this.renderer) {
+                    this.renderer.checkPagination(page);
+                }
+            }, 300);
+
+            // ✅ 편집 발생 시 자동 페이지 나누기 체크
+            this.inlineEditor.onChange((e) => {
+                const cell = this.inlineEditor.editingCell;
+                if (cell) {
+                    const page = cell.closest('.hwp-page-container');
+                    if (page) {
+                        // 페이지 오버플로우 체크 (Debounced)
+                        debouncedPaginationCheck(page);
+                    }
+                }
+            });
+
             logger.info('✅ InlineEditor initialized');
 
             this.editModeManager = new EditModeManager(this.inlineEditor);
@@ -225,21 +255,21 @@ export class HWPXViewer {
 
             this.themeManager = new ThemeManager();
             logger.info('✅ ThemeManager initialized');
-            
+
             // ✅ 전역으로 노출 (InlineEditor가 참조할 수 있도록)
             if (typeof window !== 'undefined') {
                 window.editModeManager = this.editModeManager;
                 logger.info('✅ EditModeManager exposed globally');
             }
-            
+
             // 테이블 우클릭 컨텍스트 메뉴 설정
             this._setupTableContextMenu();
-            
+
         } catch (error) {
             logger.error('❌ Failed to initialize editing features:', error);
             logger.error('Error details:', error.message, error.stack);
         }
-        
+
         // 자동저장 관리자 초기화
         this.autoSaveManager = null;
         try {
@@ -253,14 +283,14 @@ export class HWPXViewer {
             this.autoSaveManager.initialize().then(() => {
                 this.autoSaveManager.enableAutoSave();
                 logger.info('✅ AutoSaveManager initialized and enabled');
-                
+
                 // 충돌 복구 확인
                 this.autoSaveManager.detectCrashRecovery().then(recovery => {
                     if (recovery) {
-                        const message = recovery.isCrashRecovery 
+                        const message = recovery.isCrashRecovery
                             ? '이전 작업이 비정상 종료되었습니다. 복구하시겠습니까?'
                             : '저장되지 않은 작업이 있습니다. 복구하시겠습니까?';
-                        
+
                         if (confirm(message)) {
                             this.autoSaveManager.performCrashRecovery();
                         }
@@ -309,15 +339,15 @@ export class HWPXViewer {
 
         try {
             // ArrayBuffer 변환
-            const buffer = file instanceof ArrayBuffer 
-                ? file 
+            const buffer = file instanceof ArrayBuffer
+                ? file
                 : await file.arrayBuffer();
 
             logger.time('Total Load Time');
 
             // 파싱 (Worker 또는 Main Thread)
             let document;
-            
+
             if (this.workerManager && this.options.useWorker) {
                 // Worker 초기화 (필요시)
                 if (!this.workerManager.isReady) {
@@ -328,11 +358,11 @@ export class HWPXViewer {
                 document = await this.workerManager.parseHWPX(buffer, (progress) => {
                     this.state.parseProgress = progress.percent;
                     updateStatus(`${progress.message} (${Math.round(progress.percent)}%)`);
-                    
+
                     if (this.options.onProgress) {
                         this.options.onProgress(progress);
                     }
-                    
+
                     showProgress(progress.percent, progress.message);
                 });
             } else {
@@ -345,7 +375,7 @@ export class HWPXViewer {
             // 상태 업데이트
             this.state.document = document;
             this.state.currentFile = file;
-            
+
             logger.info(`📁 Current file stored: ${file?.name || 'ArrayBuffer'}`);
             logger.info(`  - File type: ${file?.constructor?.name || typeof file}`);
 
@@ -372,7 +402,7 @@ export class HWPXViewer {
 
         } catch (error) {
             logger.error('Failed to load file:', error);
-            
+
             if (this.options.onError) {
                 this.options.onError(error);
             }
@@ -431,11 +461,11 @@ export class HWPXViewer {
      */
     async updateDocument(document) {
         logger.info('🔄 Updating document...');
-        
+
         // 🔥 디버깅: 업데이트 전 DOM 상태
         const beforeDom = this.container.innerHTML.substring(0, 200);
         logger.debug(`Before update - DOM sample: "${beforeDom}..."`);
-        
+
         // 🔥 디버깅: 업데이트할 문서 샘플
         if (document.sections && document.sections[0]) {
             const firstTable = document.sections[0].elements.find(e => e.type === 'table');
@@ -448,19 +478,19 @@ export class HWPXViewer {
                 });
             }
         }
-        
+
         // 1. 상태 먼저 업데이트 (중요!)
         this.state.document = document;
         logger.debug('✓ State updated');
-        
+
         // 2. 렌더링
         await this.render(document);
         logger.debug('✓ Render completed');
-        
+
         // 🔥 디버깅: 업데이트 후 DOM 상태
         const afterDom = this.container.innerHTML.substring(0, 200);
         logger.debug(`After update - DOM sample: "${afterDom}..."`);
-        
+
         // 🔥 디버깅: 실제 렌더링된 텍스트 확인
         const renderedTables = this.container.querySelectorAll('table');
         logger.debug(`Found ${renderedTables.length} tables in DOM`);
@@ -471,7 +501,7 @@ export class HWPXViewer {
                 logger.debug(`First cell text: "${firstCell.textContent.substring(0, 50)}..."`);
             }
         }
-        
+
         logger.info('✅ Document updated and re-rendered');
     }
 
@@ -500,21 +530,21 @@ export class HWPXViewer {
             // 테이블 편집 활성화
             const tables = this.container.querySelectorAll('.hwp-table');
             logger.info(`  - Found ${tables.length} tables`);
-            
+
             let tablesWithData = 0;
             let tablesWithoutData = 0;
-            
+
             tables.forEach((table, index) => {
                 const tableData = table._tableData;
                 logger.debug(`  - Table ${index}: Has data = ${!!tableData}`);
-                
+
                 if (tableData) {
                     tablesWithData++;
                     this.inlineEditor.enableTableEditing(table, tableData);
                 } else {
                     tablesWithoutData++;
                     logger.warn(`  - Table ${index}: No _tableData attached, attempting to find from document`);
-                    
+
                     // 문서에서 테이블 데이터 찾기 시도
                     if (this.state.document && this.state.document.sections) {
                         const foundTableData = this._findTableDataByIndex(index);
@@ -528,7 +558,7 @@ export class HWPXViewer {
                     }
                 }
             });
-            
+
             logger.info(`  - Tables with data: ${tablesWithData}, without data: ${tablesWithoutData}`);
 
             // 단락 편집 활성화 (모든 단락, 테이블 외부만)
@@ -537,9 +567,9 @@ export class HWPXViewer {
                 // 테이블 내부 단락 제외
                 return !para.closest('.hwp-table');
             });
-            
+
             logger.info(`  - Found ${editableParagraphs.length} editable paragraphs (out of ${allParagraphs.length} total)`);
-            
+
             if (editableParagraphs.length > 0) {
                 // editable-paragraph 클래스 추가
                 editableParagraphs.forEach(para => {
@@ -555,7 +585,7 @@ export class HWPXViewer {
             logger.error('Error details:', error.message, error.stack);
         }
     }
-    
+
     /**
      * 클릭-투-포지션 기능 설정
      * @private
@@ -610,9 +640,9 @@ export class HWPXViewer {
         if (!this.state.document || !this.state.document.sections) {
             return null;
         }
-        
+
         let currentIndex = 0;
-        
+
         for (const section of this.state.document.sections) {
             if (section.elements) {
                 for (const element of section.elements) {
@@ -625,7 +655,7 @@ export class HWPXViewer {
                 }
             }
         }
-        
+
         return null;
     }
 
@@ -653,21 +683,21 @@ export class HWPXViewer {
             // 1. 테이블 셀 강제 동기화
             const tables = this.container.querySelectorAll('.hwp-table');
             logger.info(`  🔍 Checking ${tables.length} tables...`);
-            
+
             tables.forEach((tableElement, tableIndex) => {
                 const cells = tableElement.querySelectorAll('td, th');
-                
+
                 cells.forEach((cell, cellIndex) => {
                     const cellData = cell._cellData;
                     if (!cellData) {
                         logger.debug(`  ⚠️ Table ${tableIndex}, Cell ${cellIndex}: No cellData`);
                         return;
                     }
-                    
+
                     cellsChecked++;
                     const currentText = this._extractTextFromElement(cell);
                     const originalText = this._extractTextFromCellData(cellData);
-                    
+
                     // ✅ 강제 업데이트: textContent가 다르면 무조건 업데이트
                     if (currentText !== originalText) {
                         logger.info(`  📝 Cell [${tableIndex},${cellIndex}]: "${originalText.substring(0, 30)}..." → "${currentText.substring(0, 30)}..."`);
@@ -680,18 +710,18 @@ export class HWPXViewer {
             // 2. 단락 강제 동기화
             const paragraphs = this.container.querySelectorAll('.hwp-paragraph.editable-paragraph');
             logger.info(`  🔍 Checking ${paragraphs.length} paragraphs...`);
-            
+
             paragraphs.forEach((para, paraIndex) => {
                 const paraData = para._paraData;
                 if (!paraData) {
                     logger.debug(`  ⚠️ Paragraph ${paraIndex}: No paraData`);
                     return;
                 }
-                
+
                 paragraphsChecked++;
                 const currentText = this._extractTextFromElement(para);
                 const originalText = this._extractTextFromParaData(paraData);
-                
+
                 // ✅ 강제 업데이트: textContent가 다르면 무조건 업데이트
                 if (currentText !== originalText) {
                     logger.info(`  📝 Paragraph ${paraIndex}: "${originalText.substring(0, 30)}..." → "${currentText.substring(0, 30)}..."`);
@@ -717,7 +747,7 @@ export class HWPXViewer {
         } catch (error) {
             logger.error('❌ Failed to sync document from DOM:', error);
             logger.error('Error details:', error.message, error.stack);
-            
+
             // 에러 시에도 결과 반환
             return {
                 updatedCells: 0,
@@ -988,7 +1018,7 @@ export class HWPXViewer {
         logger.info('💾 saveFile called');
         logger.info(`  - currentFile: ${this.state.currentFile?.name}`);
         logger.info(`  - aiController: ${!!this.aiController}`);
-        
+
         if (!this.state.currentFile) {
             throw new Error('저장할 파일이 없습니다. 먼저 파일을 로드해주세요.');
         }
@@ -1010,19 +1040,19 @@ export class HWPXViewer {
 
         const targetFilename = filename || this.state.currentFile.name;
         logger.info(`  - Saving as: ${targetFilename}`);
-        
+
         // ✅ 3단계: 원본 기반 안전한 저장 (HwpxSafeExporter 사용)
         logger.info('🔧 Using SAFE EXPORT mode (original HWPX + modified content)');
-        
+
         try {
             const result = await this.aiController.saveAsHwpx(targetFilename);
-            
+
             if (result && result.success) {
                 logger.info('✅ HWPX 파일 저장 완료 (안전 모드)');
             } else {
                 logger.error('❌ HWPX 파일 저장 실패:', result?.message || '알 수 없는 오류');
             }
-            
+
             return result;
         } catch (error) {
             logger.error('❌ HWPX 저장 실패:', error);
@@ -1087,7 +1117,7 @@ export class HWPXViewer {
 
         logger.info('🗑️ Viewer destroyed');
     }
-    
+
     /**
      * 테이블 우클릭 컨텍스트 메뉴 설정
      * @private
@@ -1097,19 +1127,19 @@ export class HWPXViewer {
             logger.warn('⚠️ Cannot setup table context menu - missing dependencies');
             return;
         }
-        
+
         // 테이블 셀에 우클릭 이벤트 추가
         this.container.addEventListener('contextmenu', (e) => {
             const cell = e.target.closest('.hwp-table td, .hwp-table th');
             if (!cell) return;
-            
+
             // 글로벌 편집 모드가 아니면 기본 메뉴 허용
             if (window.editModeManager && !window.editModeManager.isGlobalEditMode) {
                 return;
             }
-            
+
             e.preventDefault();
-            
+
             const menuItems = [
                 {
                     icon: '✏️',
@@ -1186,7 +1216,7 @@ export class HWPXViewer {
                     action: (target) => {
                         try {
                             logger.info(`🧹 셀 내용 비우기 시작`, target);
-                            
+
                             const cellData = target._cellData;
                             if (!cellData) {
                                 logger.info(`📝 셀에 _cellData가 없음, textContent만 비움`);
@@ -1196,9 +1226,9 @@ export class HWPXViewer {
                                 }
                                 return;
                             }
-                            
+
                             logger.info(`📦 셀 데이터 확인:`, cellData);
-                            
+
                             // 셀 데이터의 모든 텍스트 제거 (재귀적)
                             const clearCellText = (elements) => {
                                 if (!elements) {
@@ -1217,18 +1247,18 @@ export class HWPXViewer {
                                     }
                                 });
                             };
-                            
+
                             clearCellText(cellData.elements);
-                            
+
                             // UI 업데이트
                             target.textContent = '';
-                            
+
                             // 자동 저장 트리거
                             if (this.autoSaveManager) {
                                 this.autoSaveManager.markDirty();
                                 logger.info(`💾 자동 저장 트리거됨`);
                             }
-                            
+
                             logger.info(`✅ 셀 내용 비우기 완료`);
                         } catch (error) {
                             logger.error(`❌ 셀 내용 비우기 실패:`, error);
@@ -1251,32 +1281,32 @@ export class HWPXViewer {
                     }
                 }
             ];
-            
+
             this.contextMenu.show(e, menuItems);
         });
-        
+
         // Delete 키로 셀 내용 비우기
         this.container.addEventListener('keydown', (e) => {
             if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-            
+
             // 편집 모드가 아니면 무시
             if (window.editModeManager && !window.editModeManager.isGlobalEditMode) {
                 return;
             }
-            
+
             // 현재 포커스된 셀 찾기
             const activeElement = document.activeElement;
             const cell = activeElement?.closest('.hwp-table td, .hwp-table th');
-            
+
             if (!cell) return;
-            
+
             // 인라인 편집 중이면 무시 (일반 텍스트 삭제)
             if (cell.contentEditable === 'true') {
                 return;
             }
-            
+
             e.preventDefault();
-            
+
             const cellData = cell._cellData;
             if (!cellData) {
                 cell.textContent = '';
@@ -1285,7 +1315,7 @@ export class HWPXViewer {
                 }
                 return;
             }
-            
+
             // 셀 데이터의 모든 텍스트 제거 (재귀적)
             const clearCellText = (elements) => {
                 elements?.forEach(el => {
@@ -1300,20 +1330,20 @@ export class HWPXViewer {
                     }
                 });
             };
-            
+
             clearCellText(cellData.elements);
-            
+
             // UI 업데이트
             cell.textContent = '';
-            
+
             // 자동 저장 트리거
             if (this.autoSaveManager) {
                 this.autoSaveManager.markDirty();
             }
-            
+
             logger.info(`🧹 셀 내용 비우기 완료 (Delete 키)`);
         });
-        
+
         logger.info('✅ Table context menu setup complete');
     }
 }

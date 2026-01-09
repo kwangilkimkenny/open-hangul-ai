@@ -21,7 +21,7 @@ export class InlineEditor {
         this.onChangeCallback = null;
         this.keydownHandler = null;
         this.blurHandler = null;
-        
+
         logger.info('✏️ InlineEditor initialized (Hybrid Mode v2.0)');
     }
 
@@ -44,7 +44,7 @@ export class InlineEditor {
             logger.debug('⚠️ Edit mode is OFF - editing disabled');
             return;
         }
-        
+
         // 같은 요소를 다시 클릭하면 무시
         if (this.editingCell === cellElement) {
             logger.debug('⚠️ Already editing this element');
@@ -73,11 +73,11 @@ export class InlineEditor {
 
         // 포커스
         cellElement.focus();
-        
+
         // ✅ 개선: 텍스트 끝으로 커서 이동 (전체 선택하지 않음)
         const range = document.createRange();
         const selection = window.getSelection();
-        
+
         // 텍스트 끝으로 커서 이동
         if (cellElement.childNodes.length > 0) {
             const lastNode = this._getLastTextNode(cellElement);
@@ -92,7 +92,7 @@ export class InlineEditor {
             range.selectNodeContents(cellElement);
             range.collapse(false);
         }
-        
+
         selection.removeAllRanges();
         selection.addRange(range);
 
@@ -110,13 +110,13 @@ export class InlineEditor {
         if (element.nodeType === Node.TEXT_NODE) {
             return element;
         }
-        
+
         const children = element.childNodes;
         for (let i = children.length - 1; i >= 0; i--) {
             const lastText = this._getLastTextNode(children[i]);
             if (lastText) return lastText;
         }
-        
+
         return null;
     }
 
@@ -136,7 +136,7 @@ export class InlineEditor {
         // 키보드 이벤트
         this.keydownHandler = this._handleKeydown.bind(this);
         cellElement.addEventListener('keydown', this.keydownHandler);
-        
+
         // 포커스 벗어남 (자동 저장)
         this.blurHandler = this._handleBlur.bind(this);
         cellElement.addEventListener('blur', this.blurHandler, { once: true });
@@ -148,6 +148,14 @@ export class InlineEditor {
      */
     _handleKeydown(e) {
         if (!this.editingCell) return;
+
+        // ✅ Phase 1 Senior Upgrade: IME Composition Guard
+        // Korean/Japanese/Chinese input methods use composition events.
+        // During composition (isComposing=true or keyCode=229), ignore key events
+        // to prevent double-characters or broken input.
+        if (e.isComposing || e.keyCode === 229) {
+            return; // Let the IME handle the event
+        }
 
         // Tab: 다음/이전 편집 가능한 요소로 이동
         if (e.key === 'Tab') {
@@ -182,17 +190,49 @@ export class InlineEditor {
         }
 
         // Enter: 현재 요소 저장하고 다음으로 이동 (Shift+Enter는 줄바꿈 허용)
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            this.saveChanges(false);  // 저장만 하고 편집 모드 유지
-            this._navigateToNext('next');
-            return;
+        if (e.key === 'Enter') {
+            if (e.shiftKey) {
+                // Shift+Enter: 줄바꿈 삽입
+                e.preventDefault();
+                e.stopPropagation();
+                this._insertNewlineAtCursor();
+                return;
+            } else {
+                e.preventDefault();
+                e.stopPropagation();
+                this.saveChanges(false);  // 저장만 하고 편집 모드 유지
+                this._navigateToNext('next');
+                return;
+            }
         }
 
         // Escape: 편집 모드 완전 종료
         if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             this.saveChanges(true);  // 저장하고 편집 모드 종료
+            return;
+        }
+
+        // Undo/Redo (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.shiftKey) {
+                // Redo
+                if (this.viewer.historyManager) this.viewer.historyManager.redo();
+            } else {
+                // Undo
+                if (this.viewer.historyManager) this.viewer.historyManager.undo();
+            }
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+            e.preventDefault();
+            e.stopPropagation();
+            // Redo
+            if (this.viewer.historyManager) this.viewer.historyManager.redo();
             return;
         }
     }
@@ -211,7 +251,38 @@ export class InlineEditor {
     }
 
     /**
-     * 변경 사항 저장 (개선: 편집 모드 유지 옵션 추가)
+     * 커서 위치에 줄바꿈 삽입
+     * @private
+     */
+    _insertNewlineAtCursor() {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+
+        // <br> 태그 생성
+        const br = document.createElement('br');
+
+        // 커서 위치에 삽입
+        range.deleteContents();
+        range.insertNode(br);
+
+        // <br> 뒤로 커서 이동
+        range.setStartAfter(br);
+        range.collapse(true);
+
+        // 포커스 유지
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        // 스크롤 조정 (필요시)
+        if (this.editingCell) {
+            br.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+    }
+
+    /**
+     * 변경 사항 저장 (개선: 편집 모드 유지 옵션 추가 + HistoryManager 연동)
      * @param {boolean} exitEditMode - 편집 모드 종료 여부 (기본: true)
      */
     saveChanges(exitEditMode = true) {
@@ -222,26 +293,68 @@ export class InlineEditor {
         const newText = this.extractText(this.editingCell);
         const oldText = this.extractText(this._createTempElement(this.originalContent));
 
+        // 원본과 비교를 위해 현재 상태를 캡처
+        const currentData = this.cellData;
+
         // 변경 사항이 있는 경우에만 처리
         if (newText !== oldText) {
             logger.info(`📝 Text changed: "${oldText.substring(0, 20)}..." → "${newText.substring(0, 20)}..."`);
 
-            // 셀 데이터 업데이트
-            this._updateCellData(this.cellData, newText);
+            // HistoryManager를 통한 실행
+            if (this.viewer.historyManager) {
+                // 클로저로 당시의 데이터와 텍스트를 캡처해야 함
+                const captureNewText = newText;
+                const captureOldText = oldText;
+                const targetData = this.cellData;
 
-            // 변경 콜백 호출
-            if (this.onChangeCallback) {
-                this.onChangeCallback({
-                    type: 'text_edit',
-                    cellData: this.cellData,
-                    oldText,
-                    newText
-                });
-            }
-            
-            // 자동저장 dirty 플래그 설정
-            if (this.viewer.autoSaveManager) {
-                this.viewer.autoSaveManager.markDirty();
+                this.viewer.historyManager.execute(
+                    // Execute function
+                    () => {
+                        this._updateCellData(targetData, captureNewText);
+
+                        // 변경 콜백 호출
+                        if (this.onChangeCallback) {
+                            this.onChangeCallback({
+                                type: 'text_edit',
+                                cellData: targetData,
+                                oldText: captureOldText,
+                                newText: captureNewText
+                            });
+                        }
+
+                        // 자동저장 dirty 플래그
+                        if (this.viewer.autoSaveManager) {
+                            this.viewer.autoSaveManager.markDirty();
+                        }
+                    },
+                    // Undo function
+                    () => {
+                        this._updateCellData(targetData, captureOldText);
+
+                        // 편집 중인 셀이라면 화면 업데이트
+                        if (this.editingCell && this.cellData === targetData) {
+                            // 줄바꿈 보존을 위해 HTML로 변환
+                            this.editingCell.innerHTML = captureOldText.replace(/\n/g, '<br>');
+                        }
+                    },
+                    '텍스트 편집'
+                );
+            } else {
+                // HistoryManager 없을 때 (기존 로직)
+                this._updateCellData(this.cellData, newText);
+
+                if (this.onChangeCallback) {
+                    this.onChangeCallback({
+                        type: 'text_edit',
+                        cellData: this.cellData,
+                        oldText,
+                        newText
+                    });
+                }
+
+                if (this.viewer.autoSaveManager) {
+                    this.viewer.autoSaveManager.markDirty();
+                }
             }
         }
 
@@ -305,12 +418,12 @@ export class InlineEditor {
      */
     extractText(element) {
         if (!element) return '';
-        
+
         // <br>을 줄바꿈으로, 나머지는 textContent
         const clone = element.cloneNode(true);
         const brs = clone.querySelectorAll('br');
         brs.forEach(br => br.replaceWith('\n'));
-        
+
         return clone.textContent.trim();
     }
 
@@ -331,24 +444,40 @@ export class InlineEditor {
     _updateCellData(data, newText) {
         // 테이블 셀인 경우
         if (data.elements) {
-            // 기존 단락 제거하고 새 내용으로 교체
+            // 기존 단락의 스타일 정보 가져오기 (첫 번째 단락 기준)
+            const firstPara = data.elements.find(e => e.type === 'paragraph');
+            const styleProps = firstPara ? {
+                paraShapeId: firstPara.paraShapeId,
+                styleId: firstPara.styleId,
+                charShapeId: firstPara.runs?.[0]?.charShapeId // 첫 번째 run의 스타일
+            } : {};
+
+            // 기존 단락 제거
             data.elements = data.elements.filter(e => e.type !== 'paragraph');
 
             // 줄바꿈으로 분리하여 각각 단락으로 추가
             const lines = newText.split('\n');
             lines.forEach(line => {
-                data.elements.push({
+                const newPara = {
                     type: 'paragraph',
+                    paraShapeId: styleProps.paraShapeId, // 스타일 유지
+                    styleId: styleProps.styleId,       // 스타일 유지
                     runs: [{
-                        text: line
+                        text: line,
+                        charShapeId: styleProps.charShapeId // 문자 스타일 유지
                     }]
-                });
+                };
+                data.elements.push(newPara);
             });
 
-            logger.debug(`  ✓ Cell data updated with ${lines.length} paragraphs`);
+            logger.debug(`  ✓ Cell data updated with ${lines.length} paragraphs (style preserved)`);
         }
         // 일반 단락인 경우
         else if (data.runs) {
+            // 기존 run의 스타일 정보 (첫 번째 run 기준)
+            const firstRun = data.runs[0];
+            const charShapeId = firstRun ? firstRun.charShapeId : undefined;
+
             // runs 배열 업데이트
             data.runs = [];
 
@@ -357,14 +486,20 @@ export class InlineEditor {
             lines.forEach((line, idx) => {
                 if (idx > 0) {
                     // 줄바꿈 추가
-                    data.runs.push({ type: 'linebreak' });
+                    data.runs.push({
+                        type: 'linebreak',
+                        charShapeId: charShapeId // 줄바꿈에도 스타일 적용
+                    });
                 }
                 if (line) {
-                    data.runs.push({ text: line });
+                    data.runs.push({
+                        text: line,
+                        charShapeId: charShapeId // 스타일 유지
+                    });
                 }
             });
 
-            logger.debug(`  ✓ Paragraph data updated with ${lines.length} lines`);
+            logger.debug(`  ✓ Paragraph data updated with ${lines.length} lines (style preserved)`);
         }
     }
 
@@ -448,8 +583,8 @@ export class InlineEditor {
         return elements.find(el => {
             if (el === current) return false;
             const elRect = el.getBoundingClientRect();
-            return elRect.top > rect.bottom && 
-                   Math.abs(elRect.left - rect.left) < 50;  // 같은 열 (±50px)
+            return elRect.top > rect.bottom &&
+                Math.abs(elRect.left - rect.left) < 50;  // 같은 열 (±50px)
         });
     }
 
@@ -465,8 +600,8 @@ export class InlineEditor {
         return reversed.find(el => {
             if (el === current) return false;
             const elRect = el.getBoundingClientRect();
-            return elRect.bottom < rect.top && 
-                   Math.abs(elRect.left - rect.left) < 50;
+            return elRect.bottom < rect.top &&
+                Math.abs(elRect.left - rect.left) < 50;
         });
     }
 
@@ -513,11 +648,11 @@ export class InlineEditor {
         const cells = tableElement.querySelectorAll('td, th');
         let enabledCount = 0;
         let failedCount = 0;
-        
+
         cells.forEach((cell, index) => {
             // cellData 연결
             let cellData = this._findCellData(tableData, index);
-            
+
             // ✅ cellData가 없으면 빈 구조 생성 (폴백)
             if (!cellData) {
                 logger.debug(`⚠️ Cell ${index}: No cellData found, creating empty structure`);
@@ -526,10 +661,10 @@ export class InlineEditor {
                 };
                 failedCount++;
             }
-            
+
             // 데이터 참조 저장
             cell._cellData = cellData;
-            
+
             // ✅ v2.1.0: 싱글클릭 이벤트 (글로벌 편집 모드 체크 포함)
             const clickHandler = (e) => {
                 // ✅ 편집 모드가 OFF면 클릭 무시
@@ -537,32 +672,32 @@ export class InlineEditor {
                     logger.debug('⚠️ Edit mode is OFF - cell click ignored');
                     return;
                 }
-                
+
                 e.preventDefault();
                 e.stopPropagation();
                 this.enableEditMode(cell, cellData);
             };
-            
+
             // 기존 리스너 제거 (중복 방지)
             cell.removeEventListener('click', clickHandler);
             cell.addEventListener('click', clickHandler);
-            
+
             // ✅ cursor 우선순위: text가 항상 우선 (TableResizer보다 우선)
             cell.style.setProperty('cursor', 'text', 'important');
-            
+
             // ✅ 기존 title 속성 명시적으로 제거 (툴팁 제거)
             cell.removeAttribute('title');
-            
+
             // 편집 가능 표시 (data attribute)
             cell.setAttribute('data-editable', 'true');
-            
+
             enabledCount++;
         });
 
         if (failedCount > 0) {
             logger.warn(`⚠️ ${failedCount} cells created with empty cellData (fallback)`);
         }
-        
+
         logger.info(`✅ Table editing enabled for ${enabledCount} cells (single-click, ${failedCount} fallback)`);
     }
 
@@ -600,7 +735,7 @@ export class InlineEditor {
                     logger.debug('⚠️ Edit mode is OFF - paragraph click ignored');
                     return;
                 }
-                
+
                 e.preventDefault();
                 e.stopPropagation();
                 this.enableEditMode(paraElement, paraData);
@@ -608,10 +743,10 @@ export class InlineEditor {
 
             // 편집 가능 힌트
             paraElement.style.cursor = 'text';
-            
+
             // ✅ 기존 title 속성 명시적으로 제거 (툴팁 제거)
             paraElement.removeAttribute('title');
-            
+
             paraElement.classList.add('editable-paragraph');
 
             editableCount++;
@@ -633,7 +768,7 @@ export class InlineEditor {
         let currentIndex = 0;
         for (const row of tableData.rows) {
             if (!row.cells) continue;
-            
+
             for (const cell of row.cells) {
                 if (currentIndex === cellIndex) {
                     return cell;
@@ -641,12 +776,12 @@ export class InlineEditor {
                 currentIndex++;
             }
         }
-        
+
         // ✅ 개선: 인덱스를 찾지 못한 경우 순환 방식으로 재시도
         if (cellIndex >= currentIndex && currentIndex > 0) {
             const cycledIndex = cellIndex % currentIndex;
             logger.debug(`⚠️ Cell ${cellIndex} not found, using cycled index ${cycledIndex}`);
-            
+
             let idx = 0;
             for (const row of tableData.rows) {
                 if (!row.cells) continue;
@@ -658,7 +793,7 @@ export class InlineEditor {
                 }
             }
         }
-        
+
         logger.debug(`⚠️ Cell ${cellIndex} not found in tableData`);
         return null;
     }

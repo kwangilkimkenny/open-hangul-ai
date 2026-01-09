@@ -167,6 +167,10 @@ export class DocumentRenderer {
         pageDiv.className = 'hwp-page-container';
         pageDiv.setAttribute('data-page-number', pageNumber);
         pageDiv.style.position = 'relative';
+
+        // 데이터 참조 저장 (Dynamic Pagination 용)
+        pageDiv._section = section;
+
         return pageDiv;
     }
 
@@ -177,42 +181,83 @@ export class DocumentRenderer {
      * @private
      */
     applyPageSettings(pageDiv, section) {
+        // ... (existing code, no change needed here, just context for tool)
         const defaultWidth = `${this.options.a4Width}px`;
         const defaultHeight = `${this.options.a4Height}px`;
         const defaultPadding = `${this.options.defaultPadding}px`;
 
-        // ✅ box-sizing: border-box (padding이 높이에 포함됨)
         pageDiv.style.boxSizing = 'border-box';
 
-        // 페이지 너비
         if (section.pageSettings?.width) {
             pageDiv.style.width = section.pageSettings.width;
-            logger.debug(`📐 Page ${this.pageNumber} width (from HWPX): ${section.pageSettings.width}`);
         } else {
             pageDiv.style.width = defaultWidth;
-            logger.debug(`📐 Page ${this.pageNumber} width (default A4): ${defaultWidth}`);
         }
 
-        // ✅ 페이지 높이 (minHeight → height로 변경하여 고정 높이 설정)
         if (section.pageSettings?.height) {
             pageDiv.style.height = section.pageSettings.height;
-            logger.debug(`📐 Page ${this.pageNumber} height (from HWPX): ${section.pageSettings.height}`);
         } else {
             pageDiv.style.height = defaultHeight;
-            logger.debug(`📐 Page ${this.pageNumber} height (default A4): ${defaultHeight}`);
         }
 
-        // 여백 (padding으로 적용)
         if (section.pageSettings && (section.pageSettings.marginLeft || section.pageSettings.marginRight ||
             section.pageSettings.marginTop || section.pageSettings.marginBottom)) {
             const padding = `${section.pageSettings.marginTop || defaultPadding} ${section.pageSettings.marginRight || defaultPadding} ${section.pageSettings.marginBottom || defaultPadding} ${section.pageSettings.marginLeft || defaultPadding}`;
             pageDiv.style.padding = padding;
-            logger.debug(`📐 Page ${this.pageNumber} margins (from HWPX): ${padding}`);
         } else {
             pageDiv.style.padding = defaultPadding;
-            logger.debug(`📐 Page ${this.pageNumber} margins (default): ${defaultPadding}`);
         }
     }
+
+    // ... (omitted)
+
+    /**
+     * 특정 페이지의 페이지 나누기 체크 (Dynamic Pagination)
+     * @param {HTMLElement} pageDiv - 체크할 페이지 요소
+     * @returns {boolean} 페이지가 나뉘었는지 여부
+     */
+    checkPagination(pageDiv) {
+        // ✅ Phase 4 Senior Upgrade: Pagination Lock
+        // Prevent recursive calls and layout thrashing
+        if (this.isPaginating) {
+            logger.debug('⚠️ Pagination already in progress, skipping');
+            return false;
+        }
+
+        if (!pageDiv || !pageDiv.classList.contains('hwp-page-container')) {
+            logger.warn('⚠️ Invalid page element for pagination check');
+            return false;
+        }
+
+        const section = pageDiv._section;
+        if (!section) {
+            logger.warn('⚠️ No section data attached to page');
+            return false;
+        }
+
+        // Set lock
+        this.isPaginating = true;
+
+        try {
+            const pageNum = parseInt(pageDiv.getAttribute('data-page-number')) || 1;
+
+            // 자동 페이지 나누기 실행
+            const createdPages = this.autoPaginateContent(pageDiv, section, pageNum);
+
+            if (createdPages > 0) {
+                logger.info(`📄 Dynamic pagination: ${createdPages} new pages created from page ${pageNum}`);
+                // 전체 페이지 수 업데이트 (정확하진 않지만 증가분 반영)
+                this.totalPages += createdPages;
+                return true;
+            }
+
+            return false;
+        } finally {
+            // Release lock
+            this.isPaginating = false;
+        }
+    }
+
 
     /**
      * 다단 레이아웃 적용
