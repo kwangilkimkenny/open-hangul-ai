@@ -34,6 +34,7 @@ export class HistoryManagerV2 {
 
     /**
      * 명령 실행 및 히스토리 저장
+     * ✅ Phase 2 P0: Command Pattern 재설계 - execute와 undo 모두 저장
      * @param {Function} execute - 실행할 함수
      * @param {Function} undo - Undo 함수 (이전 상태로 복원)
      * @param {string} actionName - 액션 이름
@@ -51,8 +52,9 @@ export class HistoryManagerV2 {
             // 명령 실행
             execute();
 
-            // Undo 함수를 스택에 추가
+            // ✅ Command 객체 저장 (execute와 undo 모두 포함)
             this.undoStack.push({
+                execute,  // ✅ Redo를 위해 저장
                 undo,
                 actionName,
                 timestamp: Date.now()
@@ -79,6 +81,7 @@ export class HistoryManagerV2 {
 
     /**
      * 실행 취소
+     * ✅ Phase 2 P0: Command Pattern 재설계 - 전체 command 재사용
      * @returns {boolean} 성공 여부
      */
     undo() {
@@ -99,18 +102,11 @@ export class HistoryManagerV2 {
 
             logger.info(`↶ Undoing: "${command.actionName}"`);
 
-            // Undo 함수 실행 (이전 상태로 복원)
-            // Undo 함수는 redo를 위한 execute 함수를 반환해야 함
-            const redo = command.undo();
+            // ✅ Undo 실행 (이전 상태로 복원)
+            command.undo();
 
-            // Redo 스택에 추가
-            if (redo && typeof redo === 'function') {
-                this.redoStack.push({
-                    execute: redo,
-                    actionName: command.actionName,
-                    timestamp: Date.now()
-                });
-            }
+            // ✅ Redo 스택에 전체 command 추가 (execute 함수 포함)
+            this.redoStack.push(command);
 
             logger.info(`✅ Undone: "${command.actionName}" (Undo: ${this.undoStack.length}, Redo: ${this.redoStack.length})`);
 
@@ -130,6 +126,7 @@ export class HistoryManagerV2 {
 
     /**
      * 다시 실행
+     * ✅ Phase 2 P0: Command Pattern 재설계 - 전체 command 재사용
      * @returns {boolean} 성공 여부
      */
     redo() {
@@ -150,18 +147,11 @@ export class HistoryManagerV2 {
 
             logger.info(`↷ Redoing: "${command.actionName}"`);
 
-            // Execute 함수 실행 (다시 적용)
-            // Execute 함수는 undo를 위한 undo 함수를 반환해야 함
-            const undo = command.execute();
+            // ✅ Execute 다시 실행 (변경 재적용)
+            command.execute();
 
-            // Undo 스택에 추가
-            if (undo && typeof undo === 'function') {
-                this.undoStack.push({
-                    undo,
-                    actionName: command.actionName,
-                    timestamp: Date.now()
-                });
-            }
+            // ✅ Undo 스택에 전체 command 다시 추가
+            this.undoStack.push(command);
 
             logger.info(`✅ Redone: "${command.actionName}" (Undo: ${this.undoStack.length}, Redo: ${this.redoStack.length})`);
 

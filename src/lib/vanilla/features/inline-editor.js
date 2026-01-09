@@ -500,6 +500,7 @@ export class InlineEditor {
 
     /**
      * 변경 사항 저장 (개선: 편집 모드 유지 옵션 추가 + HistoryManager 연동)
+     * ✅ Phase 2 P0: DOM 동기화 개선
      * @param {boolean} exitEditMode - 편집 모드 종료 여부 (기본: true)
      */
     saveChanges(exitEditMode = true) {
@@ -510,24 +511,23 @@ export class InlineEditor {
         const newText = this.extractText(this.editingCell);
         const oldText = this.extractText(this._createTempElement(this.originalContent));
 
-        // 원본과 비교를 위해 현재 상태를 캡처
-        const currentData = this.cellData;
-
         // 변경 사항이 있는 경우에만 처리
         if (newText !== oldText) {
             logger.info(`📝 Text changed: "${oldText.substring(0, 20)}..." → "${newText.substring(0, 20)}..."`);
 
             // HistoryManager를 통한 실행
             if (this.viewer.historyManager) {
-                // 클로저로 당시의 데이터와 텍스트를 캡처해야 함
+                // ✅ 클로저로 데이터와 텍스트 캡처
                 const captureNewText = newText;
                 const captureOldText = oldText;
                 const targetData = this.cellData;
+                const targetElement = this.editingCell; // ✅ DOM 요소도 캡처
 
                 this.viewer.historyManager.execute(
-                    // Execute function
+                    // ✅ Execute function: 새 텍스트 적용
                     () => {
                         this._updateCellData(targetData, captureNewText);
+                        this._refreshDOM(targetElement, targetData, captureNewText); // ✅ DOM 업데이트
 
                         // 변경 콜백 호출
                         if (this.onChangeCallback) {
@@ -544,15 +544,24 @@ export class InlineEditor {
                             this.viewer.autoSaveManager.markDirty();
                         }
                     },
-                    // Undo function
+                    // ✅ Undo function: 이전 텍스트 복원
                     () => {
                         this._updateCellData(targetData, captureOldText);
+                        this._refreshDOM(targetElement, targetData, captureOldText); // ✅ DOM 업데이트
 
-                        // 편집 중인 셀이라면 화면 업데이트
-                        if (this.editingCell && this.cellData === targetData) {
-                            // 줄바꿈 보존을 위해 HTML로 변환 (XSS 방지)
-                            const safeHTML = sanitizeHTML(captureOldText.replace(/\n/g, '<br>'));
-                            this.editingCell.innerHTML = safeHTML;
+                        // 변경 콜백 호출
+                        if (this.onChangeCallback) {
+                            this.onChangeCallback({
+                                type: 'text_undo',
+                                cellData: targetData,
+                                oldText: captureNewText,
+                                newText: captureOldText
+                            });
+                        }
+
+                        // 자동저장 dirty 플래그
+                        if (this.viewer.autoSaveManager) {
+                            this.viewer.autoSaveManager.markDirty();
                         }
                     },
                     '텍스트 편집'
@@ -760,6 +769,39 @@ export class InlineEditor {
 
             logger.debug(`  ✓ Paragraph data updated with ${lines.length} lines (${data.runs.length} runs, style preserved)`);
         }
+    }
+
+    /**
+     * DOM 업데이트 (데이터와 화면 동기화)
+     * ✅ Phase 2 P0: Undo/Redo 시 DOM을 데이터 모델과 동기화
+     * @param {HTMLElement} element - 업데이트할 DOM 요소
+     * @param {Object} data - 셀/단락 데이터 (사용하지 않지만 확장성을 위해 전달)
+     * @param {string} text - 표시할 텍스트 (줄바꿈 포함)
+     * @private
+     */
+    _refreshDOM(element, data, text) {
+        // 요소가 DOM에 없으면 무시
+        if (!element || !element.isConnected) {
+            logger.debug('⚠️ Element not in DOM, skipping refresh');
+            return;
+        }
+
+        // ✅ 현재 편집 중인 요소면 업데이트하지 않음 (편집 중인 내용 보존)
+        if (element === this.editingCell) {
+            logger.debug('⚠️ Element is being edited, skipping refresh to preserve user input');
+            return;
+        }
+
+        // ✅ 줄바꿈을 <br>로 변환
+        const html = text.split('\n').join('<br>');
+
+        // ✅ XSS 방지를 위한 sanitization
+        const safeHTML = sanitizeHTML(html);
+
+        // DOM 업데이트
+        element.innerHTML = safeHTML;
+
+        logger.debug(`✅ DOM refreshed for undo/redo (${text.length} chars, ${(text.match(/\n/g) || []).length} line breaks)`);
     }
 
     /**
