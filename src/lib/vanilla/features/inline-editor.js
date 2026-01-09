@@ -175,6 +175,14 @@ export class InlineEditor {
         // 포커스 벗어남 (자동 저장)
         this.blurHandler = this._handleBlur.bind(this);
         cellElement.addEventListener('blur', this.blurHandler, { once: true });
+
+        // ✅ Phase 1 P1: Paste 이벤트 - Plain text만 허용
+        this.pasteHandler = this._handlePaste.bind(this);
+        cellElement.addEventListener('paste', this.pasteHandler);
+
+        // ✅ Phase 1 P1: Input 이벤트 - 스타일 태그 제거
+        this.inputHandler = this._handleInput.bind(this);
+        cellElement.addEventListener('input', this.inputHandler);
     }
 
     /**
@@ -287,7 +295,153 @@ export class InlineEditor {
     }
 
     /**
+     * Paste 이벤트 처리 - Plain text만 허용
+     * ✅ Phase 1 P1: Plain Text 모드 강제
+     * @private
+     */
+    _handlePaste(e) {
+        e.preventDefault();
+
+        // 클립보드에서 plain text 추출
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+
+        if (!text) {
+            logger.debug('⚠️ No text in clipboard');
+            return;
+        }
+
+        logger.debug(`📋 Pasting plain text: ${text.length} characters`);
+
+        // 현재 커서 위치에 삽입
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+
+        // ✅ 줄바꿈을 <br>로 변환하여 삽입
+        const lines = text.split(/\r?\n/);
+        lines.forEach((line, idx) => {
+            if (idx > 0) {
+                // 줄바꿈 추가
+                const br = document.createElement('br');
+                range.insertNode(br);
+                range.setStartAfter(br);
+            }
+            if (line) {
+                // 텍스트 추가
+                const textNode = document.createTextNode(line);
+                range.insertNode(textNode);
+                range.setStartAfter(textNode);
+            }
+        });
+
+        // ✅ 커서 위치 정규화 (마지막에 <br>이 있으면 zero-width space 추가)
+        if (lines[lines.length - 1] === '' || lines.length > 1) {
+            const lastNode = range.startContainer;
+            if (lastNode.nodeType === Node.ELEMENT_NODE && lastNode.lastChild?.nodeName === 'BR') {
+                const textNode = document.createTextNode('\u200B');
+                range.insertNode(textNode);
+                range.setStart(textNode, 1);
+            }
+        }
+
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        logger.debug(`✅ Pasted ${lines.length} lines as plain text`);
+    }
+
+    /**
+     * Input 이벤트 처리 - 스타일 태그 제거
+     * ✅ Phase 1 P1: Plain Text 모드 강제
+     * @private
+     */
+    _handleInput(e) {
+        // ✅ 불필요한 태그 제거
+        this._sanitizeContent();
+    }
+
+    /**
+     * 컨텐츠 정제 - 허용되지 않은 태그 제거
+     * ✅ Phase 1 P1: Plain Text 모드 강제
+     * @private
+     */
+    _sanitizeContent() {
+        if (!this.editingCell) return;
+
+        const html = this.editingCell.innerHTML;
+
+        // ✅ 허용 태그: span, br만 (나머지 제거)
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+
+        // <div> → <br> 변환
+        temp.querySelectorAll('div').forEach(div => {
+            const br = document.createElement('br');
+            // div의 자식 노드들을 br과 함께 부모로 이동
+            const children = Array.from(div.childNodes);
+            div.replaceWith(br, ...children);
+        });
+
+        // <font>, <b>, <i>, <strong>, <em> 등 → 내용만 유지
+        temp.querySelectorAll('font, b, i, strong, em, u, strike, s').forEach(el => {
+            el.replaceWith(...Array.from(el.childNodes));
+        });
+
+        // <p> → <br> + 내용
+        temp.querySelectorAll('p').forEach(p => {
+            if (p.previousSibling) {
+                const br = document.createElement('br');
+                p.before(br);
+            }
+            p.replaceWith(...Array.from(p.childNodes));
+        });
+
+        if (temp.innerHTML !== html) {
+            // ✅ 커서 위치 저장
+            const selection = window.getSelection();
+            const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+            const offset = range ? range.startOffset : 0;
+            const startContainer = range ? range.startContainer : null;
+
+            // 정제된 HTML 적용
+            this.editingCell.innerHTML = temp.innerHTML;
+
+            // ✅ 커서 위치 복원 (간단 버전 - 텍스트 노드면 유지)
+            if (range && startContainer && startContainer.nodeType === Node.TEXT_NODE) {
+                try {
+                    // 동일한 텍스트 노드를 찾아서 커서 복원
+                    const walker = document.createTreeWalker(
+                        this.editingCell,
+                        NodeFilter.SHOW_TEXT,
+                        null
+                    );
+
+                    let currentNode;
+                    while (currentNode = walker.nextNode()) {
+                        if (currentNode.textContent === startContainer.textContent) {
+                            const newRange = document.createRange();
+                            newRange.setStart(currentNode, Math.min(offset, currentNode.length));
+                            newRange.collapse(true);
+                            selection.removeAllRanges();
+                            selection.addRange(newRange);
+                            break;
+                        }
+                    }
+                } catch (err) {
+                    logger.debug('⚠️ Failed to restore cursor position:', err);
+                }
+            }
+
+            logger.debug('🧹 Content sanitized - removed style tags');
+        }
+    }
+
+    /**
      * 커서 위치에 줄바꿈 삽입
+     * ✅ Phase 1 P1: 커서 위치 정규화 - Zero-width space 삽입
      * @private
      */
     _insertNewlineAtCursor() {
@@ -303,18 +457,45 @@ export class InlineEditor {
         range.deleteContents();
         range.insertNode(br);
 
-        // <br> 뒤로 커서 이동
-        range.setStartAfter(br);
-        range.collapse(true);
+        // ✅ IMPROVEMENT: <br> 다음에 텍스트 노드가 없으면 빈 텍스트 노드 추가
+        const nextNode = br.nextSibling;
+        if (!nextNode || nextNode.nodeType !== Node.TEXT_NODE) {
+            // Zero-width space를 사용하여 커서 앵커 생성
+            const textNode = document.createTextNode('\u200B');
+            if (nextNode) {
+                br.parentNode.insertBefore(textNode, nextNode);
+            } else {
+                br.parentNode.appendChild(textNode);
+            }
 
-        // 포커스 유지
+            // 커서를 텍스트 노드 시작으로 이동
+            range.setStart(textNode, 0);
+            range.collapse(true);
+
+            logger.debug('✅ Inserted zero-width space after <br> for cursor anchor');
+        } else {
+            // 다음 텍스트 노드 시작으로 커서 이동
+            range.setStart(nextNode, 0);
+            range.collapse(true);
+        }
+
+        // ✅ Selection 업데이트
         selection.removeAllRanges();
         selection.addRange(range);
 
-        // 스크롤 조정 (필요시)
+        // 스크롤 조정
         if (this.editingCell) {
-            br.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            // ✅ 개선: 커서가 있는 위치로 스크롤 (br 대신)
+            const cursorNode = range.startContainer.nodeType === Node.TEXT_NODE
+                ? range.startContainer.parentElement
+                : range.startContainer;
+
+            if (cursorNode && cursorNode.scrollIntoView) {
+                cursorNode.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
         }
+
+        logger.debug('✅ Newline inserted, cursor positioned correctly');
     }
 
     /**
@@ -423,7 +604,7 @@ export class InlineEditor {
 
     /**
      * 편집 모드 비활성화
-     * ✅ Phase 1 P0: IME 이벤트 제거 추가
+     * ✅ Phase 1 P0/P1: 모든 이벤트 리스너 제거
      * @private
      */
     _disableEditMode() {
@@ -444,6 +625,14 @@ export class InlineEditor {
             this._compositionHandlers = null;
         }
 
+        // ✅ Phase 1 P1: Paste/Input 이벤트 제거
+        if (this.pasteHandler) {
+            this.editingCell.removeEventListener('paste', this.pasteHandler);
+        }
+        if (this.inputHandler) {
+            this.editingCell.removeEventListener('input', this.inputHandler);
+        }
+
         this.editingCell.classList.remove('editing');
         this.editingCell.contentEditable = false;
         this.editingCell.style.outline = '';
@@ -455,11 +644,14 @@ export class InlineEditor {
         this.cellData = null;
         this.keydownHandler = null;
         this.blurHandler = null;
+        this.pasteHandler = null;
+        this.inputHandler = null;
         this.isComposing = false;
     }
 
     /**
      * 셀에서 텍스트 추출
+     * ✅ Phase 1 P1: Zero-width space 제거, Whitespace 보존
      * @private
      */
     extractText(element) {
@@ -470,7 +662,13 @@ export class InlineEditor {
         const brs = clone.querySelectorAll('br');
         brs.forEach(br => br.replaceWith('\n'));
 
-        return clone.textContent.trim();
+        let text = clone.textContent || '';
+
+        // ✅ Zero-width space 제거
+        text = text.replace(/\u200B/g, '');
+
+        // ✅ trim() 제거 - 앞뒤 공백 보존
+        return text;
     }
 
     /**
