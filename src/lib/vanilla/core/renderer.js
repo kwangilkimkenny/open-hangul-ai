@@ -443,14 +443,159 @@ export class DocumentRenderer {
     }
 
     /**
+     * 정확한 요소 높이 계산 (margin collapse 고려)
+     * ✅ Phase 3: Margin collapse를 고려한 정확한 높이 계산
+     * @param {HTMLElement} element - 높이를 계산할 요소
+     * @returns {number} margin을 포함한 전체 높이
+     * @private
+     */
+    _getElementTotalHeight(element) {
+        if (!element) return 0;
+
+        const computedStyle = window.getComputedStyle(element);
+        const elementHeight = element.offsetHeight;
+        const marginTop = parseFloat(computedStyle.marginTop) || 0;
+        const marginBottom = parseFloat(computedStyle.marginBottom) || 0;
+
+        // ✅ Margin collapse 고려
+        // 다음 형제와의 margin collapse를 Math.max로 근사
+        const nextSibling = element.nextElementSibling;
+        let effectiveMarginBottom = marginBottom;
+
+        if (nextSibling) {
+            const nextMarginTop = parseFloat(window.getComputedStyle(nextSibling).marginTop) || 0;
+            // Margin collapse: 인접 margin 중 큰 값만 적용됨
+            effectiveMarginBottom = Math.max(marginBottom, nextMarginTop) - nextMarginTop;
+        }
+
+        return elementHeight + marginTop + effectiveMarginBottom;
+    }
+
+    /**
+     * 페이지보다 큰 표를 행 단위로 분할
+     * ✅ Phase 3: 큰 표를 여러 페이지로 자동 분할
+     * @param {HTMLElement} tableWrapper - 표 래퍼 요소
+     * @param {HTMLElement} currentPage - 현재 페이지
+     * @param {number} maxHeight - 페이지 최대 높이
+     * @param {Object} section - 섹션 정보
+     * @returns {number} 생성된 추가 페이지 수
+     * @private
+     */
+    _splitLargeTable(tableWrapper, currentPage, maxHeight, section) {
+        const table = tableWrapper.querySelector('.hwp-table');
+        if (!table) return 0;
+
+        const rows = Array.from(table.querySelectorAll('tr'));
+        if (rows.length === 0) return 0;
+
+        logger.info(`📊 Splitting large table (${rows.length} rows, ${tableWrapper.offsetHeight}px total)`);
+
+        let createdPages = 0;
+        let currentTablePage = currentPage;
+
+        // 현재 페이지의 사용된 공간 계산
+        const usedHeight = Array.from(currentPage.children)
+            .filter(el => el !== tableWrapper)
+            .reduce((sum, el) => sum + this._getElementTotalHeight(el), 0);
+        let remainingHeight = maxHeight - usedHeight;
+
+        // 표 헤더 감지 (첫 행에 <th>가 있으면 헤더로 간주)
+        const headerRow = rows[0].querySelector('th') ? rows[0] : null;
+        const headerHeight = headerRow ? headerRow.offsetHeight : 0;
+
+        // 새 표 생성 함수
+        const createTableClone = () => {
+            const newTable = table.cloneNode(false);
+            newTable.innerHTML = '';
+
+            // 두 번째 페이지부터는 헤더 복사
+            if (headerRow && currentTablePage !== currentPage) {
+                const headerClone = headerRow.cloneNode(true);
+                newTable.appendChild(headerClone);
+            }
+
+            return newTable;
+        };
+
+        let currentClone = createTableClone();
+        const newWrapper = tableWrapper.cloneNode(false);
+        newWrapper.appendChild(currentClone);
+        currentTablePage.appendChild(newWrapper);
+
+        let currentTableHeight = headerRow && currentTablePage === currentPage ? headerHeight : 0;
+        const dataRows = headerRow ? rows.slice(1) : rows;
+
+        dataRows.forEach((row, index) => {
+            const rowHeight = row.offsetHeight;
+
+            // 페이지 넘침 시 새 페이지 생성
+            if (currentTableHeight + rowHeight > remainingHeight && currentTableHeight > 0) {
+                logger.debug(`  📄 Table split at row ${index} (${currentTableHeight}px used, ${rowHeight}px needed)`);
+
+                // 새 페이지 생성
+                const newPage = document.createElement('div');
+                newPage.className = 'hwp-page-container';
+                const pageNum = parseInt(currentTablePage.getAttribute('data-page-number')) + 1;
+                newPage.setAttribute('data-page-number', pageNum);
+
+                // 스타일 복사
+                newPage.style.position = 'relative';
+                newPage.style.width = currentTablePage.style.width;
+                newPage.style.height = currentTablePage.style.height;
+                newPage.style.boxSizing = currentTablePage.style.boxSizing;
+                newPage.style.padding = currentTablePage.style.padding;
+
+                currentTablePage.parentElement.insertBefore(newPage, currentTablePage.nextSibling);
+
+                // 새 표 시작
+                currentClone = createTableClone();
+                const newTableWrapper = tableWrapper.cloneNode(false);
+                newTableWrapper.appendChild(currentClone);
+                newPage.appendChild(newTableWrapper);
+
+                currentTablePage = newPage;
+                currentTableHeight = headerHeight; // 헤더 높이부터 시작
+                remainingHeight = maxHeight;
+                createdPages++;
+            }
+
+            // 행 추가
+            const rowClone = row.cloneNode(true);
+            currentClone.appendChild(rowClone);
+            currentTableHeight += rowHeight;
+        });
+
+        logger.info(`✅ Table split into ${createdPages + 1} pages`);
+
+        // 원본 tableWrapper 제거
+        tableWrapper.remove();
+
+        return createdPages;
+    }
+
+    /**
      * 자동 페이지 나누기 (v1.0 로직 완전 이식)
+     * ✅ Phase 3: 무한 재귀 방지, 표 분할, 정확한 높이 계산
      * @param {HTMLElement} pageDiv - 페이지 요소
      * @param {Object} section - 섹션 정보
      * @param {number} currentPageNum - 현재 페이지 번호
+     * @param {number} recursionDepth - 재귀 깊이 (무한 루프 방지용)
      * @returns {number} 추가 생성된 페이지 수
      * @private
      */
-    autoPaginateContent(pageDiv, section, currentPageNum) {
+    autoPaginateContent(pageDiv, section, currentPageNum, recursionDepth = 0) {
+        // ✅ Phase 3: 무한 재귀 방지 - 재귀 깊이 제한
+        const MAX_RECURSION = 10;
+        if (recursionDepth >= MAX_RECURSION) {
+            logger.error(`❌ Pagination recursion limit reached (depth: ${recursionDepth})`);
+            logger.error(`  Page ${currentPageNum}: Forced termination to prevent infinite loop`);
+            return 0;
+        }
+
+        if (recursionDepth > 0) {
+            logger.debug(`  🔄 Recursive pagination depth: ${recursionDepth}`);
+        }
+
         const container = pageDiv.parentElement;
 
         // ✅ clientHeight에서 padding을 제외하여 실제 콘텐츠 영역 계산
@@ -472,9 +617,9 @@ export class DocumentRenderer {
         const elementsWithBreak = pageDiv.querySelectorAll('[data-page-break="true"]');
         const hasPageBreaks = elementsWithBreak.length > 0;
 
-        // ✅ v2.2.10: 허용 오차 증가 (15 → 20)
-        // 빈 단락의 line-height 등으로 인한 미세 오버플로우 허용
-        const ALLOWED_OVERFLOW = 20;
+        // ✅ Phase 3: 허용 오차 증가 (20 → 50)
+        // 빈 단락의 line-height, margin collapse 등으로 인한 미세 오버플로우 허용
+        const ALLOWED_OVERFLOW = 50;
 
 
         if (contentHeight <= clientHeight + ALLOWED_OVERFLOW && !hasPageBreaks) {
@@ -506,16 +651,30 @@ export class DocumentRenderer {
         elements.forEach(element => {
             const hasPageBreak = element.hasAttribute('data-page-break');
 
-            // ✅ margin을 포함한 실제 공간 계산
-            const computedStyle = window.getComputedStyle(element);
-            const marginTop = parseFloat(computedStyle.marginTop) || 0;
-            const marginBottom = parseFloat(computedStyle.marginBottom) || 0;
-            const elementHeight = element.offsetHeight;
-            const elementTotalHeight = elementHeight + marginTop + marginBottom;
+            // ✅ Phase 3: margin collapse를 고려한 정확한 높이 계산
+            const elementTotalHeight = this._getElementTotalHeight(element);
 
-            // ✅ 표의 경우 특별 처리: 크기에 따라 다른 임계값 적용
+            // ✅ Phase 3: 표의 경우 특별 처리
             const isTable = element.classList.contains('hwp-table-wrapper');
             const remainingSpace = maxContentHeight - currentHeight;
+
+            // ✅ Phase 3: 페이지보다 큰 요소 처리
+            if (elementTotalHeight > maxContentHeight * 0.95) {
+                logger.warn(`⚠️ Element too large for page (${elementTotalHeight.toFixed(1)}px > ${maxContentHeight}px)`);
+
+                // ✅ Phase 3: 표인 경우 행 단위 분할 시도
+                if (isTable) {
+                    const splitPages = this._splitLargeTable(element, currentPage, maxContentHeight, section);
+                    pageCount += splitPages;
+                    return; // 다음 요소로
+                }
+
+                // 일반 요소는 현재 페이지에 강제 배치 (넘쳐도 허용)
+                logger.warn(`  → Forced on current page (may overflow)`);
+                currentPage.appendChild(element);
+                currentHeight += elementTotalHeight;
+                return;
+            }
 
             // 90% 이상 들어가면 현재 페이지에 유지 (첫 페이지 체계도 표 보호)
             const threshold = 0.90;
@@ -578,8 +737,8 @@ export class DocumentRenderer {
         // ✅ 페이지 분할 후 검증 및 재귀적 분할
         logger.debug(`✅ Auto-pagination complete: ${pageCount + 1} pages created`);
 
-        // ✅ 새로 생성된 페이지들(첫 페이지 제외)에 대해서만 재귀 분할
-        // 첫 페이지를 재귀하면 무한 루프 발생 가능성
+        // ✅ Phase 3: 재귀 깊이 전달하여 무한 루프 방지
+        // 새로 생성된 페이지들(첫 페이지 제외)에 대해서만 재귀 분할
         let additionalPages = 0;
         pages.slice(1).forEach((page, index) => {
             const pageScrollHeight = page.scrollHeight;
@@ -587,10 +746,15 @@ export class DocumentRenderer {
             const overflow = pageScrollHeight - pageClientHeight;
 
             if (overflow > ALLOWED_OVERFLOW) {
-                logger.debug(`  🔄 Page ${currentPageNum + index + 1} needs further splitting (overflow: ${overflow.toFixed(1)}px)`);
+                logger.debug(`  🔄 Page ${currentPageNum + index + 1} needs further splitting (overflow: ${overflow.toFixed(1)}px, depth: ${recursionDepth + 1})`);
 
-                // 재귀적으로 분할
-                const extraPages = this.autoPaginateContent(page, section, currentPageNum + index + 1);
+                // ✅ Phase 3: 재귀 깊이 전달
+                const extraPages = this.autoPaginateContent(
+                    page,
+                    section,
+                    currentPageNum + index + 1,
+                    recursionDepth + 1
+                );
                 additionalPages += extraPages;
             }
         });
