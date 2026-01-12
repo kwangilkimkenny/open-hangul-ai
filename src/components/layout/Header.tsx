@@ -109,11 +109,11 @@ export function Header({ className }: HeaderProps) {
     setIsSavingHwpx(true);
     try {
       const exporter = new HwpxExporter();
-      const result = await exporter.exportToFile(document, finalFileName);
-      
+      const result = await exporter.exportToFile(document, finalFileName) as unknown as { filename: string; blob: Blob; method?: string };
+
       // 저장 후 dirty 상태 초기화
       setDirty(false);
-      
+
       showToast('success', 'HWPX 저장 완료', `${result.filename} 파일이 저장되었습니다.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'HWPX 저장에 실패했습니다.';
@@ -137,8 +137,8 @@ export function Header({ className }: HeaderProps) {
       const result = await exporter.exportDocument('.document-viewer', {
         filename: inputName
       });
-      
-      if (result.method === 'print') {
+
+      if ((result as any).method === 'print') {
         showToast('info', 'PDF 내보내기', '인쇄 대화상자에서 "PDF로 저장"을 선택하세요.');
       } else {
         showToast('success', 'PDF 완료', `${result.filename} 파일이 저장되었습니다.`);

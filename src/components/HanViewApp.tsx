@@ -110,7 +110,7 @@ export function HanViewApp({
   className = '',
   height = '100vh',
   onDocumentLoad,
-  onDocumentSave,
+  onDocumentSave: _onDocumentSave,
   onError,
   onFileSelect,
   toastPosition = 'top-right',
@@ -266,11 +266,10 @@ export function HanViewApp({
 
         {/* Viewer Body with Sidebar */}
         <div className="viewer-body hanview-body-container" style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-          <Sidebar 
+          <Sidebar
             viewer={viewerInstance}
             file={selectedFile}
             isOpen={showSidebar}
-            onToggle={() => setShowSidebar(!showSidebar)}
           />
           
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

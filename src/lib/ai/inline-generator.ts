@@ -7,6 +7,7 @@
  */
 
 import { GPTService } from './gpt-service';
+import { AIConfig } from './ai-config';
 import { getLogger } from '../utils/logger';
 
 const logger = getLogger();
@@ -49,8 +50,18 @@ export class InlineContentGenerator {
       // 프롬프트 빌드
       const prompt = this.buildPrompt(context, userRequest);
 
+      // API 키 가져오기
+      const apiKey = AIConfig.openai.getApiKey();
+      if (!apiKey) {
+        throw new Error('OpenAI API 키가 설정되지 않았습니다.');
+      }
+
       // GPT API 호출 (일반 텍스트 모드)
-      const response = await this.gptService.generateContent(prompt);
+      const response = await this.gptService.generateContent(prompt, {
+        apiKey,
+        temperature: 0.7,
+        maxTokens: 500
+      });
 
       logger.info(`✅ 생성 완료 (${response.tokensUsed} 토큰)`);
 

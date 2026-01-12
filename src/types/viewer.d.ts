@@ -13,70 +13,74 @@ import type { HWPXDocument } from './hwpx';
  */
 export interface HWPXViewerInstance {
     // Container
-    container: HTMLElement;
+    container: HTMLElement | Element;
 
     // Document Management
     loadFile(file: File): Promise<void>;
     getDocument(): HWPXDocument | null;
 
     // Save & Export
-    saveFile(): Promise<{
+    saveFile?(filename?: string): Promise<{
         success: boolean;
         filename?: string;
         blob?: Blob;
         error?: string;
     }>;
 
-    exportToPDF(): Promise<{
+    exportToPDF?(): Promise<{
         success: boolean;
         blob?: Blob;
         error?: string;
     }>;
 
     // Rendering
-    render(document: HWPXDocument): Promise<void>;
-    rerender(): Promise<void>;
+    render?(document: HWPXDocument): Promise<void>;
+    rerender?(): Promise<void>;
 
     // History (Undo/Redo)
-    undo(): void;
-    redo(): void;
-    canUndo(): boolean;
-    canRedo(): boolean;
+    historyManager?: any;
+    undo?(): void;
+    redo?(): void;
+    canUndo?(): boolean;
+    canRedo?(): boolean;
 
-    // Search
-    search(query: string, options?: SearchOptions): SearchResult[];
-    clearSearch(): void;
+    // Search (Advanced Search instance)
+    search?: AdvancedSearch;
+    clearSearch?(): void;
 
     // Editing
-    enableEditMode(): void;
-    disableEditMode(): void;
-    isEditMode(): boolean;
+    enableEditMode?(): void;
+    disableEditMode?(): void;
+    isEditMode?(): boolean;
 
     // Selection
-    getSelection(): Selection | null;
-    clearSelection(): void;
+    getSelection?(): Selection | null;
+    clearSelection?(): void;
 
     // Position & Range
-    getPositionManager(): PositionManager | null;
-    getRangeManager(): RangeManager | null;
+    getPositionManager?(): PositionManager | null;
+    getRangeManager?(): RangeManager | null;
 
     // Table Editing
-    getTableEditor(): TableEditor | null;
+    getTableEditor?(): TableEditor | null;
 
     // AI Features
-    getAIController(): AIController | null;
+    getAIController?(): AIController | null;
 
     // Auto Save
-    enableAutoSave(interval?: number): void;
-    disableAutoSave(): void;
+    enableAutoSave?(interval?: number): void;
+    disableAutoSave?(): void;
+
+    // Print
+    printDocument?(): void;
 
     // Lifecycle
     destroy(): void;
 
     // Events
-    on(event: string, callback: (...args: any[]) => void): void;
-    off(event: string, callback: (...args: any[]) => void): void;
-    emit(event: string, ...args: any[]): void;
+    on?(event: string, callback: (...args: any[]) => void): void;
+    off?(event: string, callback: (...args: any[]) => void): void;
+    emit?(event: string, ...args: any[]): void;
 }
 
 /**
@@ -162,6 +166,18 @@ export interface AIController {
 }
 
 /**
+ * Advanced Search Interface
+ */
+export interface AdvancedSearch {
+    search(query: string, container: HTMLElement, options?: SearchOptions): SearchResult[];
+    next(): void;
+    previous(): void;
+    clearHighlights(): void;
+    getCurrentIndex(): number;
+    getTotalResults(): number;
+}
+
+/**
  * Selection (native browser Selection API)
  */
 export interface Selection {
@@ -181,9 +197,11 @@ export interface ViewerOptions {
     useWorker?: boolean;
     autoSave?: boolean;
     autoSaveInterval?: number;
-    onLoad?: (document: HWPXDocument) => void;
-    onError?: (error: Error) => void;
+    onLoad?: (document: HWPXDocument) => void | Function;
+    onError?: (error: Error) => void | Function;
     onSave?: (filename: string) => void;
+    parserOptions?: any;
+    [key: string]: any;
 }
 
 /**

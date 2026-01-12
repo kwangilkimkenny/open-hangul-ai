@@ -70,8 +70,8 @@ export function Sidebar({ className, onPageSelect, currentPage = 1 }: SidebarPro
     setIsSaving(true);
     try {
       const exporter = new HwpxExporter();
-      const result = await exporter.exportToFile(document, inputName);
-      
+      const result = await exporter.exportToFile(document, inputName) as unknown as { filename: string; blob: Blob };
+
       showToast('success', 'HWPX 저장 완료', `${result.filename} 파일이 저장되었습니다.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'HWPX 저장에 실패했습니다.';

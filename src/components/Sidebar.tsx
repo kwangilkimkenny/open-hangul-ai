@@ -13,12 +13,11 @@ interface SidebarProps {
   width?: number;
 }
 
-export default function Sidebar({ 
-  viewer, 
-  file, 
-  isOpen = true, 
-  onToggle,
-  width = 280 
+export default function Sidebar({
+  viewer,
+  file,
+  isOpen = true,
+  width = 280
 }: SidebarProps) {
   const [totalPages, setTotalPages] = useState(0);
   const [sectionCount, setSectionCount] = useState(0);

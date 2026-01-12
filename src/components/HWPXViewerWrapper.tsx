@@ -86,14 +86,14 @@ export function HWPXViewerWrapper({
           toast.error(`오류: ${err.message}`);
           onError?.(err);
         },
-      });
+      } as any);
 
-      viewerRef.current = viewer;
+      viewerRef.current = viewer as any as HWPXViewerInstance;
       setIsInitialized(true);
       devLog('✅ HWPX Viewer initialized');
 
       // ✅ Viewer 인스턴스를 부모 컴포넌트로 전달
-      onDocumentLoad?.(viewer);
+      onDocumentLoad?.(viewer as any as HWPXViewerInstance);
 
     } catch (error: any) {
       devError('❌ Failed to initialize viewer:', error);
@@ -298,7 +298,7 @@ export function HWPXViewerWrapper({
   const handleSearch = useCallback((query: string) => {
     if (!viewerRef.current?.search || !viewerRef.current?.container) return;
 
-    const results = viewerRef.current.search.search(query, viewerRef.current.container);
+    const results = viewerRef.current.search.search(query, viewerRef.current.container as HTMLElement);
     setSearchResults({ count: results.length, current: 0 });
 
     if (results.length > 0) {

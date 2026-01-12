@@ -199,6 +199,7 @@ declare module './vanilla/export/hwpx-safe-exporter.js' {
 declare module './vanilla/export/hwpx-exporter.js' {
   export class HwpxExporter {
     constructor(options?: any);
+    exportToFile(document: any, filename?: string): Promise<{ filename: string; blob: Blob; method?: string }>;
     [key: string]: any;
   }
 }
@@ -317,6 +318,15 @@ declare module '../../lib/export/hwpx-exporter' {
   }
 }
 
+// Additional path for HWPX exporter
+declare module '../lib/export/hwpx-exporter' {
+  export class HWPXExporter {
+    constructor(options?: any);
+    export(document: any): Promise<Blob>;
+    [key: string]: any;
+  }
+}
+
 declare module '../../lib/export/pdf-exporter' {
   export class PDFExporter {
     constructor(options?: any);
@@ -325,7 +335,25 @@ declare module '../../lib/export/pdf-exporter' {
   }
 }
 
+// Additional path for PDF exporter
+declare module '../lib/export/pdf-exporter' {
+  export class PDFExporter {
+    constructor(options?: any);
+    export(document: any): Promise<Blob>;
+    [key: string]: any;
+  }
+}
+
 declare module '../../lib/core/parser' {
+  export class HWPXParser {
+    constructor(options?: any);
+    parse(file: File): Promise<any>;
+    [key: string]: any;
+  }
+}
+
+// Additional path for parser
+declare module '../lib/core/parser' {
   export class HWPXParser {
     constructor(options?: any);
     parse(file: File): Promise<any>;
@@ -345,8 +373,42 @@ declare module '../lib/vanilla/export/hwpx-exporter.js' {
   export class HWPXExporter {
     constructor(options?: any);
     export(document: any): Promise<Blob>;
+    exportToFile(document: any, filename?: string): Promise<{ filename: string; blob: Blob; method?: string }>;
     [key: string]: any;
   }
+}
+
+// Additional logger paths (most common import error)
+declare module '../lib/utils/logger' {
+  export function devLog(...args: any[]): void;
+  export function devWarn(...args: any[]): void;
+  export function devError(...args: any[]): void;
+  export function getLogger(): any;
+  export const logger: any;
+}
+
+declare module '../../lib/utils/logger' {
+  export function devLog(...args: any[]): void;
+  export function devWarn(...args: any[]): void;
+  export function devError(...args: any[]): void;
+  export function getLogger(): any;
+  export const logger: any;
+}
+
+declare module '../utils/logger' {
+  export function devLog(...args: any[]): void;
+  export function devWarn(...args: any[]): void;
+  export function devError(...args: any[]): void;
+  export function getLogger(): any;
+  export const logger: any;
+}
+
+declare module 'src/lib/utils/logger' {
+  export function devLog(...args: any[]): void;
+  export function devWarn(...args: any[]): void;
+  export function devError(...args: any[]): void;
+  export function getLogger(): any;
+  export const logger: any;
 }
 
 // Global JSZip
