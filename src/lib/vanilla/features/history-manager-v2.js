@@ -4,7 +4,7 @@
  * Canvas-editor의 HistoryManager를 참고하여 메모리 효율적으로 구현
  *
  * @module features/history-manager-v2
- * @version 2.2.0
+ * @version 2.3.0
  */
 
 import { getLogger } from '../utils/logger.js';
@@ -15,6 +15,7 @@ const logger = getLogger();
  * 함수 기반 히스토리 관리자
  * 전체 문서를 저장하지 않고 복원 함수만 저장하여 메모리 효율 극대화
  * ✅ Phase 2 P2: Batch Undo/Redo 최적화
+ * ✅ Phase 2 P3: React Context 통합
  */
 export class HistoryManagerV2 {
     /**
@@ -34,7 +35,10 @@ export class HistoryManagerV2 {
         this.batchMode = false;
         this.batchUpdates = [];
 
-        logger.info('🔄 HistoryManagerV2 initialized (v2.2.0 with batch mode)');
+        // ✅ Phase 2 P3: React Context 콜백
+        this.onStateChange = null;
+
+        logger.info('🔄 HistoryManagerV2 initialized (v2.3.0 with React Context support)');
     }
 
     /**
@@ -182,24 +186,41 @@ export class HistoryManagerV2 {
 
     /**
      * UI 버튼 상태 업데이트
+     * ✅ Phase 2 P3: React Context 콜백 지원
      * @private
      */
     _updateUI() {
-        // Undo 버튼
+        // ✅ Phase 2 P3: History state 객체 생성
+        const state = {
+            canUndo: this.undoStack.length > 0,
+            canRedo: this.redoStack.length > 0,
+            undoAction: this.undoStack.length > 0
+                ? this.undoStack[this.undoStack.length - 1]?.actionName
+                : null,
+            redoAction: this.redoStack.length > 0
+                ? this.redoStack[this.redoStack.length - 1]?.actionName
+                : null
+        };
+
+        // ✅ Phase 2 P3: React 콜백 호출 (있으면)
+        if (this.onStateChange) {
+            this.onStateChange(state);
+        }
+
+        // ✅ 레거시 DOM 업데이트 (하위 호환성 유지)
         const undoBtn = document.getElementById('undo-btn');
         if (undoBtn) {
-            undoBtn.disabled = this.undoStack.length === 0;
-            undoBtn.title = this.undoStack.length > 0
-                ? `실행 취소: ${this.undoStack[this.undoStack.length - 1]?.actionName || 'Edit'}`
+            undoBtn.disabled = !state.canUndo;
+            undoBtn.title = state.undoAction
+                ? `실행 취소: ${state.undoAction}`
                 : '실행 취소할 항목 없음';
         }
 
-        // Redo 버튼
         const redoBtn = document.getElementById('redo-btn');
         if (redoBtn) {
-            redoBtn.disabled = this.redoStack.length === 0;
-            redoBtn.title = this.redoStack.length > 0
-                ? `다시 실행: ${this.redoStack[this.redoStack.length - 1]?.actionName || 'Edit'}`
+            redoBtn.disabled = !state.canRedo;
+            redoBtn.title = state.redoAction
+                ? `다시 실행: ${state.redoAction}`
                 : '다시 실행할 항목 없음';
         }
     }
