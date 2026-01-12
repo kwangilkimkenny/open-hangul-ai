@@ -3,7 +3,7 @@
  * UI/UX 커스터마이징을 위한 타입 정의
  */
 
-import { ReactNode, CSSProperties } from 'react';
+import type { ReactNode, CSSProperties } from 'react';
 
 // ============================================
 // 테마 관련 타입

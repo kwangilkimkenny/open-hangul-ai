@@ -7,7 +7,6 @@
  */
 
 import { GPTService } from './gpt-service';
-import { AIConfig } from './ai-config';
 import { getLogger } from '../utils/logger';
 
 const logger = getLogger();

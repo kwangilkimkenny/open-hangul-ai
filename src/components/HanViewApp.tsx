@@ -11,7 +11,8 @@
  * @version 2.0.0
  */
 
-import { useState, useCallback, useEffect, CSSProperties } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import SimpleHeader from './SimpleHeader';
 import HWPXViewerWrapper from './HWPXViewerWrapper';
@@ -119,7 +120,6 @@ export function HanViewApp({
   // 상태 관리
   const [selectedFile, setSelectedFile] = useState<File | null>(initialFile);
   const [viewerInstance, setViewerInstance] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [showSidebar, setShowSidebar] = useState(initialSidebarOpen);
 
   // 초기 파일 변경 시
@@ -143,7 +143,6 @@ export function HanViewApp({
   const handleFileSelect = useCallback((file: File) => {
     devLog('📁 File selected:', file.name);
     setSelectedFile(file);
-    setIsLoading(true);
     onFileSelect?.(file);
   }, [onFileSelect]);
 
@@ -151,51 +150,49 @@ export function HanViewApp({
   const handleViewerReady = useCallback((viewer: any) => {
     devLog('✅ Viewer instance ready');
     setViewerInstance(viewer);
-    setIsLoading(false);
-    
+
     const document = viewer?.getDocument?.();
     onDocumentLoad?.(viewer, document);
   }, [onDocumentLoad]);
 
   // 에러 핸들러
   const handleError = useCallback((error: Error) => {
-    devError('❌ Error:', error);
-    setIsLoading(false);
+    console.error('❌ Error:', error);
     onError?.(error);
-    
+
     if (!disableToast) {
       toast.error(`오류: ${error.message}`);
     }
   }, [onError, disableToast]);
 
-  // 저장 핸들러
-  const handleSave = useCallback(async () => {
-    if (!viewerInstance) {
-      toast.error('문서가 로드되지 않았습니다');
-      return;
-    }
-    
-    try {
-      const result = await viewerInstance.saveFile();
-      onDocumentSave?.(result);
-      
-      if (!disableToast && result.success) {
-        toast.success('저장 완료!');
-      }
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error('저장 실패');
-      handleError(err);
-    }
-  }, [viewerInstance, onDocumentSave, disableToast, handleError]);
+  // 저장 핸들러 (향후 사용 예정)
+  // const handleSave = useCallback(async () => {
+  //   if (!viewerInstance) {
+  //     toast.error('문서가 로드되지 않았습니다');
+  //     return;
+  //   }
+  //
+  //   try {
+  //     const result = await viewerInstance.saveFile();
+  //     onDocumentSave?.(result);
+  //
+  //     if (!disableToast && result.success) {
+  //       toast.success('저장 완료!');
+  //     }
+  //   } catch (error) {
+  //     const err = error instanceof Error ? error : new Error('저장 실패');
+  //     handleError(err);
+  //   }
+  // }, [viewerInstance, onDocumentSave, disableToast, handleError]);
 
-  // 인쇄 핸들러
-  const handlePrint = useCallback(() => {
-    if (!viewerInstance) {
-      toast.error('문서가 로드되지 않았습니다');
-      return;
-    }
-    viewerInstance.printDocument?.();
-  }, [viewerInstance]);
+  // 인쇄 핸들러 (향후 사용 예정)
+  // const handlePrint = useCallback(() => {
+  //   if (!viewerInstance) {
+  //     toast.error('문서가 로드되지 않았습니다');
+  //     return;
+  //   }
+  //   viewerInstance.printDocument?.();
+  // }, [viewerInstance]);
 
   // 컨테이너 스타일
   const containerStyle: CSSProperties = {

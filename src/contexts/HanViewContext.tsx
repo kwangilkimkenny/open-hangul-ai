@@ -3,7 +3,8 @@
  * 커스터마이징 설정을 전역으로 관리
  */
 
-import React, { createContext, useContext, useMemo, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { HanViewConfig, HanViewCustomization, ThemeVariables } from '../types/customization';
 
 // ============================================

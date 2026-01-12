@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  Image as ImageIcon, 
-  Layout, 
-  ChevronLeft, 
-  ChevronRight,
-  HardDrive,
-  Clock,
-  Save,
+import {
+  FileText,
+  Image as ImageIcon,
+  Layout,
   Cloud
 } from 'lucide-react';
 
@@ -15,7 +10,6 @@ interface SidebarProps {
   viewer: any;
   file?: File | null;
   isOpen?: boolean;
-  onToggle?: () => void;
   width?: number;
 }
 

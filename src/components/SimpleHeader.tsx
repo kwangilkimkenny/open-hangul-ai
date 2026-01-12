@@ -5,7 +5,8 @@
  * @version 2.0.0
  */
 
-import { ReactNode, useRef, useId } from 'react';
+import { useRef } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';
 import { devLog, devWarn } from '../utils/logger';
@@ -74,7 +75,7 @@ export function SimpleHeader({
 
     devLog('💾 Save button clicked');
     devLog('🔍 Has saveFile?', typeof viewer.saveFile);
-    devLog('🔍 Has aiController?', !!viewer.aiController);
+    devLog('🔍 Has aiController?', !!viewer.getAIController);
 
     // Vanilla Viewer의 saveFile 메서드 호출
     if (typeof viewer.saveFile === 'function') {
@@ -84,12 +85,13 @@ export function SimpleHeader({
         toast.dismiss('saving');
         toast.success('✅ 저장 완료!');
       } catch (error) {
-        devError('❌ Save error:', error);
+        console.error('❌ Save error:', error);
         toast.dismiss('saving');
-        toast.error(`저장 실패: ${error.message}`);
+        const message = error instanceof Error ? error.message : '알 수 없는 오류';
+        toast.error(`저장 실패: ${message}`);
       }
     } else {
-      devError('❌ saveFile method not found on viewer');
+      console.error('❌ saveFile method not found on viewer');
       toast.error('저장 기능이 지원되지 않습니다');
     }
   };

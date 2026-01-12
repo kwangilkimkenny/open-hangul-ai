@@ -101,7 +101,6 @@ export type {
   HWPXImage,
   HWPXShape,
   HWPXRun,
-  HWPXImageInfo,
   HWPXMetadata
 } from '../types/hwpx';
 
