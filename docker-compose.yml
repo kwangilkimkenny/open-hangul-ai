@@ -1,0 +1,54 @@
+# 🚀 HAN-View React App - Docker Compose Configuration
+# Version: 2.1.0
+
+version: '3.8'
+
+services:
+  # Main application service
+  hanview-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hanview-react-app:2.1.0
+    container_name: hanview-react-app
+    ports:
+      - "8080:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - hanview-network
+    labels:
+      - "com.hanview.app=main"
+      - "com.hanview.version=2.1.0"
+
+  # Optional: nginx reverse proxy (for SSL/HTTPS)
+  # nginx-proxy:
+  #   image: nginx:alpine
+  #   container_name: hanview-nginx-proxy
+  #   ports:
+  #     - "443:443"
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - hanview-app
+  #   networks:
+  #     - hanview-network
+  #   restart: unless-stopped
+
+networks:
+  hanview-network:
+    driver: bridge
+
+# Optional: Add volumes for persistent data
+# volumes:
+#   hanview-data:
+#     driver: local

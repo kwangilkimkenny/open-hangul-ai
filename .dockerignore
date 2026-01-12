@@ -1,0 +1,87 @@
+# Docker ignore file - Exclude unnecessary files from Docker build context
+# This significantly reduces build time and image size
+
+# Node modules (will be installed during build)
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build output (will be generated during build)
+dist
+build
+.vite
+
+# Development files
+.git
+.gitignore
+.env.local
+.env.development
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+test-*.js
+*.test.js
+*.spec.js
+__tests__
+coverage
+
+# Documentation (not needed in production)
+*.md
+!README.md
+docs
+walkthrough.md
+implementation_plan.md
+
+# Planning documents
+Phase_*.md
+Requirement_*.md
+analyze-hwpx.js
+extract-section.js
+test-hwpx.js
+test-parser.js
+section0-extracted.xml
+
+# CI/CD files
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Docker files (avoid recursion)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Log files
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Environment files (sensitive data)
+.env
+.env.production
+.env.staging
+
+# Screenshots and test results
+*.png
+*.jpg
+*.jpeg
+final_test_result_*.png
+
+# Backup files
+*.bak
+*.backup
