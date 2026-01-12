@@ -8,6 +8,7 @@
 
 import { HWPXConstants } from './constants.js';
 import { getLogger } from '../utils/logger.js';
+import { withErrorBoundary, withAsyncErrorBoundary, safeDOMOperation } from '../utils/error-boundary.js';
 
 // Renderers
 import { renderParagraph } from '../renderers/paragraph.js';
@@ -53,6 +54,33 @@ export class DocumentRenderer {
         this.paginationQueue = [];          // Queue for delayed pagination requests
         this.dirtyPages = new Set();        // Pages marked as edited (need re-pagination)
         this.paginationDebounceTimer = null; // Debounce timer for pagination checks
+
+        // ✅ Phase 5: Error boundaries for critical methods
+        this._wrapCriticalMethodsWithErrorBoundaries();
+
+        logger.info('🎨 DocumentRenderer initialized (with error boundaries)');
+    }
+
+    /**
+     * Wrap critical methods with error boundaries
+     * ✅ Phase 5: Prevent renderer crashes
+     * @private
+     */
+    _wrapCriticalMethodsWithErrorBoundaries() {
+        // Wrap rendering methods
+        const originalRender = this.render.bind(this);
+        this.render = withAsyncErrorBoundary(originalRender, 'DocumentRenderer.render', 0);
+
+        const originalRenderSection = this.renderSection.bind(this);
+        this.renderSection = withErrorBoundary(originalRenderSection, 'DocumentRenderer.renderSection', null);
+
+        const originalCheckPagination = this.checkPagination.bind(this);
+        this.checkPagination = withErrorBoundary(originalCheckPagination, 'DocumentRenderer.checkPagination', false);
+
+        const originalAutoPaginate = this.autoPaginateContent.bind(this);
+        this.autoPaginateContent = withErrorBoundary(originalAutoPaginate, 'DocumentRenderer.autoPaginateContent', 0);
+
+        logger.debug('✅ Error boundaries installed on critical methods');
     }
 
     /**
