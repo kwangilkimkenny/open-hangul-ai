@@ -47,6 +47,12 @@ export class DocumentRenderer {
 
         this.pageNumber = 1;
         this.totalPages = 0;
+
+        // ✅ Phase 4: Dynamic Pagination State
+        this.isPaginating = false;          // Pagination lock (semaphore)
+        this.paginationQueue = [];          // Queue for delayed pagination requests
+        this.dirtyPages = new Set();        // Pages marked as edited (need re-pagination)
+        this.paginationDebounceTimer = null; // Debounce timer for pagination checks
     }
 
     /**
@@ -217,10 +223,14 @@ export class DocumentRenderer {
      * @returns {boolean} 페이지가 나뉘었는지 여부
      */
     checkPagination(pageDiv) {
-        // ✅ Phase 4 Senior Upgrade: Pagination Lock
+        // ✅ Phase 4: Pagination Lock & Queue System
         // Prevent recursive calls and layout thrashing
         if (this.isPaginating) {
-            logger.debug('⚠️ Pagination already in progress, skipping');
+            // ✅ Add to queue if not already queued
+            if (!this.paginationQueue.includes(pageDiv)) {
+                this.paginationQueue.push(pageDiv);
+                logger.debug(`📥 Pagination queued (${this.paginationQueue.length} in queue)`);
+            }
             return false;
         }
 
@@ -235,27 +245,219 @@ export class DocumentRenderer {
             return false;
         }
 
-        // Set lock
+        // ✅ Set pagination lock
         this.isPaginating = true;
 
         try {
             const pageNum = parseInt(pageDiv.getAttribute('data-page-number')) || 1;
 
-            // 자동 페이지 나누기 실행
+            // ✅ Execute auto-pagination
             const createdPages = this.autoPaginateContent(pageDiv, section, pageNum);
 
             if (createdPages > 0) {
                 logger.info(`📄 Dynamic pagination: ${createdPages} new pages created from page ${pageNum}`);
-                // 전체 페이지 수 업데이트 (정확하진 않지만 증가분 반영)
                 this.totalPages += createdPages;
                 return true;
             }
 
             return false;
+
         } finally {
-            // Release lock
+            // ✅ Release pagination lock
             this.isPaginating = false;
+
+            // ✅ Phase 4: Process queued pagination requests
+            if (this.paginationQueue.length > 0) {
+                const nextPage = this.paginationQueue.shift();
+                logger.debug(`📤 Processing queued pagination (${this.paginationQueue.length} remaining)`);
+
+                // ✅ Schedule next pagination with 10ms delay to prevent UI blocking
+                setTimeout(() => {
+                    this.checkPagination(nextPage);
+                }, 10);
+            }
         }
+    }
+
+    /**
+     * Debounced pagination check (for use in onChange handlers)
+     * ✅ Phase 4: Debouncing to prevent layout thrashing on every keystroke
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {number} delay - Debounce delay in ms (default: 500ms)
+     */
+    checkPaginationDebounced(pageDiv, delay = 500) {
+        // ✅ Clear existing timer
+        if (this.paginationDebounceTimer) {
+            clearTimeout(this.paginationDebounceTimer);
+        }
+
+        // ✅ Mark page as dirty (needs re-pagination)
+        this.markPageDirty(pageDiv);
+
+        // ✅ Schedule pagination check after delay
+        this.paginationDebounceTimer = setTimeout(() => {
+            logger.debug('⏱️ Debounced pagination triggered');
+            this.checkPagination(pageDiv);
+            this.paginationDebounceTimer = null;
+        }, delay);
+    }
+
+    /**
+     * Mark a page as dirty (edited, needs re-pagination)
+     * ✅ Phase 4: Dirty flag optimization
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     */
+    markPageDirty(pageDiv) {
+        if (!pageDiv) return;
+
+        const pageNum = pageDiv.getAttribute('data-page-number');
+        if (pageNum) {
+            this.dirtyPages.add(pageNum);
+            logger.debug(`🏷️ Page ${pageNum} marked dirty`);
+        }
+    }
+
+    /**
+     * Clear dirty flag for a page
+     * ✅ Phase 4: Clean page after successful pagination
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     */
+    clearPageDirty(pageDiv) {
+        if (!pageDiv) return;
+
+        const pageNum = pageDiv.getAttribute('data-page-number');
+        if (pageNum) {
+            this.dirtyPages.delete(pageNum);
+            logger.debug(`✨ Page ${pageNum} marked clean`);
+        }
+    }
+
+    /**
+     * Check if a page is dirty
+     * ✅ Phase 4: Only re-paginate dirty pages
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @returns {boolean}
+     */
+    isPageDirty(pageDiv) {
+        if (!pageDiv) return false;
+
+        const pageNum = pageDiv.getAttribute('data-page-number');
+        return pageNum && this.dirtyPages.has(pageNum);
+    }
+
+    /**
+     * Check pagination for all dirty pages
+     * ✅ Phase 4: Batch process dirty pages
+     */
+    checkAllDirtyPages() {
+        if (this.dirtyPages.size === 0) {
+            logger.debug('✅ No dirty pages to check');
+            return;
+        }
+
+        logger.info(`🔄 Checking ${this.dirtyPages.size} dirty pages`);
+
+        const dirtyPageNumbers = Array.from(this.dirtyPages);
+        dirtyPageNumbers.forEach(pageNum => {
+            const pageDiv = this.container.querySelector(
+                `.hwp-page-container[data-page-number="${pageNum}"]`
+            );
+
+            if (pageDiv) {
+                this.checkPagination(pageDiv);
+                this.clearPageDirty(pageDiv);
+            }
+        });
+    }
+
+
+    /**
+     * Enable pagination debug mode
+     * ✅ Phase 4: Visual debugging for pagination issues
+     * Shows overlay with page height information
+     */
+    enablePaginationDebug() {
+        logger.info('🐛 Pagination debug mode enabled');
+
+        const pages = this.container.querySelectorAll('.hwp-page-container');
+
+        pages.forEach((page, index) => {
+            const pageNum = page.getAttribute('data-page-number');
+            const scrollHeight = page.scrollHeight;
+            const clientHeight = page.clientHeight;
+            const overflow = scrollHeight - clientHeight;
+
+            // ✅ Remove existing debug overlay if present
+            const existingOverlay = page.querySelector('.pagination-debug-overlay');
+            if (existingOverlay) {
+                existingOverlay.remove();
+            }
+
+            // ✅ Create debug overlay
+            const debugOverlay = document.createElement('div');
+            debugOverlay.className = 'pagination-debug-overlay';
+            debugOverlay.style.cssText = `
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background: rgba(255, 0, 0, 0.9);
+                color: white;
+                padding: 10px;
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                z-index: 9999;
+                border-radius: 5px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                min-width: 180px;
+            `;
+
+            const isDirty = this.isPageDirty(page);
+            const overflowStatus = overflow > 50 ? '⚠️ OVERFLOW' : overflow > 0 ? '⚡ Minor' : '✅ OK';
+
+            debugOverlay.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid white; padding-bottom: 5px;">
+                    📄 Page ${pageNum || index + 1}
+                </div>
+                <div style="line-height: 1.4;">
+                    Client: ${clientHeight}px<br>
+                    Scroll: ${scrollHeight}px<br>
+                    Overflow: <span style="font-weight: bold;">${overflow}px</span><br>
+                    Status: ${overflowStatus}<br>
+                    ${isDirty ? '<span style="color: yellow;">🏷️ DIRTY</span>' : '<span style="color: lightgreen;">✨ CLEAN</span>'}
+                </div>
+            `;
+
+            page.style.position = 'relative'; // Ensure overlay is positioned correctly
+            page.appendChild(debugOverlay);
+        });
+
+        logger.info(`✅ Debug overlays added to ${pages.length} pages`);
+    }
+
+    /**
+     * Disable pagination debug mode
+     * ✅ Phase 4: Remove debug overlays
+     */
+    disablePaginationDebug() {
+        logger.info('🐛 Pagination debug mode disabled');
+
+        const overlays = this.container.querySelectorAll('.pagination-debug-overlay');
+        overlays.forEach(overlay => overlay.remove());
+
+        logger.info(`✅ Removed ${overlays.length} debug overlays`);
+    }
+
+    /**
+     * Refresh pagination debug overlays
+     * ✅ Phase 4: Update debug info without recreating overlays
+     */
+    refreshPaginationDebug() {
+        const overlays = this.container.querySelectorAll('.pagination-debug-overlay');
+        if (overlays.length === 0) return;
+
+        // Debug mode is active, refresh all overlays
+        this.disablePaginationDebug();
+        this.enablePaginationDebug();
     }
 
 
