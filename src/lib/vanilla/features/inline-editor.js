@@ -784,6 +784,7 @@ export class InlineEditor {
      * DOM 업데이트 (데이터와 화면 동기화)
      * ✅ Phase 2 P0: Undo/Redo 시 DOM을 데이터 모델과 동기화
      * ✅ Phase 2 P1: WeakMap 기반 메모리 최적화
+     * ✅ Phase 2 P2: 배치 모드 지원 - 여러 업데이트를 큐에 저장
      * @param {Object} data - 셀/단락 데이터 (WeakMap에서 element 찾기)
      * @param {string} text - 표시할 텍스트 (줄바꿈 포함)
      * @private
@@ -798,27 +799,39 @@ export class InlineEditor {
             return;
         }
 
-        if (!element.isConnected) {
-            logger.debug('⚠️ Element not in DOM, skipping refresh');
-            return;
+        // ✅ Phase 2 P2: DOM 업데이트 함수 정의
+        const update = () => {
+            // 업데이트 시점에 다시 체크 (배치 실행 시 상태가 변경될 수 있음)
+            if (!element.isConnected) {
+                logger.debug('⚠️ Element not in DOM, skipping refresh');
+                return;
+            }
+
+            // 편집 중인 요소는 업데이트하지 않음
+            if (element === this.editingCell) {
+                logger.debug('⚠️ Element is being edited, skipping refresh to preserve user input');
+                return;
+            }
+
+            // 줄바꿈을 <br>로 변환
+            const html = text.split('\n').join('<br>');
+
+            // XSS 방지를 위한 sanitization
+            const safeHTML = sanitizeHTML(html);
+
+            // DOM 업데이트
+            element.innerHTML = safeHTML;
+
+            logger.debug(`✅ DOM refreshed for undo/redo (${text.length} chars, ${(text.match(/\n/g) || []).length} line breaks)`);
+        };
+
+        // ✅ Phase 2 P2: 배치 모드면 큐에 추가, 아니면 즉시 실행
+        if (this.viewer.historyManager?.batchMode) {
+            this.viewer.historyManager.batchUpdates.push(update);
+            logger.debug('📦 DOM update queued in batch mode');
+        } else {
+            update();
         }
-
-        // ✅ 현재 편집 중인 요소면 업데이트하지 않음 (편집 중인 내용 보존)
-        if (element === this.editingCell) {
-            logger.debug('⚠️ Element is being edited, skipping refresh to preserve user input');
-            return;
-        }
-
-        // ✅ 줄바꿈을 <br>로 변환
-        const html = text.split('\n').join('<br>');
-
-        // ✅ XSS 방지를 위한 sanitization
-        const safeHTML = sanitizeHTML(html);
-
-        // DOM 업데이트
-        element.innerHTML = safeHTML;
-
-        logger.debug(`✅ DOM refreshed for undo/redo (${text.length} chars, ${(text.match(/\n/g) || []).length} line breaks)`);
     }
 
     /**

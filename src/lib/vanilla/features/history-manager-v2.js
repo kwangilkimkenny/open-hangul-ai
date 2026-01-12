@@ -4,7 +4,7 @@
  * Canvas-editor의 HistoryManager를 참고하여 메모리 효율적으로 구현
  *
  * @module features/history-manager-v2
- * @version 2.0.0
+ * @version 2.2.0
  */
 
 import { getLogger } from '../utils/logger.js';
@@ -14,6 +14,7 @@ const logger = getLogger();
 /**
  * 함수 기반 히스토리 관리자
  * 전체 문서를 저장하지 않고 복원 함수만 저장하여 메모리 효율 극대화
+ * ✅ Phase 2 P2: Batch Undo/Redo 최적화
  */
 export class HistoryManagerV2 {
     /**
@@ -29,7 +30,11 @@ export class HistoryManagerV2 {
         // 현재 실행 중인 명령 (중첩 방지)
         this.isExecuting = false;
 
-        logger.info('🔄 HistoryManagerV2 initialized (function-based)');
+        // ✅ Phase 2 P2: 배치 모드 (여러 Undo/Redo를 한 번에 처리)
+        this.batchMode = false;
+        this.batchUpdates = [];
+
+        logger.info('🔄 HistoryManagerV2 initialized (v2.2.0 with batch mode)');
     }
 
     /**
@@ -82,6 +87,7 @@ export class HistoryManagerV2 {
     /**
      * 실행 취소
      * ✅ Phase 2 P0: Command Pattern 재설계 - 전체 command 재사용
+     * ✅ Phase 2 P2: 배치 모드에서 UI 업데이트 지연
      * @returns {boolean} 성공 여부
      */
     undo() {
@@ -110,8 +116,10 @@ export class HistoryManagerV2 {
 
             logger.info(`✅ Undone: "${command.actionName}" (Undo: ${this.undoStack.length}, Redo: ${this.redoStack.length})`);
 
-            // UI 업데이트
-            this._updateUI();
+            // ✅ Phase 2 P2: 배치 모드가 아니면 즉시 UI 업데이트
+            if (!this.batchMode) {
+                this._updateUI();
+            }
 
             return true;
 
@@ -127,6 +135,7 @@ export class HistoryManagerV2 {
     /**
      * 다시 실행
      * ✅ Phase 2 P0: Command Pattern 재설계 - 전체 command 재사용
+     * ✅ Phase 2 P2: 배치 모드에서 UI 업데이트 지연
      * @returns {boolean} 성공 여부
      */
     redo() {
@@ -155,8 +164,10 @@ export class HistoryManagerV2 {
 
             logger.info(`✅ Redone: "${command.actionName}" (Undo: ${this.undoStack.length}, Redo: ${this.redoStack.length})`);
 
-            // UI 업데이트
-            this._updateUI();
+            // ✅ Phase 2 P2: 배치 모드가 아니면 즉시 UI 업데이트
+            if (!this.batchMode) {
+                this._updateUI();
+            }
 
             return true;
 
@@ -251,6 +262,118 @@ export class HistoryManagerV2 {
                 timestamp: cmd.timestamp
             }))
         };
+    }
+
+    /**
+     * 배치 Undo 시작
+     * ✅ Phase 2 P2: 여러 Undo를 한 번에 처리하여 성능 향상
+     * @private
+     */
+    startBatchUndo() {
+        this.batchMode = true;
+        this.batchUpdates = [];
+        logger.debug('📦 Batch undo mode started');
+    }
+
+    /**
+     * 배치 Undo 완료
+     * ✅ Phase 2 P2: 모든 DOM 업데이트를 한 번에 실행
+     * @private
+     */
+    endBatchUndo() {
+        this.batchMode = false;
+
+        // ✅ 모든 DOM 업데이트 한 번에 실행
+        logger.debug(`📦 Executing ${this.batchUpdates.length} queued updates`);
+        this.batchUpdates.forEach(update => update());
+        this.batchUpdates = [];
+
+        // UI 업데이트 (한 번만)
+        this._updateUI();
+
+        logger.info('✅ Batch undo completed');
+    }
+
+    /**
+     * 배치 Redo 시작
+     * ✅ Phase 2 P2: 여러 Redo를 한 번에 처리하여 성능 향상
+     * @private
+     */
+    startBatchRedo() {
+        this.batchMode = true;
+        this.batchUpdates = [];
+        logger.debug('📦 Batch redo mode started');
+    }
+
+    /**
+     * 배치 Redo 완료
+     * ✅ Phase 2 P2: 모든 DOM 업데이트를 한 번에 실행
+     * @private
+     */
+    endBatchRedo() {
+        this.batchMode = false;
+
+        // ✅ 모든 DOM 업데이트 한 번에 실행
+        logger.debug(`📦 Executing ${this.batchUpdates.length} queued updates`);
+        this.batchUpdates.forEach(update => update());
+        this.batchUpdates = [];
+
+        // UI 업데이트 (한 번만)
+        this._updateUI();
+
+        logger.info('✅ Batch redo completed');
+    }
+
+    /**
+     * 여러 개 Undo 실행
+     * ✅ Phase 2 P2: 배치 모드로 여러 Undo를 한 번에 처리
+     * @param {number} count - Undo 횟수
+     * @returns {number} 실제 실행된 횟수
+     */
+    undoMultiple(count) {
+        if (count <= 0) return 0;
+
+        logger.info(`📦 Starting batch undo (${count} commands)`);
+
+        this.startBatchUndo();
+
+        let executed = 0;
+        for (let i = 0; i < count && this.canUndo(); i++) {
+            if (this.undo()) {
+                executed++;
+            }
+        }
+
+        this.endBatchUndo();
+
+        logger.info(`✅ Batch undo completed: ${executed}/${count} commands`);
+        return executed;
+    }
+
+    /**
+     * 여러 개 Redo 실행
+     * ✅ Phase 2 P2: 배치 모드로 여러 Redo를 한 번에 처리
+     * @param {number} count - Redo 횟수
+     * @returns {number} 실제 실행된 횟수
+     */
+    redoMultiple(count) {
+        if (count <= 0) return 0;
+
+        logger.info(`📦 Starting batch redo (${count} commands)`);
+
+        this.startBatchRedo();
+
+        let executed = 0;
+        for (let i = 0; i < count && this.canRedo(); i++) {
+            if (this.redo()) {
+                executed++;
+            }
+        }
+
+        this.endBatchRedo();
+
+        logger.info(`✅ Batch redo completed: ${executed}/${count} commands`);
+        return executed;
     }
 }
 
