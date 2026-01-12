@@ -3,7 +3,7 @@
  * 테이블 셀 인라인 편집 기능 (하이브리드 편집 방식)
  *
  * @module features/inline-editor
- * @version 2.0.0
+ * @version 2.1.0
  */
 
 import { getLogger } from '../utils/logger.js';
@@ -13,6 +13,7 @@ const logger = getLogger('InlineEditor');
 
 /**
  * 인라인 편집기 클래스
+ * ✅ Phase 2 P1: WeakMap 기반 메모리 최적화
  */
 export class InlineEditor {
     constructor(viewer) {
@@ -23,7 +24,11 @@ export class InlineEditor {
         this.keydownHandler = null;
         this.blurHandler = null;
 
-        logger.info('✏️ InlineEditor initialized (Hybrid Mode v2.0)');
+        // ✅ Phase 2 P1: cellData → DOM 요소 매핑 (메모리 효율화)
+        // WeakMap은 cellData가 GC되면 자동으로 항목 제거
+        this.cellDataMap = new WeakMap();
+
+        logger.info('✏️ InlineEditor initialized (Hybrid Mode v2.1.0 with WeakMap)');
     }
 
     /**
@@ -65,6 +70,10 @@ export class InlineEditor {
         this.originalContent = sanitizeHTML(cellElement.innerHTML);
         this.editingCell = cellElement;
         this.cellData = cellData;
+
+        // ✅ Phase 2 P1: WeakMap에 cellData → element 매핑 등록
+        this.cellDataMap.set(cellData, cellElement);
+        logger.debug('  ✓ Registered cellData → element mapping in WeakMap');
 
         // 편집 모드 표시
         cellElement.classList.add('editing');
@@ -517,17 +526,17 @@ export class InlineEditor {
 
             // HistoryManager를 통한 실행
             if (this.viewer.historyManager) {
-                // ✅ 클로저로 데이터와 텍스트 캡처
+                // ✅ Phase 2 P1: 텍스트와 데이터만 캡처 (메모리 효율적)
+                // DOM 요소는 WeakMap에서 찾으므로 클로저에 캡처하지 않음
                 const captureNewText = newText;
                 const captureOldText = oldText;
                 const targetData = this.cellData;
-                const targetElement = this.editingCell; // ✅ DOM 요소도 캡처
 
                 this.viewer.historyManager.execute(
                     // ✅ Execute function: 새 텍스트 적용
                     () => {
                         this._updateCellData(targetData, captureNewText);
-                        this._refreshDOM(targetElement, targetData, captureNewText); // ✅ DOM 업데이트
+                        this._refreshDOM(targetData, captureNewText); // ✅ WeakMap 기반 DOM 업데이트
 
                         // 변경 콜백 호출
                         if (this.onChangeCallback) {
@@ -547,7 +556,7 @@ export class InlineEditor {
                     // ✅ Undo function: 이전 텍스트 복원
                     () => {
                         this._updateCellData(targetData, captureOldText);
-                        this._refreshDOM(targetElement, targetData, captureOldText); // ✅ DOM 업데이트
+                        this._refreshDOM(targetData, captureOldText); // ✅ WeakMap 기반 DOM 업데이트
 
                         // 변경 콜백 호출
                         if (this.onChangeCallback) {
@@ -774,14 +783,22 @@ export class InlineEditor {
     /**
      * DOM 업데이트 (데이터와 화면 동기화)
      * ✅ Phase 2 P0: Undo/Redo 시 DOM을 데이터 모델과 동기화
-     * @param {HTMLElement} element - 업데이트할 DOM 요소
-     * @param {Object} data - 셀/단락 데이터 (사용하지 않지만 확장성을 위해 전달)
+     * ✅ Phase 2 P1: WeakMap 기반 메모리 최적화
+     * @param {Object} data - 셀/단락 데이터 (WeakMap에서 element 찾기)
      * @param {string} text - 표시할 텍스트 (줄바꿈 포함)
      * @private
      */
-    _refreshDOM(element, data, text) {
-        // 요소가 DOM에 없으면 무시
-        if (!element || !element.isConnected) {
+    _refreshDOM(data, text) {
+        // ✅ Phase 2 P1: WeakMap에서 element 찾기 (메모리 효율적)
+        const element = this.cellDataMap.get(data);
+
+        // 요소가 등록되지 않았거나 DOM에 없으면 무시
+        if (!element) {
+            logger.debug('⚠️ Element not found in WeakMap, skipping refresh');
+            return;
+        }
+
+        if (!element.isConnected) {
             logger.debug('⚠️ Element not in DOM, skipping refresh');
             return;
         }
@@ -965,6 +982,9 @@ export class InlineEditor {
 
             // 데이터 참조 저장
             cell._cellData = cellData;
+
+            // ✅ Phase 2 P1: WeakMap에 cellData → element 매핑 등록
+            this.cellDataMap.set(cellData, cell);
 
             // ✅ v2.1.0: 싱글클릭 이벤트 (글로벌 편집 모드 체크 포함)
             const clickHandler = (e) => {
