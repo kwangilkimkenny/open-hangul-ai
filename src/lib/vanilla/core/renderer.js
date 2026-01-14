@@ -67,18 +67,26 @@ export class DocumentRenderer {
      * @private
      */
     _wrapCriticalMethodsWithErrorBoundaries() {
-        // Wrap rendering methods
-        const originalRender = this.render.bind(this);
-        this.render = withAsyncErrorBoundary(originalRender, 'DocumentRenderer.render', 0);
+        // Wrap rendering methods - check existence first to avoid production build issues
+        if (typeof this.render === 'function') {
+            const originalRender = this.render.bind(this);
+            this.render = withAsyncErrorBoundary(originalRender, 'DocumentRenderer.render', 0);
+        }
 
-        const originalRenderSection = this.renderSection.bind(this);
-        this.renderSection = withErrorBoundary(originalRenderSection, 'DocumentRenderer.renderSection', null);
+        if (typeof this.renderSection === 'function') {
+            const originalRenderSection = this.renderSection.bind(this);
+            this.renderSection = withErrorBoundary(originalRenderSection, 'DocumentRenderer.renderSection', null);
+        }
 
-        const originalCheckPagination = this.checkPagination.bind(this);
-        this.checkPagination = withErrorBoundary(originalCheckPagination, 'DocumentRenderer.checkPagination', false);
+        if (typeof this.checkPagination === 'function') {
+            const originalCheckPagination = this.checkPagination.bind(this);
+            this.checkPagination = withErrorBoundary(originalCheckPagination, 'DocumentRenderer.checkPagination', false);
+        }
 
-        const originalAutoPaginate = this.autoPaginateContent.bind(this);
-        this.autoPaginateContent = withErrorBoundary(originalAutoPaginate, 'DocumentRenderer.autoPaginateContent', 0);
+        if (typeof this.autoPaginateContent === 'function') {
+            const originalAutoPaginate = this.autoPaginateContent.bind(this);
+            this.autoPaginateContent = withErrorBoundary(originalAutoPaginate, 'DocumentRenderer.autoPaginateContent', 0);
+        }
 
         logger.debug('✅ Error boundaries installed on critical methods');
     }
