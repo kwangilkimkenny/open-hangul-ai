@@ -11,8 +11,9 @@ import { HWPXConstants } from './core/constants.js';
 import { SimpleHWPXParser } from './core/parser.js';
 import { WorkerManager } from './core/worker-manager.js';
 import { DocumentRenderer } from './core/renderer.js';
-import { AIDocumentController } from './ai/ai-controller.js';
-import { ChatPanel } from './ui/chat-panel.js';
+// AI features - lazy loaded dynamically when needed
+// import { AIDocumentController } from './ai/ai-controller.js';
+// import { ChatPanel } from './ui/chat-panel.js';
 import { ContextMenu } from './ui/context-menu.js';
 import { SearchDialog } from './ui/search-dialog.js';
 import { InlineEditor } from './features/inline-editor.js';
@@ -22,11 +23,13 @@ import { HistoryManagerV2 } from './features/history-manager-v2.js';
 import { EditModeManager } from './features/edit-mode-manager.js';
 import { Command } from './command/command.js';
 import { CommandAdapt } from './command/command-adapt.js';
-import { HwpxExporter } from './export/hwpx-exporter.js';
+// Export features - not used directly in viewer (AI controller handles export)
+// import { HwpxExporter } from './export/hwpx-exporter.js';
 import { AutoSaveManager } from './features/autosave-manager.js';
 import { TableEditor } from './features/table-editor.js';
-import { ImageEditor } from './features/image-editor.js';
-import { ShapeEditor } from './features/shape-editor.js';
+// UI Editors - lazy loaded dynamically when needed
+// import { ImageEditor } from './features/image-editor.js';
+// import { ShapeEditor } from './features/shape-editor.js';
 import { AdvancedSearch } from './features/advanced-search.js';
 import { BookmarkManager } from './features/bookmark-manager.js';
 import { ThemeManager } from './ui/theme-manager.js';
@@ -111,8 +114,8 @@ export class HWPXViewer {
             enableLazyLoading: options.enableLazyLoading !== false
         });
 
-        // Exporter 생성 (수동 편집용 전체 재생성)
-        this.fullExporter = new HwpxExporter();
+        // Exporter는 AI Controller가 처리 (lazy loading으로 최적화됨)
+        // this.fullExporter = new HwpxExporter(); // 사용하지 않는 코드 제거
 
         // Worker Manager (지원되는 경우에만)
         this.workerManager = null;
@@ -123,19 +126,27 @@ export class HWPXViewer {
             logger.info('Main thread parsing mode');
         }
 
-        // AI Controller & UI (활성화된 경우)
+        // AI Controller & UI (lazy loaded when needed)
         this.aiController = null;
         this.chatPanel = null;
         this.contextMenu = null;
         this.searchDialog = null;
+        this._aiModulesLoading = false; // Track if AI modules are being loaded
+        this._aiModulesLoaded = false;  // Track if AI modules have been loaded
 
         // 편집 기능 (항상 활성화)
         this.inlineEditor = null;
         this.historyManager = null;
         this.editModeManager = null;
         this.tableEditor = null;
+
+        // UI Editors (lazy loaded when needed)
         this.imageEditor = null;
         this.shapeEditor = null;
+        this._imageEditorLoading = false; // Track if ImageEditor is being loaded
+        this._imageEditorLoaded = false;  // Track if ImageEditor has been loaded
+        this._shapeEditorLoading = false; // Track if ShapeEditor is being loaded
+        this._shapeEditorLoaded = false;  // Track if ShapeEditor has been loaded
         this.search = null;
         this.bookmarkManager = null;
         this.themeManager = null;
@@ -148,30 +159,20 @@ export class HWPXViewer {
 
         logger.info(`🔧 enableAI option: ${this.options.enableAI}`);
 
+        // AI features는 lazy loading으로 변경 - 사용 시점에 동적 로드
         if (this.options.enableAI) {
-            try {
-                logger.info('🚀 Initializing AI Controller...');
-                this.aiController = new AIDocumentController(this);
-                logger.info('✅ AI Controller initialized');
-
-                // Chat Panel 초기화
-                logger.info('🚀 Initializing Chat Panel...');
-                this.chatPanel = new ChatPanel(this.aiController);
-                this.chatPanel.init();
-                logger.info('✅ Chat Panel initialized');
-
-                // Context Menu 초기화 (생성자에서 자동 초기화됨)
-                logger.info('🚀 Initializing Context Menu...');
-                this.contextMenu = new ContextMenu();
-                logger.info('✅ Context Menu initialized');
-
-            } catch (error) {
-                logger.error('❌ Failed to initialize AI features:', error);
-                logger.error('Error details:', error.message, error.stack);
-                this.options.enableAI = false;
-            }
+            logger.info('⚡ AI features will be loaded on demand (lazy loading enabled)');
         } else {
             logger.warn('⚠️ AI features disabled (enableAI = false)');
+        }
+
+        // Context Menu는 AI와 독립적으로 초기화
+        try {
+            logger.info('🚀 Initializing Context Menu...');
+            this.contextMenu = new ContextMenu();
+            logger.info('✅ Context Menu initialized');
+        } catch (error) {
+            logger.error('❌ Failed to initialize Context Menu:', error);
         }
 
         // 편집 기능 초기화 (AI와 독립적으로 작동)
@@ -242,11 +243,8 @@ export class HWPXViewer {
             this.tableEditor = new TableEditor(this);
             logger.info('✅ TableEditor initialized');
 
-            this.imageEditor = new ImageEditor(this);
-            logger.info('✅ ImageEditor initialized');
-
-            this.shapeEditor = new ShapeEditor(this);
-            logger.info('✅ ShapeEditor initialized');
+            // UI Editors는 lazy loading으로 변경 - 사용 시점에 동적 로드
+            logger.info('⚡ ImageEditor and ShapeEditor will be loaded on demand (lazy loading enabled)');
 
             this.search = new AdvancedSearch();
             logger.info('✅ AdvancedSearch initialized');
@@ -320,10 +318,221 @@ export class HWPXViewer {
     }
 
     /**
+     * Lazy load AI features (dynamic import)
+     * AI 기능을 동적으로 로드 (사용 시점에만)
+     *
+     * @returns {Promise<void>}
+     * @throws {Error} AI 모듈 로드 실패 시
+     *
+     * @example
+     * await viewer.loadAIFeatures();
+     * // Now AI features are available
+     */
+    async loadAIFeatures() {
+        // Already loaded or loading
+        if (this._aiModulesLoaded) {
+            logger.info('✅ AI features already loaded');
+            return;
+        }
+
+        if (this._aiModulesLoading) {
+            logger.info('⏳ AI features are being loaded, waiting...');
+            // Wait for loading to complete
+            while (this._aiModulesLoading) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return;
+        }
+
+        // AI disabled in options
+        if (!this.options.enableAI) {
+            logger.warn('⚠️ AI features are disabled in options');
+            throw new Error('AI features are disabled');
+        }
+
+        this._aiModulesLoading = true;
+        logger.info('⚡ Lazy loading AI features...');
+
+        try {
+            // Show loading indicator
+            showLoading(true, 'AI 기능 로딩 중...');
+
+            // Dynamic import of AI modules
+            const [
+                { AIDocumentController },
+                { ChatPanel }
+            ] = await Promise.all([
+                import('./ai/ai-controller.js'),
+                import('./ui/chat-panel.js')
+            ]);
+
+            logger.info('✅ AI modules imported');
+
+            // Initialize AI Controller
+            logger.info('🚀 Initializing AI Controller...');
+            this.aiController = new AIDocumentController(this);
+            logger.info('✅ AI Controller initialized');
+
+            // Initialize Chat Panel
+            logger.info('🚀 Initializing Chat Panel...');
+            this.chatPanel = new ChatPanel(this.aiController);
+            this.chatPanel.init();
+            logger.info('✅ Chat Panel initialized');
+
+            this._aiModulesLoaded = true;
+            logger.info('✅ AI features fully loaded and ready');
+
+            showToast('success', 'AI 기능 활성화', 'AI 기능이 로드되었습니다');
+
+        } catch (error) {
+            logger.error('❌ Failed to load AI features:', error);
+            logger.error('Error details:', error.message, error.stack);
+            this.options.enableAI = false;
+            showToast('error', 'AI 로딩 실패', error.message);
+            throw error;
+        } finally {
+            this._aiModulesLoading = false;
+            showLoading(false);
+        }
+    }
+
+    /**
+     * Check if AI features are available
+     * AI 기능 사용 가능 여부 확인
+     *
+     * @returns {boolean} AI 기능 사용 가능 여부
+     */
+    isAIAvailable() {
+        return this._aiModulesLoaded && this.aiController !== null;
+    }
+
+    /**
+     * Lazy load ImageEditor (dynamic import)
+     * ImageEditor를 동적으로 로드 (사용 시점에만)
+     *
+     * @returns {Promise<void>}
+     * @throws {Error} ImageEditor 모듈 로드 실패 시
+     *
+     * @example
+     * await viewer.loadImageEditor();
+     * // Now ImageEditor is available
+     */
+    async loadImageEditor() {
+        // Already loaded or loading
+        if (this._imageEditorLoaded) {
+            logger.info('✅ ImageEditor already loaded');
+            return;
+        }
+
+        if (this._imageEditorLoading) {
+            logger.info('⏳ ImageEditor is being loaded, waiting...');
+            // Wait for loading to complete
+            while (this._imageEditorLoading) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return;
+        }
+
+        this._imageEditorLoading = true;
+        logger.info('⚡ Lazy loading ImageEditor...');
+
+        try {
+            // Dynamic import of ImageEditor module
+            const { ImageEditor } = await import('./features/image-editor.js');
+            logger.info('✅ ImageEditor module imported');
+
+            // Initialize ImageEditor
+            logger.info('🚀 Initializing ImageEditor...');
+            this.imageEditor = new ImageEditor(this);
+            logger.info('✅ ImageEditor initialized');
+
+            this._imageEditorLoaded = true;
+
+        } catch (error) {
+            logger.error('❌ Failed to load ImageEditor:', error);
+            logger.error('Error details:', error.message, error.stack);
+            throw error;
+        } finally {
+            this._imageEditorLoading = false;
+        }
+    }
+
+    /**
+     * Lazy load ShapeEditor (dynamic import)
+     * ShapeEditor를 동적으로 로드 (사용 시점에만)
+     *
+     * @returns {Promise<void>}
+     * @throws {Error} ShapeEditor 모듈 로드 실패 시
+     *
+     * @example
+     * await viewer.loadShapeEditor();
+     * // Now ShapeEditor is available
+     */
+    async loadShapeEditor() {
+        // Already loaded or loading
+        if (this._shapeEditorLoaded) {
+            logger.info('✅ ShapeEditor already loaded');
+            return;
+        }
+
+        if (this._shapeEditorLoading) {
+            logger.info('⏳ ShapeEditor is being loaded, waiting...');
+            // Wait for loading to complete
+            while (this._shapeEditorLoading) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return;
+        }
+
+        this._shapeEditorLoading = true;
+        logger.info('⚡ Lazy loading ShapeEditor...');
+
+        try {
+            // Dynamic import of ShapeEditor module
+            const { ShapeEditor } = await import('./features/shape-editor.js');
+            logger.info('✅ ShapeEditor module imported');
+
+            // Initialize ShapeEditor
+            logger.info('🚀 Initializing ShapeEditor...');
+            this.shapeEditor = new ShapeEditor(this);
+            logger.info('✅ ShapeEditor initialized');
+
+            this._shapeEditorLoaded = true;
+
+        } catch (error) {
+            logger.error('❌ Failed to load ShapeEditor:', error);
+            logger.error('Error details:', error.message, error.stack);
+            throw error;
+        } finally {
+            this._shapeEditorLoading = false;
+        }
+    }
+
+    /**
+     * Check if ImageEditor is available
+     * ImageEditor 사용 가능 여부 확인
+     *
+     * @returns {boolean} ImageEditor 사용 가능 여부
+     */
+    isImageEditorAvailable() {
+        return this._imageEditorLoaded && this.imageEditor !== null;
+    }
+
+    /**
+     * Check if ShapeEditor is available
+     * ShapeEditor 사용 가능 여부 확인
+     *
+     * @returns {boolean} ShapeEditor 사용 가능 여부
+     */
+    isShapeEditorAvailable() {
+        return this._shapeEditorLoaded && this.shapeEditor !== null;
+    }
+
+    /**
      * 파일 로드
      * @param {File|ArrayBuffer} file - HWPX 파일 또는 ArrayBuffer
      * @returns {Promise<Object>} 파싱된 문서
-     * 
+     *
      * @example
      * const doc = await viewer.loadFile(file);
      * console.log('Sections:', doc.sections.length);
@@ -1024,8 +1233,14 @@ export class HWPXViewer {
             throw new Error('저장할 파일이 없습니다. 먼저 파일을 로드해주세요.');
         }
 
+        // Lazy load AI features if not already loaded
         if (!this.aiController) {
-            throw new Error('AI Controller가 초기화되지 않아 저장 기능을 사용할 수 없습니다.');
+            logger.info('⚡ AI Controller not loaded, loading now...');
+            try {
+                await this.loadAIFeatures();
+            } catch (error) {
+                throw new Error('AI 기능을 로드할 수 없어 저장 기능을 사용할 수 없습니다.');
+            }
         }
 
         // ✅ 1단계: 현재 편집 중인 셀 강제 저장

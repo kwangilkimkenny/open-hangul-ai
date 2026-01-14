@@ -30,6 +30,34 @@ export class CommandAdapt {
     }
 
     // ===========================
+    // Lazy Loading Helpers
+    // ===========================
+
+    /**
+     * Ensure ImageEditor is loaded
+     * @returns {Promise<void>}
+     * @private
+     */
+    async _ensureImageEditor() {
+        if (!this.viewer.imageEditor) {
+            logger.info('⚡ ImageEditor not loaded, loading now...');
+            await this.viewer.loadImageEditor();
+        }
+    }
+
+    /**
+     * Ensure ShapeEditor is loaded
+     * @returns {Promise<void>}
+     * @private
+     */
+    async _ensureShapeEditor() {
+        if (!this.viewer.shapeEditor) {
+            logger.info('⚡ ShapeEditor not loaded, loading now...');
+            await this.viewer.loadShapeEditor();
+        }
+    }
+
+    // ===========================
     // History Commands
     // ===========================
 
@@ -1002,7 +1030,10 @@ export class CommandAdapt {
      * @param {string} imageUrl - 이미지 URL
      * @param {Object} options - 옵션
      */
-    executeInsertImage(imageUrl, options = {}) {
+    async executeInsertImage(imageUrl, options = {}) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1028,8 +1059,8 @@ export class CommandAdapt {
      * 이미지 삭제
      * @param {HTMLElement} imageElement - 이미지 요소
      */
-    executeDeleteImage(imageElement) {
-        this._executeImageCommand('deleteImage', imageElement, 'Delete Image');
+    async executeDeleteImage(imageElement) {
+        await this._executeImageCommand('deleteImage', imageElement, 'Delete Image');
     }
 
     /**
@@ -1038,7 +1069,10 @@ export class CommandAdapt {
      * @param {number} width - 너비
      * @param {number} height - 높이
      */
-    executeResizeImage(imageElement, width, height) {
+    async executeResizeImage(imageElement, width, height) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1065,7 +1099,10 @@ export class CommandAdapt {
      * @param {HTMLElement} imageElement - 이미지 요소
      * @param {string} alignment - 정렬
      */
-    executeSetImageAlignment(imageElement, alignment) {
+    async executeSetImageAlignment(imageElement, alignment) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1093,7 +1130,10 @@ export class CommandAdapt {
      * @param {number} x - X 좌표
      * @param {number} y - Y 좌표
      */
-    executeSetImagePosition(imageElement, x, y) {
+    async executeSetImagePosition(imageElement, x, y) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1120,7 +1160,10 @@ export class CommandAdapt {
      * @param {HTMLElement} imageElement - 이미지 요소
      * @param {string} altText - Alt 텍스트
      */
-    executeSetImageAltText(imageElement, altText) {
+    async executeSetImageAltText(imageElement, altText) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1147,7 +1190,10 @@ export class CommandAdapt {
      * @param {HTMLElement} imageElement - 이미지 요소
      * @param {number} degrees - 회전 각도
      */
-    executeRotateImage(imageElement, degrees) {
+    async executeRotateImage(imageElement, degrees) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1174,7 +1220,10 @@ export class CommandAdapt {
      * @param {HTMLElement} imageElement - 이미지 요소
      * @param {string} border - CSS 테두리 문자열
      */
-    executeSetImageBorder(imageElement, border) {
+    async executeSetImageBorder(imageElement, border) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1201,7 +1250,10 @@ export class CommandAdapt {
      * @param {HTMLElement} imageElement - 이미지 요소
      * @param {number} opacity - 불투명도
      */
-    executeSetImageOpacity(imageElement, opacity) {
+    async executeSetImageOpacity(imageElement, opacity) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1227,7 +1279,10 @@ export class CommandAdapt {
      * 이미지 명령 헬퍼
      * @private
      */
-    _executeImageCommand(commandName, imageElement, actionName) {
+    async _executeImageCommand(commandName, imageElement, actionName) {
+        // Lazy load ImageEditor if needed
+        await this._ensureImageEditor();
+
         const imageEditor = this.viewer.imageEditor;
         if (!imageEditor) {
             logger.warn('⚠️ ImageEditor not available');
@@ -1260,7 +1315,10 @@ export class CommandAdapt {
      * @param {string} shapeType - 도형 타입
      * @param {Object} options - 옵션
      */
-    executeInsertShape(shapeType, options = {}) {
+    async executeInsertShape(shapeType, options = {}) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1286,8 +1344,8 @@ export class CommandAdapt {
      * 도형 삭제
      * @param {HTMLElement} shapeElement - 도형 요소
      */
-    executeDeleteShape(shapeElement) {
-        this._executeShapeCommand('deleteShape', shapeElement, 'Delete Shape');
+    async executeDeleteShape(shapeElement) {
+        await this._executeShapeCommand('deleteShape', shapeElement, 'Delete Shape');
     }
 
     /**
@@ -1296,7 +1354,10 @@ export class CommandAdapt {
      * @param {number} width - 너비
      * @param {number} height - 높이
      */
-    executeResizeShape(shapeElement, width, height) {
+    async executeResizeShape(shapeElement, width, height) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1324,7 +1385,10 @@ export class CommandAdapt {
      * @param {number} x - X 좌표
      * @param {number} y - Y 좌표
      */
-    executeSetShapePosition(shapeElement, x, y) {
+    async executeSetShapePosition(shapeElement, x, y) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1351,7 +1415,10 @@ export class CommandAdapt {
      * @param {HTMLElement} shapeElement - 도형 요소
      * @param {string} color - 채우기 색상
      */
-    executeSetShapeFillColor(shapeElement, color) {
+    async executeSetShapeFillColor(shapeElement, color) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1379,7 +1446,10 @@ export class CommandAdapt {
      * @param {string} color - 테두리 색상
      * @param {number} width - 테두리 두께
      */
-    executeSetShapeStroke(shapeElement, color, width) {
+    async executeSetShapeStroke(shapeElement, color, width) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1406,7 +1476,10 @@ export class CommandAdapt {
      * @param {HTMLElement} shapeElement - 도형 요소
      * @param {number} degrees - 회전 각도
      */
-    executeRotateShape(shapeElement, degrees) {
+    async executeRotateShape(shapeElement, degrees) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1433,7 +1506,10 @@ export class CommandAdapt {
      * @param {HTMLElement} shapeElement - 도형 요소
      * @param {number} opacity - 불투명도
      */
-    executeSetShapeOpacity(shapeElement, opacity) {
+    async executeSetShapeOpacity(shapeElement, opacity) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1460,7 +1536,10 @@ export class CommandAdapt {
      * @param {HTMLElement} shapeElement - 도형 요소
      * @param {string} text - 텍스트
      */
-    executeSetShapeText(shapeElement, text) {
+    async executeSetShapeText(shapeElement, text) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1487,7 +1566,10 @@ export class CommandAdapt {
      * @param {HTMLElement} shapeElement - 도형 요소
      * @param {number} radius - 둥글기
      */
-    executeSetShapeBorderRadius(shapeElement, radius) {
+    async executeSetShapeBorderRadius(shapeElement, radius) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');
@@ -1513,7 +1595,10 @@ export class CommandAdapt {
      * 도형 명령 헬퍼
      * @private
      */
-    _executeShapeCommand(commandName, shapeElement, actionName) {
+    async _executeShapeCommand(commandName, shapeElement, actionName) {
+        // Lazy load ShapeEditor if needed
+        await this._ensureShapeEditor();
+
         const shapeEditor = this.viewer.shapeEditor;
         if (!shapeEditor) {
             logger.warn('⚠️ ShapeEditor not available');

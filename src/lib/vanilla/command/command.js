@@ -773,8 +773,8 @@ export class Command {
      * @example
      * viewer.command.insertImage('data:image/png;base64,...', { width: 300, height: 200 });
      */
-    insertImage(imageUrl, options = {}) {
-        this.adapt.executeInsertImage(imageUrl, options);
+    async insertImage(imageUrl, options = {}) {
+        await this.adapt.executeInsertImage(imageUrl, options);
     }
 
     /**
@@ -785,8 +785,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.deleteImage(img);
      */
-    deleteImage(imageElement) {
-        this.adapt.executeDeleteImage(imageElement);
+    async deleteImage(imageElement) {
+        await this.adapt.executeDeleteImage(imageElement);
     }
 
     /**
@@ -799,8 +799,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.resizeImage(img, 400, 300);
      */
-    resizeImage(imageElement, width, height) {
-        this.adapt.executeResizeImage(imageElement, width, height);
+    async resizeImage(imageElement, width, height) {
+        await this.adapt.executeResizeImage(imageElement, width, height);
     }
 
     /**
@@ -812,8 +812,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.setImageAlignment(img, 'center');
      */
-    setImageAlignment(imageElement, alignment) {
-        this.adapt.executeSetImageAlignment(imageElement, alignment);
+    async setImageAlignment(imageElement, alignment) {
+        await this.adapt.executeSetImageAlignment(imageElement, alignment);
     }
 
     /**
@@ -826,8 +826,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.setImagePosition(img, 100, 50);
      */
-    setImagePosition(imageElement, x, y) {
-        this.adapt.executeSetImagePosition(imageElement, x, y);
+    async setImagePosition(imageElement, x, y) {
+        await this.adapt.executeSetImagePosition(imageElement, x, y);
     }
 
     /**
@@ -839,8 +839,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.setImageAltText(img, 'Description of image');
      */
-    setImageAltText(imageElement, altText) {
-        this.adapt.executeSetImageAltText(imageElement, altText);
+    async setImageAltText(imageElement, altText) {
+        await this.adapt.executeSetImageAltText(imageElement, altText);
     }
 
     /**
@@ -852,8 +852,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.rotateImage(img, 90);
      */
-    rotateImage(imageElement, degrees) {
-        this.adapt.executeRotateImage(imageElement, degrees);
+    async rotateImage(imageElement, degrees) {
+        await this.adapt.executeRotateImage(imageElement, degrees);
     }
 
     /**
@@ -865,8 +865,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.setImageBorder(img, '2px solid #000');
      */
-    setImageBorder(imageElement, border) {
-        this.adapt.executeSetImageBorder(imageElement, border);
+    async setImageBorder(imageElement, border) {
+        await this.adapt.executeSetImageBorder(imageElement, border);
     }
 
     /**
@@ -878,8 +878,8 @@ export class Command {
      * const img = document.querySelector('.hwp-image-wrapper');
      * viewer.command.setImageOpacity(img, 0.7);
      */
-    setImageOpacity(imageElement, opacity) {
-        this.adapt.executeSetImageOpacity(imageElement, opacity);
+    async setImageOpacity(imageElement, opacity) {
+        await this.adapt.executeSetImageOpacity(imageElement, opacity);
     }
 
     // ===========================
@@ -894,8 +894,8 @@ export class Command {
      * @example
      * viewer.command.insertShape('rectangle', { width: 200, height: 150, fillColor: '#ff0000' });
      */
-    insertShape(shapeType, options = {}) {
-        this.adapt.executeInsertShape(shapeType, options);
+    async insertShape(shapeType, options = {}) {
+        await this.adapt.executeInsertShape(shapeType, options);
     }
 
     /**
@@ -906,8 +906,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.deleteShape(shape);
      */
-    deleteShape(shapeElement) {
-        this.adapt.executeDeleteShape(shapeElement);
+    async deleteShape(shapeElement) {
+        await this.adapt.executeDeleteShape(shapeElement);
     }
 
     /**
@@ -920,8 +920,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.resizeShape(shape, 300, 200);
      */
-    resizeShape(shapeElement, width, height) {
-        this.adapt.executeResizeShape(shapeElement, width, height);
+    async resizeShape(shapeElement, width, height) {
+        await this.adapt.executeResizeShape(shapeElement, width, height);
     }
 
     /**
@@ -934,8 +934,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.setShapePosition(shape, 100, 50);
      */
-    setShapePosition(shapeElement, x, y) {
-        this.adapt.executeSetShapePosition(shapeElement, x, y);
+    async setShapePosition(shapeElement, x, y) {
+        await this.adapt.executeSetShapePosition(shapeElement, x, y);
     }
 
     /**
@@ -947,8 +947,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.setShapeFillColor(shape, '#ff0000');
      */
-    setShapeFillColor(shapeElement, color) {
-        this.adapt.executeSetShapeFillColor(shapeElement, color);
+    async setShapeFillColor(shapeElement, color) {
+        await this.adapt.executeSetShapeFillColor(shapeElement, color);
     }
 
     /**
@@ -961,8 +961,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.setShapeStroke(shape, '#000000', 2);
      */
-    setShapeStroke(shapeElement, color, width) {
-        this.adapt.executeSetShapeStroke(shapeElement, color, width);
+    async setShapeStroke(shapeElement, color, width) {
+        await this.adapt.executeSetShapeStroke(shapeElement, color, width);
     }
 
     /**
@@ -974,8 +974,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.rotateShape(shape, 45);
      */
-    rotateShape(shapeElement, degrees) {
-        this.adapt.executeRotateShape(shapeElement, degrees);
+    async rotateShape(shapeElement, degrees) {
+        await this.adapt.executeRotateShape(shapeElement, degrees);
     }
 
     /**
@@ -987,8 +987,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.setShapeOpacity(shape, 0.5);
      */
-    setShapeOpacity(shapeElement, opacity) {
-        this.adapt.executeSetShapeOpacity(shapeElement, opacity);
+    async setShapeOpacity(shapeElement, opacity) {
+        await this.adapt.executeSetShapeOpacity(shapeElement, opacity);
     }
 
     /**
@@ -1000,8 +1000,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.setShapeText(shape, 'Hello World');
      */
-    setShapeText(shapeElement, text) {
-        this.adapt.executeSetShapeText(shapeElement, text);
+    async setShapeText(shapeElement, text) {
+        await this.adapt.executeSetShapeText(shapeElement, text);
     }
 
     /**
@@ -1013,8 +1013,8 @@ export class Command {
      * const shape = document.querySelector('.hwp-shape');
      * viewer.command.setShapeBorderRadius(shape, 50);
      */
-    setShapeBorderRadius(shapeElement, radius) {
-        this.adapt.executeSetShapeBorderRadius(shapeElement, radius);
+    async setShapeBorderRadius(shapeElement, radius) {
+        await this.adapt.executeSetShapeBorderRadius(shapeElement, radius);
     }
 
     // ===========================
