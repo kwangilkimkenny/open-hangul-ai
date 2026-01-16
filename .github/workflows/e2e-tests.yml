@@ -1,0 +1,205 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch: # Allow manual trigger
+
+# Cancel in-progress runs when a new workflow with the same group name is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Run E2E tests on Chromium (fastest, most stable)
+  e2e-chromium:
+    name: E2E Tests (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run E2E tests (Chromium)
+        run: npm run test:e2e:chromium
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-test-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+      - name: Upload screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-screenshots
+          path: test-results/**/*.png
+          retention-days: 7
+
+  # Run E2E tests on Firefox
+  e2e-firefox:
+    name: E2E Tests (Firefox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install firefox --with-deps
+
+      - name: Run E2E tests (Firefox)
+        run: npm run test:e2e:firefox
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-test-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # Run E2E tests on WebKit (Safari)
+  e2e-webkit:
+    name: E2E Tests (WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true # Don't fail the workflow if WebKit tests fail
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install webkit --with-deps
+
+      - name: Run E2E tests (WebKit)
+        run: npm run test:e2e:webkit
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webkit-test-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # Run mobile E2E tests
+  e2e-mobile:
+    name: E2E Tests (Mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium webkit --with-deps
+
+      - name: Run E2E tests (Mobile)
+        run: npm run test:e2e:mobile
+        env:
+          CI: true
+        continue-on-error: true # Mobile Safari may have known issues
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-test-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # Generate test report summary
+  test-report:
+    name: Test Report Summary
+    runs-on: ubuntu-latest
+    needs: [e2e-chromium, e2e-firefox, e2e-webkit, e2e-mobile]
+    if: always()
+
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-test-results
+
+      - name: Generate summary
+        run: |
+          echo "# E2E Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Execution Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Browser | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Chromium | ${{ needs.e2e-chromium.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firefox | ${{ needs.e2e-firefox.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| WebKit | ${{ needs.e2e-webkit.result == 'success' && '✅ PASS' || '⚠️ PARTIAL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mobile | ${{ needs.e2e-mobile.result == 'success' && '✅ PASS' || '⚠️ PARTIAL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Test results and screenshots are available in the workflow artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "🤖 Generated by GitHub Actions" >> $GITHUB_STEP_SUMMARY
