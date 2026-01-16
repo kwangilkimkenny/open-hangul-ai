@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+dist-ssr/
+build/
+.next/
+.vite/
+
+# Coverage
+coverage/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Generated files
+*.min.js
+*.min.css
+
+# Reference files
+ref/
+요구자료/
+결과_temp/
+
+# Documentation (preserve formatting)
+CHANGELOG.md
+LICENSE
+
+# Test snapshots
+**/__snapshots__/
+
+# Public assets
+public/
+*.hwpx
+*.pdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
