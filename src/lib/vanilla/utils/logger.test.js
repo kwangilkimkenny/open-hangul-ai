@@ -1,8 +1,9 @@
 /**
  * Logger Module Tests
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Logger, getLogger, resetLogger } from './logger.js';
 
 // Mock console methods
@@ -25,20 +26,20 @@ const mockConsole = () => {
     };
 
     const mocks = {
-        log: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-        time: jest.fn(),
-        timeEnd: jest.fn(),
-        group: jest.fn(),
-        groupCollapsed: jest.fn(),
-        groupEnd: jest.fn(),
-        table: jest.fn(),
-        trace: jest.fn(),
-        assert: jest.fn(),
-        clear: jest.fn(),
-        count: jest.fn(),
-        countReset: jest.fn()
+        log: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        time: vi.fn(),
+        timeEnd: vi.fn(),
+        group: vi.fn(),
+        groupCollapsed: vi.fn(),
+        groupEnd: vi.fn(),
+        table: vi.fn(),
+        trace: vi.fn(),
+        assert: vi.fn(),
+        clear: vi.fn(),
+        count: vi.fn(),
+        countReset: vi.fn()
     };
 
     Object.assign(console, mocks);

@@ -1,8 +1,9 @@
 /**
  * UI Utilities Tests
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
     ToastType,
     showToast,
@@ -276,7 +277,7 @@ describe('UI Utilities', () => {
     describe('scrollToElement', () => {
         it('should call scrollIntoView', () => {
             const el = document.getElementById('test-element');
-            el.scrollIntoView = jest.fn();
+            el.scrollIntoView = vi.fn();
             
             scrollToElement('test-element');
             
@@ -288,7 +289,7 @@ describe('UI Utilities', () => {
 
         it('should accept custom options', () => {
             const el = document.getElementById('test-element');
-            el.scrollIntoView = jest.fn();
+            el.scrollIntoView = vi.fn();
             
             scrollToElement(el, { behavior: 'instant', block: 'center' });
             
@@ -302,49 +303,49 @@ describe('UI Utilities', () => {
     });
 
     describe('debounce', () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
 
         it('should debounce function calls', () => {
-            const func = jest.fn();
+            const func = vi.fn();
             const debounced = debounce(func, 100);
-            
+
             debounced();
             debounced();
             debounced();
-            
+
             expect(func).not.toHaveBeenCalled();
-            
-            jest.advanceTimersByTime(100);
-            
+
+            vi.advanceTimersByTime(100);
+
             expect(func).toHaveBeenCalledTimes(1);
         });
 
         it('should pass arguments', () => {
-            const func = jest.fn();
+            const func = vi.fn();
             const debounced = debounce(func, 100);
-            
+
             debounced('arg1', 'arg2');
-            
-            jest.advanceTimersByTime(100);
-            
+
+            vi.advanceTimersByTime(100);
+
             expect(func).toHaveBeenCalledWith('arg1', 'arg2');
         });
     });
 
     describe('throttle', () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
 
         it('should throttle function calls', () => {
-            const func = jest.fn();
+            const func = vi.fn();
             const throttled = throttle(func, 100);
-            
+
             throttled(); // Called immediately
             throttled(); // Ignored
             throttled(); // Ignored
-            
+
             expect(func).toHaveBeenCalledTimes(1);
-            
-            jest.advanceTimersByTime(100);
+
+            vi.advanceTimersByTime(100);
             
             throttled(); // Called after cooldown
             
@@ -352,11 +353,11 @@ describe('UI Utilities', () => {
         });
 
         it('should pass arguments', () => {
-            const func = jest.fn();
+            const func = vi.fn();
             const throttled = throttle(func, 100);
-            
+
             throttled('arg1', 'arg2');
-            
+
             expect(func).toHaveBeenCalledWith('arg1', 'arg2');
         });
     });

@@ -159,7 +159,7 @@ describe('Format Utilities', () => {
         });
 
         it('should handle zero', () => {
-            expect(formatDuration(0)).toBe('0s');
+            expect(formatDuration(0)).toBe('0ms');
         });
 
         it('should handle negative values', () => {

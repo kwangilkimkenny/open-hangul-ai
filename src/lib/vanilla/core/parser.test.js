@@ -1,22 +1,23 @@
 /**
  * HWPX Parser Tests
- * @jest-environment jsdom
+ * @vitest-environment jsdom
  */
 
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SimpleHWPXParser } from './parser.js';
 
 // Mock JSZip
-jest.mock('jszip');
+vi.mock('jszip');
 
 // Mock logger
-jest.mock('../utils/logger.js', () => ({
+vi.mock('../utils/logger.js', () => ({
     getLogger: () => ({
-        info: jest.fn(),
-        debug: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-        time: jest.fn(),
-        timeEnd: jest.fn()
+        info: vi.fn(),
+        debug: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        time: vi.fn(),
+        timeEnd: vi.fn()
     })
 }));
 
@@ -75,7 +76,7 @@ describe('SimpleHWPXParser', () => {
     describe('cleanup()', () => {
         it('should revoke Blob URLs', () => {
             const mockURL = 'blob:http://localhost/test';
-            global.URL.revokeObjectURL = jest.fn();
+            global.URL.revokeObjectURL = vi.fn();
 
             parser.images.set('img1', { url: mockURL });
             parser.cleanup();
@@ -94,10 +95,10 @@ describe('SimpleHWPXParser', () => {
     describe('parseParagraph()', () => {
         it('should parse paragraph with single run', () => {
             const mockPElem = {
-                querySelectorAll: jest.fn().mockReturnValue([
+                querySelectorAll: vi.fn().mockReturnValue([
                     {
                         textContent: 'Hello World',
-                        getAttribute: jest.fn().mockReturnValue(null)
+                        getAttribute: vi.fn().mockReturnValue(null)
                     }
                 ])
             };
@@ -112,7 +113,7 @@ describe('SimpleHWPXParser', () => {
 
         it('should return null for empty paragraph', () => {
             const mockPElem = {
-                querySelectorAll: jest.fn().mockReturnValue([])
+                querySelectorAll: vi.fn().mockReturnValue([])
             };
 
             const para = parser.parseParagraph(mockPElem);
@@ -127,10 +128,10 @@ describe('SimpleHWPXParser', () => {
             });
 
             const mockPElem = {
-                querySelectorAll: jest.fn().mockReturnValue([
+                querySelectorAll: vi.fn().mockReturnValue([
                     {
                         textContent: 'Bold Text',
-                        getAttribute: jest.fn().mockReturnValue('cp1')
+                        getAttribute: vi.fn().mockReturnValue('cp1')
                     }
                 ])
             };
@@ -149,9 +150,9 @@ describe('SimpleHWPXParser', () => {
                     if (selector.includes('tr')) {
                         return [
                             {
-                                querySelectorAll: jest.fn().mockReturnValue([
+                                querySelectorAll: vi.fn().mockReturnValue([
                                     {
-                                        querySelectorAll: jest.fn().mockReturnValue([])
+                                        querySelectorAll: vi.fn().mockReturnValue([])
                                     }
                                 ])
                             }
@@ -170,7 +171,7 @@ describe('SimpleHWPXParser', () => {
 
         it('should return null for empty table', () => {
             const mockTblElem = {
-                querySelectorAll: jest.fn().mockReturnValue([])
+                querySelectorAll: vi.fn().mockReturnValue([])
             };
 
             const table = parser.parseTable(mockTblElem);

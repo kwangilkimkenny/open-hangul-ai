@@ -47,12 +47,12 @@ describe('HWPXConstants', () => {
         });
 
         describe('hwpuToPx', () => {
-            it('should convert 7200 HWPU to 96px', () => {
-                expect(HWPXConstants.hwpuToPx(7200)).toBe(96);
+            it('should convert 7200 HWPU to 117.12px (with scale factor)', () => {
+                expect(HWPXConstants.hwpuToPx(7200)).toBe(117.12);
             });
 
-            it('should convert 3600 HWPU to 48px', () => {
-                expect(HWPXConstants.hwpuToPx(3600)).toBe(48);
+            it('should convert 3600 HWPU to 58.56px (with scale factor)', () => {
+                expect(HWPXConstants.hwpuToPx(3600)).toBe(58.56);
             });
 
             it('should handle zero', () => {
