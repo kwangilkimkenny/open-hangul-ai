@@ -13,9 +13,12 @@ test.describe('HWPX File Loading', () => {
   });
 
   test('should have a file input element', async ({ page }) => {
+    // Wait for page to be fully loaded
+    await page.waitForLoadState('networkidle');
+
     // Look for file input (adjust selector based on your actual HTML)
     const fileInput = page.locator('input[type="file"]').first();
-    await expect(fileInput).toBeAttached();
+    await expect(fileInput).toBeAttached({ timeout: 15000 });
 
     // Check accept attribute
     const accept = await fileInput.getAttribute('accept');

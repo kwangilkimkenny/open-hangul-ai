@@ -34,16 +34,16 @@ test.describe('Initial Page Load', () => {
   test('should display the main UI components', async ({ page }) => {
     await page.goto('/');
 
-    // Wait for main content to load
-    await page.waitForLoadState('domcontentloaded');
+    // Wait for main content to load (networkidle for WebKit)
+    await page.waitForLoadState('networkidle');
 
     // Check for main heading (adjust selector based on your actual HTML)
     const heading = page.locator('h1, h2').first();
-    await expect(heading).toBeVisible();
+    await expect(heading).toBeVisible({ timeout: 15000 });
 
     // Verify the app container exists
     const appContainer = page.locator('#root, .app, main').first();
-    await expect(appContainer).toBeVisible();
+    await expect(appContainer).toBeVisible({ timeout: 15000 });
   });
 
   test('should have correct viewport settings', async ({ page }) => {
@@ -121,20 +121,24 @@ test.describe('Initial Page Load', () => {
     }
   });
 
-  test('should support keyboard navigation', async ({ page }) => {
+  test('should support keyboard navigation', async ({ page, browserName }) => {
     await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
+    await page.waitForLoadState('networkidle');
 
-    // Tab through interactive elements
-    await page.keyboard.press('Tab');
+    // Press Tab until we get to an interactive element (WebKit may need multiple presses)
+    let focusedElement = null;
+    const interactiveElements = ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
+    const maxTries = browserName === 'webkit' ? 5 : 2;
 
-    // Get the focused element
-    const focusedElement = await page.evaluate(() => {
-      return document.activeElement?.tagName;
-    });
+    for (let i = 0; i < maxTries; i++) {
+      await page.keyboard.press('Tab');
+      focusedElement = await page.evaluate(() => document.activeElement?.tagName);
+      if (interactiveElements.includes(focusedElement)) {
+        break;
+      }
+    }
 
     // Should have focused an interactive element
-    const interactiveElements = ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
     expect(interactiveElements).toContain(focusedElement);
   });
 });

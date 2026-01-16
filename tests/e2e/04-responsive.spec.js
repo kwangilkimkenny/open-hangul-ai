@@ -11,6 +11,7 @@ test.describe('Responsive Design', () => {
 
     test('should render correctly on large desktop', async ({ page }) => {
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Check viewport size
       const viewportSize = page.viewportSize();
@@ -19,7 +20,7 @@ test.describe('Responsive Design', () => {
 
       // Main content should be visible
       const mainContent = page.locator('#root, .app, main').first();
-      await expect(mainContent).toBeVisible();
+      await expect(mainContent).toBeVisible({ timeout: 15000 });
 
       // Should not have horizontal scrollbar
       const hasHorizontalScroll = await page.evaluate(() => {
@@ -34,6 +35,7 @@ test.describe('Responsive Design', () => {
 
     test('should render correctly on laptop', async ({ page }) => {
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Check viewport size
       const viewportSize = page.viewportSize();
@@ -56,6 +58,7 @@ test.describe('Responsive Design', () => {
 
     test('should render correctly on tablet', async ({ page }) => {
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Main content should be visible
       const mainContent = page.locator('#root, .app, main').first();
@@ -88,6 +91,7 @@ test.describe('Responsive Design', () => {
 
     test('should render correctly on mobile', async ({ page }) => {
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Main content should be visible
       const mainContent = page.locator('#root, .app, main').first();
@@ -109,6 +113,7 @@ test.describe('Responsive Design', () => {
 
     test('should support touch interactions on mobile', async ({ page }) => {
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Look for interactive elements
       const buttons = page.locator('button, a[role="button"]').first();
@@ -129,6 +134,7 @@ test.describe('Responsive Design', () => {
 
     test('should stack content vertically on mobile', async ({ page }) => {
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Get layout direction of main container
       const flexDirection = await page.evaluate(() => {
@@ -174,6 +180,7 @@ test.describe('Responsive Design', () => {
       // Start in portrait
       await page.setViewportSize({ width: 375, height: 667 });
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Verify portrait layout
       let viewportSize = page.viewportSize();
@@ -196,6 +203,7 @@ test.describe('Responsive Design', () => {
   test.describe('Zoom Levels', () => {
     test('should support pinch-to-zoom on mobile', async ({ page }) => {
       await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Check viewport meta tag allows zoom
       const viewportMeta = await page.locator('meta[name="viewport"]').getAttribute('content');
