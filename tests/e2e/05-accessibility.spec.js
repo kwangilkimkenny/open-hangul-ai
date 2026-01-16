@@ -217,6 +217,7 @@ test.describe('Accessibility', () => {
           const ariaLabelledby = await input.getAttribute('aria-labelledby');
           const title = await input.getAttribute('title');
           const placeholder = await input.getAttribute('placeholder');
+          const type = await input.getAttribute('type');
 
           // Should have some form of label
           const hasLabel = id || ariaLabel || ariaLabelledby || title || placeholder;
@@ -227,6 +228,16 @@ test.describe('Accessibility', () => {
             expect(label > 0 || ariaLabel || ariaLabelledby).toBe(true);
           } else {
             // Should have aria-label or other label method
+            if (!hasLabel) {
+              console.log('Input without label found:', {
+                type,
+                id,
+                ariaLabel,
+                ariaLabelledby,
+                title,
+                placeholder,
+              });
+            }
             expect(hasLabel).toBeTruthy();
           }
         }

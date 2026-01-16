@@ -1,7 +1,7 @@
 /**
  * Simple Header for HWPX Viewer
  * 파일 열기, 저장, 인쇄 등 기본 기능
- * 
+ *
  * @version 2.0.0
  */
 
@@ -154,11 +154,12 @@ export function SimpleHeader({
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* 커스텀 로고 */}
-          {logo && (
-            typeof logo === 'string'
-              ? <img src={logo} alt="Logo" style={{ height: '32px' }} />
-              : logo
-          )}
+          {logo &&
+            (typeof logo === 'string' ? (
+              <img src={logo} alt="Logo" style={{ height: '32px' }} />
+            ) : (
+              logo
+            ))}
           <h1
             style={{
               fontSize: '24px',
@@ -202,10 +203,10 @@ export function SimpleHeader({
               alignItems: 'center',
               gap: '8px',
             }}
-            onMouseEnter={(e) => {
+            onMouseEnter={e => {
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
             }}
-            onMouseLeave={(e) => {
+            onMouseLeave={e => {
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
             }}
           >
@@ -215,6 +216,7 @@ export function SimpleHeader({
               type="file"
               accept=".hwpx"
               onChange={handleFileChange}
+              aria-label="Load HWPX file"
               style={{
                 position: 'absolute',
                 top: 0,
@@ -243,10 +245,10 @@ export function SimpleHeader({
               alignItems: 'center',
               gap: '8px',
             }}
-            onMouseEnter={(e) => {
+            onMouseEnter={e => {
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
             }}
-            onMouseLeave={(e) => {
+            onMouseLeave={e => {
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
             }}
             title="Ctrl+S"
@@ -257,8 +259,8 @@ export function SimpleHeader({
           <button
             onClick={handlePrint}
             style={{
-              visibility: 'hidden',  // 임시로 숨김
-              position: 'absolute',  // 레이아웃에서 제거
+              visibility: 'hidden', // 임시로 숨김
+              position: 'absolute', // 레이아웃에서 제거
               padding: '10px 20px',
               background: 'rgba(255, 255, 255, 0.2)',
               border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -271,10 +273,10 @@ export function SimpleHeader({
               alignItems: 'center',
               gap: '8px',
             }}
-            onMouseEnter={(e) => {
+            onMouseEnter={e => {
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
             }}
-            onMouseLeave={(e) => {
+            onMouseLeave={e => {
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
             }}
             title="Ctrl+P"
@@ -283,7 +285,7 @@ export function SimpleHeader({
           </button>
 
           {/* 추가 버튼 */}
-          {additionalButtons.map((btn) => (
+          {additionalButtons.map(btn => (
             <button
               key={btn.id}
               onClick={btn.onClick}
@@ -293,14 +295,15 @@ export function SimpleHeader({
                 opacity: btn.disabled ? 0.5 : 1,
                 cursor: btn.disabled ? 'not-allowed' : 'pointer',
               }}
-              onMouseEnter={(e) => {
+              onMouseEnter={e => {
                 if (!btn.disabled) {
                   e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
                 }
               }}
-              onMouseLeave={(e) => {
+              onMouseLeave={e => {
                 if (!btn.disabled) {
-                  e.currentTarget.style.background = getButtonStyle(btn.variant).background as string;
+                  e.currentTarget.style.background = getButtonStyle(btn.variant)
+                    .background as string;
                 }
               }}
             >
@@ -317,4 +320,3 @@ export function SimpleHeader({
 }
 
 export default SimpleHeader;
-

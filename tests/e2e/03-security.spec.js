@@ -197,15 +197,25 @@ test.describe('Security Features', () => {
     const consoleErrors = [];
 
     page.on('console', msg => {
-      if (msg.type() === 'error' && msg.text().toLowerCase().includes('security')) {
-        consoleErrors.push(msg.text());
+      if (msg.type() === 'error') {
+        const text = msg.text().toLowerCase();
+        // Ignore Vite HMR WebSocket errors in dev mode
+        const isViteHMR =
+          text.includes('websocket') || text.includes('hmr') || text.includes('[vite]');
+        // Ignore expected CSP meta tag warnings (frame-ancestors must be in HTTP header)
+        const isExpectedCSPWarning = text.includes('frame-ancestors') && text.includes('ignored');
+
+        // Only track actual security violations (not Vite HMR or expected warnings)
+        if (text.includes('security') && !isViteHMR && !isExpectedCSPWarning) {
+          consoleErrors.push(msg.text());
+        }
       }
     });
 
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Should have no security-related errors
+    // Should have no security-related errors (excluding Vite HMR and expected CSP warnings)
     expect(consoleErrors.length).toBe(0);
   });
 });

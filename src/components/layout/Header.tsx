@@ -1,20 +1,13 @@
 /**
  * Header Component
  * 상단 헤더 - 로고, 파일 정보, 액션 버튼
- * 
+ *
  * @module components/layout/Header
  * @version 1.0.0
  */
 
 import { useRef, useCallback, useState, useEffect } from 'react';
-import { 
-  FolderOpen, 
-  Printer, 
-  Download, 
-  Save,
-  FileDown,
-  Loader2
-} from 'lucide-react';
+import { FolderOpen, Printer, Download, Save, FileDown, Loader2 } from 'lucide-react';
 import { useDocumentStore } from '../../stores/documentStore';
 import { useUIStore } from '../../stores/uiStore';
 import { SimpleHWPXParser } from '../../lib/core/parser';
@@ -29,24 +22,24 @@ interface HeaderProps {
 export function Header({ className }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const parserRef = useRef<SimpleHWPXParser | null>(null);
-  
+
   const [isSavingHwpx, setIsSavingHwpx] = useState(false);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
-  
-  const { 
-    document, 
-    fileName, 
+
+  const {
+    document,
+    fileName,
     isLoading,
     isDirty,
-    setDocument, 
-    setOriginalFile, 
-    setLoading, 
+    setDocument,
+    setOriginalFile,
+    setLoading,
     setError,
-    setDirty
+    setDirty,
   } = useDocumentStore();
-  
+
   const { showToast } = useUIStore();
-  
+
   const { lastSaveTime, isInitialized } = useAutoSave({ enabled: true });
 
   // 파일 열기
@@ -55,78 +48,88 @@ export function Header({ className }: HeaderProps) {
   }, []);
 
   // 파일 선택 핸들러
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    if (!parserRef.current) {
-      parserRef.current = new SimpleHWPXParser();
-    }
+      if (!parserRef.current) {
+        parserRef.current = new SimpleHWPXParser();
+      }
 
-    setLoading(true);
-    setError(null);
+      setLoading(true);
+      setError(null);
 
-    try {
-      const buffer = await file.arrayBuffer();
-      const doc = await parserRef.current.parse(buffer);
-      
-      setDocument(doc);
-      setOriginalFile(file);
-      showToast('success', '성공', `${file.name} 파일을 불러왔습니다.`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '파일을 불러오는데 실패했습니다.';
-      setError(message);
-      showToast('error', '오류', message);
-    } finally {
-      setLoading(false);
-    }
+      try {
+        const buffer = await file.arrayBuffer();
+        const doc = await parserRef.current.parse(buffer);
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [setDocument, setOriginalFile, setLoading, setError, showToast]);
+        setDocument(doc);
+        setOriginalFile(file);
+        showToast('success', '성공', `${file.name} 파일을 불러왔습니다.`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '파일을 불러오는데 실패했습니다.';
+        setError(message);
+        showToast('error', '오류', message);
+      } finally {
+        setLoading(false);
+      }
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    },
+    [setDocument, setOriginalFile, setLoading, setError, showToast]
+  );
 
   // HWPX 저장
-  const handleSaveHwpx = useCallback(async (skipPrompt: boolean = false) => {
-    if (!document) {
-      showToast('warning', '경고', '저장할 문서가 없습니다.');
-      return;
-    }
-    
-    let finalFileName: string;
-    
-    if (skipPrompt && fileName) {
-      // 단축키로 빠른 저장 (파일명 재사용)
-      finalFileName = fileName.replace('.hwpx', '');
-    } else {
-      // 일반 저장 (파일명 입력)
-      const defaultName = fileName || '문서.hwpx';
-      const inputName = prompt('HWPX 파일명을 입력하세요:', defaultName.replace('.hwpx', ''));
-      if (!inputName) return;
-      finalFileName = inputName;
-    }
+  const handleSaveHwpx = useCallback(
+    async (skipPrompt: boolean = false) => {
+      if (!document) {
+        showToast('warning', '경고', '저장할 문서가 없습니다.');
+        return;
+      }
 
-    setIsSavingHwpx(true);
-    try {
-      const exporter = new HwpxExporter();
-      const result = await exporter.exportToFile(document, finalFileName) as unknown as { filename: string; blob: Blob; method?: string };
+      let finalFileName: string;
 
-      // 저장 후 dirty 상태 초기화
-      setDirty(false);
+      if (skipPrompt && fileName) {
+        // 단축키로 빠른 저장 (파일명 재사용)
+        finalFileName = fileName.replace('.hwpx', '');
+      } else {
+        // 일반 저장 (파일명 입력)
+        const defaultName = fileName || '문서.hwpx';
+        const inputName = prompt('HWPX 파일명을 입력하세요:', defaultName.replace('.hwpx', ''));
+        if (!inputName) return;
+        finalFileName = inputName;
+      }
 
-      showToast('success', 'HWPX 저장 완료', `${result.filename} 파일이 저장되었습니다.`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'HWPX 저장에 실패했습니다.';
-      showToast('error', '저장 실패', message);
-    } finally {
-      setIsSavingHwpx(false);
-    }
-  }, [document, fileName, showToast, setDirty]);
+      setIsSavingHwpx(true);
+      try {
+        const exporter = new HwpxExporter();
+        const result = (await exporter.exportToFile(document, finalFileName)) as unknown as {
+          filename: string;
+          blob: Blob;
+          method?: string;
+        };
+
+        // 저장 후 dirty 상태 초기화
+        setDirty(false);
+
+        showToast('success', 'HWPX 저장 완료', `${result.filename} 파일이 저장되었습니다.`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'HWPX 저장에 실패했습니다.';
+        showToast('error', '저장 실패', message);
+      } finally {
+        setIsSavingHwpx(false);
+      }
+    },
+    [document, fileName, showToast, setDirty]
+  );
 
   // PDF 다운로드
   const handleDownloadPdf = useCallback(async () => {
     if (!document) return;
-    
+
     const defaultName = fileName?.replace('.hwpx', '') || '문서';
     const inputName = prompt('PDF 파일명을 입력하세요:', defaultName);
     if (!inputName) return;
@@ -135,10 +138,10 @@ export function Header({ className }: HeaderProps) {
     try {
       const exporter = new PdfExporter();
       const result = await exporter.exportDocument('.document-viewer', {
-        filename: inputName
+        filename: inputName,
       });
 
-      if ((result as any).method === 'print') {
+      if (result.method === 'print') {
         showToast('info', 'PDF 내보내기', '인쇄 대화상자에서 "PDF로 저장"을 선택하세요.');
       } else {
         showToast('success', 'PDF 완료', `${result.filename} 파일이 저장되었습니다.`);
@@ -161,39 +164,42 @@ export function Header({ className }: HeaderProps) {
     if (!lastSaveTime) return '저장 대기';
     const now = new Date();
     const diff = Math.floor((now.getTime() - lastSaveTime.getTime()) / 1000);
-    
+
     if (diff < 60) return '방금 저장됨';
     if (diff < 3600) return `${Math.floor(diff / 60)}분 전 저장`;
-    return lastSaveTime.toLocaleTimeString('ko-KR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return lastSaveTime.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   // 키보드 단축키 핸들러
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Ctrl+S: HWPX 저장
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      if (document) {
-        handleSaveHwpx(true); // 빠른 저장 (프롬프트 스킵)
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Ctrl+S: HWPX 저장
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (document) {
+          handleSaveHwpx(true); // 빠른 저장 (프롬프트 스킵)
+        }
       }
-    }
-    
-    // Ctrl+P: 인쇄
-    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-      e.preventDefault();
-      if (document) {
-        handlePrint();
+
+      // Ctrl+P: 인쇄
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault();
+        if (document) {
+          handlePrint();
+        }
       }
-    }
-    
-    // Ctrl+O: 파일 열기
-    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
-      e.preventDefault();
-      handleOpenFile();
-    }
-  }, [document, handleSaveHwpx, handlePrint, handleOpenFile]);
+
+      // Ctrl+O: 파일 열기
+      if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+        e.preventDefault();
+        handleOpenFile();
+      }
+    },
+    [document, handleSaveHwpx, handlePrint, handleOpenFile]
+  );
 
   // 키보드 단축키 등록
   useEffect(() => {
@@ -209,6 +215,7 @@ export function Header({ className }: HeaderProps) {
         type="file"
         accept=".hwpx"
         onChange={handleFileSelect}
+        aria-label="Load HWPX file"
         style={{ display: 'none' }}
       />
 
@@ -234,8 +241,8 @@ export function Header({ className }: HeaderProps) {
 
       {/* 헤더 액션 버튼들 */}
       <div className="header-actions">
-        <button 
-          className="header-btn primary" 
+        <button
+          className="header-btn primary"
           onClick={handleOpenFile}
           disabled={isLoading}
           title="파일 열기 (Ctrl+O)"
@@ -248,7 +255,7 @@ export function Header({ className }: HeaderProps) {
 
         {document && (
           <>
-            <button 
+            <button
               className={`header-btn success ${isDirty ? 'dirty' : ''}`}
               onClick={() => handleSaveHwpx(false)}
               disabled={!document || isSavingHwpx}
@@ -263,8 +270,8 @@ export function Header({ className }: HeaderProps) {
               {isDirty && <span className="dirty-indicator">●</span>}
             </button>
 
-            <button 
-              className="header-btn" 
+            <button
+              className="header-btn"
               onClick={handleDownloadPdf}
               disabled={!document || isSavingPdf}
               title="PDF로 다운로드"
@@ -277,8 +284,8 @@ export function Header({ className }: HeaderProps) {
               <span className="btn-text">PDF 다운로드</span>
             </button>
 
-            <button 
-              className="header-btn" 
+            <button
+              className="header-btn"
               onClick={handlePrint}
               disabled={!document}
               title="인쇄 (Ctrl+P)"
@@ -304,4 +311,3 @@ export function Header({ className }: HeaderProps) {
 }
 
 export default Header;
-
