@@ -200,21 +200,63 @@ export class RangeManager {
                 break;
 
             case 'ArrowUp':
-                // TODO: 위로 한 줄 선택
+                // 위로 한 줄 선택 (같은 X 좌표의 위쪽 문자)
+                {
+                    const upIndex = this._findPositionAbove(currentIndex);
+                    if (upIndex >= 0) {
+                        if (this.range.startIndex < 0) {
+                            this.setRange(currentIndex, upIndex);
+                        } else {
+                            this.setRange(this.range.startIndex, upIndex);
+                        }
+                        handled = true;
+                    }
+                }
                 break;
 
             case 'ArrowDown':
-                // TODO: 아래로 한 줄 선택
+                // 아래로 한 줄 선택 (같은 X 좌표의 아래쪽 문자)
+                {
+                    const downIndex = this._findPositionBelow(currentIndex);
+                    if (downIndex >= 0) {
+                        if (this.range.startIndex < 0) {
+                            this.setRange(currentIndex, downIndex);
+                        } else {
+                            this.setRange(this.range.startIndex, downIndex);
+                        }
+                        handled = true;
+                    }
+                }
                 break;
 
             case 'Home':
                 // 줄 시작까지 선택
-                // TODO: 현재 줄의 시작 찾기
+                {
+                    const lineStartIndex = this._findLineStart(currentIndex);
+                    if (lineStartIndex >= 0) {
+                        if (this.range.startIndex < 0) {
+                            this.setRange(currentIndex, lineStartIndex);
+                        } else {
+                            this.setRange(this.range.startIndex, lineStartIndex);
+                        }
+                        handled = true;
+                    }
+                }
                 break;
 
             case 'End':
                 // 줄 끝까지 선택
-                // TODO: 현재 줄의 끝 찾기
+                {
+                    const lineEndIndex = this._findLineEnd(currentIndex);
+                    if (lineEndIndex >= 0) {
+                        if (this.range.startIndex < 0) {
+                            this.setRange(currentIndex, lineEndIndex);
+                        } else {
+                            this.setRange(this.range.startIndex, lineEndIndex);
+                        }
+                        handled = true;
+                    }
+                }
                 break;
 
             case 'a':
@@ -681,6 +723,176 @@ export class RangeManager {
             characterCount: positions.filter(p => !p.isWhitespace).length,
             whitespaceCount: positions.filter(p => p.isWhitespace).length
         };
+    }
+
+    /**
+     * 현재 위치의 위쪽에 있는 위치 찾기 (같은 X 좌표)
+     * @param {number} currentIndex - 현재 인덱스
+     * @returns {number} 위쪽 위치의 인덱스, 없으면 -1
+     * @private
+     */
+    _findPositionAbove(currentIndex) {
+        const positions = this.positionManager.getPositionList();
+        if (!positions || positions.length === 0 || currentIndex < 0) {
+            return -1;
+        }
+
+        const currentPos = positions[currentIndex];
+        if (!currentPos || !currentPos.coordinate) {
+            return -1;
+        }
+
+        const currentY = currentPos.coordinate.top;
+        const currentX = currentPos.coordinate.left;
+
+        // 위쪽 방향으로 가장 가까운 위치 찾기
+        let closestIndex = -1;
+        let minDistance = Infinity;
+
+        for (let i = currentIndex - 1; i >= 0; i--) {
+            const pos = positions[i];
+            if (!pos || !pos.coordinate) continue;
+
+            const posY = pos.coordinate.top;
+            const posX = pos.coordinate.left;
+
+            // 위쪽 줄인지 확인 (Y 좌표가 작음)
+            if (posY < currentY) {
+                const distance = Math.abs(posX - currentX);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestIndex = i;
+                }
+            }
+        }
+
+        return closestIndex;
+    }
+
+    /**
+     * 현재 위치의 아래쪽에 있는 위치 찾기 (같은 X 좌표)
+     * @param {number} currentIndex - 현재 인덱스
+     * @returns {number} 아래쪽 위치의 인덱스, 없으면 -1
+     * @private
+     */
+    _findPositionBelow(currentIndex) {
+        const positions = this.positionManager.getPositionList();
+        if (!positions || positions.length === 0 || currentIndex < 0) {
+            return -1;
+        }
+
+        const currentPos = positions[currentIndex];
+        if (!currentPos || !currentPos.coordinate) {
+            return -1;
+        }
+
+        const currentY = currentPos.coordinate.top;
+        const currentX = currentPos.coordinate.left;
+
+        // 아래쪽 방향으로 가장 가까운 위치 찾기
+        let closestIndex = -1;
+        let minDistance = Infinity;
+
+        for (let i = currentIndex + 1; i < positions.length; i++) {
+            const pos = positions[i];
+            if (!pos || !pos.coordinate) continue;
+
+            const posY = pos.coordinate.top;
+            const posX = pos.coordinate.left;
+
+            // 아래쪽 줄인지 확인 (Y 좌표가 큼)
+            if (posY > currentY) {
+                const distance = Math.abs(posX - currentX);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestIndex = i;
+                }
+            }
+        }
+
+        return closestIndex;
+    }
+
+    /**
+     * 현재 줄의 시작 위치 찾기
+     * @param {number} currentIndex - 현재 인덱스
+     * @returns {number} 줄 시작 위치의 인덱스, 없으면 -1
+     * @private
+     */
+    _findLineStart(currentIndex) {
+        const positions = this.positionManager.getPositionList();
+        if (!positions || positions.length === 0 || currentIndex < 0) {
+            return -1;
+        }
+
+        const currentPos = positions[currentIndex];
+        if (!currentPos || !currentPos.coordinate) {
+            return -1;
+        }
+
+        const currentY = currentPos.coordinate.top;
+        const lineHeight = currentPos.coordinate.height || 20;
+        const threshold = lineHeight / 2;
+
+        // 뒤로 이동하면서 같은 줄의 시작 찾기
+        let lineStartIndex = currentIndex;
+
+        for (let i = currentIndex - 1; i >= 0; i--) {
+            const pos = positions[i];
+            if (!pos || !pos.coordinate) break;
+
+            const posY = pos.coordinate.top;
+
+            // 다른 줄이면 중단
+            if (Math.abs(posY - currentY) > threshold) {
+                break;
+            }
+
+            lineStartIndex = i;
+        }
+
+        return lineStartIndex;
+    }
+
+    /**
+     * 현재 줄의 끝 위치 찾기
+     * @param {number} currentIndex - 현재 인덱스
+     * @returns {number} 줄 끝 위치의 인덱스, 없으면 -1
+     * @private
+     */
+    _findLineEnd(currentIndex) {
+        const positions = this.positionManager.getPositionList();
+        if (!positions || positions.length === 0 || currentIndex < 0) {
+            return -1;
+        }
+
+        const currentPos = positions[currentIndex];
+        if (!currentPos || !currentPos.coordinate) {
+            return -1;
+        }
+
+        const currentY = currentPos.coordinate.top;
+        const lineHeight = currentPos.coordinate.height || 20;
+        const threshold = lineHeight / 2;
+
+        // 앞으로 이동하면서 같은 줄의 끝 찾기
+        let lineEndIndex = currentIndex;
+
+        for (let i = currentIndex + 1; i < positions.length; i++) {
+            const pos = positions[i];
+            if (!pos || !pos.coordinate) break;
+
+            const posY = pos.coordinate.top;
+
+            // 다른 줄이면 중단
+            if (Math.abs(posY - currentY) > threshold) {
+                break;
+            }
+
+            lineEndIndex = i;
+        }
+
+        return lineEndIndex;
     }
 
     /**

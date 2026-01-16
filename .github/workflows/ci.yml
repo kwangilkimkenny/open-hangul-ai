@@ -1,0 +1,159 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Job 1: Code Quality Checks
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript compiler
+        run: npx tsc --noEmit
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+  # Job 2: Build and Test
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Check bundle size
+        run: |
+          echo "📦 Production Bundle Size:"
+          du -sh dist/
+          echo ""
+          echo "📊 Asset Breakdown:"
+          ls -lh dist/assets/ | awk '{print $9, $5}'
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: dist/
+          retention-days: 7
+
+  # Job 3: Security Audit
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "🔍 Checking for security vulnerabilities..."
+          npm audit --json > audit-report.json || true
+
+          CRITICAL=$(cat audit-report.json | grep -o '"critical":[0-9]*' | cut -d':' -f2 || echo "0")
+          HIGH=$(cat audit-report.json | grep -o '"high":[0-9]*' | cut -d':' -f2 || echo "0")
+
+          echo "Critical: $CRITICAL"
+          echo "High: $HIGH"
+
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "❌ Critical vulnerabilities found!"
+            exit 1
+          fi
+
+  # Job 4: Bundle Analysis (on main branch only)
+  bundle-analysis:
+    name: Bundle Analysis
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with bundle analysis
+        run: npm run build
+
+      - name: Analyze bundle
+        run: |
+          echo "📊 Bundle Analysis Report"
+          echo "========================="
+          echo ""
+          echo "Total bundle size:"
+          du -sh dist/ | awk '{print $1}'
+          echo ""
+          echo "Asset breakdown:"
+          find dist/assets -name "*.js" -exec sh -c 'echo "$(du -h "$1" | cut -f1) - $(basename "$1")"' _ {} \; | sort -hr
+          echo ""
+          echo "Lazy loaded chunks:"
+          find dist/assets -name "*-*.js" | grep -E "feature-|lib-" | xargs -I {} sh -c 'echo "$(du -h "{}" | cut -f1) - $(basename "{}")"'
+
+      - name: Compare with baseline
+        run: |
+          echo "📈 Performance Metrics"
+          echo "====================="
+          echo "Initial load target: < 500 KB"
+          echo "Total bundle target: < 1.5 MB"
+
+          INITIAL_SIZE=$(find dist/assets -name "vendor-react-*.js" -o -name "core-viewer-*.js" -o -name "index-*.js" | xargs du -ch | grep total | cut -f1)
+          echo "Current initial load: $INITIAL_SIZE"

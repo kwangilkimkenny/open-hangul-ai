@@ -1971,7 +1971,9 @@ export class CommandAdapt {
             if (position.cellData) {
                 this._insertLineBreakIntoCell(position.cellData, position);
             } else if (position.paraData) {
-                // 단락에는 줄바꿈 대신 새 단락 생성 (TODO)
+                // 현재는 linebreak run을 삽입하여 줄바꿈 처리
+                // 향후 개선: 단락 분할 및 새 단락 생성으로 리팩토링 가능
+                // 이를 위해서는 position 객체에 parentSection 참조 추가 필요
                 this._insertLineBreakIntoParagraph(position.paraData, position);
             }
 

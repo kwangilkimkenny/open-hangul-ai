@@ -18,7 +18,12 @@ export class ContextMenu {
         this.menuElement = null;
         this.currentTarget = null;
         this.menuItems = [];
-        
+
+        // Bound methods for event listeners (to allow proper cleanup)
+        this._boundHide = () => this.hide();
+        this._boundContextMenuHandler = (e) => this._handleContextMenu(e);
+        this._boundKeydownHandler = (e) => this._handleKeydown(e);
+
         this._init();
         logger.info('📋 ContextMenu initialized');
     }
@@ -36,23 +41,35 @@ export class ContextMenu {
         document.body.appendChild(this.menuElement);
 
         // 클릭 시 메뉴 닫기
-        document.addEventListener('click', () => this.hide());
-        document.addEventListener('contextmenu', (e) => {
-            // 기본 컨텍스트 메뉴만 방지 (우리 메뉴가 표시되지 않을 때)
-            if (this.menuElement.style.display === 'none') {
-                // 테이블 셀이 아니면 기본 메뉴 허용
-                if (!e.target.closest('.hwp-table td, .hwp-table th')) {
-                    return;
-                }
-            }
-        });
-        
+        document.addEventListener('click', this._boundHide);
+        document.addEventListener('contextmenu', this._boundContextMenuHandler);
+
         // Escape로 닫기
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.hide();
+        document.addEventListener('keydown', this._boundKeydownHandler);
+    }
+
+    /**
+     * Context menu event handler
+     * @private
+     */
+    _handleContextMenu(e) {
+        // 기본 컨텍스트 메뉴만 방지 (우리 메뉴가 표시되지 않을 때)
+        if (this.menuElement.style.display === 'none') {
+            // 테이블 셀이 아니면 기본 메뉴 허용
+            if (!e.target.closest('.hwp-table td, .hwp-table th')) {
+                return;
             }
-        });
+        }
+    }
+
+    /**
+     * Keydown event handler
+     * @private
+     */
+    _handleKeydown(e) {
+        if (e.key === 'Escape') {
+            this.hide();
+        }
     }
 
     /**
@@ -207,19 +224,23 @@ export class ContextMenu {
         // 1. 메뉴 숨기기
         this.hide();
 
-        // 2. DOM에서 메뉴 요소 제거
+        // 2. 이벤트 리스너 제거
+        document.removeEventListener('click', this._boundHide);
+        document.removeEventListener('contextmenu', this._boundContextMenuHandler);
+        document.removeEventListener('keydown', this._boundKeydownHandler);
+
+        // 3. DOM에서 메뉴 요소 제거
         if (this.menuElement && this.menuElement.parentNode) {
             this.menuElement.parentNode.removeChild(this.menuElement);
         }
 
-        // 3. 참조 제거
+        // 4. 참조 제거
         this.menuElement = null;
         this.currentTarget = null;
         this.menuItems = [];
-
-        // 4. 이벤트 리스너는 _init에서 익명 함수로 등록되어 제거 불가
-        // 실제 프로덕션에서는 바운드 함수로 관리 권장
-        // TODO: 리팩토링 시 바운드 함수로 변경하여 제거 가능하게 개선
+        this._boundHide = null;
+        this._boundContextMenuHandler = null;
+        this._boundKeydownHandler = null;
 
         logger.info('✅ ContextMenu cleaned up successfully');
     }

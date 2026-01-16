@@ -1,0 +1,177 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-validation:
+    name: PR Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for TypeScript errors
+        id: typescript
+        run: |
+          echo "::group::TypeScript Compilation"
+          npx tsc --noEmit 2>&1 | tee ts-output.txt
+          TS_EXIT_CODE=${PIPESTATUS[0]}
+          echo "::endgroup::"
+
+          if [ $TS_EXIT_CODE -ne 0 ]; then
+            echo "❌ TypeScript compilation failed"
+            echo "ts_status=failed" >> $GITHUB_OUTPUT
+          else
+            echo "✅ TypeScript compilation passed"
+            echo "ts_status=passed" >> $GITHUB_OUTPUT
+          fi
+
+          exit $TS_EXIT_CODE
+
+      - name: Run linter
+        id: eslint
+        run: |
+          echo "::group::ESLint"
+          npm run lint 2>&1 | tee eslint-output.txt
+          ESLINT_EXIT_CODE=${PIPESTATUS[0]}
+          echo "::endgroup::"
+
+          if [ $ESLINT_EXIT_CODE -ne 0 ]; then
+            echo "⚠️ ESLint found issues"
+            echo "eslint_status=warning" >> $GITHUB_OUTPUT
+          else
+            echo "✅ ESLint passed"
+            echo "eslint_status=passed" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Run tests
+        id: tests
+        run: |
+          echo "::group::Unit Tests"
+          npm test 2>&1 | tee test-output.txt
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          echo "::endgroup::"
+
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo "⚠️ Some tests failed or no tests found"
+            echo "test_status=warning" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Tests passed"
+            echo "test_status=passed" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Build production bundle
+        id: build
+        run: |
+          echo "::group::Production Build"
+          npm run build 2>&1 | tee build-output.txt
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          echo "::endgroup::"
+
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "❌ Production build failed"
+            echo "build_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ Production build succeeded"
+            echo "build_status=passed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check bundle size
+        id: bundle-size
+        run: |
+          echo "📦 Analyzing bundle size..."
+
+          TOTAL_SIZE=$(du -sb dist/ | cut -f1)
+          TOTAL_SIZE_KB=$((TOTAL_SIZE / 1024))
+
+          echo "Total bundle: ${TOTAL_SIZE_KB} KB"
+          echo "bundle_size_kb=${TOTAL_SIZE_KB}" >> $GITHUB_OUTPUT
+
+          # Warning if bundle exceeds 1.5 MB
+          if [ $TOTAL_SIZE_KB -gt 1536 ]; then
+            echo "⚠️ Bundle size exceeds 1.5 MB threshold"
+            echo "bundle_warning=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Bundle size within acceptable range"
+            echo "bundle_warning=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate PR comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const ts_status = '${{ steps.typescript.outputs.ts_status }}';
+            const eslint_status = '${{ steps.eslint.outputs.eslint_status }}';
+            const test_status = '${{ steps.tests.outputs.test_status }}';
+            const build_status = '${{ steps.build.outputs.build_status }}';
+            const bundle_size_kb = '${{ steps.bundle-size.outputs.bundle_size_kb }}';
+            const bundle_warning = '${{ steps.bundle-size.outputs.bundle_warning }}';
+
+            const statusEmoji = (status) => {
+              if (status === 'passed') return '✅';
+              if (status === 'warning') return '⚠️';
+              return '❌';
+            };
+
+            const comment = `## 🤖 PR Check Results
+
+            | Check | Status | Details |
+            |-------|--------|---------|
+            | TypeScript | ${statusEmoji(ts_status)} | ${ts_status === 'passed' ? 'No errors' : 'Errors found'} |
+            | ESLint | ${statusEmoji(eslint_status)} | ${eslint_status === 'passed' ? 'No issues' : 'Issues found'} |
+            | Tests | ${statusEmoji(test_status)} | ${test_status === 'passed' ? 'All passed' : 'Some failed or none found'} |
+            | Build | ${statusEmoji(build_status)} | ${build_status === 'passed' ? 'Success' : 'Failed'} |
+
+            ### 📦 Bundle Size
+            - **Total:** ${bundle_size_kb} KB ${bundle_warning === 'true' ? '⚠️ Exceeds 1.5 MB' : ''}
+            - **Target:** < 1.5 MB (1536 KB)
+
+            ---
+            *Automated checks by GitHub Actions*
+            `;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body.includes('PR Check Results')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }

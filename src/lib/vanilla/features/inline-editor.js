@@ -288,6 +288,34 @@ export class InlineEditor {
             if (this.viewer.historyManager) this.viewer.historyManager.redo();
             return;
         }
+
+        // ✅ Phase 1: Text Formatting Shortcuts (Ctrl+B, Ctrl+I, Ctrl+U)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.viewer.textFormatter) {
+                this.viewer.textFormatter.toggleBold();
+            }
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.viewer.textFormatter) {
+                this.viewer.textFormatter.toggleItalic();
+            }
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.viewer.textFormatter) {
+                this.viewer.textFormatter.toggleUnderline();
+            }
+            return;
+        }
     }
 
     /**

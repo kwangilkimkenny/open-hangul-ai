@@ -181,13 +181,13 @@ export class AIDocumentController {
             
             // 3. GPT 콘텐츠 생성 (구조화된 방식)
             logger.info('  🤖 Step 2/4: Generating content with GPT (structured)...');
-            const generatedJSON = await this.generateStructuredContent(
+            const { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
                 pairsToGenerate,
                 userMessage
             );
-            
+
             logger.info(`    ✓ Generated content for ${Object.keys(generatedJSON).length} items`);
-            
+
             // 4. 콘텐츠 병합 (구조화된 방식)
             logger.info('  🔀 Step 3/4: Merging generated content...');
             const updatedDocument = this.mergeStructuredContent(
@@ -195,16 +195,16 @@ export class AIDocumentController {
                 generatedJSON,
                 headerContentPairs
             );
-            
+
             this.state.updatedDocument = updatedDocument;
-            
+
             // 5. 재렌더링 (선택적)
             if (this.options.autoRender) {
                 logger.info('  🎨 Step 4/4: Re-rendering document...');
                 // 🔥 중요: updateDocument()를 사용하여 상태와 렌더링을 원자적으로 수행
                 await this.viewer.updateDocument(updatedDocument);
             }
-            
+
             // 6. 이력 저장 (선택적)
             if (this.options.saveHistory) {
                 this.saveToHistory({
@@ -214,11 +214,11 @@ export class AIDocumentController {
                     metadata: {
                         timestamp: new Date().toISOString(),
                         itemsUpdated: Object.keys(generatedJSON).length,
-                        tokensUsed: 0 // TODO: 토큰 수 추적
+                        tokensUsed: tokensUsed
                     }
                 });
             }
-            
+
             // 결과 객체
             const result = {
                 success: true,
@@ -226,7 +226,7 @@ export class AIDocumentController {
                 metadata: {
                     request: userMessage,
                     itemsUpdated: Object.keys(generatedJSON).length,
-                    tokensUsed: 0, // TODO: 토큰 수 추적
+                    tokensUsed: tokensUsed,
                     processingTime: Date.now() - (this.state.processingStartTime || Date.now())
                 }
             };
@@ -416,25 +416,28 @@ export class AIDocumentController {
      * 구조화된 콘텐츠 생성 (헤더-내용 쌍 기반)
      * @param {Array<Object>} headerContentPairs - 헤더-내용 쌍
      * @param {string} userRequest - 사용자 요청
-     * @returns {Promise<Object>} 생성된 JSON 객체
+     * @returns {Promise<Object>} 생성된 JSON 객체와 메타데이터 { content: Object, tokensUsed: number }
      * @private
      */
     async generateStructuredContent(headerContentPairs, userRequest) {
         // 프롬프트 빌더 생성 (임시)
         const { PromptBuilder } = await import('./prompt-builder.js');
         const promptBuilder = new PromptBuilder();
-        
+
         // 구조화된 프롬프트 빌드
         const messages = promptBuilder.buildStructuredPrompt(headerContentPairs, userRequest);
-        
+
         // GPT API 호출 (재시도 포함)
         const response = await this.generator.callAPIWithRetry(messages);
-        
+
+        // 토큰 사용량 추출
+        const tokensUsed = response.usage?.total_tokens || 0;
+
         // JSON 파싱
         try {
             // 🔥 OpenAI API 응답 구조: response.choices[0].message.content
             let jsonText = '';
-            
+
             if (response.choices && response.choices[0] && response.choices[0].message) {
                 jsonText = response.choices[0].message.content.trim();
             } else if (response.content) {
@@ -443,26 +446,26 @@ export class AIDocumentController {
             } else {
                 throw new Error('응답에서 content를 찾을 수 없습니다');
             }
-            
+
             logger.debug('📥 Raw GPT response:', jsonText.substring(0, 200) + '...');
-            
+
             // JSON 블록 추출 (```json ... ``` 제거)
             const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/) || jsonText.match(/{[\s\S]*}/);
             const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : jsonText;
-            
+
             const generatedJSON = JSON.parse(jsonStr);
-            
-            logger.info(`✅ Generated JSON with ${Object.keys(generatedJSON).length} keys`);
-            
+
+            logger.info(`✅ Generated JSON with ${Object.keys(generatedJSON).length} keys (${tokensUsed} tokens used)`);
+
             // 디버그: 생성된 JSON 출력
             logger.info('📋 Generated content:');
             Object.keys(generatedJSON).forEach(key => {
                 const value = generatedJSON[key];
                 logger.info(`  "${key}" → "${value ? value.substring(0, 40) + '...' : '(비어있음)'}"`);
             });
-            
-            return generatedJSON;
-            
+
+            return { content: generatedJSON, tokensUsed };
+
         } catch (error) {
             logger.error('❌ Failed to parse JSON response:', error);
             logger.error('Full response:', JSON.stringify(response, null, 2));
@@ -714,29 +717,29 @@ export class AIDocumentController {
 
             try {
                 // 구조화된 방식으로 생성
-                const generatedJSON = await this.generateStructuredContent(
+                const { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
                     pageData,
                     userRequest + `\n(페이지 ${i + 1}: ${pageAnalysis.type} - ${pageAnalysis.role})`
                 );
 
-                logger.debug(`       ✅ Page ${i + 1} completed`);
+                logger.debug(`       ✅ Page ${i + 1} completed (${tokensUsed} tokens)`);
 
                 return {
                     pageNumber: i + 1,
                     content: generatedJSON,
                     analysis: pageAnalysis,
-                    usedContexts: 0
+                    tokensUsed: tokensUsed
                 };
 
             } catch (error) {
                 logger.error(`       ❌ Page ${i + 1} failed:`, error.message);
-                
+
                 return {
                     pageNumber: i + 1,
                     content: null,
                     analysis: pageAnalysis,
                     error: error.message,
-                    usedContexts: 0
+                    tokensUsed: 0
                 };
             }
         });
@@ -944,10 +947,10 @@ export class AIDocumentController {
             
             // GPT 콘텐츠 생성
             logger.info('  🤖 Generating content with GPT (cell selection mode)...');
-            const generatedJSON = await this.generateStructuredContent(pairsToProcess, enhancedMessage);
-            
+            const { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(pairsToProcess, enhancedMessage);
+
             logger.info(`    ✓ Generated content for ${Object.keys(generatedJSON).length} items`);
-            
+
             // 콘텐츠 병합 (Keep 셀 제외)
             logger.info('  🔀 Merging generated content (excluding Keep cells)...');
             const updatedDocument = this._mergeWithCellSelection(
@@ -956,15 +959,15 @@ export class AIDocumentController {
                 pairsToProcess,
                 keepCells
             );
-            
+
             this.state.updatedDocument = updatedDocument;
-            
+
             // 재렌더링
             if (this.options.autoRender) {
                 logger.info('  🎨 Re-rendering document...');
                 await this.viewer.updateDocument(updatedDocument);
             }
-            
+
             const result = {
                 success: true,
                 updatedDocument: updatedDocument,
@@ -974,7 +977,7 @@ export class AIDocumentController {
                     keepCount: keepCells.length,
                     editCount: editCells.length,
                     generateCount: generateCells.length,
-                    tokensUsed: 0
+                    tokensUsed: tokensUsed
                 }
             };
             

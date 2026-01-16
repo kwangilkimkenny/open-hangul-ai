@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "hanview-knowledge": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./mcp-server/dist/index.js"
+      ],
+      "env": {}
+    }
+  }
+}

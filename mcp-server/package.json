@@ -1,0 +1,22 @@
+{
+  "name": "hanview-project-knowledge-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for HanView React App project knowledge",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
+  },
+  "keywords": ["mcp", "hanview", "hwpx", "project-knowledge"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.2"
+  }
+}

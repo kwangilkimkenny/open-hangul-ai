@@ -37,6 +37,7 @@ import { PositionManager } from './features/position-manager.js';
 import { RangeManager } from './features/range-manager.js';
 import { SearchManager } from './features/search-manager.js';
 import { Cursor } from './features/cursor.js';
+import { TextFormatter } from './features/text-formatter.js';
 
 // Utils
 import { getLogger, resetLogger } from './utils/logger.js';
@@ -242,6 +243,10 @@ export class HWPXViewer {
 
             this.tableEditor = new TableEditor(this);
             logger.info('✅ TableEditor initialized');
+
+            // ✅ Phase 1: Text Formatter (Bold/Italic/Underline)
+            this.textFormatter = new TextFormatter(this);
+            logger.info('✅ TextFormatter initialized');
 
             // UI Editors는 lazy loading으로 변경 - 사용 시점에 동적 로드
             logger.info('⚡ ImageEditor and ShapeEditor will be loaded on demand (lazy loading enabled)');
