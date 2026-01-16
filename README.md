@@ -36,12 +36,44 @@
 # 의존성 설치
 npm install
 
+# 환경 변수 설정 (선택사항)
+cp .env.example .env.local
+# .env.local에서 VITE_OPENAI_API_KEY 설정 (AI 기능 사용 시)
+
 # 개발 서버 실행 (포트: 5090)
 npm run dev
 
 # 프로덕션 빌드
 npm run build
 ```
+
+### 환경 변수 설정
+
+AI 기능을 사용하려면 OpenAI API 키가 필요합니다:
+
+**방법 1: 로컬 환경 변수 (권장)**
+```bash
+# .env.local 파일 생성
+cp .env.example .env.local
+
+# .env.local 파일 편집
+VITE_OPENAI_API_KEY=sk-your-api-key-here
+```
+
+**방법 2: UI에서 입력**
+- 개발 서버 실행 후 채팅 패널에서 "🔑 API 키 설정" 버튼 클릭
+- API 키는 sessionStorage에 저장됩니다 (세션 종료 시 자동 삭제)
+
+**방법 3: 프로덕션 서버 환경 변수**
+```bash
+# Docker
+docker run -e VITE_OPENAI_API_KEY=sk-... my-app
+
+# Vercel/Netlify
+# Dashboard → Settings → Environment Variables
+```
+
+📖 **자세한 설정 가이드**: [ENV_VARIABLES_GUIDE.md](./ENV_VARIABLES_GUIDE.md)
 
 ---
 

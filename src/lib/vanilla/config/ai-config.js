@@ -28,7 +28,12 @@ export const AIConfig = {
          * - 민감한 API 키는 클라이언트에 저장하지 마세요
          */
         getApiKey() {
-            // 환경변수 (Node.js 환경)
+            // 환경변수 (Vite 환경)
+            if (import.meta && import.meta.env && import.meta.env.VITE_OPENAI_API_KEY) {
+                return import.meta.env.VITE_OPENAI_API_KEY;
+            }
+
+            // Node.js 환경 (레거시 지원)
             if (typeof process !== 'undefined' && process.env.OPENAI_API_KEY) {
                 return process.env.OPENAI_API_KEY;
             }
@@ -113,30 +118,45 @@ export const AIConfig = {
         
         /**
          * 모델 설정
+         * 환경변수로 오버라이드 가능
          */
-        model: 'gpt-4-turbo-preview',
-        
+        get model() {
+            return import.meta.env.VITE_OPENAI_MODEL || 'gpt-4-turbo-preview';
+        },
+
         /**
          * Temperature (0.0 ~ 2.0)
          * 낮을수록 일관적, 높을수록 창의적
+         * 환경변수로 오버라이드 가능
          */
-        temperature: 0.7,
-        
+        get temperature() {
+            return Number(import.meta.env.VITE_OPENAI_TEMPERATURE) || 0.7;
+        },
+
         /**
          * 최대 토큰 수
+         * 환경변수로 오버라이드 가능
          */
-        maxTokens: 4000,
-        
+        get maxTokens() {
+            return Number(import.meta.env.VITE_OPENAI_MAX_TOKENS) || 4000;
+        },
+
         /**
          * API 엔드포인트
+         * 환경변수로 오버라이드 가능
          */
-        endpoint: 'https://api.openai.com/v1/chat/completions',
-        
+        get endpoint() {
+            return import.meta.env.VITE_OPENAI_API_ENDPOINT || 'https://api.openai.com/v1/chat/completions';
+        },
+
         /**
          * 타임아웃 (밀리초)
          * 큰 문서 처리를 위해 120초로 증가
+         * 환경변수로 오버라이드 가능
          */
-        timeout: 120000,
+        get timeout() {
+            return Number(import.meta.env.VITE_OPENAI_TIMEOUT) || 120000;
+        },
         
         /**
          * 재시도 설정
@@ -460,64 +480,84 @@ export const AIConfig = {
     
     /**
      * 디버그 설정
+     * 환경변수로 오버라이드 가능
      */
     debug: {
         /**
          * 디버그 모드 활성화
          */
-        enabled: false,
-        
+        get enabled() {
+            return import.meta.env.VITE_DEBUG_MODE === 'true' || false;
+        },
+
         /**
          * API 요청 로깅
          */
-        logRequests: false,
-        
+        get logRequests() {
+            return import.meta.env.VITE_LOG_API_REQUESTS === 'true' || false;
+        },
+
         /**
          * API 응답 로깅
          */
-        logResponses: false,
-        
+        get logResponses() {
+            return import.meta.env.VITE_LOG_API_RESPONSES === 'true' || false;
+        },
+
         /**
          * 구조 추출 결과 로깅
          */
         logExtraction: false,
-        
+
         /**
          * 병합 과정 로깅
          */
         logMerging: false,
-        
+
         /**
          * 성능 측정
          */
-        measurePerformance: true
+        get measurePerformance() {
+            return import.meta.env.VITE_ENABLE_PERFORMANCE_MEASUREMENT !== 'false';
+        }
     },
     
     /**
      * 비용 관리
+     * 환경변수로 오버라이드 가능
      */
     costManagement: {
         /**
          * 비용 추적 활성화
          */
-        enabled: true,
-        
+        get enabled() {
+            return import.meta.env.VITE_ENABLE_COST_TRACKING !== 'false';
+        },
+
         /**
          * 토큰당 비용 (USD)
          * GPT-4 Turbo: $0.01 / 1K tokens (input), $0.03 / 1K tokens (output)
          */
-        costPerInputToken: 0.00001,
-        costPerOutputToken: 0.00003,
-        
+        get costPerInputToken() {
+            return Number(import.meta.env.VITE_COST_PER_INPUT_TOKEN) || 0.00001;
+        },
+        get costPerOutputToken() {
+            return Number(import.meta.env.VITE_COST_PER_OUTPUT_TOKEN) || 0.00003;
+        },
+
         /**
          * 경고 임계값 (USD)
          */
-        warningThreshold: 1.0,
-        
+        get warningThreshold() {
+            return Number(import.meta.env.VITE_COST_WARNING_THRESHOLD) || 1.0;
+        },
+
         /**
          * 최대 허용 비용 (USD)
          */
-        maxCost: 10.0
+        get maxCost() {
+            return Number(import.meta.env.VITE_COST_MAX_LIMIT) || 10.0;
+        }
     }
 };
 
