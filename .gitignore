@@ -38,3 +38,8 @@ ref/
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright test results
+test-results/
+playwright-report/
+playwright/.cache/
