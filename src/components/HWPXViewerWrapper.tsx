@@ -1,10 +1,12 @@
 /**
  * HWPX Viewer React Wrapper
  * 기존 작동하는 순수 JS Viewer를 React에서 사용
- * 
+ *
  * @version 1.0.0
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: `any` types are intentional for vanilla JS interop
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';
@@ -48,6 +50,7 @@ export function HWPXViewerWrapper({
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({ count: 0, current: 0 });
+  const [showAIPanel, setShowAIPanel] = useState(false); // AI 패널 표시 여부
 
   // ✅ Viewer 초기화 (마운트 시 1번만)
   useEffect(() => {
@@ -55,13 +58,15 @@ export function HWPXViewerWrapper({
     (window as any).__DEBUG_HWPX = {
       hasContainer: !!containerRef.current,
       hasViewer: !!viewerRef.current,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     if (!containerRef.current || viewerRef.current) {
       if ((window as any).__DEBUG_HWPX) {
         (window as any).__DEBUG_HWPX.skipped = true;
-        (window as any).__DEBUG_HWPX.skipReason = !containerRef.current ? 'no container' : 'viewer exists';
+        (window as any).__DEBUG_HWPX.skipReason = !containerRef.current
+          ? 'no container'
+          : 'viewer exists';
       }
       return;
     }
@@ -94,7 +99,6 @@ export function HWPXViewerWrapper({
 
       // ✅ Viewer 인스턴스를 부모 컴포넌트로 전달
       onDocumentLoad?.(viewer as any as HWPXViewerInstance);
-
     } catch (error: any) {
       devError('❌ Failed to initialize viewer:', error);
       devError('❌ Error message:', error?.message);
@@ -129,7 +133,9 @@ export function HWPXViewerWrapper({
     if (file.size > MAX_FILE_SIZE) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
       const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
-      toast.error(`파일 크기가 너무 큽니다. 최대 ${maxSizeMB}MB까지 지원됩니다. (현재: ${fileSizeMB}MB)`);
+      toast.error(
+        `파일 크기가 너무 큽니다. 최대 ${maxSizeMB}MB까지 지원됩니다. (현재: ${fileSizeMB}MB)`
+      );
       devWarn(`⚠️ File size exceeds limit: ${fileSizeMB}MB (max: ${maxSizeMB}MB)`);
       return;
     }
@@ -181,11 +187,14 @@ export function HWPXViewerWrapper({
           e.preventDefault();
           if (viewerRef.current?.saveFile) {
             devLog('⌨️ Ctrl+S: 저장');
-            viewerRef.current.saveFile().then(() => {
-              toast.success('저장 완료');
-            }).catch((err: Error) => {
-              toast.error(`저장 실패: ${err.message}`);
-            });
+            viewerRef.current
+              .saveFile()
+              .then(() => {
+                toast.success('저장 완료');
+              })
+              .catch((err: Error) => {
+                toast.error(`저장 실패: ${err.message}`);
+              });
           } else {
             toast.error('저장할 문서가 없습니다');
           }
@@ -226,19 +235,20 @@ export function HWPXViewerWrapper({
           }
           break;
 
-        case 'o':
+        case 'o': {
           // Ctrl+O: 파일 열기
           e.preventDefault();
           devLog('⌨️ Ctrl+O: 파일 열기');
           const input = document.createElement('input');
           input.type = 'file';
           input.accept = '.hwpx';
-          input.onchange = (ev) => {
+          input.onchange = ev => {
             const file = (ev.target as HTMLInputElement).files?.[0];
             if (file) handleFileOpen(file);
           };
           input.click();
           break;
+        }
 
         case 'f':
           // Ctrl+F: 검색
@@ -274,31 +284,37 @@ export function HWPXViewerWrapper({
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
 
-    const files = e.dataTransfer.files;
-    if (files.length === 0) return;
+      const files = e.dataTransfer.files;
+      if (files.length === 0) return;
 
-    const droppedFile = files[0];
+      const droppedFile = files[0];
 
-    // HWPX 파일 확인
-    if (!droppedFile.name.toLowerCase().endsWith('.hwpx')) {
-      toast.error('HWPX 파일만 지원합니다');
-      return;
-    }
+      // HWPX 파일 확인
+      if (!droppedFile.name.toLowerCase().endsWith('.hwpx')) {
+        toast.error('HWPX 파일만 지원합니다');
+        return;
+      }
 
-    devLog('📂 File dropped:', droppedFile.name);
-    handleFileOpen(droppedFile);
-  }, [handleFileOpen]);
+      devLog('📂 File dropped:', droppedFile.name);
+      handleFileOpen(droppedFile);
+    },
+    [handleFileOpen]
+  );
 
   // ✅ 검색 핸들러
   const handleSearch = useCallback((query: string) => {
     if (!viewerRef.current?.search || !viewerRef.current?.container) return;
 
-    const results = viewerRef.current.search.search(query, viewerRef.current.container as HTMLElement);
+    const results = viewerRef.current.search.search(
+      query,
+      viewerRef.current.container as HTMLElement
+    );
     setSearchResults({ count: results.length, current: 0 });
 
     if (results.length > 0) {
@@ -312,7 +328,7 @@ export function HWPXViewerWrapper({
     viewerRef.current.search.next();
     setSearchResults(prev => ({
       ...prev,
-      current: (prev.current % prev.count) + 1
+      current: (prev.current % prev.count) + 1,
     }));
   }, []);
 
@@ -321,7 +337,7 @@ export function HWPXViewerWrapper({
     viewerRef.current.search.previous();
     setSearchResults(prev => ({
       ...prev,
-      current: prev.current === 1 ? prev.count : prev.current - 1
+      current: prev.current === 1 ? prev.count : prev.current - 1,
     }));
   }, []);
 
@@ -412,8 +428,8 @@ export function HWPXViewerWrapper({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => {
               if (e.key === 'Enter') {
                 if (e.shiftKey) {
                   handleSearchPrev();
@@ -494,12 +510,15 @@ export function HWPXViewerWrapper({
       {/* ✅ Vanilla JS 필수 UI 요소들 */}
 
       {/* Toast Container */}
-      <div id="toast-container" style={{
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        zIndex: 10000
-      }} />
+      <div
+        id="toast-container"
+        style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10000,
+        }}
+      />
 
       {/* ✅ 개선된 Loading Overlay */}
       <div
@@ -518,13 +537,15 @@ export function HWPXViewerWrapper({
           zIndex: 9999,
         }}
       >
-        <div style={{
-          textAlign: 'center',
-          background: '#ffffff',
-          borderRadius: '16px',
-          padding: '40px 56px',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
-        }}>
+        <div
+          style={{
+            textAlign: 'center',
+            background: '#ffffff',
+            borderRadius: '16px',
+            padding: '40px 56px',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+          }}
+        >
           {/* 애니메이션 아이콘 */}
           <div style={{ marginBottom: '24px', position: 'relative' }}>
             <div
@@ -538,42 +559,51 @@ export function HWPXViewerWrapper({
                 margin: '0 auto',
               }}
             />
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              fontSize: '24px',
-            }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                fontSize: '24px',
+              }}
+            >
               📄
             </div>
           </div>
 
           {/* 로딩 텍스트 */}
-          <p style={{
-            color: '#111827',
-            fontSize: '16px',
-            fontWeight: 600,
-            marginBottom: '8px',
-          }}>
+          <p
+            style={{
+              color: '#111827',
+              fontSize: '16px',
+              fontWeight: 600,
+              marginBottom: '8px',
+            }}
+          >
             문서 로드 중
           </p>
-          <p className="loading-message" style={{
-            color: '#6b7280',
-            fontSize: '13px',
-            marginBottom: '20px',
-          }}>
+          <p
+            className="loading-message"
+            style={{
+              color: '#6b7280',
+              fontSize: '13px',
+              marginBottom: '20px',
+            }}
+          >
             잠시만 기다려주세요...
           </p>
 
           {/* 프로그레스 바 */}
-          <div style={{
-            width: '200px',
-            height: '4px',
-            background: '#e5e7eb',
-            borderRadius: '2px',
-            overflow: 'hidden',
-          }}>
+          <div
+            style={{
+              width: '200px',
+              height: '4px',
+              background: '#e5e7eb',
+              borderRadius: '2px',
+              overflow: 'hidden',
+            }}
+          >
             <div
               id="loading-progress-bar"
               style={{
@@ -589,21 +619,24 @@ export function HWPXViewerWrapper({
       </div>
 
       {/* Status Text (하단 상태 표시줄) */}
-      <div id="status-text" style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '32px',
-        background: '#f5f5f5',
-        borderTop: '1px solid #e0e0e0',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 16px',
-        fontSize: '12px',
-        color: '#666',
-        zIndex: 100
-      }}>
+      <div
+        id="status-text"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '32px',
+          background: '#f5f5f5',
+          borderTop: '1px solid #e0e0e0',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          fontSize: '12px',
+          color: '#666',
+          zIndex: 100,
+        }}
+      >
         준비됨
       </div>
 
@@ -613,13 +646,46 @@ export function HWPXViewerWrapper({
         <div id="progress-text">0%</div>
       </div>
 
-      {/* ✅ AI Chat Panel (Vanilla JS UI) - 임시로 숨김 */}
-      {false && enableAI && (
+      {/* AI Panel Toggle Button */}
+      {enableAI && (
+        <button
+          onClick={() => setShowAIPanel(prev => !prev)}
+          style={{
+            position: 'fixed',
+            bottom: '50px',
+            right: '20px',
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: showAIPanel
+              ? '#ef4444'
+              : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '24px',
+            color: 'white',
+            zIndex: 9997,
+            transition: 'all 0.2s ease',
+          }}
+          title={showAIPanel ? 'AI 패널 닫기' : 'AI 패널 열기'}
+        >
+          {showAIPanel ? '✕' : '🤖'}
+        </button>
+      )}
+
+      {/* ✅ AI Chat Panel (Vanilla JS UI) */}
+      {showAIPanel && enableAI && (
         <>
           <div className="ai-chat-panel" id="ai-chat-panel">
             <div className="ai-chat-header">
               <h3>AI 문서 편집</h3>
-              <button className="ai-chat-toggle" id="ai-chat-toggle">✕</button>
+              <button className="ai-chat-toggle" id="ai-chat-toggle">
+                ✕
+              </button>
             </div>
 
             <div className="ai-chat-messages" id="ai-chat-messages">
@@ -630,19 +696,39 @@ export function HWPXViewerWrapper({
               <button className="preview-structure-btn" id="preview-structure-btn">
                 문서 구조 보기
               </button>
-              <button className="preview-structure-btn" id="apply-style-btn" title="일관된 서식 자동 적용">
+              <button
+                className="preview-structure-btn"
+                id="apply-style-btn"
+                title="일관된 서식 자동 적용"
+              >
                 스타일 적용
               </button>
-              <button className="ai-save-btn" id="extract-template-btn" title="헤더만 남기고 내용 제거">
+              <button
+                className="ai-save-btn"
+                id="extract-template-btn"
+                title="헤더만 남기고 내용 제거"
+              >
                 템플릿 추출
               </button>
-              <button className="preview-structure-btn" id="cell-select-mode-btn" title="셀 단위로 유지/수정/생성 모드 설정">
+              <button
+                className="preview-structure-btn"
+                id="cell-select-mode-btn"
+                title="셀 단위로 유지/수정/생성 모드 설정"
+              >
                 셀 선택
               </button>
-              <button className="ai-save-btn" id="external-api-btn" title="외부 API에서 JSON 데이터를 가져와 문서에 채우기">
+              <button
+                className="ai-save-btn"
+                id="external-api-btn"
+                title="외부 API에서 JSON 데이터를 가져와 문서에 채우기"
+              >
                 외부 API
               </button>
-              <button className="ai-save-btn" id="ai-regenerate-btn" title="다른 주제/난이도로 재생성">
+              <button
+                className="ai-save-btn"
+                id="ai-regenerate-btn"
+                title="다른 주제/난이도로 재생성"
+              >
                 다시 생성
               </button>
               <button className="ai-save-btn" id="partial-edit-btn" title="선택한 항목만 수정">
@@ -651,7 +737,11 @@ export function HWPXViewerWrapper({
               <button className="ai-save-btn" id="validate-document-btn" title="빈 칸, 오류 검사">
                 검증
               </button>
-              <button className="ai-save-btn" id="batch-generate-btn" title="여러 주제 한 번에 생성">
+              <button
+                className="ai-save-btn"
+                id="batch-generate-btn"
+                title="여러 주제 한 번에 생성"
+              >
                 일괄 생성
               </button>
               <button className="ai-save-btn" id="ai-save-btn">
@@ -666,7 +756,9 @@ export function HWPXViewerWrapper({
                 placeholder="예: 이 문서를 초등학생이 이해할 수 있게 쉽게 바꿔줘&#10;(Shift+Enter: 줄바꿈, Enter: 전송)"
                 rows={3}
               />
-              <button className="ai-chat-send" id="ai-chat-send">AI로 변경하기</button>
+              <button className="ai-chat-send" id="ai-chat-send">
+                AI로 변경하기
+              </button>
             </div>
 
             <div className="ai-chat-footer">
@@ -751,4 +843,3 @@ export function HWPXViewerWrapper({
 }
 
 export default HWPXViewerWrapper;
-

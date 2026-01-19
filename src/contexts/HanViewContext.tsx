@@ -3,6 +3,7 @@
  * 커스터마이징 설정을 전역으로 관리
  */
 
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { HanViewConfig, HanViewCustomization, ThemeVariables } from '../types/customization';
@@ -13,7 +14,7 @@ import type { HanViewConfig, HanViewCustomization, ThemeVariables } from '../typ
 
 const defaultConfig: HanViewCustomization = {
   theme: 'light',
-  
+
   layout: {
     showHeader: true,
     headerHeight: 60,
@@ -25,7 +26,7 @@ const defaultConfig: HanViewCustomization = {
     pagePadding: 57,
     pageGap: 20,
   },
-  
+
   toolbar: {
     visible: true,
     position: 'top',
@@ -41,7 +42,7 @@ const defaultConfig: HanViewCustomization = {
     },
     customButtons: [],
   },
-  
+
   aiPanel: {
     enabled: true,
     width: 450,
@@ -57,7 +58,7 @@ const defaultConfig: HanViewCustomization = {
     },
     headerTitle: 'AI 문서 편집',
   },
-  
+
   contextMenu: {
     enabled: true,
     items: {
@@ -72,7 +73,7 @@ const defaultConfig: HanViewCustomization = {
     },
     customItems: [],
   },
-  
+
   search: {
     enabled: true,
     useRegex: false,
@@ -81,7 +82,7 @@ const defaultConfig: HanViewCustomization = {
     currentHighlightColor: '#ff9800',
     shortcut: 'ctrl+f',
   },
-  
+
   edit: {
     enabled: true,
     inlineEdit: true,
@@ -95,17 +96,17 @@ const defaultConfig: HanViewCustomization = {
       maxSteps: 50,
     },
   },
-  
+
   loading: {
     text: '문서 로드 중...',
     spinnerColor: '#111827',
   },
-  
+
   error: {
     retryText: '다시 시도',
     reloadText: '새로고침',
   },
-  
+
   locale: 'ko',
   classPrefix: 'hanview',
 };
@@ -138,8 +139,8 @@ interface HanViewProviderProps {
 }
 
 export function HanViewProvider({ children, config: userConfig }: HanViewProviderProps) {
-  const [config, setConfig] = React.useState<HanViewCustomization>(() => 
-    deepMerge(defaultConfig, userConfig || {}) as HanViewCustomization
+  const [config, setConfig] = React.useState<HanViewCustomization>(
+    () => deepMerge(defaultConfig, userConfig || {}) as HanViewCustomization
   );
   const [isAIPanelOpen, setIsAIPanelOpen] = React.useState(
     userConfig?.aiPanel?.defaultOpen ?? false
@@ -172,19 +173,18 @@ export function HanViewProvider({ children, config: userConfig }: HanViewProvide
     setIsAIPanelOpen(prev => !prev);
   }, []);
 
-  const value = useMemo(() => ({
-    config,
-    updateConfig,
-    setTheme,
-    toggleAIPanel,
-    isAIPanelOpen,
-  }), [config, updateConfig, setTheme, toggleAIPanel, isAIPanelOpen]);
-
-  return (
-    <HanViewContext.Provider value={value}>
-      {children}
-    </HanViewContext.Provider>
+  const value = useMemo(
+    () => ({
+      config,
+      updateConfig,
+      setTheme,
+      toggleAIPanel,
+      isAIPanelOpen,
+    }),
+    [config, updateConfig, setTheme, toggleAIPanel, isAIPanelOpen]
   );
+
+  return <HanViewContext.Provider value={value}>{children}</HanViewContext.Provider>;
 }
 
 // ============================================
@@ -212,26 +212,32 @@ export function useHanViewTheme() {
 
 export function useHanViewToolbar() {
   const { config, updateConfig } = useHanView();
-  
-  const setToolbar = React.useCallback((updates: Partial<typeof config.toolbar>) => {
-    updateConfig({ toolbar: { ...config.toolbar, ...updates } });
-  }, [config.toolbar, updateConfig]);
-  
+
+  const setToolbar = React.useCallback(
+    (updates: Partial<typeof config.toolbar>) => {
+      updateConfig({ toolbar: { ...config.toolbar, ...updates } });
+    },
+    [config, updateConfig]
+  );
+
   return { toolbar: config.toolbar, setToolbar };
 }
 
 export function useHanViewAIPanel() {
   const { config, updateConfig, isAIPanelOpen, toggleAIPanel } = useHanView();
-  
-  const setAIPanel = React.useCallback((updates: Partial<typeof config.aiPanel>) => {
-    updateConfig({ aiPanel: { ...config.aiPanel, ...updates } });
-  }, [config.aiPanel, updateConfig]);
-  
-  return { 
-    aiPanel: config.aiPanel, 
-    setAIPanel, 
-    isOpen: isAIPanelOpen, 
-    toggle: toggleAIPanel 
+
+  const setAIPanel = React.useCallback(
+    (updates: Partial<typeof config.aiPanel>) => {
+      updateConfig({ aiPanel: { ...config.aiPanel, ...updates } });
+    },
+    [config, updateConfig]
+  );
+
+  return {
+    aiPanel: config.aiPanel,
+    setAIPanel,
+    isOpen: isAIPanelOpen,
+    toggle: toggleAIPanel,
   };
 }
 
@@ -241,12 +247,12 @@ export function useHanViewAIPanel() {
 
 function deepMerge<T extends object>(target: T, source: Partial<T>): T {
   const result = { ...target };
-  
+
   for (const key in source) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
       const sourceValue = source[key];
       const targetValue = result[key];
-      
+
       if (
         sourceValue !== undefined &&
         typeof sourceValue === 'object' &&
@@ -255,13 +261,16 @@ function deepMerge<T extends object>(target: T, source: Partial<T>): T {
         typeof targetValue === 'object' &&
         targetValue !== null
       ) {
-        result[key] = deepMerge(targetValue as object, sourceValue as object) as T[Extract<keyof T, string>];
+        result[key] = deepMerge(targetValue as object, sourceValue as object) as T[Extract<
+          keyof T,
+          string
+        >];
       } else if (sourceValue !== undefined) {
         result[key] = sourceValue as T[Extract<keyof T, string>];
       }
     }
   }
-  
+
   return result;
 }
 
@@ -280,7 +289,7 @@ function applyTheme(theme: HanViewCustomization['theme']) {
 
 function applyThemeVariables(variables: Partial<ThemeVariables>) {
   const root = document.documentElement;
-  
+
   const variableMap: Record<keyof ThemeVariables, string> = {
     primaryColor: '--hanview-primary-color',
     primaryHover: '--hanview-primary-hover',
@@ -300,7 +309,7 @@ function applyThemeVariables(variables: Partial<ThemeVariables>) {
     aiPanelWidth: '--hanview-ai-panel-width',
     aiPanelBg: '--hanview-ai-panel-bg',
   };
-  
+
   for (const [key, value] of Object.entries(variables)) {
     const cssVar = variableMap[key as keyof ThemeVariables];
     if (cssVar && value) {
@@ -315,4 +324,3 @@ function applyThemeVariables(variables: Partial<ThemeVariables>) {
 
 export { HanViewContext };
 export type { HanViewContextType };
-

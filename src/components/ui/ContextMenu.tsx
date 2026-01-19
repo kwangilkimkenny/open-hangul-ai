@@ -1,11 +1,12 @@
 /**
  * Context Menu Component
  * 우클릭 컨텍스트 메뉴
- * 
+ *
  * @module components/ui/ContextMenu
  * @version 1.0.0
  */
 
+/* eslint-disable react-refresh/only-export-components */
 import { Copy, Clipboard, Edit3, Sparkles } from 'lucide-react';
 import '../../styles/editing.css';
 
@@ -29,11 +30,11 @@ export interface ContextMenuProps {
 export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
   const handleItemClick = (item: ContextMenuItem) => {
     if (item.disabled) return;
-    
+
     if (item.onClick) {
       item.onClick();
     }
-    
+
     onClose();
   };
 
@@ -44,7 +45,7 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
         left: `${position.x}px`,
         top: `${position.y}px`,
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={e => e.stopPropagation()}
     >
       {items.map((item, index) => {
         if (item.divider) {
@@ -61,9 +62,7 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
           >
             {item.icon && <span className="context-menu-item-icon">{item.icon}</span>}
             <span className="context-menu-item-label">{item.label}</span>
-            {item.shortcut && (
-              <span className="context-menu-item-shortcut">{item.shortcut}</span>
-            )}
+            {item.shortcut && <span className="context-menu-item-shortcut">{item.shortcut}</span>}
           </div>
         );
       })}
@@ -121,4 +120,3 @@ export function createEditingMenuItems(
 }
 
 export default ContextMenu;
-

@@ -8,15 +8,16 @@
  */
 
 import { useHistory } from '../contexts/HistoryContext';
+import type { HWPXViewerInstance } from '../types/viewer';
 
 /**
  * UndoRedoButtons Props
  */
 interface UndoRedoButtonsProps {
-    /** HWPX Viewer instance with historyManager */
-    viewer: any;
-    /** Optional CSS class name */
-    className?: string;
+  /** HWPX Viewer instance with historyManager */
+  viewer: HWPXViewerInstance | null;
+  /** Optional CSS class name */
+  className?: string;
 }
 
 /**
@@ -31,53 +32,49 @@ interface UndoRedoButtonsProps {
  * ```
  */
 export function UndoRedoButtons({ viewer, className = '' }: UndoRedoButtonsProps) {
-    // ✅ Use history context
-    const history = useHistory();
+  // ✅ Use history context
+  const history = useHistory();
 
-    // Handler functions
-    const handleUndo = () => {
-        if (viewer?.historyManager) {
-            viewer.historyManager.undo();
-        }
-    };
+  // Handler functions
+  const handleUndo = () => {
+    if (viewer?.historyManager) {
+      viewer.historyManager.undo();
+    }
+  };
 
-    const handleRedo = () => {
-        if (viewer?.historyManager) {
-            viewer.historyManager.redo();
-        }
-    };
+  const handleRedo = () => {
+    if (viewer?.historyManager) {
+      viewer.historyManager.redo();
+    }
+  };
 
-    return (
-        <div className={`history-buttons ${className}`}>
-            <button
-                className="undo-btn"
-                disabled={!history.canUndo}
-                onClick={handleUndo}
-                title={history.undoAction ? `실행 취소: ${history.undoAction}` : '실행 취소할 항목 없음'}
-                aria-label="Undo"
-            >
-                <span className="icon">↶</span>
-                <span className="label">Undo</span>
-                {history.undoAction && (
-                    <span className="action-name"> ({history.undoAction})</span>
-                )}
-            </button>
+  return (
+    <div className={`history-buttons ${className}`}>
+      <button
+        className="undo-btn"
+        disabled={!history.canUndo}
+        onClick={handleUndo}
+        title={history.undoAction ? `실행 취소: ${history.undoAction}` : '실행 취소할 항목 없음'}
+        aria-label="Undo"
+      >
+        <span className="icon">↶</span>
+        <span className="label">Undo</span>
+        {history.undoAction && <span className="action-name"> ({history.undoAction})</span>}
+      </button>
 
-            <button
-                className="redo-btn"
-                disabled={!history.canRedo}
-                onClick={handleRedo}
-                title={history.redoAction ? `다시 실행: ${history.redoAction}` : '다시 실행할 항목 없음'}
-                aria-label="Redo"
-            >
-                <span className="icon">↷</span>
-                <span className="label">Redo</span>
-                {history.redoAction && (
-                    <span className="action-name"> ({history.redoAction})</span>
-                )}
-            </button>
-        </div>
-    );
+      <button
+        className="redo-btn"
+        disabled={!history.canRedo}
+        onClick={handleRedo}
+        title={history.redoAction ? `다시 실행: ${history.redoAction}` : '다시 실행할 항목 없음'}
+        aria-label="Redo"
+      >
+        <span className="icon">↷</span>
+        <span className="label">Redo</span>
+        {history.redoAction && <span className="action-name"> ({history.redoAction})</span>}
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -85,43 +82,43 @@ export function UndoRedoButtons({ viewer, className = '' }: UndoRedoButtonsProps
  * ✅ Phase 2 P3: Minimal UI variant
  */
 export function UndoRedoButtonsCompact({ viewer, className = '' }: UndoRedoButtonsProps) {
-    const history = useHistory();
+  const history = useHistory();
 
-    const handleUndo = () => {
-        if (viewer?.historyManager) {
-            viewer.historyManager.undo();
-        }
-    };
+  const handleUndo = () => {
+    if (viewer?.historyManager) {
+      viewer.historyManager.undo();
+    }
+  };
 
-    const handleRedo = () => {
-        if (viewer?.historyManager) {
-            viewer.historyManager.redo();
-        }
-    };
+  const handleRedo = () => {
+    if (viewer?.historyManager) {
+      viewer.historyManager.redo();
+    }
+  };
 
-    return (
-        <div className={`history-buttons-compact ${className}`}>
-            <button
-                className="undo-btn-compact"
-                disabled={!history.canUndo}
-                onClick={handleUndo}
-                title={history.undoAction ? `실행 취소: ${history.undoAction}` : '실행 취소할 항목 없음'}
-                aria-label="Undo"
-            >
-                ↶
-            </button>
+  return (
+    <div className={`history-buttons-compact ${className}`}>
+      <button
+        className="undo-btn-compact"
+        disabled={!history.canUndo}
+        onClick={handleUndo}
+        title={history.undoAction ? `실행 취소: ${history.undoAction}` : '실행 취소할 항목 없음'}
+        aria-label="Undo"
+      >
+        ↶
+      </button>
 
-            <button
-                className="redo-btn-compact"
-                disabled={!history.canRedo}
-                onClick={handleRedo}
-                title={history.redoAction ? `다시 실행: ${history.redoAction}` : '다시 실행할 항목 없음'}
-                aria-label="Redo"
-            >
-                ↷
-            </button>
-        </div>
-    );
+      <button
+        className="redo-btn-compact"
+        disabled={!history.canRedo}
+        onClick={handleRedo}
+        title={history.redoAction ? `다시 실행: ${history.redoAction}` : '다시 실행할 항목 없음'}
+        aria-label="Redo"
+      >
+        ↷
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -129,25 +126,25 @@ export function UndoRedoButtonsCompact({ viewer, className = '' }: UndoRedoButto
  * ✅ Phase 2 P3: Shows current history state
  */
 export function HistoryStatus({ className = '' }: { className?: string }) {
-    const history = useHistory();
+  const history = useHistory();
 
-    return (
-        <div className={`history-status ${className}`}>
-            <span className="status-item">
-                <span className="status-label">Undo:</span>
-                <span className={`status-value ${history.canUndo ? 'enabled' : 'disabled'}`}>
-                    {history.canUndo ? (history.undoAction || '가능') : '불가'}
-                </span>
-            </span>
+  return (
+    <div className={`history-status ${className}`}>
+      <span className="status-item">
+        <span className="status-label">Undo:</span>
+        <span className={`status-value ${history.canUndo ? 'enabled' : 'disabled'}`}>
+          {history.canUndo ? history.undoAction || '가능' : '불가'}
+        </span>
+      </span>
 
-            <span className="status-item">
-                <span className="status-label">Redo:</span>
-                <span className={`status-value ${history.canRedo ? 'enabled' : 'disabled'}`}>
-                    {history.canRedo ? (history.redoAction || '가능') : '불가'}
-                </span>
-            </span>
-        </div>
-    );
+      <span className="status-item">
+        <span className="status-label">Redo:</span>
+        <span className={`status-value ${history.canRedo ? 'enabled' : 'disabled'}`}>
+          {history.canRedo ? history.redoAction || '가능' : '불가'}
+        </span>
+      </span>
+    </div>
+  );
 }
 
 export default UndoRedoButtons;
