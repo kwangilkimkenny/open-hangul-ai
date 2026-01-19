@@ -112,6 +112,17 @@ export class EditingToolbar {
                     margin-right: 8px;
                     font-weight: 500;
                 }
+                /* Tablet - ensure minimum touch target size (44px) */
+                @media (min-width: 768px) and (max-width: 1023px) {
+                    .hwpx-toolbar-btn {
+                        width: 44px;
+                        height: 44px;
+                    }
+                    .hwpx-toolbar-btn svg {
+                        width: 20px;
+                        height: 20px;
+                    }
+                }
             </style>
             
             <!-- 서식 그룹 -->
