@@ -142,6 +142,9 @@ export class DocumentRenderer {
                 // 홀수/짝수 페이지 판별
                 const isOddPage = (this.pageNumber % 2 === 1);
 
+                // ✅ v2.2.12: 페이지 배경 적용
+                this.applyPageBackground(pageDiv, section, hwpxDoc.images, isOddPage);
+
                 // 헤더 렌더링
                 this.renderHeader(pageDiv, section, isOddPage);
 
@@ -248,6 +251,59 @@ export class DocumentRenderer {
             pageDiv.style.padding = padding;
         } else {
             pageDiv.style.padding = defaultPadding;
+        }
+    }
+
+    /**
+     * ✅ v2.2.12: 페이지 배경 적용 (이미지, 색상, 그라데이션)
+     * @param {HTMLElement} pageDiv - 페이지 요소
+     * @param {Object} section - 섹션 정보
+     * @param {Map} images - 이미지 맵
+     * @param {boolean} isOddPage - 홀수 페이지 여부
+     * @private
+     */
+    applyPageBackground(pageDiv, section, images, isOddPage) {
+        if (!section.pageBackground) return;
+
+        // Helper to check if bgInfo has actual fill content
+        const hasActualFill = (bg) => bg && (bg.backgroundImage || bg.backgroundColor || bg.gradientCSS);
+
+        // Determine which background to use based on page type
+        // Use specific page type if it has actual fill, otherwise fall back to 'both'
+        let bgInfo = isOddPage ? section.pageBackground.odd : section.pageBackground.even;
+        if (!hasActualFill(bgInfo)) bgInfo = section.pageBackground.both;
+        if (!hasActualFill(bgInfo)) return;
+
+        // Apply background image (highest priority)
+        if (bgInfo.backgroundImage && images) {
+            const binaryItemIDRef = bgInfo.backgroundImage.binaryItemIDRef;
+            const mode = bgInfo.backgroundImage.mode || 'TOTAL';
+            const imageData = images.get(binaryItemIDRef);
+
+            if (imageData && imageData.url) {
+                const backgroundSize = mode === 'TOTAL' ? 'cover' :
+                    mode === 'TILE' ? 'auto' :
+                        mode === 'CENTER' ? 'contain' : '100% 100%';
+                const backgroundRepeat = mode === 'TILE' ? 'repeat' : 'no-repeat';
+                const backgroundPosition = 'center';
+
+                pageDiv.style.backgroundImage = `url(${imageData.url})`;
+                pageDiv.style.backgroundSize = backgroundSize;
+                pageDiv.style.backgroundRepeat = backgroundRepeat;
+                pageDiv.style.backgroundPosition = backgroundPosition;
+
+                logger.debug(`🖼️ Applied page background image: ${binaryItemIDRef} (mode: ${mode})`);
+            }
+        }
+        // Apply gradient (second priority)
+        else if (bgInfo.gradientCSS) {
+            pageDiv.style.background = bgInfo.gradientCSS;
+            logger.debug(`🎨 Applied page background gradient`);
+        }
+        // Apply solid color (third priority)
+        else if (bgInfo.backgroundColor) {
+            pageDiv.style.backgroundColor = bgInfo.backgroundColor;
+            logger.debug(`🎨 Applied page background color: ${bgInfo.backgroundColor}`);
         }
     }
 
@@ -666,6 +722,18 @@ export class DocumentRenderer {
                     break;
                 case 'shape':
                     renderedElement = renderShape(element, images);
+
+                    // ✅ v2.2.12: Replace inline table placeholders inside shape's drawText
+                    if (renderedElement) {
+                        const placeholders = renderedElement.querySelectorAll('.hwp-inline-table-placeholder');
+                        placeholders.forEach(placeholder => {
+                            const tableData = placeholder._tableData;
+                            if (tableData) {
+                                const tableElem = renderTable(tableData, images);
+                                placeholder.replaceWith(tableElem);
+                            }
+                        });
+                    }
                     break;
                 case 'container':
                     renderedElement = renderContainer(element);

@@ -54,23 +54,42 @@ export class HwpxSafeExporter {
             
             // 2. 원본 section XML을 읽어서 TEXT 내용 교체 + 자동 줄바꿈 설정
             const sections = modifiedDocument.sections || [];
+            logger.info(`  📊 modifiedDocument has ${sections.length} sections`);
+
+            // ✅ 디버그: 전달된 document 데이터 확인
+            sections.forEach((section, sIdx) => {
+                const elements = section.elements || [];
+                const tables = elements.filter(e => e.type === 'table');
+                logger.info(`    Section ${sIdx}: ${elements.length} elements, ${tables.length} tables`);
+                tables.forEach((table, tIdx) => {
+                    if (table.rows) {
+                        logger.info(`      Table ${tIdx}: ${table.rows.length} rows`);
+                        if (table.rows[0]?.cells?.[0]?.elements?.[0]?.runs) {
+                            const runs = table.rows[0].cells[0].elements[0].runs;
+                            const text = runs.map(r => r.text || (r.type === 'linebreak' ? '↵' : '')).join('');
+                            logger.info(`        First cell runs: ${runs.length}, text: "${text.substring(0, 50)}..."`);
+                        }
+                    }
+                });
+            });
+
             for (let idx = 0; idx < sections.length; idx++) {
                 const sectionFilename = `Contents/section${idx}.xml`;
                 const originalSectionXml = await originalZip.file(sectionFilename).async('string');
-                
+
                 if (originalSectionXml) {
                     // ✅ 1단계: 자동 줄바꿈 속성 추가
                     const sectionXmlWithLineWrap = this._addLineWrapAttributes(originalSectionXml);
-                    
+
                     // ✅ 2단계: 텍스트 내용 교체
                     const modifiedSectionXml = this._replaceTextInSectionXml(
-                        sectionXmlWithLineWrap, 
+                        sectionXmlWithLineWrap,
                         sections[idx]
                     );
-                    
+
                     // 원본 ZIP에서 section XML 교체
                     originalZip.file(sectionFilename, modifiedSectionXml);
-                    logger.debug(`    ✓ ${sectionFilename} 텍스트 교체 완료`);
+                    logger.info(`    ✓ ${sectionFilename} 텍스트 교체 완료`);
                 } else {
                     logger.warn(`    ⚠️  ${sectionFilename} not found in original ZIP`);
                 }
@@ -430,53 +449,78 @@ export class HwpxSafeExporter {
                     replacedCount++;
                     
                 } else if (xmlElem.type === 'table') {
-                    // 테이블 교체 (v2.2.7b: 셀 구조 유지)
+                    // ✅ v2.2.8: 테이블 교체 - 행/열 구조 정확히 매칭
                     const xmlTbl = xmlElem.element;
-                    const subLists = xmlTbl.getElementsByTagNameNS(hpNamespace, 'subList');
-                    
-                    // 수정된 테이블의 모든 셀을 배열로 수집 (paragraph 구조 유지)
-                    const modifiedCells = [];
-                    for (const row of (modElem.rows || [])) {
-                        for (const cell of (row.cells || [])) {
-                            modifiedCells.push(cell);
+
+                    // XML에서 행(tr) 찾기
+                    const xmlRows = xmlTbl.getElementsByTagNameNS(hpNamespace, 'tr');
+                    const modRows = modElem.rows || [];
+
+                    logger.info(`    📊 테이블 ${i + 1}: XML ${xmlRows.length}행, 수정 ${modRows.length}행`);
+
+                    let totalCellsReplaced = 0;
+                    const matchedRows = Math.min(xmlRows.length, modRows.length);
+
+                    for (let rowIdx = 0; rowIdx < matchedRows; rowIdx++) {
+                        const xmlRow = xmlRows[rowIdx];
+                        const modRow = modRows[rowIdx];
+
+                        // XML에서 셀(tc) 찾기
+                        const xmlCells = xmlRow.getElementsByTagNameNS(hpNamespace, 'tc');
+                        const modCells = modRow.cells || [];
+
+                        const matchedCells = Math.min(xmlCells.length, modCells.length);
+                        logger.debug(`      행 ${rowIdx}: XML ${xmlCells.length}셀, 수정 ${modCells.length}셀`);
+
+                        for (let cellIdx = 0; cellIdx < matchedCells; cellIdx++) {
+                            const xmlCell = xmlCells[cellIdx];
+                            const modCell = modCells[cellIdx];
+
+                            // 셀의 subList 찾기 (직접 자식만)
+                            let subList = null;
+                            for (let c = 0; c < xmlCell.childNodes.length; c++) {
+                                const child = xmlCell.childNodes[c];
+                                if (child.nodeType === 1) {
+                                    const tagName = child.tagName || child.nodeName;
+                                    if (tagName === 'hp:subList' || tagName === 'subList') {
+                                        subList = child;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (!subList) {
+                                logger.warn(`      ⚠️ 행${rowIdx} 셀${cellIdx}: subList를 찾을 수 없음`);
+                                continue;
+                            }
+
+                            // 원본 subList의 모든 hp:p 찾기
+                            const xmlParagraphs = subList.getElementsByTagNameNS(hpNamespace, 'p');
+
+                            // 수정된 셀의 모든 paragraph
+                            const modParagraphs = (modCell.elements || []).filter(el => el.type === 'paragraph');
+
+                            // 각 paragraph를 1:1 매칭
+                            const matchedParas = Math.min(xmlParagraphs.length, modParagraphs.length);
+
+                            for (let paraIdx = 0; paraIdx < matchedParas; paraIdx++) {
+                                const xmlPara = xmlParagraphs[paraIdx];
+                                const modPara = modParagraphs[paraIdx];
+
+                                // ✅ 디버그: 교체할 runs 정보
+                                const runs = modPara.runs || [];
+                                const runsText = runs.map(r => r.text || (r.type === 'linebreak' ? '↵' : '')).join('');
+                                logger.debug(`        [${rowIdx},${cellIdx}] Para ${paraIdx}: "${runsText.substring(0, 30)}..."`);
+
+                                // ✅ 줄바꿈을 포함한 run 구조 재구성
+                                this._replaceRunsWithLinebreaks(xmlPara, runs, hpNamespace);
+                            }
+
+                            totalCellsReplaced++;
                         }
                     }
-                    
-                    logger.info(`    📊 테이블 ${i + 1}: ${subLists.length}개 subList, ${modifiedCells.length}개 수정 셀`);
-                    
-                    // 각 subList를 수정된 cell과 1:1 매칭
-                    const matchedCells = Math.min(subLists.length, modifiedCells.length);
-                    
-                    for (let cellIdx = 0; cellIdx < matchedCells; cellIdx++) {
-                        const subList = subLists[cellIdx];
-                        const modCell = modifiedCells[cellIdx];
-                        
-                        // 원본 subList의 모든 hp:p 찾기
-                        const xmlParagraphs = subList.getElementsByTagNameNS(hpNamespace, 'p');
-                        
-                        // 수정된 셀의 모든 paragraph
-                        const modParagraphs = (modCell.elements || []).filter(el => el.type === 'paragraph');
-                        
-                        // paragraph 개수 비교
-                        if (xmlParagraphs.length !== modParagraphs.length) {
-                            logger.warn(`    ⚠️  셀 ${cellIdx + 1}: paragraph 개수 불일치 (XML: ${xmlParagraphs.length}, 수정: ${modParagraphs.length})`);
-                        }
-                        
-                        // 각 paragraph를 1:1 매칭
-                        const matchedParas = Math.min(xmlParagraphs.length, modParagraphs.length);
-                        
-                        for (let paraIdx = 0; paraIdx < matchedParas; paraIdx++) {
-                            const xmlPara = xmlParagraphs[paraIdx];
-                            const modPara = modParagraphs[paraIdx];
-                            
-                            // ✅ 줄바꿈을 포함한 run 구조 재구성
-                            this._replaceRunsWithLinebreaks(xmlPara, modPara.runs || [], hpNamespace);
-                        }
-                        
-                        logger.info(`    ✅ 셀 ${cellIdx + 1}: ${matchedParas}개 paragraph 교체`);
-                    }
-                    
-                    logger.info(`    ✅ 요소 ${i + 1} (테이블): ${matchedCells}개 셀 교체 완료`);
+
+                    logger.info(`    ✅ 요소 ${i + 1} (테이블): ${matchedRows}행, ${totalCellsReplaced}셀 교체 완료`);
                     replacedCount++;
                 }
             }
@@ -531,13 +575,16 @@ export class HwpxSafeExporter {
      * @private
      */
     _replaceRunsWithLinebreaks(xmlPara, runs, hpNamespace) {
-        if (!runs || runs.length === 0) return;
+        if (!runs || runs.length === 0) {
+            logger.debug('        ⚠️ No runs to replace');
+            return;
+        }
 
         // ✅ 전략: <hp:t> 노드만 찾아서 텍스트만 교체 (ctrl/run/lnbrk 구조는 절대 건드리지 않음)
         const tNodes = xmlPara.getElementsByTagNameNS(hpNamespace, 't');
-        
+
         if (tNodes.length === 0) {
-            logger.warn('    ⚠️  No <hp:t> found in paragraph');
+            logger.warn('        ⚠️ No <hp:t> found in paragraph');
             return;
         }
 
@@ -551,6 +598,10 @@ export class HwpxSafeExporter {
             }
         }
 
+        // ✅ 디버그: 교체 전후 텍스트 비교
+        const oldText = tNodes[0].textContent || '';
+        logger.info(`        📝 Replacing: "${oldText.substring(0, 30)}..." → "${combinedText.substring(0, 30)}..."`);
+
         // ✅ 첫 번째 <hp:t>에만 텍스트 설정
         tNodes[0].textContent = combinedText;
         tNodes[0].setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
@@ -560,7 +611,7 @@ export class HwpxSafeExporter {
             tNodes[i].textContent = '';
             tNodes[i].setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
         }
-        
+
         // ✅ ctrl, run, lnbrk 구조는 절대 건드리지 않음 → 이미지 보존
     }
 

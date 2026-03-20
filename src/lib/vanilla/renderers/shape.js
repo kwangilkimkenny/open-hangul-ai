@@ -8,6 +8,7 @@
 
 import { HWPXConstants } from '../core/constants.js';
 import { renderParagraph } from './paragraph.js';
+import { renderTable } from './table.js';
 
 /**
  * 🆕 Line 렌더링 (SVG)
@@ -97,21 +98,40 @@ export function renderShape(shape, images = null) {
     const wrapper = document.createElement('div');
     wrapper.className = `hwp-shape hwp-shape-${shapeType}`;
 
+    // ✅ v2.2.14: Mark inline shapes (treatAsChar) with data attribute for CSS targeting
+    if (shape.treatAsChar || shape.position?.treatAsChar) {
+        wrapper.setAttribute('data-inline', 'true');
+    }
+
     // ✅ v2.2.7g: 기본 text-align 제거 (paragraph 정렬 우선)
     wrapper.style.textAlign = 'initial';
 
 
-    // ✅ v2.2.7h: Dimensions - 원본 크기 유지 (정렬을 위해)
+    // ✅ v2.2.14: Dimensions - 원본 크기 강제 유지 (!important로 CSS override 방지)
     if (shape.width) {
-        wrapper.style.width = typeof shape.width === 'number'
-            ? `${shape.width}px`
-            : shape.width;
-        wrapper.style.boxSizing = 'border-box';
+        const widthPx = typeof shape.width === 'number' ? `${shape.width}px` : shape.width;
+
+        // ✅ v2.2.14: Add data attribute for debugging
+        wrapper.setAttribute('data-expected-width', widthPx);
+
+        // Use setProperty with !important to override CSS rules
+        wrapper.style.setProperty('width', widthPx, 'important');
+        wrapper.style.setProperty('min-width', widthPx, 'important');
+        wrapper.style.setProperty('max-width', widthPx, 'important');
+        wrapper.style.setProperty('box-sizing', 'border-box', 'important');
+        wrapper.style.setProperty('flex-shrink', '0', 'important');
+        wrapper.style.setProperty('flex-grow', '0', 'important');
+
+        // Debug log for small shapes (like buttons)
+        if (shape.width < 200) {
+            console.log(`[Shape Renderer] Small shape: width=${widthPx}, height=${shape.height}px, bg=${shape.style?.backgroundColor || shape.fillColor || 'none'}`);
+            console.log(`[Shape Renderer] cssText: ${wrapper.style.cssText?.substring(0, 300)}`);
+        }
     }
     if (shape.height) {
-        wrapper.style.height = typeof shape.height === 'number'
-            ? `${shape.height}px`
-            : shape.height;
+        const heightPx = typeof shape.height === 'number' ? `${shape.height}px` : shape.height;
+        wrapper.style.setProperty('height', heightPx, 'important');
+        wrapper.style.setProperty('min-height', heightPx, 'important');
     }
 
     // Positioning
@@ -276,6 +296,24 @@ export function renderShape(shape, images = null) {
 
             const paraElem = renderParagraph(para);
 
+            // ✅ v2.2.13: Replace inline table placeholders with actual tables
+            // Tables inside drawText paragraphs are rendered as placeholders by paragraph.js
+            const tablePlaceholders = paraElem.querySelectorAll('.hwp-inline-table-placeholder');
+            if (tablePlaceholders.length > 0) {
+                console.log(`[Shape Renderer] Found ${tablePlaceholders.length} table placeholder(s) in drawText paragraph`);
+                tablePlaceholders.forEach(placeholder => {
+                    const tableData = placeholder._tableData;
+                    if (tableData) {
+                        const tableElem = renderTable(tableData, images);
+                        // Apply shape-specific table styling
+                        tableElem.style.width = '100%';
+                        tableElem.style.maxWidth = '100%';
+                        placeholder.replaceWith(tableElem);
+                        console.log(`  → Replaced table placeholder with actual table (${tableData.rows?.length || 0} rows)`);
+                    }
+                });
+            }
+
             // ✅ v2.2.7g: Shape 안 paragraph 스타일 강화
             paraElem.style.lineHeight = '1.0';
             paraElem.style.margin = '0';
@@ -293,6 +331,42 @@ export function renderShape(shape, images = null) {
         });
 
         wrapper.appendChild(textContainer);
+    }
+
+    // ✅ v2.2.14: FINAL enforcement of width/height at the very end
+    // This ensures no subsequent operations override the critical dimensions
+    if (shape.width && shape.width < 500) {
+        const finalWidth = typeof shape.width === 'number' ? `${shape.width}px` : shape.width;
+        const finalHeight = shape.height ? (typeof shape.height === 'number' ? `${shape.height}px` : shape.height) : 'auto';
+
+        // Build the complete style string
+        const styleProps = [
+            `width: ${finalWidth} !important`,
+            `min-width: ${finalWidth} !important`,
+            `max-width: ${finalWidth} !important`,
+            `height: ${finalHeight} !important`,
+            `min-height: ${finalHeight} !important`,
+            `box-sizing: border-box !important`,
+            `flex-shrink: 0 !important`,
+            `flex-grow: 0 !important`,
+            `display: inline-block !important`
+        ];
+
+        // Get existing styles that we want to preserve
+        const bgColor = wrapper.style.backgroundColor;
+        const borderRadius = wrapper.style.borderRadius;
+        const textAlign = wrapper.style.textAlign;
+        const border = wrapper.style.border;
+
+        if (bgColor) styleProps.push(`background-color: ${bgColor}`);
+        if (borderRadius) styleProps.push(`border-radius: ${borderRadius}`);
+        if (textAlign) styleProps.push(`text-align: ${textAlign}`);
+        if (border) styleProps.push(`border: ${border}`);
+
+        // Set the final style attribute
+        wrapper.setAttribute('style', styleProps.join('; '));
+
+        console.log(`[Shape Renderer] FINAL style attribute for small shape: ${wrapper.getAttribute('style')}`);
     }
 
     return wrapper;

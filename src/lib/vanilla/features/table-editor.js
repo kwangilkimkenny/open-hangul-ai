@@ -1,9 +1,9 @@
 /**
  * Table Editor
  * 테이블 행/열 추가/삭제 기능
- * 
+ *
  * @module features/table-editor
- * @version 1.0.0
+ * @version 2.0.0 - HistoryManager 통합
  */
 
 import { getLogger } from '../utils/logger.js';
@@ -12,11 +12,43 @@ const logger = getLogger('TableEditor');
 
 /**
  * 테이블 편집기 클래스
+ * ✅ v2.0.0: HistoryManager 통합으로 Undo/Redo 지원
  */
 export class TableEditor {
     constructor(viewer) {
         this.viewer = viewer;
-        logger.info('🔧 TableEditor initialized');
+        logger.info('🔧 TableEditor initialized (v2.0.0 with History support)');
+    }
+
+    /**
+     * 테이블 데이터 깊은 복사
+     * @param {Object} tableData - 원본 테이블 데이터
+     * @returns {Object} 복사된 테이블 데이터
+     */
+    _cloneTableData(tableData) {
+        return JSON.parse(JSON.stringify(tableData));
+    }
+
+    /**
+     * 테이블 데이터 복원
+     * @param {Object} tableData - 대상 테이블 데이터 객체
+     * @param {Object} clonedData - 복원할 데이터
+     */
+    _restoreTableData(tableData, clonedData) {
+        // 기존 데이터를 모두 지우고 복원
+        Object.keys(tableData).forEach(key => delete tableData[key]);
+        Object.assign(tableData, clonedData);
+    }
+
+    /**
+     * 문서 업데이트 및 편집 기능 재초기화
+     * @private
+     */
+    async _updateAndReinitialize() {
+        await this.viewer.updateDocument(this.viewer.getDocument());
+        if (typeof window.reinitializeEditing === 'function') {
+            window.reinitializeEditing();
+        }
     }
 
     /**
@@ -90,88 +122,111 @@ export class TableEditor {
 
     /**
      * 위에 행 추가
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 기준 셀
      */
     async addRowAbove(cell) {
         logger.info('➕ Adding row above...');
-        
+
         const tableInfo = this.findTableData(cell);
-        if (!tableInfo) return;
+        if (!tableInfo) return false;
 
         const position = this.getCellPosition(cell);
-        if (position === null) return;
+        if (position === null) return false;
 
         const { tableData } = tableInfo;
         const { rowIndex } = position;
+
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
 
         // 새 행 생성 (기준 행과 같은 열 수)
         const referenceRow = tableData.rows[rowIndex];
         const newRow = this.createEmptyRow(referenceRow);
 
-        // 데이터에 행 추가
-        tableData.rows.splice(rowIndex, 0, newRow);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            tableData.rows.splice(rowIndex, 0, newRow);
+            logger.info(`✅ Row added above at index ${rowIndex}`);
+        };
 
-        logger.info(`✅ Row added above at index ${rowIndex}`);
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Row addition undone at index ${rowIndex}`);
+        };
 
-        // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-        
-        // 🔄 편집 기능 재초기화 (이벤트 리스너 재등록)
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '행 추가 (위)');
+        } else {
+            executeFn();
         }
 
+        // 재렌더링
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 아래에 행 추가
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 기준 셀
      */
     async addRowBelow(cell) {
         logger.info('➕ Adding row below...');
-        
+
         const tableInfo = this.findTableData(cell);
-        if (!tableInfo) return;
+        if (!tableInfo) return false;
 
         const position = this.getCellPosition(cell);
-        if (position === null) return;
+        if (position === null) return false;
 
         const { tableData } = tableInfo;
         const { rowIndex } = position;
+
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
 
         // 새 행 생성
         const referenceRow = tableData.rows[rowIndex];
         const newRow = this.createEmptyRow(referenceRow);
 
-        // 데이터에 행 추가 (아래)
-        tableData.rows.splice(rowIndex + 1, 0, newRow);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            tableData.rows.splice(rowIndex + 1, 0, newRow);
+            logger.info(`✅ Row added below at index ${rowIndex + 1}`);
+        };
 
-        logger.info(`✅ Row added below at index ${rowIndex + 1}`);
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Row addition undone at index ${rowIndex + 1}`);
+        };
 
-        // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-        
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '행 추가 (아래)');
+        } else {
+            executeFn();
         }
 
+        // 재렌더링
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 행 삭제
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 삭제할 행의 셀
      */
     async deleteRow(cell) {
         logger.info('🗑️ Deleting row...');
-        
+
         const tableInfo = this.findTableData(cell);
-        if (!tableInfo) return;
+        if (!tableInfo) return false;
 
         const position = this.getCellPosition(cell);
-        if (position === null) return;
+        if (position === null) return false;
 
         const { tableData } = tableInfo;
         const { rowIndex } = position;
@@ -183,126 +238,163 @@ export class TableEditor {
             return false;
         }
 
-        // 행 삭제
-        tableData.rows.splice(rowIndex, 1);
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
 
-        logger.info(`✅ Row deleted at index ${rowIndex}`);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            tableData.rows.splice(rowIndex, 1);
+            logger.info(`✅ Row deleted at index ${rowIndex}`);
+        };
 
-        // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-        
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Row deletion undone at index ${rowIndex}`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '행 삭제');
+        } else {
+            executeFn();
         }
 
+        // 재렌더링
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 왼쪽에 열 추가
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 기준 셀
      */
     async addColumnLeft(cell) {
         logger.info('➕ Adding column left...');
-        
+
         const tableInfo = this.findTableData(cell);
-        if (!tableInfo) return;
+        if (!tableInfo) return false;
 
         const position = this.getCellPosition(cell);
-        if (position === null) return;
+        if (position === null) return false;
 
         const { tableData } = tableInfo;
         const { colIndex } = position;
 
-        // 모든 행에 새 셀 추가
-        tableData.rows.forEach(row => {
-            const newCell = this.createEmptyCell();
-            row.cells.splice(colIndex, 0, newCell);
-        });
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
 
-        // colWidths 업데이트
-        if (tableData.colWidths) {
-            const avgWidth = this.calculateAverageColumnWidth(tableData);
-            tableData.colWidths.splice(colIndex, 0, avgWidth);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            // 모든 행에 새 셀 추가
+            tableData.rows.forEach(row => {
+                const newCell = this.createEmptyCell();
+                row.cells.splice(colIndex, 0, newCell);
+            });
+
+            // colWidths 업데이트
+            if (tableData.colWidths) {
+                const avgWidth = this.calculateAverageColumnWidth(tableData);
+                tableData.colWidths.splice(colIndex, 0, avgWidth);
+            }
+
+            // colWidthsPercent 업데이트
+            if (tableData.colWidthsPercent) {
+                this.recalculateColumnWidthsPercent(tableData);
+            }
+
+            logger.info(`✅ Column added left at index ${colIndex}`);
+        };
+
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Column addition undone at index ${colIndex}`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '열 추가 (왼쪽)');
+        } else {
+            executeFn();
         }
-
-        // colWidthsPercent 업데이트
-        if (tableData.colWidthsPercent) {
-            this.recalculateColumnWidthsPercent(tableData);
-        }
-
-        logger.info(`✅ Column added left at index ${colIndex}`);
 
         // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-        
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
-        }
-
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 오른쪽에 열 추가
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 기준 셀
      */
     async addColumnRight(cell) {
         logger.info('➕ Adding column right...');
-        
+
         const tableInfo = this.findTableData(cell);
-        if (!tableInfo) return;
+        if (!tableInfo) return false;
 
         const position = this.getCellPosition(cell);
-        if (position === null) return;
+        if (position === null) return false;
 
         const { tableData } = tableInfo;
         const { colIndex } = position;
 
-        // 모든 행에 새 셀 추가
-        tableData.rows.forEach(row => {
-            const newCell = this.createEmptyCell();
-            row.cells.splice(colIndex + 1, 0, newCell);
-        });
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
 
-        // colWidths 업데이트
-        if (tableData.colWidths) {
-            const avgWidth = this.calculateAverageColumnWidth(tableData);
-            tableData.colWidths.splice(colIndex + 1, 0, avgWidth);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            // 모든 행에 새 셀 추가
+            tableData.rows.forEach(row => {
+                const newCell = this.createEmptyCell();
+                row.cells.splice(colIndex + 1, 0, newCell);
+            });
+
+            // colWidths 업데이트
+            if (tableData.colWidths) {
+                const avgWidth = this.calculateAverageColumnWidth(tableData);
+                tableData.colWidths.splice(colIndex + 1, 0, avgWidth);
+            }
+
+            // colWidthsPercent 업데이트
+            if (tableData.colWidthsPercent) {
+                this.recalculateColumnWidthsPercent(tableData);
+            }
+
+            logger.info(`✅ Column added right at index ${colIndex + 1}`);
+        };
+
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Column addition undone at index ${colIndex + 1}`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '열 추가 (오른쪽)');
+        } else {
+            executeFn();
         }
-
-        // colWidthsPercent 업데이트
-        if (tableData.colWidthsPercent) {
-            this.recalculateColumnWidthsPercent(tableData);
-        }
-
-        logger.info(`✅ Column added right at index ${colIndex + 1}`);
 
         // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-        
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
-        }
-
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 열 삭제
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 삭제할 열의 셀
      */
     async deleteColumn(cell) {
         logger.info('🗑️ Deleting column...');
-        
+
         const tableInfo = this.findTableData(cell);
-        if (!tableInfo) return;
+        if (!tableInfo) return false;
 
         const position = this.getCellPosition(cell);
-        if (position === null) return;
+        if (position === null) return false;
 
         const { tableData } = tableInfo;
         const { colIndex } = position;
@@ -314,31 +406,43 @@ export class TableEditor {
             return false;
         }
 
-        // 모든 행에서 해당 열 삭제
-        tableData.rows.forEach(row => {
-            row.cells.splice(colIndex, 1);
-        });
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
 
-        // colWidths 업데이트
-        if (tableData.colWidths) {
-            tableData.colWidths.splice(colIndex, 1);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            // 모든 행에서 해당 열 삭제
+            tableData.rows.forEach(row => {
+                row.cells.splice(colIndex, 1);
+            });
+
+            // colWidths 업데이트
+            if (tableData.colWidths) {
+                tableData.colWidths.splice(colIndex, 1);
+            }
+
+            // colWidthsPercent 업데이트
+            if (tableData.colWidthsPercent) {
+                this.recalculateColumnWidthsPercent(tableData);
+            }
+
+            logger.info(`✅ Column deleted at index ${colIndex}`);
+        };
+
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Column deletion undone at index ${colIndex}`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '열 삭제');
+        } else {
+            executeFn();
         }
-
-        // colWidthsPercent 업데이트
-        if (tableData.colWidthsPercent) {
-            this.recalculateColumnWidthsPercent(tableData);
-        }
-
-        logger.info(`✅ Column deleted at index ${colIndex}`);
 
         // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-        
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
-        }
-
+        await this._updateAndReinitialize();
         return true;
     }
 
@@ -440,15 +544,16 @@ export class TableEditor {
 
     /**
      * 테이블 전체 삭제 (선택적 기능)
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 테이블 내 셀
      */
     async deleteTable(cell) {
         logger.info('🗑️ Deleting entire table...');
 
         const tableInfo = this.findTableData(cell);
-        if (!tableInfo) return;
+        if (!tableInfo) return false;
 
-        const { sectionIndex, elementIndex } = tableInfo;
+        const { sectionIndex, elementIndex, tableData } = tableInfo;
         const document = this.viewer.getDocument();
 
         // 확인 대화상자
@@ -457,19 +562,35 @@ export class TableEditor {
             return false;
         }
 
-        // 테이블 삭제
-        document.sections[sectionIndex].elements.splice(elementIndex, 1);
+        // ✅ History: 이전 상태 저장 (테이블 데이터 전체)
+        const oldTableData = this._cloneTableData(tableData);
 
-        logger.info(`✅ Table deleted at section ${sectionIndex}, element ${elementIndex}`);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            document.sections[sectionIndex].elements.splice(elementIndex, 1);
+            logger.info(`✅ Table deleted at section ${sectionIndex}, element ${elementIndex}`);
+        };
+
+        const undoFn = () => {
+            document.sections[sectionIndex].elements.splice(elementIndex, 0, oldTableData);
+            logger.info(`↶ Table deletion undone at section ${sectionIndex}, element ${elementIndex}`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '테이블 삭제');
+        } else {
+            executeFn();
+        }
 
         // 재렌더링
-        await this.viewer.updateDocument(document);
-
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 테이블 삽입 (커서 위치)
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {number} rows - 행 수
      * @param {number} cols - 열 수
      * @returns {boolean} 성공 여부
@@ -493,19 +614,28 @@ export class TableEditor {
             firstSection.elements = [];
         }
 
-        // 테이블을 elements 배열에 추가
-        firstSection.elements.push(tableData);
+        const insertIndex = firstSection.elements.length;
 
-        logger.info(`✅ Table inserted (${rows}x${cols})`);
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            firstSection.elements.push(tableData);
+            logger.info(`✅ Table inserted (${rows}x${cols})`);
+        };
 
-        // 재렌더링
-        await this.viewer.updateDocument(document);
+        const undoFn = () => {
+            firstSection.elements.pop();
+            logger.info(`↶ Table insertion undone`);
+        };
 
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '테이블 삽입');
+        } else {
+            executeFn();
         }
 
+        // 재렌더링
+        await this._updateAndReinitialize();
         return true;
     }
 
@@ -544,6 +674,7 @@ export class TableEditor {
 
     /**
      * 셀 병합 (선택된 영역)
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement[]} cells - 병합할 셀들
      * @returns {boolean} 성공 여부
      */
@@ -562,6 +693,9 @@ export class TableEditor {
 
         const { tableData } = tableInfo;
 
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
+
         // 선택된 셀들의 위치 파악
         const positions = cells.map(cell => this.getCellPosition(cell));
         const rowIndices = positions.map(p => p.rowIndex);
@@ -576,59 +710,66 @@ export class TableEditor {
         const rowSpan = maxRow - minRow + 1;
         const colSpan = maxCol - minCol + 1;
 
-        // 첫 번째 셀에 rowSpan, colSpan 설정
-        const targetCell = tableData.rows[minRow].cells[minCol];
-        targetCell.rowSpan = rowSpan;
-        targetCell.colSpan = colSpan;
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            // 첫 번째 셀에 rowSpan, colSpan 설정
+            const targetCell = tableData.rows[minRow].cells[minCol];
+            targetCell.rowSpan = rowSpan;
+            targetCell.colSpan = colSpan;
 
-        // 병합된 셀들의 내용을 첫 번째 셀에 합치기
-        let mergedContent = [];
-        for (let r = minRow; r <= maxRow; r++) {
-            for (let c = minCol; c <= maxCol; c++) {
-                if (r === minRow && c === minCol) continue; // 첫 번째 셀은 스킵
+            // 병합된 셀들의 내용을 첫 번째 셀에 합치기
+            let mergedContent = [];
+            for (let r = minRow; r <= maxRow; r++) {
+                for (let c = minCol; c <= maxCol; c++) {
+                    if (r === minRow && c === minCol) continue;
 
-                const cell = tableData.rows[r].cells[c];
-                if (cell && cell.elements) {
-                    mergedContent = mergedContent.concat(cell.elements);
+                    const cell = tableData.rows[r].cells[c];
+                    if (cell && cell.elements) {
+                        mergedContent = mergedContent.concat(cell.elements);
+                    }
                 }
             }
-        }
 
-        // 병합된 내용 추가
-        if (mergedContent.length > 0) {
-            targetCell.elements = targetCell.elements.concat(mergedContent);
-        }
+            // 병합된 내용 추가
+            if (mergedContent.length > 0) {
+                targetCell.elements = targetCell.elements.concat(mergedContent);
+            }
 
-        // 병합된 영역의 다른 셀들을 삭제 (또는 빈 셀로 표시)
-        // HTML 렌더링 시 rowSpan/colSpan으로 자동 처리되므로
-        // 데이터는 그대로 두고 표시만 안 하도록 함
-        for (let r = minRow; r <= maxRow; r++) {
-            for (let c = minCol; c <= maxCol; c++) {
-                if (r === minRow && c === minCol) continue;
+            // 병합된 영역의 다른 셀들을 병합 표시
+            for (let r = minRow; r <= maxRow; r++) {
+                for (let c = minCol; c <= maxCol; c++) {
+                    if (r === minRow && c === minCol) continue;
 
-                // 셀을 빈 상태로 표시 (실제로는 rowSpan/colSpan에 의해 가려짐)
-                const cell = tableData.rows[r].cells[c];
-                if (cell) {
-                    cell._merged = true; // 병합된 셀 표시
+                    const cell = tableData.rows[r].cells[c];
+                    if (cell) {
+                        cell._merged = true;
+                    }
                 }
             }
-        }
 
-        logger.info(`✅ Cells merged (${rowSpan}x${colSpan})`);
+            logger.info(`✅ Cells merged (${rowSpan}x${colSpan})`);
+        };
+
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Cell merge undone`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '셀 병합');
+        } else {
+            executeFn();
+        }
 
         // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
-        }
-
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 셀 분할 (병합 해제)
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 분할할 셀
      * @returns {boolean} 성공 여부
      */
@@ -656,42 +797,55 @@ export class TableEditor {
             return false;
         }
 
-        // rowSpan, colSpan을 1로 설정
-        targetCell.rowSpan = 1;
-        targetCell.colSpan = 1;
+        // ✅ History: 이전 상태 저장
+        const oldTableData = this._cloneTableData(tableData);
 
-        // 병합 표시 제거 및 빈 셀 생성
-        for (let r = rowIndex; r < rowIndex + rowSpan; r++) {
-            for (let c = colIndex; c < colIndex + colSpan; c++) {
-                if (r === rowIndex && c === colIndex) continue;
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            // rowSpan, colSpan을 1로 설정
+            targetCell.rowSpan = 1;
+            targetCell.colSpan = 1;
 
-                const cell = tableData.rows[r].cells[c];
-                if (cell && cell._merged) {
-                    delete cell._merged;
-                    // 빈 셀로 복원
-                    cell.elements = [{
-                        type: 'paragraph',
-                        runs: [{ text: '' }]
-                    }];
+            // 병합 표시 제거 및 빈 셀 생성
+            for (let r = rowIndex; r < rowIndex + rowSpan; r++) {
+                for (let c = colIndex; c < colIndex + colSpan; c++) {
+                    if (r === rowIndex && c === colIndex) continue;
+
+                    const cell = tableData.rows[r].cells[c];
+                    if (cell && cell._merged) {
+                        delete cell._merged;
+                        // 빈 셀로 복원
+                        cell.elements = [{
+                            type: 'paragraph',
+                            runs: [{ text: '' }]
+                        }];
+                    }
                 }
             }
-        }
 
-        logger.info(`✅ Cell split (was ${rowSpan}x${colSpan})`);
+            logger.info(`✅ Cell split (was ${rowSpan}x${colSpan})`);
+        };
+
+        const undoFn = () => {
+            this._restoreTableData(tableData, oldTableData);
+            logger.info(`↶ Cell split undone`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '셀 분할');
+        } else {
+            executeFn();
+        }
 
         // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-
-        // 🔄 편집 기능 재초기화
-        if (typeof window.reinitializeEditing === 'function') {
-            window.reinitializeEditing();
-        }
-
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 셀 배경색 설정
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 대상 셀
      * @param {string} color - 배경색 (hex, rgb, etc.)
      * @returns {boolean} 성공 여부
@@ -710,24 +864,43 @@ export class TableEditor {
 
         const targetCell = tableData.rows[rowIndex].cells[colIndex];
 
-        // 스타일 객체 생성
-        if (!targetCell.style) {
-            targetCell.style = {};
+        // ✅ History: 이전 상태 저장
+        const oldColor = targetCell.style?.backgroundColor;
+
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            // 스타일 객체 생성
+            if (!targetCell.style) {
+                targetCell.style = {};
+            }
+            // 배경색 설정
+            targetCell.style.backgroundColor = color;
+            logger.info(`✅ Cell background color set: ${color}`);
+        };
+
+        const undoFn = () => {
+            if (!targetCell.style) {
+                targetCell.style = {};
+            }
+            targetCell.style.backgroundColor = oldColor;
+            logger.info(`↶ Cell background color undone to: ${oldColor}`);
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '셀 배경색 변경');
+        } else {
+            executeFn();
         }
 
-        // 배경색 설정
-        targetCell.style.backgroundColor = color;
-
-        logger.info(`✅ Cell background color set: ${color}`);
-
         // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-
+        await this._updateAndReinitialize();
         return true;
     }
 
     /**
      * 셀 테두리 설정
+     * ✅ v2.0.0: HistoryManager 통합
      * @param {HTMLElement} cell - 대상 셀
      * @param {Object} borders - 테두리 설정 { top, bottom, left, right }
      * @returns {boolean} 성공 여부
@@ -746,30 +919,58 @@ export class TableEditor {
 
         const targetCell = tableData.rows[rowIndex].cells[colIndex];
 
-        // 스타일 객체 생성
-        if (!targetCell.style) {
-            targetCell.style = {};
-        }
+        // ✅ History: 이전 상태 저장
+        const oldBorders = {
+            borderTopDef: targetCell.style?.borderTopDef,
+            borderBottomDef: targetCell.style?.borderBottomDef,
+            borderLeftDef: targetCell.style?.borderLeftDef,
+            borderRightDef: targetCell.style?.borderRightDef
+        };
 
-        // 테두리 설정 (CSS 형식으로 변환)
-        if (borders.top) {
-            targetCell.style.borderTopDef = this.createBorderDef(borders.top);
-        }
-        if (borders.bottom) {
-            targetCell.style.borderBottomDef = this.createBorderDef(borders.bottom);
-        }
-        if (borders.left) {
-            targetCell.style.borderLeftDef = this.createBorderDef(borders.left);
-        }
-        if (borders.right) {
-            targetCell.style.borderRightDef = this.createBorderDef(borders.right);
-        }
+        // ✅ History: execute 및 undo 함수 정의
+        const executeFn = () => {
+            // 스타일 객체 생성
+            if (!targetCell.style) {
+                targetCell.style = {};
+            }
 
-        logger.info('✅ Cell borders set');
+            // 테두리 설정 (CSS 형식으로 변환)
+            if (borders.top) {
+                targetCell.style.borderTopDef = this.createBorderDef(borders.top);
+            }
+            if (borders.bottom) {
+                targetCell.style.borderBottomDef = this.createBorderDef(borders.bottom);
+            }
+            if (borders.left) {
+                targetCell.style.borderLeftDef = this.createBorderDef(borders.left);
+            }
+            if (borders.right) {
+                targetCell.style.borderRightDef = this.createBorderDef(borders.right);
+            }
+
+            logger.info('✅ Cell borders set');
+        };
+
+        const undoFn = () => {
+            if (!targetCell.style) {
+                targetCell.style = {};
+            }
+            targetCell.style.borderTopDef = oldBorders.borderTopDef;
+            targetCell.style.borderBottomDef = oldBorders.borderBottomDef;
+            targetCell.style.borderLeftDef = oldBorders.borderLeftDef;
+            targetCell.style.borderRightDef = oldBorders.borderRightDef;
+            logger.info('↶ Cell borders undone');
+        };
+
+        // ✅ HistoryManager를 통해 실행
+        if (this.viewer.historyManager) {
+            this.viewer.historyManager.execute(executeFn, undoFn, '셀 테두리 변경');
+        } else {
+            executeFn();
+        }
 
         // 재렌더링
-        await this.viewer.updateDocument(this.viewer.getDocument());
-
+        await this._updateAndReinitialize();
         return true;
     }
 

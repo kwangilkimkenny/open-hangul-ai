@@ -187,39 +187,12 @@ export class EditModeManager {
 
     /**
      * 편집 가이드 표시
+     * ✅ v2.1.6: 편집 가이드 비활성화 (사용자 요청)
      * @private
      */
     _showEditingGuide() {
-        // 이미 있으면 표시하지 않음
-        if (document.getElementById('editing-guide')) {
-            return;
-        }
-
-        const guide = document.createElement('div');
-        guide.id = 'editing-guide';
-        guide.className = 'editing-guide';
-        guide.innerHTML = `
-            <div class="guide-content">
-                <div class="guide-item">
-                    <kbd>Tab</kbd> <span>다음</span>
-                </div>
-                <div class="guide-item">
-                    <kbd>Shift+Tab</kbd> <span>이전</span>
-                </div>
-                <div class="guide-item">
-                    <kbd>Enter</kbd> <span>저장 후 다음</span>
-                </div>
-                <div class="guide-item">
-                    <kbd>Esc</kbd> <span>종료</span>
-                </div>
-                <div class="guide-item">
-                    <kbd>↑↓←→</kbd> <span>이동</span>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(guide);
-        logger.debug('✅ Editing guide shown');
+        // 편집 가이드 비활성화됨
+        return;
     }
 
     /**

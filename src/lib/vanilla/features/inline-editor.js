@@ -3,7 +3,7 @@
  * 테이블 셀 인라인 편집 기능 (하이브리드 편집 방식)
  *
  * @module features/inline-editor
- * @version 2.1.0
+ * @version 2.1.1 - WeakMap fallback mechanism 추가
  */
 
 import { getLogger } from '../utils/logger.js';
@@ -28,7 +28,7 @@ export class InlineEditor {
     // WeakMap은 cellData가 GC되면 자동으로 항목 제거
     this.cellDataMap = new WeakMap();
 
-    logger.info('✏️ InlineEditor initialized (Hybrid Mode v2.1.0 with WeakMap)');
+    logger.info('✏️ InlineEditor initialized (Hybrid Mode v2.1.1 with WeakMap + Fallback)');
   }
 
   /**
@@ -864,17 +864,30 @@ export class InlineEditor {
    * ✅ Phase 2 P0: Undo/Redo 시 DOM을 데이터 모델과 동기화
    * ✅ Phase 2 P1: WeakMap 기반 메모리 최적화
    * ✅ Phase 2 P2: 배치 모드 지원 - 여러 업데이트를 큐에 저장
+   * ✅ v2.1.1: WeakMap fallback mechanism 추가
    * @param {Object} data - 셀/단락 데이터 (WeakMap에서 element 찾기)
    * @param {string} text - 표시할 텍스트 (줄바꿈 포함)
    * @private
    */
   _refreshDOM(data, text) {
     // ✅ Phase 2 P1: WeakMap에서 element 찾기 (메모리 효율적)
-    const element = this.cellDataMap.get(data);
+    let element = this.cellDataMap.get(data);
+
+    // ✅ v2.1.1: WeakMap에 없으면 fallback 시도
+    if (!element || !element.isConnected) {
+      logger.debug('⚠️ Element not found in WeakMap or disconnected, trying fallback...');
+      element = this._findElementByData(data);
+
+      if (element) {
+        // WeakMap에 다시 등록
+        this.cellDataMap.set(data, element);
+        logger.debug('✅ Element found via fallback and re-registered in WeakMap');
+      }
+    }
 
     // 요소가 등록되지 않았거나 DOM에 없으면 무시
     if (!element) {
-      logger.debug('⚠️ Element not found in WeakMap, skipping refresh');
+      logger.debug('⚠️ Element not found via WeakMap or fallback, skipping refresh');
       return;
     }
 
@@ -913,6 +926,122 @@ export class InlineEditor {
     } else {
       update();
     }
+  }
+
+  /**
+   * 데이터 객체로 DOM 요소 찾기 (WeakMap fallback)
+   * ✅ v2.1.1: DOM 재렌더링 후 WeakMap이 stale할 때 사용
+   * @param {Object} data - 셀/단락 데이터
+   * @returns {HTMLElement|null} 찾은 DOM 요소
+   * @private
+   */
+  _findElementByData(data) {
+    // 데이터가 없으면 null 반환
+    if (!data) return null;
+
+    // ✅ Case 1: 테이블 셀 찾기 (_cellData로 연결된 요소)
+    const cells = document.querySelectorAll('td[data-editable], th[data-editable]');
+    for (const cell of cells) {
+      if (cell._cellData === data) {
+        return cell;
+      }
+    }
+
+    // ✅ Case 2: 단락 찾기 (_paraData로 연결된 요소)
+    const paragraphs = document.querySelectorAll('.hwp-paragraph.editable-paragraph');
+    for (const para of paragraphs) {
+      if (para._paraData === data) {
+        return para;
+      }
+    }
+
+    // ✅ Case 3: 문서 데이터 구조에서 위치로 찾기
+    const document = this.viewer?.getDocument();
+    if (document && document.sections) {
+      // 테이블 셀인 경우 (elements 속성 존재)
+      if (data.elements !== undefined) {
+        const position = this._findCellPositionInDocument(document, data);
+        if (position) {
+          const { tableIndex, rowIndex, colIndex } = position;
+          const tables = this.viewer.container.querySelectorAll('.hwp-table');
+          if (tables[tableIndex]) {
+            const rows = tables[tableIndex].querySelectorAll('tr');
+            if (rows[rowIndex]) {
+              const cellElements = rows[rowIndex].querySelectorAll('td, th');
+              if (cellElements[colIndex]) {
+                logger.debug(`✅ Found cell via document position: table ${tableIndex}, row ${rowIndex}, col ${colIndex}`);
+                return cellElements[colIndex];
+              }
+            }
+          }
+        }
+      }
+
+      // 단락인 경우 (runs 속성 존재)
+      if (data.runs !== undefined) {
+        const position = this._findParagraphPositionInDocument(document, data);
+        if (position !== null) {
+          const paragraphElements = this.viewer.container.querySelectorAll('.hwp-paragraph:not(.hwp-table .hwp-paragraph)');
+          if (paragraphElements[position]) {
+            logger.debug(`✅ Found paragraph via document position: index ${position}`);
+            return paragraphElements[position];
+          }
+        }
+      }
+    }
+
+    logger.debug('⚠️ Could not find element via fallback methods');
+    return null;
+  }
+
+  /**
+   * 문서 데이터에서 셀의 위치 찾기
+   * @private
+   */
+  _findCellPositionInDocument(doc, cellData) {
+    let tableIndex = 0;
+
+    for (const section of doc.sections) {
+      for (const element of section.elements) {
+        if (element.type === 'table' && element.rows) {
+          for (let rowIndex = 0; rowIndex < element.rows.length; rowIndex++) {
+            const row = element.rows[rowIndex];
+            if (row.cells) {
+              for (let colIndex = 0; colIndex < row.cells.length; colIndex++) {
+                if (row.cells[colIndex] === cellData) {
+                  return { tableIndex, rowIndex, colIndex };
+                }
+              }
+            }
+          }
+          tableIndex++;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 문서 데이터에서 단락의 위치 찾기
+   * @private
+   */
+  _findParagraphPositionInDocument(doc, paraData) {
+    let paraIndex = 0;
+
+    for (const section of doc.sections) {
+      for (const element of section.elements) {
+        if (element.type === 'paragraph') {
+          if (element === paraData) {
+            return paraIndex;
+          }
+          paraIndex++;
+        }
+        // 테이블 내부 단락은 제외 (별도로 처리됨)
+      }
+    }
+
+    return null;
   }
 
   /**

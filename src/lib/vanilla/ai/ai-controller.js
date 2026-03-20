@@ -772,8 +772,18 @@ export class AIDocumentController {
         );
       }
 
-      // 현재 문서 가져오기 (업데이트된 문서 또는 원본 문서)
-      const document = this.state.updatedDocument || this.viewer.getDocument();
+      // ✅ v2.1.3: 항상 viewer.getDocument() 사용 (수동 편집 반영)
+      // viewer.saveFile()에서 _syncDocumentFromDOM()이 viewer.state.document를 업데이트하므로,
+      // this.state.updatedDocument 대신 viewer.getDocument()를 사용해야 수동 편집 내용이 저장됨
+      const document = this.viewer.getDocument();
+
+      // 디버그 로깅
+      logger.info(`  📄 Document source: viewer.getDocument() (수동 편집 반영)`);
+      if (this.state.updatedDocument) {
+        logger.info(`  ⚠️ AI updatedDocument exists but NOT used - prioritizing manual edits`);
+        // AI 변경 후 수동 편집이 있었으므로 updatedDocument 초기화
+        this.state.updatedDocument = null;
+      }
 
       if (!document) {
         throw new HWPXError(ErrorType.VALIDATION_ERROR, '저장할 문서가 없습니다');

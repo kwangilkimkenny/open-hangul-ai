@@ -841,7 +841,7 @@
             max-height: none; /* Allow content to determine height */
             box-sizing: border-box;
             position: relative;
-            overflow: hidden; /* Prevent content overflow */
+            overflow: visible; /* ✅ v2.2.14: Changed from hidden - inline shapes need visible */
             white-space: pre-wrap; /* Preserve whitespace */
             font-size: initial; /* Reset font size from table */
             line-height: 1.1; /* ✅ 추가 압축: 1.15 → 1.1 */
@@ -1147,43 +1147,37 @@
             border-radius: 6px; /* Slightly more rounded for containers */
         }
 
-        /* ✅ v2.2.7e: 페이지 폭 초과 방지 - 모든 이미지 강제 제한 */
-        .hwp-image[style*="width"][style*="height"] {
-            max-width: 100% !important; /* ✅ 변경: none → 100% */
-            width: auto !important; /* ✅ 인라인 width 무시 */
-            height: auto !important; /* ✅ 비율 유지 */
-        }
-        
-        /* ✅ v2.2.7e: 모든 img 태그 강제 제한 (최우선 순위) */
+        /* ✅ v2.2.10: 이미지 크기 - 인라인 스타일 우선, overflow만 방지 */
         .hwp-page-container img,
         .hwp-page-container .hwp-image {
-            max-width: 100% !important;
-            width: auto !important; /* ✅ 인라인 width 무시 */
-            height: auto !important; /* ✅ 비율 유지 */
-            object-fit: contain !important;
-        }
-        
-        /* ✅ v2.2.7e: 인라인 스타일이 있어도 무시 */
-        .hwp-page-container img[style],
-        .hwp-page-container .hwp-image[style] {
-            max-width: 100% !important;
-            width: auto !important;
-            height: auto !important;
+            max-width: 100%; /* overflow 방지 (인라인 스타일보다 낮은 우선순위) */
+            object-fit: contain;
         }
 
-        /* ✅ v2.2.7d: 테이블 내부 이미지 추가 제한 */
+        /* ✅ v2.2.10: 테이블 내부 이미지 - 명시적 크기 존중 */
         .hwp-table img,
-        .hwp-table .hwp-image,
-        .hwp-table .hwp-image-wrapper img {
-            max-width: 100% !important;
-            height: auto !important;
-            object-fit: contain; /* 비율 유지하며 셀에 맞춤 */
+        .hwp-table .hwp-image {
+            max-width: 100%; /* 셀 넘침 방지 */
+            object-fit: contain; /* 비율 유지 */
+        }
+
+        /* ✅ v2.2.10: 인라인 스타일로 크기가 지정된 이미지 래퍼 - 정확한 크기 유지 */
+        .hwp-table .hwp-image-wrapper[style*="width"] {
+            /* 인라인 width/height 그대로 사용 */
+            max-width: 100%; /* 셀 넘침만 방지 */
+        }
+
+        .hwp-table .hwp-image-wrapper[style*="width"] img {
+            width: 100%; /* 래퍼 크기에 맞춤 */
+            height: 100%; /* 래퍼 높이에 맞춤 */
+            object-fit: contain; /* 비율 유지 */
         }
 
         /* ✅ v2.2.7d: 테이블 셀 내부 컨텐츠 제한 */
+        /* ✅ v2.2.14: Changed overflow to visible to allow inline shapes to render correctly */
         .hwp-table td,
         .hwp-table th {
-            overflow: hidden; /* 셀 넘침 방지 */
+            overflow: visible; /* Changed from hidden - inline shapes need visible overflow */
             max-width: 100%; /* 셀이 테이블 폭 초과하지 않도록 */
         }
 
@@ -1277,12 +1271,19 @@
         }
         
         /* Cell content overflow handling */
+        /* ✅ v2.2.14: Removed max-width: 0 and overflow: hidden as it breaks inline shapes */
+        /* These were causing shapes to not render correctly until cell interaction */
         .hwp-table td {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 0; /* Enable text-overflow */
+            overflow: visible;
+            /* Removed: text-overflow: ellipsis; */
+            /* Removed: max-width: 0; */
         }
-        
+
+        /* ✅ v2.2.14: Ensure shapes inside table cells render with correct dimensions */
+        .hwp-table td .hwp-shape {
+            overflow: visible !important;
+        }
+
         .hwp-table td:hover {
             /* Removed hover effects - render only HWPX table styling */
         }
@@ -1902,15 +1903,39 @@
         /* ==================== End 썸네일 ==================== */
 
         /* ==================== Shape 페이지 폭 제한 ==================== */
+        /* ✅ v2.2.14: Let inline styles with explicit width take precedence */
         .hwp-shape {
-            max-width: 100% !important;
-            box-sizing: border-box !important;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* ✅ v2.2.14: Inline shapes (treatAsChar) should maintain their explicit width */
+        /* data-inline="true" is set for shapes with treatAsChar=true */
+        .hwp-shape[data-inline="true"] {
+            display: inline-block !important;
+            vertical-align: middle !important;
+            flex-shrink: 0 !important;
+            flex-grow: 0 !important;
+            /* Don't set width here - let inline styles take precedence */
+        }
+
+        /* ✅ v2.2.14: Shapes inside table cells should not stretch to fill cell */
+        .hwp-table td .hwp-shape[data-inline="true"],
+        .hwp-table th .hwp-shape[data-inline="true"] {
+            display: inline-block !important;
+            max-width: none !important;
+        }
+
+        /* ✅ v2.2.14: Ensure paragraphs in table cells allow inline shapes */
+        .hwp-table td .hwp-paragraph,
+        .hwp-table th .hwp-paragraph {
+            display: block;
         }
 
         .hwp-shape-drawtext {
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            overflow: hidden !important;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .hwp-image-wrapper {

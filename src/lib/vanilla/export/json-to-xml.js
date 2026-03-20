@@ -1,10 +1,10 @@
 /**
  * JSON → XML 변환기 (브라우저용)
- * 
+ *
  * HWPX 문서의 JSON 구조를 XML 문자열로 변환합니다.
- * 
+ *
  * @module export/json-to-xml
- * @version 1.0.0
+ * @version 1.1.0 - linebreak run 타입 지원 추가
  * @author HWPX Viewer Team
  */
 
@@ -211,6 +211,7 @@ export class JsonToXmlConverter {
 
   /**
    * 문단 XML 생성
+   * ✅ v1.1.0: linebreak run 타입 지원
    * @param {Object} paragraph - 문단 객체
    * @returns {string} 문단 XML
    */
@@ -231,8 +232,16 @@ export class JsonToXmlConverter {
       // 런이 있는 경우
       runs.forEach(run => {
         const charShapeId = run.charShapeId || 0;
-        xml += `
+
+        // ✅ v1.1.0: linebreak 타입 처리
+        if (run.type === 'linebreak') {
+          xml += `
+      <LINEBREAK CharShape="${charShapeId}"/>`;
+        } else {
+          // 일반 텍스트 런
+          xml += `
       <TEXT CharShape="${charShapeId}">${this.escapeXml(run.text || '')}</TEXT>`;
+        }
       });
     }
 

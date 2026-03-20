@@ -112,11 +112,13 @@ export class SimpleHWPXParser {
             const document = {
                 sections: content.sections || [],
                 images: this.images,
+                borderFills: this.borderFills, // ✅ v2.2.12: borderFill 정의 포함
                 rawHeaderXml,  // ✅ 원본 header.xml 보존
                 metadata: {
                     parsedAt: new Date().toISOString(),
                     sectionsCount: content.sections?.length || 0,
-                    imagesCount: this.images.size
+                    imagesCount: this.images.size,
+                    borderFillsCount: this.borderFills.size
                 }
             };
 
@@ -894,6 +896,44 @@ export class SimpleHWPXParser {
                     logger.debug(`📰 Multi-column layout: ${colCount} columns`);
                 }
             }
+
+            // ✅ v2.2.12: Parse pageBorderFill for page background (image or color)
+            const pageBorderFillElems = secPrElem.querySelectorAll('pageBorderFill, hp\\:pageBorderFill');
+            if (pageBorderFillElems.length > 0) {
+                section.pageBackground = {};
+                pageBorderFillElems.forEach(pbfElem => {
+                    const type = pbfElem.getAttribute('type') || 'BOTH'; // BOTH, ODD, EVEN
+                    const borderFillIDRef = pbfElem.getAttribute('borderFillIDRef');
+                    const fillArea = pbfElem.getAttribute('fillArea') || 'PAPER';
+
+                    if (borderFillIDRef && this.borderFills.has(borderFillIDRef)) {
+                        const borderFillDef = this.borderFills.get(borderFillIDRef);
+
+                        const bgInfo = {
+                            fillArea,
+                            backgroundColor: borderFillDef.fill?.backgroundColor,
+                            backgroundImage: borderFillDef.fill?.backgroundImage,
+                            gradientCSS: borderFillDef.fill?.gradientCSS
+                        };
+
+                        if (type === 'BOTH') {
+                            section.pageBackground.both = bgInfo;
+                            section.pageBackground.odd = bgInfo;
+                            section.pageBackground.even = bgInfo;
+                        } else if (type === 'ODD') {
+                            section.pageBackground.odd = bgInfo;
+                        } else if (type === 'EVEN') {
+                            section.pageBackground.even = bgInfo;
+                        }
+
+                        if (bgInfo.backgroundImage) {
+                            logger.debug(`🖼️ Page background image: ${bgInfo.backgroundImage.binaryItemIDRef} (type: ${type})`);
+                        } else if (bgInfo.backgroundColor) {
+                            logger.debug(`🎨 Page background color: ${bgInfo.backgroundColor} (type: ${type})`);
+                        }
+                    }
+                });
+            }
         }
 
         // ✅ CRITICAL FIX: Parse in XML document order to maintain layout
@@ -944,10 +984,44 @@ export class SimpleHWPXParser {
 
                     runs.forEach((runElem, runIdx) => {
                         const children = Array.from(runElem.children);
+
+                        // ✅ v2.2.12: Check for shapes (rect/ellipse/polygon) FIRST
+                        // Shapes may contain tables inside their drawText
+                        const hasShapeInRun = children.some(c => {
+                            const ln = (c.localName || c.tagName).toLowerCase();
+                            return ['rect', 'ellipse', 'polygon'].includes(ln) ||
+                                   ln.endsWith(':rect') || ln.endsWith(':ellipse') || ln.endsWith(':polygon');
+                        });
+
                         const hasTableInRun = children.some(c => {
                             const ln = (c.localName || c.tagName).toLowerCase();
                             return ln === 'tbl' || ln.endsWith(':tbl');
                         });
+
+                        // ✅ v2.2.12: If run has shape, parse as paragraph to handle shapes properly
+                        if (hasShapeInRun) {
+                            // Flush accumulated text runs first
+                            if (currentTextRuns.length > 0) {
+                                const para = {
+                                    type: 'paragraph',
+                                    runs: currentTextRuns,
+                                    text: currentTextRuns.map(r => r.text).join(' '),
+                                    style: {}
+                                };
+                                section.elements.push(para);
+                                parsedCount++;
+                                currentTextRuns = [];
+                            }
+
+                            // Parse the entire paragraph to handle shapes with their drawText content
+                            const para = this.parseParagraph(child);
+                            if (para) {
+                                section.elements.push(para);
+                                parsedCount++;
+                            }
+                            // Skip remaining runs since parseParagraph handles all runs
+                            return;
+                        }
 
                         if (hasTableInRun && this.options.parseTables) {
                             // Flush accumulated text runs as a paragraph
@@ -1278,11 +1352,16 @@ export class SimpleHWPXParser {
                     }
                     // Parse text
                     else if (localName === 't') {
-                        // ✅ Check if <t> contains <tab> elements (nested structure)
-                        const nestedTabs = child.querySelectorAll('tab, hp\\:tab');
+                        // ✅ v2.2.13: Check if <t> contains <tab> or <lineBreak> elements (nested structure)
+                        // Check all child elements for tabs or lineBreaks
+                        const childElements = Array.from(child.children || []);
+                        const hasNestedElements = childElements.some(el => {
+                            const name = (el.localName || el.tagName || '').toLowerCase().replace(/^hp:/, '');
+                            return name === 'tab' || name === 'linebreak';
+                        });
 
-                        if (nestedTabs.length > 0) {
-                            // Parse text and tabs in order
+                        if (hasNestedElements) {
+                            // Parse text, tabs, and lineBreaks in order
                             const childNodes = Array.from(child.childNodes);
 
                             childNodes.forEach(node => {
@@ -1303,7 +1382,12 @@ export class SimpleHWPXParser {
                                         para.runs.push(run);
                                     }
                                 } else if (node.nodeType === 1) { // Element node
-                                    const nodeName = node.localName || node.tagName.split(':').pop();
+                                    // Handle namespace prefix (hp:lineBreak -> linebreak)
+                                    let nodeName = node.localName || node.tagName || '';
+                                    if (nodeName.includes(':')) {
+                                        nodeName = nodeName.split(':').pop();
+                                    }
+                                    nodeName = nodeName.toLowerCase();
 
                                     if (nodeName === 'tab') {
                                         // Parse nested tab
@@ -1330,11 +1414,14 @@ export class SimpleHWPXParser {
                                         }
 
                                         para.runs.push(tab);
+                                    } else if (nodeName === 'linebreak') {
+                                        // ✅ v2.2.13: Parse lineBreak element
+                                        para.runs.push({ type: 'linebreak' });
                                     }
                                 }
                             });
                         } else {
-                            // No nested tabs - simple text
+                            // No nested tabs/lineBreaks - simple text
                             const text = child.textContent || '';
                             const run = { text, style: {} };
 
@@ -1452,14 +1539,14 @@ export class SimpleHWPXParser {
             const widthRelTo = szElem.getAttribute('widthRelTo');
             const heightRelTo = szElem.getAttribute('heightRelTo');
 
+            // ✅ v2.2.10: 표 너비/높이 모두 스케일 팩터 없이 원본 크기 사용
             if (width) {
                 table.widthHWPU = parseInt(width);
-                const widthPx = HWPXConstants.hwpuToPx(table.widthHWPU);
+                const widthPx = HWPXConstants.hwpuToPxUnscaled(table.widthHWPU);
                 table.style.width = widthPx.toFixed(2) + 'px';
                 table.style.widthPrecise = widthPx;
                 table.style.widthRelTo = widthRelTo;
             }
-            // ✅ v2.2.10: 표 높이는 스케일 팩터 없이 원본 크기 사용
             if (height) {
                 table.heightHWPU = parseInt(height);
                 const heightPx = HWPXConstants.hwpuToPxUnscaled(table.heightHWPU);
@@ -1644,18 +1731,18 @@ export class SimpleHWPXParser {
                 if (cellSzElem) {
                     const width = cellSzElem.getAttribute('width');
                     const height = cellSzElem.getAttribute('height');
+                    // ✅ v2.2.10: 셀 너비/높이 모두 스케일 팩터 없이 원본 크기 사용
                     if (width) {
                         cell.widthHWPU = parseInt(width);
                         if (table.widthHWPU) {
                             cell.style.widthPercent = (cell.widthHWPU / table.widthHWPU * 100).toFixed(4) + '%';
                         }
-                        const widthPx = HWPXConstants.hwpuToPx(cell.widthHWPU);
+                        const widthPx = HWPXConstants.hwpuToPxUnscaled(cell.widthHWPU);
                         cell.style.width = widthPx.toFixed(2) + 'px';
                         cell.style.widthPrecise = widthPx;
                     }
                     if (height) {
                         cell.heightHWPU = parseInt(height);
-                        // ✅ v2.2.10: 셀 높이도 스케일 없이 원본 크기 유지
                         const heightPx = HWPXConstants.hwpuToPxUnscaled(cell.heightHWPU);
                         cell.style.height = heightPx.toFixed(2) + 'px';
                         cell.style.heightPrecise = heightPx;
@@ -1671,15 +1758,16 @@ export class SimpleHWPXParser {
                     const top = cellMarginElem.getAttribute('top');
                     const bottom = cellMarginElem.getAttribute('bottom');
 
+                    // ✅ v2.2.10: 셀 마진도 스케일 팩터 없이 변환
                     if (left || right || top || bottom) {
                         const margins = [];
-                        if (top) margins.push(HWPXConstants.hwpuToPx(parseInt(top)).toFixed(2) + 'px');
+                        if (top) margins.push(HWPXConstants.hwpuToPxUnscaled(parseInt(top)).toFixed(2) + 'px');
                         else margins.push('0px');
-                        if (right) margins.push(HWPXConstants.hwpuToPx(parseInt(right)).toFixed(2) + 'px');
+                        if (right) margins.push(HWPXConstants.hwpuToPxUnscaled(parseInt(right)).toFixed(2) + 'px');
                         else margins.push('0px');
-                        if (bottom) margins.push(HWPXConstants.hwpuToPx(parseInt(bottom)).toFixed(2) + 'px');
+                        if (bottom) margins.push(HWPXConstants.hwpuToPxUnscaled(parseInt(bottom)).toFixed(2) + 'px');
                         else margins.push('0px');
-                        if (left) margins.push(HWPXConstants.hwpuToPx(parseInt(left)).toFixed(2) + 'px');
+                        if (left) margins.push(HWPXConstants.hwpuToPxUnscaled(parseInt(left)).toFixed(2) + 'px');
                         else margins.push('0px');
                         cell.style.padding = margins.join(' ');
                     }
@@ -1740,14 +1828,15 @@ export class SimpleHWPXParser {
                 // ✅ Parse cell paragraphs - ALL descendants, but exclude nested tables AND shape texts
                 // v2.2.7i: Changed from :scope > p to all descendants to capture nested paragraphs
                 // ✅ v2.2.8: Also exclude paragraphs inside drawText/container/shapes to prevent text duplication
+                // ✅ v2.2.13: Fixed to only check for drawText/shapes WITHIN the cell scope
                 if (subListElem) {
                     // Get all paragraphs (including nested ones)
                     const allParas = subListElem.querySelectorAll('p, hp\\:p');
 
                     // Filter out paragraphs that are inside:
                     // 1. Nested tables (already parsed above)
-                    // 2. drawText elements (text inside shapes)
-                    // 3. container/rect/ellipse elements (shapes with embedded text)
+                    // 2. drawText elements (text inside shapes) - WITHIN this cell only
+                    // 3. container/rect/ellipse elements (shapes with embedded text) - WITHIN this cell only
                     const parasToProcess = Array.from(allParas).filter(pElem => {
                         // Check if this paragraph is inside a nested table within this cell
                         const parentTable = pElem.closest('tbl, hp\\:tbl');
@@ -1755,16 +1844,18 @@ export class SimpleHWPXParser {
                             return false; // Inside nested table, skip
                         }
 
-                        // ✅ Check if this paragraph is inside a drawText element (shape text)
+                        // ✅ v2.2.13: Check if this paragraph is inside a drawText element (shape text)
+                        // WITHIN the current cell's subList scope
                         const parentDrawText = pElem.closest('drawText, hp\\:drawText');
-                        if (parentDrawText) {
-                            return false; // Inside shape text, skip (will be rendered by shape renderer)
+                        if (parentDrawText && subListElem.contains(parentDrawText)) {
+                            return false; // Inside shape text within this cell, skip
                         }
 
-                        // ✅ Check if inside a container or shape (rect, ellipse, etc.)
+                        // ✅ v2.2.13: Check if inside a container or shape (rect, ellipse, etc.)
+                        // WITHIN the current cell's subList scope
                         const parentContainer = pElem.closest('container, hp\\:container, rect, hp\\:rect, ellipse, hp\\:ellipse');
-                        if (parentContainer) {
-                            return false; // Inside container/shape, skip
+                        if (parentContainer && subListElem.contains(parentContainer)) {
+                            return false; // Inside container/shape within this cell, skip
                         }
 
                         return true;
@@ -1900,19 +1991,34 @@ export class SimpleHWPXParser {
             console.log(`[parseImage] No img element found in pic`);
         }
 
-        // ✅ Parse size - try curSz first (현재 크기), then sz (원본 크기)
+        // ✅ Parse size - try curSz first (현재 크기), fallback to sz if curSz is 0
+        // ✅ v2.2.11: curSz가 0이면 sz 사용, hwpuToPxUnscaled로 정확한 크기 계산
         const curSzElem = picElem.querySelector('curSz, hp\\:curSz');
-        const szElem = curSzElem || picElem.querySelector('sz, hp\\:sz');
-        if (szElem) {
-            const width = szElem.getAttribute('width');
-            const height = szElem.getAttribute('height');
-            if (width) {
-                image.width = HWPXConstants.hwpuToPx(parseInt(width));
-            }
-            if (height) {
-                image.height = HWPXConstants.hwpuToPx(parseInt(height));
-            }
+        const szElem = picElem.querySelector('sz, hp\\:sz');
+
+        let widthHwpu = 0;
+        let heightHwpu = 0;
+
+        // curSz 먼저 시도
+        if (curSzElem) {
+            widthHwpu = parseInt(curSzElem.getAttribute('width')) || 0;
+            heightHwpu = parseInt(curSzElem.getAttribute('height')) || 0;
         }
+
+        // curSz가 0이면 sz 사용
+        if ((widthHwpu === 0 || heightHwpu === 0) && szElem) {
+            widthHwpu = parseInt(szElem.getAttribute('width')) || widthHwpu;
+            heightHwpu = parseInt(szElem.getAttribute('height')) || heightHwpu;
+        }
+
+        if (widthHwpu > 0) {
+            image.width = HWPXConstants.hwpuToPxUnscaled(widthHwpu);
+        }
+        if (heightHwpu > 0) {
+            image.height = HWPXConstants.hwpuToPxUnscaled(heightHwpu);
+        }
+
+        console.log(`[parseImage] Size parsed: ${widthHwpu} x ${heightHwpu} HWPU → ${image.width?.toFixed(1)} x ${image.height?.toFixed(1)} px`);
 
         // Parse position
         const posElem = picElem.querySelector('pos, hp\\:pos');
@@ -1923,8 +2029,8 @@ export class SimpleHWPXParser {
             image.position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
             image.position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
 
-            // ✅ v2.2.9: horzOffset과 vertOffset으로 정확한 이미지 위치 계산
-            // 이 값들이 이미지의 실제 절대 위치를 결정함
+            // ✅ v2.2.10: horzOffset과 vertOffset으로 정확한 이미지 위치 계산
+            // 이 값들이 이미지의 실제 절대 위치를 결정함 (스케일 없이 정확한 위치)
             const horzOffset = posElem.getAttribute('horzOffset');
             const vertOffset = posElem.getAttribute('vertOffset');
 
@@ -1932,12 +2038,12 @@ export class SimpleHWPXParser {
 
             if (horzOffset) {
                 const horzOffsetVal = parseInt(horzOffset);
-                image.position.x = HWPXConstants.hwpuToPx(horzOffsetVal);
+                image.position.x = HWPXConstants.hwpuToPxUnscaled(horzOffsetVal);
                 console.log(`  → Image horzOffset: ${horzOffset} HWPU = ${image.position.x}px`);
             }
             if (vertOffset) {
                 const vertOffsetVal = parseInt(vertOffset);
-                image.position.y = HWPXConstants.hwpuToPx(vertOffsetVal);
+                image.position.y = HWPXConstants.hwpuToPxUnscaled(vertOffsetVal);
                 console.log(`  → Image vertOffset: ${vertOffset} HWPU = ${image.position.y}px`);
             }
         } else {
@@ -1946,7 +2052,7 @@ export class SimpleHWPXParser {
 
 
         // Parse offset (hp:offset) - only if hp:pos horzOffset/vertOffset didn't set position
-        // ✅ v2.2.9: hp:pos horzOffset/vertOffset이 이미 설정된 경우 hp:offset으로 덮어쓰지 않음
+        // ✅ v2.2.10: hp:pos horzOffset/vertOffset이 이미 설정된 경우 hp:offset으로 덮어쓰지 않음
         const offsetElem = picElem.querySelector('offset, hp\\:offset');
         if (offsetElem) {
             const x = offsetElem.getAttribute('x');
@@ -1965,7 +2071,7 @@ export class SimpleHWPXParser {
                 if (Math.abs(xVal) > MAX_OFFSET) {
                     xVal = 0;
                 }
-                image.position.x = HWPXConstants.hwpuToPx(xVal);
+                image.position.x = HWPXConstants.hwpuToPxUnscaled(xVal);
             }
 
             // Only apply hp:offset if hp:pos vertOffset didn't set position.y
@@ -1980,7 +2086,7 @@ export class SimpleHWPXParser {
                 if (Math.abs(yVal) > MAX_OFFSET) {
                     yVal = 0;
                 }
-                image.position.y = HWPXConstants.hwpuToPx(yVal);
+                image.position.y = HWPXConstants.hwpuToPxUnscaled(yVal);
             }
         }
 
@@ -2123,13 +2229,14 @@ export class SimpleHWPXParser {
             const horzOffset = posElem.getAttribute('horzOffset');
             const vertOffset = posElem.getAttribute('vertOffset');
 
+            // ✅ v2.2.10: shape 위치도 스케일 팩터 없이 변환
             if (horzOffset) {
                 let horzOffsetVal = parseInt(horzOffset);
                 // Handle 32-bit unsigned integers that represent negative numbers
                 if (horzOffsetVal > 2147483647) {
                     horzOffsetVal = horzOffsetVal - 4294967296;
                 }
-                shape.position.x = HWPXConstants.hwpuToPx(horzOffsetVal);
+                shape.position.x = HWPXConstants.hwpuToPxUnscaled(horzOffsetVal);
                 console.log(`[parseShape] horzOffset: ${horzOffset} → ${shape.position.x}px`);
             }
             if (vertOffset) {
@@ -2138,7 +2245,7 @@ export class SimpleHWPXParser {
                 if (vertOffsetVal > 2147483647) {
                     vertOffsetVal = vertOffsetVal - 4294967296;
                 }
-                shape.position.y = HWPXConstants.hwpuToPx(vertOffsetVal);
+                shape.position.y = HWPXConstants.hwpuToPxUnscaled(vertOffsetVal);
                 console.log(`[parseShape] vertOffset: ${vertOffset} → ${shape.position.y}px`);
             }
         }
@@ -2161,6 +2268,7 @@ export class SimpleHWPXParser {
         if (offsetElem) {
             const x = offsetElem.getAttribute('x');
             const y = offsetElem.getAttribute('y');
+            // ✅ v2.2.10: shape offset도 스케일 팩터 없이 변환
             if (x) {
                 let xVal = parseInt(x);
                 // ✅ Handle 32-bit unsigned integers that represent negative numbers
@@ -2173,7 +2281,7 @@ export class SimpleHWPXParser {
                     logger.warn(`  ⚠️ X offset too large: ${xVal}, clamping to 0`);
                     xVal = 0;
                 }
-                shape.position.x = HWPXConstants.hwpuToPx(xVal);
+                shape.position.x = HWPXConstants.hwpuToPxUnscaled(xVal);
             }
             if (y) {
                 let yVal = parseInt(y);
@@ -2187,7 +2295,7 @@ export class SimpleHWPXParser {
                     logger.warn(`  ⚠️ Y offset too large: ${yVal}, clamping to 0`);
                     yVal = 0;
                 }
-                shape.position.y = HWPXConstants.hwpuToPx(yVal);
+                shape.position.y = HWPXConstants.hwpuToPxUnscaled(yVal);
             }
         }
 
@@ -2331,7 +2439,9 @@ export class SimpleHWPXParser {
             console.log(`  subListElem found: ${!!subListElem}`);
 
             if (subListElem) {
-                const paragraphs = subListElem.querySelectorAll('p, hp\\:p');
+                // ✅ v2.2.13: Only get DIRECT child paragraphs of subList
+                // Using :scope > p to avoid getting nested paragraphs inside tables/shapes
+                const paragraphs = subListElem.querySelectorAll(':scope > p, :scope > hp\\:p');
                 console.log(`  paragraphs found: ${paragraphs.length}`);
 
                 // ✅ Parse vertical alignment
@@ -2398,16 +2508,16 @@ export class SimpleHWPXParser {
             paragraphs: []
         };
 
-        // Parse size
+        // ✅ v2.2.10: 텍스트박스도 hwpuToPxUnscaled 사용 (정확한 크기)
         const szElem = textboxElem.querySelector('sz, hp\\:sz');
         if (szElem) {
             const width = szElem.getAttribute('width');
             const height = szElem.getAttribute('height');
             if (width) {
-                textbox.width = HWPXConstants.hwpuToPx(parseInt(width));
+                textbox.width = HWPXConstants.hwpuToPxUnscaled(parseInt(width));
             }
             if (height) {
-                textbox.height = HWPXConstants.hwpuToPx(parseInt(height));
+                textbox.height = HWPXConstants.hwpuToPxUnscaled(parseInt(height));
             }
         }
 
@@ -2479,11 +2589,12 @@ export class SimpleHWPXParser {
             logger.debug(`  📐 Container using orgSz: ${orgWidth}x${orgHeight}`);
         }
 
+        // ✅ v2.2.10: 컨테이너도 hwpuToPxUnscaled 사용 (정확한 크기)
         if (widthParsed > 0) {
-            container.width = HWPXConstants.hwpuToPx(widthParsed);
+            container.width = HWPXConstants.hwpuToPxUnscaled(widthParsed);
         }
         if (heightParsed > 0) {
-            container.height = HWPXConstants.hwpuToPx(heightParsed);
+            container.height = HWPXConstants.hwpuToPxUnscaled(heightParsed);
         }
 
 
@@ -2499,6 +2610,7 @@ export class SimpleHWPXParser {
             const x = offsetElem.getAttribute('x');
             const y = offsetElem.getAttribute('y');
 
+            // ✅ v2.2.10: container 위치도 스케일 팩터 없이 변환
             if (x) {
                 let xVal = parseInt(x);
                 // ✅ Handle 32-bit unsigned integers that represent negative numbers
@@ -2511,7 +2623,7 @@ export class SimpleHWPXParser {
                     logger.warn(`  ⚠️ Container X offset too large: ${xVal}, clamping to 0`);
                     xVal = 0;
                 }
-                container.position.x = HWPXConstants.hwpuToPx(xVal);
+                container.position.x = HWPXConstants.hwpuToPxUnscaled(xVal);
             }
             if (y) {
                 let yVal = parseInt(y);
@@ -2532,7 +2644,7 @@ export class SimpleHWPXParser {
                 if (parentIsImageContainer) {
                     container.position.y = 0;
                 } else {
-                    container.position.y = HWPXConstants.hwpuToPx(yVal);
+                    container.position.y = HWPXConstants.hwpuToPxUnscaled(yVal);
                 }
             }
         }

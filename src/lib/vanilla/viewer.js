@@ -888,6 +888,7 @@ export class HWPXViewer {
 
   /**
    * DOM의 변경사항을 document에 동기화 (강제 동기화)
+   * ✅ v2.1.4: DOM에서 문서 구조도 재구성하여 state.document와 동기화
    * @private
    */
   _syncDocumentFromDOM() {
@@ -906,12 +907,32 @@ export class HWPXViewer {
     let paragraphsChecked = 0;
     let paragraphsUpdated = 0;
 
+    // ✅ v2.1.4: DOM에서 수집한 요소들 (문서 구조 재구성용)
+    // Map으로 순서와 데이터를 함께 저장
+    const elementMap = new Map();
+
     try {
       // 1. 테이블 셀 강제 동기화
       const tables = this.container.querySelectorAll('.hwp-table');
       logger.info(`  🔍 Checking ${tables.length} tables...`);
 
       tables.forEach((tableElement, tableIndex) => {
+        // ✅ v2.1.4: 테이블 데이터 수집 (DOM 순서 기준)
+        const tableData = tableElement._tableData;
+        logger.info(`  🔍 Table ${tableIndex}: _tableData exists = ${!!tableData}`);
+        if (tableData) {
+          // ✅ v2.1.5: type이 없으면 'table'로 설정 (안전 장치)
+          if (!tableData.type) {
+            logger.warn(`  ⚠️ Table ${tableIndex}: Missing type, setting to 'table'`);
+            tableData.type = 'table';
+          }
+          // DOM 위치를 키로 사용하여 순서 보존
+          elementMap.set(tableElement, tableData);
+          logger.info(`  📊 Collected table ${tableIndex} with type: ${tableData.type}`);
+        } else {
+          logger.warn(`  ⚠️ Table ${tableIndex}: No _tableData attached!`);
+        }
+
         const cells = tableElement.querySelectorAll('td, th');
 
         cells.forEach((cell, cellIndex) => {
@@ -932,6 +953,11 @@ export class HWPXViewer {
             );
             this._updateCellDataFromText(cellData, currentText);
             cellsUpdated++;
+
+            // ✅ 디버그: 업데이트 후 cellData 확인
+            const updatedRuns = cellData.elements?.[0]?.runs || [];
+            logger.info(`    → Updated runs count: ${updatedRuns.length}`);
+            logger.info(`    → Runs: ${JSON.stringify(updatedRuns.slice(0, 3))}...`);
           }
         });
       });
@@ -947,6 +973,22 @@ export class HWPXViewer {
           return;
         }
 
+        // ✅ v2.1.4: 단락 데이터 수집 (테이블 외부 단락만)
+        // 테이블 내부 단락은 이미 tableData에 포함되어 있음
+        const isInsideTable = para.closest('.hwp-table');
+        logger.debug(`  🔍 Paragraph ${paraIndex}: isInsideTable=${!!isInsideTable}, type=${paraData.type}`);
+        if (!isInsideTable) {
+          // ✅ v2.1.5: type이 없으면 'paragraph'로 설정 (안전 장치)
+          if (!paraData.type) {
+            logger.warn(`  ⚠️ Paragraph ${paraIndex}: Missing type, setting to 'paragraph'`);
+            paraData.type = 'paragraph';
+          }
+          if (paraData.type === 'paragraph') {
+            elementMap.set(para, paraData);
+            logger.info(`  📄 Collected paragraph ${paraIndex}`);
+          }
+        }
+
         paragraphsChecked++;
         const currentText = this._extractTextFromElement(para);
         const originalText = this._extractTextFromParaData(paraData);
@@ -960,6 +1002,50 @@ export class HWPXViewer {
           paragraphsUpdated++;
         }
       });
+
+      // ✅ v2.1.4: DOM에서 수집한 요소로 state.document 재구성
+      // DOM 순서에 따라 정렬하여 원래 문서 순서 보존
+      logger.info(`  🔍 elementMap.size = ${elementMap.size}`);
+      if (elementMap.size > 0 && this.state.document.sections?.[0]) {
+        const section = this.state.document.sections[0];
+        const oldElements = section.elements || [];
+        const oldTableCount = oldElements.filter(e => e.type === 'table').length;
+
+        // DOM 요소들을 document order로 정렬
+        const sortedElements = Array.from(elementMap.entries())
+          .sort((a, b) => {
+            // compareDocumentPosition을 사용하여 DOM 순서 비교
+            const position = a[0].compareDocumentPosition(b[0]);
+            if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+            if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+            return 0;
+          })
+          .map(([_, data]) => data);
+
+        const newTableCount = sortedElements.filter(e => e.type === 'table').length;
+
+        logger.info(`  🔄 Rebuilding document structure from DOM...`);
+        logger.info(`    Old: ${oldElements.length} elements, ${oldTableCount} tables`);
+        logger.info(`    New: ${sortedElements.length} elements, ${newTableCount} tables`);
+
+        // ✅ v2.1.5: 디버그 - 새 요소들의 타입 출력
+        sortedElements.forEach((elem, idx) => {
+          logger.info(`      Element ${idx}: type=${elem.type}, rows=${elem.rows?.length || 'N/A'}`);
+          if (elem.type === 'table' && elem.rows?.[0]?.cells?.[0]) {
+            const firstCell = elem.rows[0].cells[0];
+            const runs = firstCell.elements?.[0]?.runs || [];
+            const text = runs.map(r => r.text || (r.type === 'linebreak' ? '↵' : '')).join('');
+            logger.info(`        First cell: ${runs.length} runs, text="${text.substring(0, 30)}..."`);
+          }
+        });
+
+        // DOM에서 수집한 요소로 교체
+        section.elements = sortedElements;
+
+        logger.info(`  ✅ Document structure rebuilt: ${section.elements.length} elements`);
+      } else {
+        logger.warn(`  ⚠️ Document structure NOT rebuilt: elementMap.size=${elementMap.size}, sections exist=${!!this.state.document.sections?.[0]}`);
+      }
 
       logger.info(
         `✅ Sync complete: ${cellsUpdated}/${cellsChecked} cells, ${paragraphsUpdated}/${paragraphsChecked} paragraphs updated`
@@ -995,11 +1081,18 @@ export class HWPXViewer {
   }
 
   /**
-   * 요소에서 텍스트 추출
+   * 요소에서 텍스트 추출 (줄바꿈 보존)
+   * ✅ v2.1.2: <br> 태그를 \n으로 변환하여 줄바꿈 보존
    * @private
    */
   _extractTextFromElement(element) {
-    return element.textContent || '';
+    // <br> 태그를 \n으로 변환
+    const clone = element.cloneNode(true);
+    const brs = clone.querySelectorAll('br');
+    brs.forEach(br => {
+      br.replaceWith('\n');
+    });
+    return clone.textContent || '';
   }
 
   /**
@@ -1279,8 +1372,36 @@ export class HWPXViewer {
 
     // ✅ 2단계: DOM의 모든 변경사항을 document에 강제 동기화
     logger.info('🔄 Syncing ALL changes from DOM to document...');
-    const { updatedCells, updatedParagraphs } = this._syncDocumentFromDOM();
-    logger.info(`✅ Sync complete: ${updatedCells} cells, ${updatedParagraphs} paragraphs updated`);
+    const syncResult = this._syncDocumentFromDOM();
+    logger.info(`✅ Sync complete: ${syncResult.updatedCells} cells, ${syncResult.updatedParagraphs} paragraphs updated`);
+
+    // ✅ 디버그: document 상태 확인 (v2.1.5: 더 자세한 로그)
+    const doc = this.getDocument();
+    if (doc && doc.sections) {
+      logger.info(`📊 Document sections: ${doc.sections.length}`);
+      doc.sections.forEach((section, sIdx) => {
+        if (section.elements) {
+          const tables = section.elements.filter(e => e.type === 'table');
+          const paragraphs = section.elements.filter(e => e.type === 'paragraph');
+          logger.info(`  Section ${sIdx}: ${section.elements.length} elements (${tables.length} tables, ${paragraphs.length} paragraphs)`);
+          logger.info(`    Element types: ${section.elements.map(e => e.type).join(', ')}`);
+          tables.forEach((table, tIdx) => {
+            if (table.rows) {
+              const cellCount = table.rows.reduce((sum, row) => sum + (row.cells?.length || 0), 0);
+              logger.info(`    Table ${tIdx}: ${table.rows.length} rows, ${cellCount} cells`);
+              // 첫 번째 셀의 내용 샘플 출력
+              if (table.rows[0]?.cells?.[0]?.elements?.[0]?.runs) {
+                const firstCellRuns = table.rows[0].cells[0].elements[0].runs;
+                const sampleText = firstCellRuns.map(r => r.text || (r.type === 'linebreak' ? '↵' : '')).join('');
+                logger.info(`      First cell sample: "${sampleText.substring(0, 50)}..."`);
+              }
+            }
+          });
+        }
+      });
+    } else {
+      logger.warn(`⚠️ Document is null or has no sections!`);
+    }
 
     const targetFilename = filename || this.state.currentFile.name;
     logger.info(`  - Saving as: ${targetFilename}`);

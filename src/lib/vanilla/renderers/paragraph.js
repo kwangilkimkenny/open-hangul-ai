@@ -20,6 +20,7 @@ import {
 } from '../utils/numbering.js';
 import { renderShape } from './shape.js';
 import { renderContainer } from './container.js';
+import { renderTable } from './table.js';
 
 const logger = getLogger();
 
@@ -126,9 +127,14 @@ export function renderParagraph(para) {
     // ✅ NOTE: Inline images are rendered in run loop (run.hasImage)
     // to maintain correct order with text
 
+    // ✅ v2.2.12: Check if shapes should be rendered via run loop for proper document order
+    // If any run has hasShape=true, let the run loop handle all shapes
+    const hasShapeRuns = para.runs?.some(r => r.hasShape);
+
     // Render inline shapes/containers (treatAsChar objects)
-    if (para.shapes && para.shapes.length > 0) {
-        console.log(`[Paragraph Renderer] Rendering ${para.shapes.length} shapes/containers`);
+    // Only if NOT using run-based shape rendering
+    if (para.shapes && para.shapes.length > 0 && !hasShapeRuns) {
+        console.log(`[Paragraph Renderer] Rendering ${para.shapes.length} shapes/containers (legacy mode)`);
 
         para.shapes.forEach((shape, idx) => {
             console.log(`  → Shape/Container ${idx + 1}: type=${shape.type}, treatAsChar=${shape.treatAsChar}, width=${shape.width}`);
@@ -153,8 +159,7 @@ export function renderParagraph(para) {
                     }
                 } else {
                     shapeElem = renderShape(shape);
-                    shapeElem.style.display = 'inline-block';
-                    shapeElem.style.verticalAlign = 'middle';
+                    // ✅ v2.2.14: DO NOT override styles - shape.js sets final style attribute
                     console.log(`    ✓ Rendered as shape`);
                 }
 
@@ -164,6 +169,8 @@ export function renderParagraph(para) {
                 }
             }
         });
+    } else if (hasShapeRuns) {
+        console.log(`[Paragraph Renderer] Shapes will be rendered in run order (${para.shapes?.length || 0} shapes)`);
     }
 
     // ✅ Set default font size for empty/blank paragraphs (for vertical spacing)
@@ -235,17 +242,31 @@ export function renderParagraph(para) {
                     }
                     imgWrapper.style.zIndex = '10'; // 다른 요소 위에 표시
                 } else if (image.treatAsChar || image.position?.treatAsChar) {
-                    // Inline with text
+                    // ✅ v2.2.10: Inline with text - 정확한 크기 적용
                     imgWrapper.style.display = 'inline-block';
                     imgWrapper.style.verticalAlign = 'middle';
                     imgWrapper.style.margin = '0 2px';
-                    imgWrapper.style.maxWidth = '100%';
+                    // 정확한 크기 설정
+                    if (image.width) {
+                        imgWrapper.style.width = typeof image.width === 'number' ? `${image.width}px` : image.width;
+                    }
+                    if (image.height) {
+                        imgWrapper.style.height = typeof image.height === 'number' ? `${image.height}px` : image.height;
+                    }
+                    imgWrapper.style.maxWidth = '100%'; // 셀 넘침 방지
                 } else {
-                    // Block-level image (no specific position)
+                    // ✅ v2.2.10: Block-level image - 정확한 크기 적용
                     imgWrapper.style.display = 'block';
                     imgWrapper.style.textAlign = 'center';
                     imgWrapper.style.margin = '4px 0';
-                    imgWrapper.style.maxWidth = '100%';
+                    // 정확한 크기 설정
+                    if (image.width) {
+                        imgWrapper.style.width = typeof image.width === 'number' ? `${image.width}px` : image.width;
+                    }
+                    if (image.height) {
+                        imgWrapper.style.height = typeof image.height === 'number' ? `${image.height}px` : image.height;
+                    }
+                    imgWrapper.style.maxWidth = '100%'; // 셀 넘침 방지
                 }
 
                 const imgElem = document.createElement('img');
@@ -253,8 +274,8 @@ export function renderParagraph(para) {
                 imgElem.src = image.src || image.url;
                 imgElem.alt = image.alt || '';
 
-                // ✅ 절대 위치 이미지는 정확한 크기 사용
-                if (hasAbsolutePosition && image.width) {
+                // ✅ v2.2.10: 래퍼에 크기가 설정되면 img는 100% 사용
+                if (image.width || image.height) {
                     imgElem.style.width = '100%';
                     imgElem.style.height = image.height ? '100%' : 'auto';
                 } else {
@@ -267,6 +288,57 @@ export function renderParagraph(para) {
 
                 imgWrapper.appendChild(imgElem);
                 targetContainer.appendChild(imgWrapper);
+            }
+
+        } else if (run.hasShape && para.shapes) {
+            // ✅ v2.2.12: Inline shape from run marker - render in correct document order
+            // Use shapeIndex if available, otherwise find the next unrendered shape
+            let shapeIndex = run.shapeIndex ?? 0;
+
+            // Track which shapes have been rendered
+            if (!para._renderedShapeIndices) {
+                para._renderedShapeIndices = new Set();
+            }
+
+            // Find the next available shape if this index was already used
+            while (para._renderedShapeIndices.has(shapeIndex) && shapeIndex < para.shapes.length) {
+                shapeIndex++;
+            }
+
+            if (shapeIndex < para.shapes.length) {
+                para._renderedShapeIndices.add(shapeIndex);
+                const shape = para.shapes[shapeIndex];
+
+                if (shape) {
+                    let shapeElem;
+
+                    if (shape.type === 'container') {
+                        shapeElem = renderContainer(shape);
+                    } else {
+                        shapeElem = renderShape(shape);
+                    }
+
+                    if (shapeElem) {
+                        // ✅ v2.2.12: Replace inline table placeholders inside the shape's drawText
+                        const placeholders = shapeElem.querySelectorAll('.hwp-inline-table-placeholder');
+                        placeholders.forEach(placeholder => {
+                            const tableData = placeholder._tableData;
+                            if (tableData) {
+                                const tableElem = renderTable(tableData, null); // images not available here
+                                placeholder.replaceWith(tableElem);
+                            }
+                        });
+
+                        // ✅ v2.2.14: DO NOT override styles set by renderShape
+                        // The final style attribute is already set with !important in shape.js
+
+                        // ✅ v2.2.14: Debug log to verify inline styles
+                        console.log(`[Paragraph Renderer] Shape after render - style attr:`, shapeElem.getAttribute('style')?.substring(0, 300));
+
+                        targetContainer.appendChild(shapeElem);
+                        console.log(`[Paragraph Renderer] Rendered shape in run order at index ${shapeIndex}, replaced ${placeholders.length} table placeholders`);
+                    }
+                }
             }
 
         } else if (run.isTab || run.type === 'tab') {

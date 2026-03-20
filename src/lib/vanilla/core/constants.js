@@ -142,11 +142,15 @@ export const HWPXConstants = {
 
     /**
      * HWPU를 픽셀로 변환 (스케일 팩터 없음, 원본 크기)
-     * 표와 도형의 크기 계산에 사용
+     * 표, 도형, 이미지의 크기 계산에 사용
+     * ✅ v2.2.11: HWPX 문서 분석 결과에 따른 정확한 변환
+     * - imgDim 1500 HWPU = 실제 이미지 20px
+     * - 비율: 75 HWPU/pixel = 7200 HWPU/inch at 96 DPI
      * @param {number} hwpu - HWPU 값
-     * @returns {number} 픽셀 값 (스케일 적용 안함)
+     * @returns {number} 픽셀 값 (원본 크기)
      */
     hwpuToPxUnscaled(hwpu) {
+        // HWPX/HWP 표준: 7200 HWPU per inch, 96 DPI 기준
         return hwpu / this.HWPU_TO_PX_RATIO * this.DPI_STANDARD;
     },
 

@@ -7,6 +7,14 @@
         "./mcp-server/dist/index.js"
       ],
       "env": {}
+    },
+    "hanview-mcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./hanview-mcp/dist/index.js"
+      ],
+      "env": {}
     }
   }
 }

@@ -39,7 +39,14 @@ ref/
 *.sln
 *.sw?
 
-# Playwright test results
+# Test results & coverage
 test-results/
 playwright-report/
 playwright/.cache/
+coverage/
+
+# MCP server (separate project)
+hanview-mcp/
+
+# Claude Code
+.claude/

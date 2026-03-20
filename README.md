@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/License-Commercial-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.0.0-success.svg)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/E2E_Tests-55_Passing-brightgreen.svg)](https://github.com)
-[![Unit Tests](https://img.shields.io/badge/Unit_Tests-43_Passing-brightgreen.svg)](https://github.com)
+[![Unit Tests](https://img.shields.io/badge/Unit_Tests-227_Passing-brightgreen.svg)](https://github.com)
 
 ---
 
@@ -598,7 +598,7 @@ npm run test:e2e:headed       # 헤드 모드 (브라우저 표시)
 
 ### 단위 테스트 (Vitest)
 
-**43개 테스트** - 핵심 기능 검증
+**227개 테스트** - 핵심 기능 검증 (96개 테스트 스위트)
 
 ```bash
 npm run test
@@ -606,13 +606,16 @@ npm run test
 
 **테스트 카테고리:**
 
-- Command Pattern (6 tests)
-- WeakMap Memory (6 tests)
-- Batch Operations (6 tests)
-- React Context (6 tests)
-- Pagination (6 tests)
-- Performance (6 tests)
-- Integration (7 tests)
+| 모듈 | 테스트 수 | 설명 |
+|------|-----------|------|
+| format.test.js | 50 | 날짜/숫자 포맷팅 |
+| logger.test.js | 34 | 로깅 시스템 |
+| ui.test.js | 32 | UI 유틸리티 |
+| error.test.js | 31 | 에러 처리 |
+| constants.test.js | 29 | 상수 및 단위 변환 |
+| numbering.test.js | 19 | 번호 매기기 |
+| useAutoSave.test.ts | 18 | 자동 저장 훅 |
+| parser.test.js | 14 | HWPX 파싱 |
 
 ### 성능 벤치마크
 
