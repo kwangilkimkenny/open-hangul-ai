@@ -18,6 +18,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "proxy": "node server/proxy.js",
+    "dev:full": "node server/proxy.js & vite",
     "build": "tsc -b && vite build",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:lib:watch": "vite build --config vite.config.lib.ts --watch",

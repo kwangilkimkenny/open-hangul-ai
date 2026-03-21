@@ -214,14 +214,22 @@ export class GPTContentGenerator {
         // API 호출
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.options.timeout);
-        
+
+        // 프록시 모드: Authorization 헤더 불필요 (서버에서 API 키 관리)
+        const isProxy = AIConfig.isProxyMode();
+        const headers = { 'Content-Type': 'application/json' };
+        if (!isProxy && apiKey && apiKey !== 'proxy') {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
+        if (isProxy) {
+            logger.info('🔒 Proxy mode: API key managed server-side');
+        }
+
         try {
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
+                headers,
                 body: JSON.stringify(requestBody),
                 signal: controller.signal
             });

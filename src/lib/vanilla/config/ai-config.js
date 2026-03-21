@@ -260,24 +260,47 @@ export const AIConfig = {
     },
     
     /**
-     * 🆕 활성 엔드포인트 가져오기
-     * 커스텀 API가 활성화되어 있으면 커스텀, 아니면 OpenAI
+     * 프록시 서버 URL 가져오기
+     * .env에 VITE_API_PROXY_URL이 설정되어 있으면 프록시 사용
+     * @returns {string|null}
+     */
+    getProxyUrl() {
+        if (import.meta && import.meta.env && import.meta.env.VITE_API_PROXY_URL) {
+            return import.meta.env.VITE_API_PROXY_URL;
+        }
+        return null;
+    },
+
+    /**
+     * 프록시 모드 여부 확인
+     * @returns {boolean}
+     */
+    isProxyMode() {
+        return !!this.getProxyUrl();
+    },
+
+    /**
+     * 활성 엔드포인트 가져오기
+     * 우선순위: 1) 프록시 URL, 2) 커스텀 API, 3) OpenAI
      * @returns {string}
      */
     getActiveEndpoint() {
-        return this.custom.isEnabled() ? 
-            this.custom.getEndpoint() : 
+        const proxyUrl = this.getProxyUrl();
+        if (proxyUrl) return proxyUrl;
+        return this.custom.isEnabled() ?
+            this.custom.getEndpoint() :
             this.openai.endpoint;
     },
-    
+
     /**
-     * 🆕 활성 API 키 가져오기
-     * 커스텀 API가 활성화되어 있으면 커스텀, 아니면 OpenAI
+     * 활성 API 키 가져오기
+     * 프록시 모드에서는 API 키가 서버에서 관리되므로 'proxy' 반환
      * @returns {string|null}
      */
     getActiveApiKey() {
-        return this.custom.isEnabled() ? 
-            this.custom.getApiKey() : 
+        if (this.isProxyMode()) return 'proxy';
+        return this.custom.isEnabled() ?
+            this.custom.getApiKey() :
             this.openai.getApiKey();
     },
     
