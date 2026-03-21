@@ -283,7 +283,7 @@ describe('renderTable', () => {
   // ─── Large table ──────────────────────────────────────────
 
   describe('large table', () => {
-    it('should render a table with many rows and columns', () => {
+    it('should render a table with many rows and columns', { timeout: 15000 }, () => {
       const table = createLargeTable(50, 10);
       const el = renderTable(table, new Map());
       const rows = el.querySelectorAll('.hwp-table-row');

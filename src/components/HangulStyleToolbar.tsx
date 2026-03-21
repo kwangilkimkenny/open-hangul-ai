@@ -117,15 +117,15 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
       { label: '복사', shortcut: 'Ctrl+C', action: () => { setActiveMenu(null); document.execCommand('copy'); } },
       { label: '붙여넣기', shortcut: 'Ctrl+V', action: () => { setActiveMenu(null); document.execCommand('paste'); } },
       { label: '', divider: true },
-      { label: '찾기', shortcut: 'Ctrl+F', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.open(); } },
-      { label: '찾아 바꾸기', shortcut: 'Ctrl+H', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.openReplace?.(); } },
+      { label: '찾기', shortcut: 'Ctrl+F', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.show?.(); } },
+      { label: '찾아 바꾸기', shortcut: 'Ctrl+H', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.show?.('replace'); } },
     ],
     '보기(V)': [
       { label: '확대', shortcut: 'Ctrl++', action: () => setActiveMenu(null) },
       { label: '축소', shortcut: 'Ctrl+-', action: () => setActiveMenu(null) },
       { label: '100%', shortcut: 'Ctrl+0', action: () => setActiveMenu(null) },
       { label: '', divider: true },
-      { label: '편집 모드 전환', action: () => { setActiveMenu(null); (viewer as any)?.editModeManager?.toggle?.(); } },
+      { label: '편집 모드 전환', action: () => { setActiveMenu(null); (viewer as any)?.editModeManager?.toggleGlobalEditMode?.(); } },
     ],
     '삽입(I)': [
       { label: '표 삽입 (3x3)', action: () => { setActiveMenu(null); (viewer as any)?.commandAdapt?.executeInsertTable(3, 3); } },
@@ -164,7 +164,7 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
       { label: '줄 간격 200%', action: () => { setActiveMenu(null); (viewer as any)?.commandAdapt?.executeLineSpacing(2.0); } },
     ],
     '도구(T)': [
-      { label: '찾아 바꾸기', shortcut: 'Ctrl+H', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.openReplace?.(); } },
+      { label: '찾아 바꾸기', shortcut: 'Ctrl+H', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.show?.('replace'); } },
       { label: '', divider: true },
       { label: '편집 모드 전환', shortcut: 'Ctrl+E', action: () => { setActiveMenu(null); (viewer as any)?.editModeManager?.toggleGlobalEditMode?.(); } },
       { label: '문서 검증', action: () => setActiveMenu(null) },
@@ -369,7 +369,7 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
           </button>
         </div>
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn" onClick={() => v?.searchDialog?.open()} title="찾기 (Ctrl+F)">
+          <button className="hwp-ribbon-btn" onClick={() => v?.searchDialog?.show?.()} title="찾기 (Ctrl+F)">
             <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4" fill="none"/><path d="M9.5 9.5L13 13" stroke="currentColor" strokeWidth="1.4"/></svg>
           </button>
           <button className="hwp-ribbon-btn" onClick={() => v?.clipboardManager?.copyFormat?.()} title="서식 복사 (Alt+C)">
@@ -489,16 +489,244 @@ function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAI
 }
 
 // ============================================================================
-// Simple placeholder tabs
+// Ribbon Tab Content - Format (서식)
 // ============================================================================
 
-function RibbonPlaceholder({ label }: { label: string }) {
+function RibbonFormat({ viewer }: { viewer?: HWPXViewerInstance | null }) {
+  const v = viewer as any;
+  const cmd = v?.command;
+
   return (
     <div className="hwp-ribbon-panel">
+      {/* Character Format */}
       <div className="hwp-ribbon-group">
-        <div className="hwp-ribbon-placeholder">
-          {label} 탭 도구 (준비 중)
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.bold()} title="굵게 (Ctrl+B)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="16" fontSize="16" fontWeight="bold" fill="currentColor">B</text></svg>
+            <span>굵게</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.italic()} title="기울임 (Ctrl+I)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><text x="5" y="16" fontSize="16" fontStyle="italic" fill="currentColor">I</text></svg>
+            <span>기울임</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.underline()} title="밑줄 (Ctrl+U)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="14" fontSize="14" textDecoration="underline" fill="currentColor">U</text><path d="M3 18h14" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <span>밑줄</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.strikethrough()} title="취소선">
+            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="15" fontSize="15" fill="currentColor">S</text><path d="M2 10h16" stroke="currentColor" strokeWidth="1.2"/></svg>
+            <span>취소선</span>
+          </button>
         </div>
+        <div className="hwp-ribbon-group-label">글자 모양</div>
+      </div>
+
+      {/* Superscript/Subscript */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.superscript()} title="위 첨자">
+            <svg width="20" height="20" viewBox="0 0 20 20"><text x="2" y="16" fontSize="14" fill="currentColor">X</text><text x="13" y="9" fontSize="9" fill="currentColor">2</text></svg>
+            <span>위첨자</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.subscript()} title="아래 첨자">
+            <svg width="20" height="20" viewBox="0 0 20 20"><text x="2" y="14" fontSize="14" fill="currentColor">X</text><text x="13" y="18" fontSize="9" fill="currentColor">2</text></svg>
+            <span>아래첨자</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">첨자</div>
+      </div>
+
+      {/* Paragraph Format */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.alignLeft()} title="왼쪽 정렬">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M2 8h10M2 12h16M2 16h8" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <span>왼쪽</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.alignCenter()} title="가운데 정렬">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M5 8h10M2 12h16M6 16h8" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <span>가운데</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.alignRight()} title="오른쪽 정렬">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M8 8h10M2 12h16M10 16h8" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <span>오른쪽</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => cmd?.alignJustify()} title="양쪽 정렬">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M2 8h16M2 12h16M2 16h16" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <span>양쪽</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">문단 정렬</div>
+      </div>
+
+      {/* Line Spacing */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.commandAdapt?.executeLineSpacing(1.0)} title="줄 간격 100%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 4h12M4 9h12M4 14h12" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M1 3v13" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1"/></svg>
+            <span>1.0</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.commandAdapt?.executeLineSpacing(1.6)} title="줄 간격 160%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 3h12M4 10h12M4 17h12" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M1 2v16" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1"/></svg>
+            <span>1.6</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.commandAdapt?.executeLineSpacing(2.0)} title="줄 간격 200%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 2h12M4 10h12M4 18h12" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M1 1v18" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1"/></svg>
+            <span>2.0</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">줄 간격</div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Ribbon Tab Content - Tools (도구)
+// ============================================================================
+
+function RibbonTools({ viewer }: { viewer?: HWPXViewerInstance | null }) {
+  const v = viewer as any;
+
+  return (
+    <div className="hwp-ribbon-panel">
+      {/* Find & Replace */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.searchDialog?.show?.()} title="찾기 (Ctrl+F)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="8" cy="8" r="5" stroke="currentColor" strokeWidth="1.5" fill="none"/><path d="M12 12l5 5" stroke="currentColor" strokeWidth="2"/></svg>
+            <span>찾기</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.searchDialog?.show?.('replace')} title="찾아 바꾸기 (Ctrl+H)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="7" cy="7" r="4" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M10 10l4 4" stroke="currentColor" strokeWidth="1.5"/><path d="M12 5h5M12 8h5M12 14h5M12 17h5" stroke="currentColor" strokeWidth="1" opacity="0.5"/></svg>
+            <span>바꾸기</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">찾기</div>
+      </div>
+
+      {/* Edit Mode */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.editModeManager?.toggleGlobalEditMode?.()} title="편집 모드 (Ctrl+E)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M13 3l4 4-10 10H3v-4L13 3z" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M11 5l4 4" stroke="currentColor" strokeWidth="1"/></svg>
+            <span>편집 모드</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.specialCharPicker?.open?.()} title="특수 문자 (Ctrl+F10)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="16" fontSize="16" fill="currentColor">&#937;</text></svg>
+            <span>특수문자</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">편집</div>
+      </div>
+
+      {/* Clipboard */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.clipboardManager?.copyFormat?.()} title="서식 복사 (Alt+C)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M7 6h6M7 9h6M7 12h3" stroke="currentColor" strokeWidth="1"/><path d="M2 7h3M2 10h3" stroke="#2b579a" strokeWidth="1.5"/></svg>
+            <span>서식 복사</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.clipboardManager?.pasteFormat?.()} title="서식 붙여넣기">
+            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M7 6h6M7 9h6M7 12h3" stroke="currentColor" strokeWidth="1"/><path d="M15 10l3 3-3 3" stroke="#2b579a" strokeWidth="1.5" fill="none"/></svg>
+            <span>서식 붙이기</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">서식</div>
+      </div>
+
+      {/* Undo / Redo */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.command?.undo() ?? v?.historyManager?.undo()} title="실행 취소 (Ctrl+Z)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M5 7l-3 3 3 3M2 10h11a4 4 0 0 1 0 8H9" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <span>실행 취소</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.command?.redo() ?? v?.historyManager?.redo()} title="다시 실행 (Ctrl+Y)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M15 7l3 3-3 3M18 10H7a4 4 0 0 0 0 8h4" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <span>다시 실행</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">실행취소</div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Ribbon Tab Content - View (보기)
+// ============================================================================
+
+function RibbonView({ viewer }: { viewer?: HWPXViewerInstance | null }) {
+  const v = viewer as any;
+  const [zoom, setZoom] = useState(100);
+
+  const applyZoom = useCallback((z: number) => {
+    const clamped = Math.min(400, Math.max(25, z));
+    setZoom(clamped);
+    const container = document.querySelector('.hwpx-viewer-wrapper') as HTMLElement;
+    if (container) {
+      const pages = container.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
+      pages.forEach(page => {
+        page.style.transform = `scale(${clamped / 100})`;
+        page.style.transformOrigin = 'top center';
+      });
+    }
+  }, []);
+
+  return (
+    <div className="hwp-ribbon-panel">
+      {/* Zoom */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(zoom - 25)} title="축소">
+            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M13 13l5 5" stroke="currentColor" strokeWidth="2"/><path d="M5 8h6" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <span>축소</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(100)} title="100%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><text x="5" y="14" fontSize="9" fill="currentColor">100</text></svg>
+            <span>{zoom}%</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(zoom + 25)} title="확대">
+            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M13 13l5 5" stroke="currentColor" strokeWidth="2"/><path d="M5 8h6M8 5v6" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <span>확대</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">배율</div>
+      </div>
+
+      {/* Preset Zoom */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(75)} title="75%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="1" stroke="currentColor" strokeWidth="1" fill="none"/></svg>
+            <span>75%</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(100)} title="100%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
+            <span>100%</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(150)} title="150%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
+            <span>150%</span>
+          </button>
+          <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(200)} title="200%">
+            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="0" y="0" width="20" height="20" rx="1" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <span>200%</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">빠른 배율</div>
+      </div>
+
+      {/* Edit Mode */}
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button className="hwp-ribbon-btn-lg" onClick={() => v?.editModeManager?.toggleGlobalEditMode?.()} title="편집 모드 전환 (Ctrl+E)">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M13 3l4 4-10 10H3v-4L13 3z" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
+            <span>편집 모드</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">모드</div>
       </div>
     </div>
   );
@@ -530,9 +758,9 @@ export const HangulStyleToolbar = memo(function HangulStyleToolbar({
       case 'home': return <RibbonHome viewer={viewer} />;
       case 'insert': return <RibbonInsert viewer={viewer} />;
       case 'ai': return <RibbonAI onToggleAI={onToggleAI} showAIPanel={showAIPanel} />;
-      case 'format': return <RibbonPlaceholder label="서식" />;
-      case 'tools': return <RibbonPlaceholder label="도구" />;
-      case 'view': return <RibbonPlaceholder label="보기" />;
+      case 'format': return <RibbonFormat viewer={viewer} />;
+      case 'tools': return <RibbonTools viewer={viewer} />;
+      case 'view': return <RibbonView viewer={viewer} />;
       default: return null;
     }
   };

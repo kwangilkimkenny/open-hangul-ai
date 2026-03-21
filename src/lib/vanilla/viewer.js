@@ -1213,6 +1213,17 @@ export class HWPXViewer {
    * RangeManager 가져오기
    * @returns {RangeManager|null} RangeManager 인스턴스
    */
+  /**
+   * 문자 위치 목록 가져오기 (command-adapt에서 사용)
+   * @returns {Array} 위치 배열
+   */
+  getCharacterPositions() {
+    if (this.positionManager) {
+      return this.positionManager.getPositionList() || [];
+    }
+    return [];
+  }
+
   getRangeManager() {
     return this.rangeManager;
   }
