@@ -815,27 +815,27 @@ export function HWPXViewerWrapper({
             <div className="ai-assistant-content ai-tab-content" id="ai-assistant-content" data-tab-content="assistant" style={{ display: 'none' }}>
               <div className="ai-assistant-group">
                 <div className="ai-assistant-group-label">문서 분석</div>
-                <button className="ai-assistant-btn" id="ai-ast-summary" title="문서의 핵심 내용 3줄 요약">📋 핵심 요약</button>
-                <button className="ai-assistant-btn" id="ai-ast-keywords" title="주요 키워드/태그 추출">🏷️ 키워드 추출</button>
-                <button className="ai-assistant-btn" id="ai-ast-audience" title="난이도/대상 독자 분석">📊 독자 수준 분석</button>
+                <button className="ai-assistant-btn" id="ai-ast-summary" title="문서의 핵심 내용 3줄 요약">핵심 요약</button>
+                <button className="ai-assistant-btn" id="ai-ast-keywords" title="주요 키워드/태그 추출">키워드 추출</button>
+                <button className="ai-assistant-btn" id="ai-ast-audience" title="난이도/대상 독자 분석">독자 수준 분석</button>
               </div>
               <div className="ai-assistant-group">
                 <div className="ai-assistant-group-label">업무 커뮤니케이션</div>
-                <button className="ai-assistant-btn" id="ai-ast-forward-email" title="문서 전달용 이메일 본문 생성">📧 전달 메일 작성</button>
-                <button className="ai-assistant-btn" id="ai-ast-report-email" title="상사에게 보고할 메일 생성">📨 보고 메일 작성</button>
-                <button className="ai-assistant-btn" id="ai-ast-meeting" title="문서를 회의록 형태로 변환">📝 회의록 변환</button>
+                <button className="ai-assistant-btn" id="ai-ast-forward-email" title="문서 전달용 이메일 본문 생성">전달 메일 작성</button>
+                <button className="ai-assistant-btn" id="ai-ast-report-email" title="상사에게 보고할 메일 생성">보고 메일 작성</button>
+                <button className="ai-assistant-btn" id="ai-ast-meeting" title="문서를 회의록 형태로 변환">회의록 변환</button>
               </div>
               <div className="ai-assistant-group">
                 <div className="ai-assistant-group-label">검토 / 피드백</div>
-                <button className="ai-assistant-btn" id="ai-ast-review" title="검토자 관점에서 체크리스트 생성">✅ 검토 의견</button>
-                <button className="ai-assistant-btn" id="ai-ast-improve" title="문서 품질 개선점 분석">💡 개선 제안</button>
-                <button className="ai-assistant-btn" id="ai-ast-actions" title="후속 조치 사항 추출">📌 액션 아이템</button>
+                <button className="ai-assistant-btn" id="ai-ast-review" title="검토자 관점에서 체크리스트 생성">검토 의견</button>
+                <button className="ai-assistant-btn" id="ai-ast-improve" title="문서 품질 개선점 분석">개선 제안</button>
+                <button className="ai-assistant-btn" id="ai-ast-actions" title="후속 조치 사항 추출">액션 아이템</button>
               </div>
               <div className="ai-assistant-group">
                 <div className="ai-assistant-group-label">변환 / 재작성</div>
-                <button className="ai-assistant-btn" id="ai-ast-simplify" title="초등학생 수준으로 재작성">🎓 쉽게 풀어쓰기</button>
-                <button className="ai-assistant-btn" id="ai-ast-formal" title="격식체 공문서 스타일로 변환">📄 공식 문서화</button>
-                <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">🌐 영문 번역</button>
+                <button className="ai-assistant-btn" id="ai-ast-simplify" title="초등학생 수준으로 재작성">쉽게 풀어쓰기</button>
+                <button className="ai-assistant-btn" id="ai-ast-formal" title="격식체 공문서 스타일로 변환">공식 문서화</button>
+                <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">영문 번역</button>
               </div>
             </div>
 
