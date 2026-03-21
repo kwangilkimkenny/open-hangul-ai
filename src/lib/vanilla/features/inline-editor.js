@@ -526,15 +526,17 @@ export class InlineEditor {
     const temp = document.createElement('div');
     temp.innerHTML = html;
 
-    // <div> → <br> 변환
+    // <div> → <br> 변환 (목록 내부 div는 제외)
     temp.querySelectorAll('div').forEach(div => {
+      if (div.closest('ul') || div.closest('ol')) return;
       const br = document.createElement('br');
       const children = Array.from(div.childNodes);
       div.replaceWith(br, ...children);
     });
 
-    // <p> → <br> + 내용
+    // <p> → <br> + 내용 (목록 내부 p는 제외)
     temp.querySelectorAll('p').forEach(p => {
+      if (p.closest('ul') || p.closest('ol')) return;
       if (p.previousSibling) {
         const br = document.createElement('br');
         p.before(br);

@@ -234,9 +234,9 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
       }},
       { label: '특수 문자', shortcut: 'Ctrl+F10', action: () => { setActiveMenu(null); (viewer as any)?.specialCharPicker?.open?.(); } },
       { label: '', divider: true },
-      { label: '글머리 기호', action: () => { setActiveMenu(null); const sel = window.getSelection(); const n = sel?.anchorNode instanceof HTMLElement ? sel.anchorNode : sel?.anchorNode?.parentElement; if (n?.closest('[contenteditable="true"]')) { document.execCommand('insertUnorderedList', false); } else { (viewer as any)?.command?.bulletList('bullet'); } } },
-      { label: '번호 매기기', action: () => { setActiveMenu(null); const sel = window.getSelection(); const n = sel?.anchorNode instanceof HTMLElement ? sel.anchorNode : sel?.anchorNode?.parentElement; if (n?.closest('[contenteditable="true"]')) { document.execCommand('insertOrderedList', false); } else { (viewer as any)?.command?.numberedList('decimal'); } } },
-      { label: '목록 제거', action: () => { setActiveMenu(null); const sel = window.getSelection(); const n = sel?.anchorNode instanceof HTMLElement ? sel.anchorNode : sel?.anchorNode?.parentElement; if (n?.closest('[contenteditable="true"]')) { document.execCommand('insertUnorderedList', false); document.execCommand('insertOrderedList', false); } else { (viewer as any)?.command?.removeList?.(); } } },
+      { label: '글머리 기호', action: () => { setActiveMenu(null); const ec = (viewer as any)?.inlineEditor?.editingCell; if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertUnorderedList', false), 0); } else { (viewer as any)?.command?.bulletList('bullet'); } } },
+      { label: '번호 매기기', action: () => { setActiveMenu(null); const ec = (viewer as any)?.inlineEditor?.editingCell; if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertOrderedList', false), 0); } else { (viewer as any)?.command?.numberedList('decimal'); } } },
+      { label: '목록 제거', action: () => { setActiveMenu(null); const ec = (viewer as any)?.inlineEditor?.editingCell; if (ec) { ec.focus(); setTimeout(() => { document.execCommand('removeFormat', false); const lists = ec.querySelectorAll('ul, ol'); lists.forEach((l: Element) => { const items = l.querySelectorAll('li'); const frag = document.createDocumentFragment(); items.forEach((li: Element) => { const div = document.createElement('div'); div.innerHTML = li.innerHTML; frag.appendChild(div); }); l.replaceWith(frag); }); }, 0); } else { (viewer as any)?.command?.removeList?.(); } } },
       { label: '', divider: true },
       { label: '페이지 나누기', action: () => {
         setActiveMenu(null);
@@ -720,8 +720,17 @@ function RibbonInsert({ viewer }: { viewer?: HWPXViewerInstance | null }) {
     input.click();
   }, [v]);
 
-  const handleBulletList = useCallback(() => { v?.command?.bulletList('bullet'); }, [v]);
-  const handleNumberedList = useCallback(() => { v?.command?.numberedList('decimal'); }, [v]);
+  const handleBulletList = useCallback(() => {
+    const ec = v?.inlineEditor?.editingCell;
+    if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertUnorderedList', false), 0); }
+    else { v?.command?.bulletList('bullet'); }
+  }, [v]);
+
+  const handleNumberedList = useCallback(() => {
+    const ec = v?.inlineEditor?.editingCell;
+    if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertOrderedList', false), 0); }
+    else { v?.command?.numberedList('decimal'); }
+  }, [v]);
 
   return (
     <div className="hwp-ribbon-panel">
