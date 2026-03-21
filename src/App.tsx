@@ -13,6 +13,7 @@ import HWPXViewerWrapper from './components/HWPXViewerWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import type { HWPXViewerInstance } from './types/viewer';
 import { devLog, devError } from './utils/logger';
+import { t } from './lib/i18n';
 
 // Styles
 import './App.css';
@@ -44,6 +45,9 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="app-container">
+        {/* Skip to content link (a11y) */}
+        <a href="#hwpx-viewer-root" className="skip-to-content">{t('msg.skipToContent')}</a>
+
         {/* Toast Notifications */}
         <Toaster
           position="top-right"

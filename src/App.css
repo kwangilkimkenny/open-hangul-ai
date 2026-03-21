@@ -35,6 +35,49 @@ body {
   overflow: hidden;
 }
 
+/* Skip-to-content link (a11y) */
+.skip-to-content {
+  position: absolute;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2b579a;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 0 0 8px 8px;
+  z-index: 100000;
+  text-decoration: none;
+  font-size: 14px;
+  transition: top 0.2s;
+}
+.skip-to-content:focus {
+  top: 0;
+}
+
+/* Focus visible (a11y) - 모든 인터랙티브 요소 */
+*:focus-visible {
+  outline: 2px solid #2b579a;
+  outline-offset: 2px;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid #2b579a;
+  outline-offset: 1px;
+}
+
+/* 리본 버튼 최소 터치 타겟 (44x44px) */
+@media (pointer: coarse) {
+  .hwp-ribbon-btn,
+  .hwp-ribbon-btn-lg {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .hwp-menu-action {
+    padding: 12px 16px;
+  }
+}
+
 .main-viewer {
   flex: 1;
   width: 100%;

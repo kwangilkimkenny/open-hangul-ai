@@ -5,7 +5,7 @@
  * @version 2.0.0
  */
 
-import { useRef, useCallback, useMemo, memo } from 'react';
+import { useRef, useCallback, memo } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { FileText, Image as ImageIcon, Layout, Cloud } from 'lucide-react';
 import type { HWPXViewerInstance } from '../types/viewer';
 

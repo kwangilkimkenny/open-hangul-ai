@@ -653,7 +653,12 @@ export class ChatPanel {
      * @private
      */
     promptForApiKey() {
-        const apiKey = prompt('OpenAI API 키를 입력하세요:');
+        const apiKey = prompt(
+            'OpenAI API 키를 입력하세요:\n\n' +
+            '⚠️ 보안 안내: API 키는 브라우저 세션에만 저장되며,\n' +
+            '탭을 닫으면 자동 삭제됩니다.\n' +
+            '프로덕션 환경에서는 서버 프록시 사용을 권장합니다.'
+        );
         
         if (apiKey && apiKey.trim()) {
             try {

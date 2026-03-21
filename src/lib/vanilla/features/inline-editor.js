@@ -78,6 +78,7 @@ export class InlineEditor {
     // 편집 모드 표시
     cellElement.classList.add('editing');
     cellElement.contentEditable = true;
+    cellElement.spellcheck = true;
     cellElement.style.outline = '2px solid #667eea';
     cellElement.style.outlineOffset = '2px';
     cellElement.style.backgroundColor = 'rgba(102, 126, 234, 0.05)';
@@ -192,6 +193,12 @@ export class InlineEditor {
     // ✅ Phase 1 P1: Input 이벤트 - 스타일 태그 제거
     this.inputHandler = this._handleInput.bind(this);
     cellElement.addEventListener('input', this.inputHandler);
+
+    // 이미지 드래그 앤 드롭
+    this.dropHandler = this._handleDrop.bind(this);
+    this.dragoverHandler = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+    cellElement.addEventListener('drop', this.dropHandler);
+    cellElement.addEventListener('dragover', this.dragoverHandler);
   }
 
   /**
@@ -242,18 +249,26 @@ export class InlineEditor {
       return;
     }
 
-    // Enter: 현재 요소 저장하고 다음으로 이동 (Shift+Enter는 줄바꿈 허용)
+    // Enter: 단락에서는 줄바꿈, 테이블 셀에서는 다음으로 이동
     if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        // Shift+Enter: 줄바꿈 삽입
+      const isInParagraph = this.editingCell && this.editingCell.classList.contains('editable-paragraph');
+      if (isInParagraph) {
+        // 단락 편집: Enter = 줄바꿈, Shift+Enter도 줄바꿈
+        e.preventDefault();
+        e.stopPropagation();
+        this._insertNewlineAtCursor();
+        return;
+      } else if (e.shiftKey) {
+        // 테이블 셀: Shift+Enter = 줄바꿈
         e.preventDefault();
         e.stopPropagation();
         this._insertNewlineAtCursor();
         return;
       } else {
+        // 테이블 셀: Enter = 저장 후 다음 셀로 이동
         e.preventDefault();
         e.stopPropagation();
-        this.saveChanges(false); // 저장만 하고 편집 모드 유지
+        this.saveChanges(false);
         this._navigateToNext('next');
         return;
       }
@@ -370,11 +385,26 @@ export class InlineEditor {
    */
   _handleBlur(e) {
     // blur 이벤트는 자동 저장 (편집 모드 종료)
+    // 단, 툴바/리본 클릭으로 인한 blur는 무시 (편집 모드 유지)
     setTimeout(() => {
-      if (this.editingCell && this.editingCell === e.target) {
-        this.saveChanges(true);
+      if (!this.editingCell || this.editingCell !== e.target) return;
+
+      // 현재 포커스된 요소가 툴바/리본이면 편집 모드 유지
+      const activeEl = document.activeElement;
+      const isToolbarClick = activeEl && (
+        activeEl.closest('.hwp-ribbon-panel') ||
+        activeEl.closest('.hwp-menubar') ||
+        activeEl.closest('.hwp-ribbon-tabs') ||
+        activeEl.closest('.hwp-toolbar')
+      );
+      if (isToolbarClick) {
+        // blur 리스너를 다시 등록 (once이므로)
+        this.editingCell.addEventListener('blur', this.blurHandler, { once: true });
+        return;
       }
-    }, 100);
+
+      this.saveChanges(true);
+    }, 150);
   }
 
   /**
@@ -441,6 +471,43 @@ export class InlineEditor {
    * ✅ Phase 1 P1: Plain Text 모드 강제
    * @private
    */
+  /**
+   * 이미지 드래그 앤 드롭 처리
+   * @private
+   */
+  _handleDrop(e) {
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    const imageFile = Array.from(files).find(f => f.type.startsWith('image/'));
+    if (!imageFile) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const url = URL.createObjectURL(imageFile);
+    const img = document.createElement('img');
+    img.src = url;
+    img.style.maxWidth = '300px';
+    img.style.height = 'auto';
+    img.alt = imageFile.name;
+
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(img);
+      range.setStartAfter(img);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else if (this.editingCell) {
+      this.editingCell.appendChild(img);
+    }
+
+    logger.info(`📷 Image dropped: ${imageFile.name} (${imageFile.size} bytes)`);
+  }
+
   _handleInput(e) {
     // ✅ 불필요한 태그 제거
     this._sanitizeContent();
@@ -456,21 +523,14 @@ export class InlineEditor {
 
     const html = this.editingCell.innerHTML;
 
-    // ✅ 허용 태그: span, br만 (나머지 제거)
     const temp = document.createElement('div');
     temp.innerHTML = html;
 
     // <div> → <br> 변환
     temp.querySelectorAll('div').forEach(div => {
       const br = document.createElement('br');
-      // div의 자식 노드들을 br과 함께 부모로 이동
       const children = Array.from(div.childNodes);
       div.replaceWith(br, ...children);
-    });
-
-    // <font>, <b>, <i>, <strong>, <em> 등 → 내용만 유지
-    temp.querySelectorAll('font, b, i, strong, em, u, strike, s').forEach(el => {
-      el.replaceWith(...Array.from(el.childNodes));
     });
 
     // <p> → <br> + 내용
@@ -482,22 +542,52 @@ export class InlineEditor {
       p.replaceWith(...Array.from(p.childNodes));
     });
 
+    // 서식 태그 → <span style="..."> 변환 (서식 보존)
+    const formatMap = {
+      'B': 'font-weight:bold',
+      'STRONG': 'font-weight:bold',
+      'I': 'font-style:italic',
+      'EM': 'font-style:italic',
+      'U': 'text-decoration:underline',
+      'STRIKE': 'text-decoration:line-through',
+      'S': 'text-decoration:line-through',
+    };
+    temp.querySelectorAll('b, strong, i, em, u, strike, s').forEach(el => {
+      const style = formatMap[el.tagName];
+      if (style) {
+        const span = document.createElement('span');
+        span.style.cssText = style;
+        span.innerHTML = el.innerHTML;
+        el.replaceWith(span);
+      }
+    });
+
+    // <font> → <span> 변환 (글꼴/크기/색상 보존)
+    temp.querySelectorAll('font').forEach(font => {
+      const span = document.createElement('span');
+      if (font.face) span.style.fontFamily = font.face;
+      if (font.color) span.style.color = font.color;
+      if (font.size) {
+        const sizeMap = { '1': '8pt', '2': '10pt', '3': '12pt', '4': '14pt', '5': '18pt', '6': '24pt', '7': '36pt' };
+        span.style.fontSize = sizeMap[font.size] || `${font.size}pt`;
+      }
+      span.innerHTML = font.innerHTML;
+      font.replaceWith(span);
+    });
+
     if (temp.innerHTML !== html) {
-      // ✅ 커서 위치 저장
+      // 커서 위치 저장
       const selection = window.getSelection();
       const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
       const offset = range ? range.startOffset : 0;
       const startContainer = range ? range.startContainer : null;
 
-      // 정제된 HTML 적용
       this.editingCell.innerHTML = temp.innerHTML;
 
-      // ✅ 커서 위치 복원 (간단 버전 - 텍스트 노드면 유지)
+      // 커서 위치 복원
       if (range && startContainer && startContainer.nodeType === Node.TEXT_NODE) {
         try {
-          // 동일한 텍스트 노드를 찾아서 커서 복원
           const walker = document.createTreeWalker(this.editingCell, NodeFilter.SHOW_TEXT, null);
-
           let currentNode;
           while ((currentNode = walker.nextNode())) {
             if (currentNode.textContent === startContainer.textContent) {
@@ -514,7 +604,7 @@ export class InlineEditor {
         }
       }
 
-      logger.debug('🧹 Content sanitized - removed style tags');
+      logger.debug('🧹 Content sanitized - formatting tags converted to spans');
     }
   }
 
@@ -562,17 +652,24 @@ export class InlineEditor {
     selection.removeAllRanges();
     selection.addRange(range);
 
-    // 스크롤 조정
+    // 스크롤 조정: 임시 마커를 삽입하여 정확한 커서 위치로 스크롤
     if (this.editingCell) {
-      // ✅ 개선: 커서가 있는 위치로 스크롤 (br 대신)
-      const cursorNode =
-        range.startContainer.nodeType === Node.TEXT_NODE
-          ? range.startContainer.parentElement
-          : range.startContainer;
-
-      if (cursorNode && cursorNode.scrollIntoView) {
-        cursorNode.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const marker = document.createElement('span');
+      marker.style.display = 'inline';
+      marker.style.width = '0';
+      marker.style.height = '0';
+      range.insertNode(marker);
+      if (marker.scrollIntoView) marker.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      // 마커 제거 후 커서 복원
+      const parent = marker.parentNode;
+      const next = marker.nextSibling;
+      parent.removeChild(marker);
+      if (next) {
+        range.setStart(next, 0);
       }
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
 
     logger.debug('✅ Newline inserted, cursor positioned correctly');
@@ -590,28 +687,30 @@ export class InlineEditor {
 
     const newText = this.extractText(this.editingCell);
     const oldText = this.extractText(this._createTempElement(this.originalContent));
+    // DOM에서 서식 포함 runs 추출
+    const newRuns = this._extractRunsFromDOM(this.editingCell);
 
-    // 변경 사항이 있는 경우에만 처리
-    if (newText !== oldText) {
+    // 변경 사항이 있는 경우에만 처리 (텍스트 또는 HTML이 다르면)
+    const htmlChanged = this.editingCell.innerHTML !== this.originalContent;
+    if (newText !== oldText || htmlChanged) {
       logger.info(
-        `📝 Text changed: "${oldText.substring(0, 20)}..." → "${newText.substring(0, 20)}..."`
+        `📝 Content changed: "${oldText.substring(0, 20)}..." → "${newText.substring(0, 20)}..."`
       );
 
       // HistoryManager를 통한 실행
       if (this.viewer.historyManager) {
-        // ✅ Phase 2 P1: 텍스트와 데이터만 캡처 (메모리 효율적)
-        // DOM 요소는 WeakMap에서 찾으므로 클로저에 캡처하지 않음
+        // Phase 2 P1: 텍스트와 데이터만 캡처 (메모리 효율적)
         const captureNewText = newText;
         const captureOldText = oldText;
+        const captureNewRuns = newRuns;
         const targetData = this.cellData;
 
         this.viewer.historyManager.execute(
-          // ✅ Execute function: 새 텍스트 적용
+          // Execute function: 새 텍스트+서식 적용
           () => {
-            this._updateCellData(targetData, captureNewText);
-            this._refreshDOM(targetData, captureNewText); // ✅ WeakMap 기반 DOM 업데이트
+            this._updateCellDataWithRuns(targetData, captureNewRuns, captureNewText);
+            this._refreshDOM(targetData, captureNewText);
 
-            // 변경 콜백 호출
             if (this.onChangeCallback) {
               this.onChangeCallback({
                 type: 'text_edit',
@@ -621,17 +720,15 @@ export class InlineEditor {
               });
             }
 
-            // 자동저장 dirty 플래그
             if (this.viewer.autoSaveManager) {
               this.viewer.autoSaveManager.markDirty();
             }
           },
-          // ✅ Undo function: 이전 텍스트 복원
+          // Undo function: 이전 텍스트 복원
           () => {
             this._updateCellData(targetData, captureOldText);
-            this._refreshDOM(targetData, captureOldText); // ✅ WeakMap 기반 DOM 업데이트
+            this._refreshDOM(targetData, captureOldText);
 
-            // 변경 콜백 호출
             if (this.onChangeCallback) {
               this.onChangeCallback({
                 type: 'text_undo',
@@ -641,7 +738,6 @@ export class InlineEditor {
               });
             }
 
-            // 자동저장 dirty 플래그
             if (this.viewer.autoSaveManager) {
               this.viewer.autoSaveManager.markDirty();
             }
@@ -649,8 +745,8 @@ export class InlineEditor {
           '텍스트 편집'
         );
       } else {
-        // HistoryManager 없을 때 (기존 로직)
-        this._updateCellData(this.cellData, newText);
+        // HistoryManager 없을 때
+        this._updateCellDataWithRuns(this.cellData, newRuns, newText);
 
         if (this.onChangeCallback) {
           this.onChangeCallback({
@@ -760,6 +856,116 @@ export class InlineEditor {
 
     // ✅ trim() 제거 - 앞뒤 공백 보존
     return text;
+  }
+
+  /**
+   * DOM에서 서식 포함 runs 배열 추출
+   * @param {HTMLElement} element - contentEditable 요소
+   * @returns {Array} runs 배열 [{text, style, type}, ...]
+   * @private
+   */
+  _extractRunsFromDOM(element) {
+    if (!element) return [];
+    const runs = [];
+
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        let text = node.textContent || '';
+        text = text.replace(/\u200B/g, ''); // zero-width space 제거
+        if (!text) return;
+
+        // 부모 체인에서 스타일 수집
+        const style = {};
+        let parent = node.parentElement;
+        while (parent && parent !== element) {
+          const cs = parent.style;
+          if (cs.fontWeight === 'bold' || parent.tagName === 'B' || parent.tagName === 'STRONG') style.bold = true;
+          if (cs.fontStyle === 'italic' || parent.tagName === 'I' || parent.tagName === 'EM') style.italic = true;
+          if (cs.textDecoration?.includes('underline') || parent.tagName === 'U') style.underline = true;
+          if (cs.textDecoration?.includes('line-through') || parent.tagName === 'STRIKE' || parent.tagName === 'S') style.strikethrough = true;
+          if (cs.fontSize) style.fontSize = cs.fontSize;
+          if (cs.fontFamily) style.fontFamily = cs.fontFamily;
+          if (cs.color) style.color = cs.color;
+          if (cs.backgroundColor) style.backgroundColor = cs.backgroundColor;
+          parent = parent.parentElement;
+        }
+        runs.push({ text, style });
+      } else if (node.nodeName === 'BR') {
+        runs.push({ type: 'linebreak' });
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        for (const child of node.childNodes) {
+          walk(child);
+        }
+      }
+    };
+
+    for (const child of element.childNodes) {
+      walk(child);
+    }
+    return runs;
+  }
+
+  /**
+   * 서식 포함 runs로 셀/단락 데이터 업데이트
+   * @param {Object} data - 셀/단락 데이터
+   * @param {Array} runs - 서식 포함 runs 배열
+   * @param {string} plainText - plain text (폴백용)
+   * @private
+   */
+  _updateCellDataWithRuns(data, runs, plainText) {
+    if (!runs || runs.length === 0) {
+      // runs가 없으면 기존 plain text 방식으로 폴백
+      this._updateCellData(data, plainText);
+      return;
+    }
+
+    // 기존 스타일 정보 보존
+    const getBaseCharShapeId = () => {
+      if (data.elements) {
+        const firstPara = data.elements.find(e => e.type === 'paragraph');
+        return firstPara?.runs?.[0]?.charShapeId;
+      }
+      return data.runs?.[0]?.charShapeId;
+    };
+    const baseCharShapeId = getBaseCharShapeId();
+
+    // runs를 데이터 모델 형식으로 변환
+    const newRuns = runs.map(run => {
+      if (run.type === 'linebreak') {
+        return { type: 'linebreak', charShapeId: baseCharShapeId };
+      }
+      const result = {
+        text: run.text,
+        charShapeId: baseCharShapeId,
+      };
+      // 인라인 서식이 있으면 style 객체에 기록
+      if (run.style && Object.keys(run.style).length > 0) {
+        result.inlineStyle = { ...run.style };
+      }
+      return result;
+    });
+
+    // 데이터에 적용
+    if (data.elements) {
+      // 테이블 셀
+      const firstPara = data.elements.find(e => e.type === 'paragraph');
+      const styleProps = firstPara ? {
+        paraShapeId: firstPara.paraShapeId,
+        styleId: firstPara.styleId,
+      } : {};
+
+      data.elements = data.elements.filter(e => e.type !== 'paragraph');
+      data.elements.push({
+        type: 'paragraph',
+        ...styleProps,
+        runs: newRuns,
+      });
+    } else if (data.runs !== undefined) {
+      // 일반 단락
+      data.runs = newRuns;
+    }
+
+    logger.debug(`  ✓ Data updated with ${newRuns.length} styled runs`);
   }
 
   /**

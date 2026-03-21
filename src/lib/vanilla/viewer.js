@@ -683,6 +683,29 @@ export class HWPXViewer {
   }
 
   /**
+   * 새 문서 생성 (원본 파일 없이)
+   * @param {Object} document - 빈 문서 객체
+   * @returns {Promise<void>}
+   */
+  async createNewDocument(document) {
+    logger.info('📄 Creating new document...');
+
+    // 새 문서 플래그 설정 (저장 시 새 HWPX 생성 필요)
+    this.state.isNewDocument = true;
+    this.state.currentFile = null;
+
+    // 문서 업데이트 및 렌더링
+    await this.updateDocument(document);
+
+    // 편집 모드 자동 활성화
+    if (this.editModeManager && !this.editModeManager.isGlobalEditMode) {
+      this.editModeManager.toggleGlobalEditMode();
+    }
+
+    logger.info('✅ New document created');
+  }
+
+  /**
    * 문서 업데이트 및 재렌더링 (v2.2.2 - AI 통합)
    * @param {Object} document - 업데이트할 문서
    * @returns {Promise<void>}
@@ -728,6 +751,13 @@ export class HWPXViewer {
       if (firstCell) {
         logger.debug(`First cell text: "${firstCell.textContent.substring(0, 50)}..."`);
       }
+    }
+
+    // 편집 기능 활성화 (렌더링 후)
+    if (this.inlineEditor) {
+      setTimeout(() => {
+        this._enableEditingFeatures();
+      }, 100);
     }
 
     logger.info('✅ Document updated and re-rendered');
@@ -1365,21 +1395,8 @@ export class HWPXViewer {
   async saveFile(filename) {
     logger.info('💾 saveFile called');
     logger.info(`  - currentFile: ${this.state.currentFile?.name}`);
+    logger.info(`  - isNewDocument: ${!!this.state.isNewDocument}`);
     logger.info(`  - aiController: ${!!this.aiController}`);
-
-    if (!this.state.currentFile) {
-      throw new Error('저장할 파일이 없습니다. 먼저 파일을 로드해주세요.');
-    }
-
-    // Lazy load AI features if not already loaded
-    if (!this.aiController) {
-      logger.info('⚡ AI Controller not loaded, loading now...');
-      try {
-        await this.loadAIFeatures();
-      } catch (error) {
-        throw new Error('AI 기능을 로드할 수 없어 저장 기능을 사용할 수 없습니다.');
-      }
-    }
 
     // ✅ 1단계: 현재 편집 중인 셀 강제 저장
     if (this.inlineEditor && this.inlineEditor.isEditing()) {
@@ -1392,7 +1409,7 @@ export class HWPXViewer {
     const syncResult = this._syncDocumentFromDOM();
     logger.info(`✅ Sync complete: ${syncResult.updatedCells} cells, ${syncResult.updatedParagraphs} paragraphs updated`);
 
-    // ✅ 디버그: document 상태 확인 (v2.1.5: 더 자세한 로그)
+    // ✅ 디버그: document 상태 확인
     const doc = this.getDocument();
     if (doc && doc.sections) {
       logger.info(`📊 Document sections: ${doc.sections.length}`);
@@ -1401,23 +1418,26 @@ export class HWPXViewer {
           const tables = section.elements.filter(e => e.type === 'table');
           const paragraphs = section.elements.filter(e => e.type === 'paragraph');
           logger.info(`  Section ${sIdx}: ${section.elements.length} elements (${tables.length} tables, ${paragraphs.length} paragraphs)`);
-          logger.info(`    Element types: ${section.elements.map(e => e.type).join(', ')}`);
-          tables.forEach((table, tIdx) => {
-            if (table.rows) {
-              const cellCount = table.rows.reduce((sum, row) => sum + (row.cells?.length || 0), 0);
-              logger.info(`    Table ${tIdx}: ${table.rows.length} rows, ${cellCount} cells`);
-              // 첫 번째 셀의 내용 샘플 출력
-              if (table.rows[0]?.cells?.[0]?.elements?.[0]?.runs) {
-                const firstCellRuns = table.rows[0].cells[0].elements[0].runs;
-                const sampleText = firstCellRuns.map(r => r.text || (r.type === 'linebreak' ? '↵' : '')).join('');
-                logger.info(`      First cell sample: "${sampleText.substring(0, 50)}..."`);
-              }
-            }
-          });
         }
       });
     } else {
       logger.warn(`⚠️ Document is null or has no sections!`);
+    }
+
+    // ✅ 새 문서인 경우: 빈 HWPX 템플릿을 생성하여 저장
+    if (!this.state.currentFile || this.state.isNewDocument) {
+      logger.info('📄 New document - generating HWPX from scratch...');
+      return await this._saveNewDocument(filename || '새문서.hwpx');
+    }
+
+    // Lazy load AI features if not already loaded
+    if (!this.aiController) {
+      logger.info('⚡ AI Controller not loaded, loading now...');
+      try {
+        await this.loadAIFeatures();
+      } catch (error) {
+        throw new Error('AI 기능을 로드할 수 없어 저장 기능을 사용할 수 없습니다.');
+      }
     }
 
     const targetFilename = filename || this.state.currentFile.name;
@@ -1440,6 +1460,220 @@ export class HWPXViewer {
       logger.error('❌ HWPX 저장 실패:', error);
       throw error;
     }
+  }
+
+  /**
+   * 새 문서를 HWPX로 저장 (원본 파일 없는 경우)
+   * @param {string} filename - 저장할 파일명
+   * @returns {Promise<Object>} 저장 결과
+   * @private
+   */
+  async _saveNewDocument(filename) {
+    try {
+      logger.info('📦 Generating new HWPX file from scratch...');
+
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      const doc = this.getDocument();
+      if (!doc || !doc.sections || doc.sections.length === 0) {
+        throw new Error('저장할 문서 내용이 없습니다.');
+      }
+
+      // HWPX 기본 구조 생성
+      // mimetype
+      zip.file('mimetype', 'application/hwp+zip');
+
+      // META-INF/container.xml
+      zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container>
+  <rootfiles>
+    <rootfile full-path="Contents/content.hpf" media-type="application/hwp+xml"/>
+  </rootfiles>
+</container>`);
+
+      // Contents/content.hpf
+      const sectionRefs = doc.sections.map((_, i) =>
+        `    <hpf:item href="section${i}.xml" media-type="application/xml"/>`
+      ).join('\n');
+      zip.file('Contents/content.hpf', `<?xml version="1.0" encoding="UTF-8"?>
+<hpf:package xmlns:hpf="urn:hancom:office:packages:2017">
+  <hpf:manifest>
+${sectionRefs}
+  </hpf:manifest>
+</hpf:package>`);
+
+      // Contents/header.xml (기본 헤더)
+      zip.file('Contents/header.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<ha:head xmlns:ha="urn:hancom:office:hwpml:2011" xmlns:hp="urn:hancom:office:hwpml:2011">
+  <ha:beginNum page="1" footnote="1" endnote="1"/>
+  <ha:refList>
+    <ha:fontfaces>
+      <ha:fontface lang="HANGUL">
+        <ha:font id="0" face="함초롬돋움" type="TTF"/>
+      </ha:fontface>
+      <ha:fontface lang="LATIN">
+        <ha:font id="0" face="함초롬돋움" type="TTF"/>
+      </ha:fontface>
+    </ha:fontfaces>
+    <ha:charProperties>
+      <ha:charPr id="0" height="1000" color="0">
+        <ha:fontRef hangul="0" latin="0"/>
+      </ha:charPr>
+    </ha:charProperties>
+    <ha:paraProperties>
+      <ha:paraPr id="0" align="JUSTIFY">
+        <ha:margin left="0" right="0" indent="0"/>
+        <ha:lineSpacing type="PERCENT" value="160"/>
+      </ha:paraPr>
+    </ha:paraProperties>
+  </ha:refList>
+</ha:head>`);
+
+      // Contents/section0.xml (각 섹션)
+      doc.sections.forEach((section, sIdx) => {
+        const sectionXml = this._generateSectionXml(section);
+        zip.file(`Contents/section${sIdx}.xml`, sectionXml);
+      });
+
+      // ZIP 생성 및 다운로드
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // 새 문서 플래그 해제 - 저장된 blob을 currentFile로 설정
+      const savedFile = new File([blob], filename, { type: 'application/hwp+zip' });
+      this.state.currentFile = savedFile;
+      this.state.isNewDocument = false;
+
+      logger.info('✅ New HWPX file saved successfully');
+      return { success: true, filename };
+    } catch (error) {
+      logger.error('❌ Failed to save new document:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 섹션 데이터를 HWPX XML로 변환
+   * @param {Object} section - 섹션 데이터
+   * @returns {string} XML 문자열
+   * @private
+   */
+  _generateSectionXml(section) {
+    const pageSettings = section.pageSettings || {};
+    const width = parseInt(pageSettings.width) || 59528;
+    const height = parseInt(pageSettings.height) || 84188;
+    const marginLeft = parseInt(pageSettings.marginLeft) || 6354;
+    const marginRight = parseInt(pageSettings.marginRight) || 6354;
+    const marginTop = parseInt(pageSettings.marginTop) || 5314;
+    const marginBottom = parseInt(pageSettings.marginBottom) || 4252;
+
+    let bodyContent = '';
+    const elements = section.elements || [];
+
+    elements.forEach(element => {
+      if (element.type === 'paragraph') {
+        bodyContent += this._generateParagraphXml(element);
+      } else if (element.type === 'table') {
+        bodyContent += this._generateTableXml(element);
+      }
+    });
+
+    // 최소 빈 단락 하나는 포함
+    if (!bodyContent) {
+      bodyContent = `      <hp:p paraPrIDRef="0" styleIDRef="0">
+        <hp:run charPrIDRef="0">
+          <hp:t></hp:t>
+        </hp:run>
+      </hp:p>`;
+    }
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<hs:sec xmlns:hs="urn:hancom:office:hwpml:2011" xmlns:hp="urn:hancom:office:hwpml:2011">
+  <hp:pageProperty>
+    <hp:pageSz width="${width}" height="${height}"/>
+    <hp:pageMar left="${marginLeft}" right="${marginRight}" top="${marginTop}" bottom="${marginBottom}" header="4252" footer="4252" gutter="0"/>
+  </hp:pageProperty>
+${bodyContent}
+</hs:sec>`;
+  }
+
+  /**
+   * 단락 데이터를 XML로 변환
+   * @private
+   */
+  _generateParagraphXml(para) {
+    const runs = para.runs || [];
+    let runContent = '';
+
+    runs.forEach(run => {
+      if (run.type === 'linebreak') {
+        runContent += `        <hp:run charPrIDRef="0"><hp:t>
+</hp:t></hp:run>\n`;
+      } else {
+        const text = (run.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        runContent += `        <hp:run charPrIDRef="0"><hp:t>${text}</hp:t></hp:run>\n`;
+      }
+    });
+
+    if (!runContent) {
+      runContent = `        <hp:run charPrIDRef="0"><hp:t></hp:t></hp:run>\n`;
+    }
+
+    return `      <hp:p paraPrIDRef="0" styleIDRef="0">
+${runContent}      </hp:p>\n`;
+  }
+
+  /**
+   * 테이블 데이터를 XML로 변환
+   * @private
+   */
+  _generateTableXml(table) {
+    const rows = table.rows || [];
+    if (rows.length === 0) return '';
+
+    const colCount = rows[0]?.cells?.length || 1;
+    const colWidth = Math.floor(42000 / colCount);
+
+    let colDefs = '';
+    for (let i = 0; i < colCount; i++) {
+      colDefs += `        <hp:gridCol width="${colWidth}"/>\n`;
+    }
+
+    let rowContent = '';
+    rows.forEach(row => {
+      let cellContent = '';
+      (row.cells || []).forEach(cell => {
+        const cellElements = cell.elements || [];
+        let cellParagraphs = '';
+        cellElements.forEach(el => {
+          if (el.type === 'paragraph' || el.runs) {
+            cellParagraphs += this._generateParagraphXml(el);
+          }
+        });
+        if (!cellParagraphs) {
+          cellParagraphs = this._generateParagraphXml({ runs: [{ text: '' }] });
+        }
+        cellContent += `          <hp:tc>
+            <hp:cellBody>
+${cellParagraphs}            </hp:cellBody>
+          </hp:tc>\n`;
+      });
+      rowContent += `        <hp:tr>
+${cellContent}        </hp:tr>\n`;
+    });
+
+    return `      <hp:tbl>
+      <hp:gridColList>
+${colDefs}      </hp:gridColList>
+${rowContent}      </hp:tbl>\n`;
   }
 
   /**

@@ -58,7 +58,7 @@ export function HWPXViewerWrapper({
   const [showAIPanelInternal, setShowAIPanelInternal] = useState(false);
   const showAIPanel = showAIPanelProp !== undefined ? showAIPanelProp : showAIPanelInternal;
   const setShowAIPanel = onToggleAI || (() => setShowAIPanelInternal(prev => !prev));
-  const [aiReady, setAiReady] = useState(false);
+  const [_aiReady, setAiReady] = useState(false);
 
   // ✅ Viewer 초기화 (마운트 시 1번만)
   useEffect(() => {
@@ -104,6 +104,12 @@ export function HWPXViewerWrapper({
       viewerRef.current = viewer as any as HWPXViewerInstance;
       setIsInitialized(true);
       devLog('✅ HWPX Viewer initialized');
+
+      // ✅ 자동저장 활성화
+      if ((viewer as any).autoSaveManager) {
+        (viewer as any).autoSaveManager.enableAutoSave();
+        devLog('✅ AutoSave enabled');
+      }
 
       // ✅ Viewer 인스턴스를 부모 컴포넌트로 전달
       onDocumentLoad?.(viewer as any as HWPXViewerInstance);
@@ -219,6 +225,19 @@ export function HWPXViewerWrapper({
     }
   }, [isInitialized, handleFileOpen]);
 
+  // ✅ 미저장 경고 (beforeunload)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const viewer = viewerRef.current as any;
+      if (viewer?.autoSaveManager?.isDirty) {
+        e.preventDefault();
+        return '저장하지 않은 변경사항이 있습니다.';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   // ✅ 키보드 단축키 핸들러
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -299,9 +318,50 @@ export function HWPXViewerWrapper({
         case 'f':
           // Ctrl+F: 검색
           e.preventDefault();
-          devLog('⌨️ Ctrl+F: 검색');
           setShowSearch(true);
           break;
+
+        case 'n': {
+          // Ctrl+N: 새 문서
+          e.preventDefault();
+          const v = viewerRef.current as any;
+          if (v) {
+            const emptyDocument = {
+              sections: [{
+                elements: [
+                  {
+                    type: 'paragraph',
+                    runs: [{ text: '', style: {} }],
+                    text: '',
+                    style: { textAlign: 'left', lineHeight: '1.6' }
+                  }
+                ],
+                pageSettings: {
+                  width: '794px',
+                  height: '1123px',
+                  marginLeft: '85px',
+                  marginRight: '85px',
+                  marginTop: '71px',
+                  marginBottom: '57px',
+                },
+                pageWidth: 794,
+                pageHeight: 1123,
+                headers: { both: null, odd: null, even: null },
+                footers: { both: null, odd: null, even: null },
+              }],
+              images: new Map(),
+              borderFills: new Map(),
+              metadata: {
+                parsedAt: new Date().toISOString(),
+                sectionsCount: 1,
+                imagesCount: 0,
+                borderFillsCount: 0,
+              }
+            };
+            v.createNewDocument(emptyDocument);
+          }
+          break;
+        }
       }
     };
 

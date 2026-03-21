@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, memo } from 'react';
 import type { HWPXViewerInstance } from '../types/viewer';
+import { t } from '../lib/i18n';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -18,15 +19,21 @@ export const HangulStatusBar = memo(function HangulStatusBar({ viewer }: HangulS
   const [pageInfo, setPageInfo] = useState({ current: 1, total: 1 });
   const [zoom, setZoom] = useState(100);
   const [inputMode, setInputMode] = useState<'insert' | 'overwrite'>('insert');
+  const [charCount, setCharCount] = useState(0);
 
-  // Poll page info from viewer
+  // Poll page info + char count from viewer
   useEffect(() => {
     const interval = setInterval(() => {
       if (!viewer) return;
       const v = viewer as any;
-      // Try to get page count from renderer
       const totalPages = v.renderer?.totalPages || v.state?.document?.sections?.length || 1;
       setPageInfo(prev => ({ ...prev, total: totalPages }));
+      // 글자수 계산
+      const container = document.querySelector('.hwpx-viewer-wrapper');
+      if (container) {
+        const text = container.textContent || '';
+        setCharCount(text.replace(/\s/g, '').length);
+      }
     }, 2000);
     return () => clearInterval(interval);
   }, [viewer]);
@@ -61,12 +68,17 @@ export const HangulStatusBar = memo(function HangulStatusBar({ viewer }: HangulS
       {/* Left: Page info */}
       <div className="hwp-statusbar-left">
         <span className="hwp-statusbar-item">
-          <span className="hwp-statusbar-label">페이지</span>
+          <span className="hwp-statusbar-label">{t('status.page')}</span>
           <span className="hwp-statusbar-value">{pageInfo.current} / {pageInfo.total}</span>
         </span>
         <span className="hwp-statusbar-sep" />
         <span className="hwp-statusbar-item">
-          <span className="hwp-statusbar-value">{inputMode === 'insert' ? '삽입' : '수정'}</span>
+          <span className="hwp-statusbar-value">{inputMode === 'insert' ? t('status.insert') : t('status.overwrite')}</span>
+        </span>
+        <span className="hwp-statusbar-sep" />
+        <span className="hwp-statusbar-item">
+          <span className="hwp-statusbar-label">{t('status.chars')}</span>
+          <span className="hwp-statusbar-value">{charCount.toLocaleString()}</span>
         </span>
       </div>
 
