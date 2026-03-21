@@ -1002,11 +1002,14 @@ export class DocumentRenderer {
                 newPage.setAttribute('data-page-number', currentPageNum + pageCount + 1);
                 newPage.style.position = 'relative';
 
-                // ✅ 원본 페이지의 스타일 복사 (minHeight → height)
+                // 원본 페이지의 스타일 복사
                 newPage.style.width = pageDiv.style.width;
                 newPage.style.height = pageDiv.style.height;
                 newPage.style.boxSizing = pageDiv.style.boxSizing;
                 newPage.style.padding = pageDiv.style.padding;
+
+                // 섹션 데이터 연결 (재귀 pagination에 필요)
+                newPage._section = section;
 
                 // 다음 형제 위치에 삽입
                 const nextSibling = currentPage.nextSibling;

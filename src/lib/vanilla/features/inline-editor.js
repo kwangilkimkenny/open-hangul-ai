@@ -509,8 +509,15 @@ export class InlineEditor {
   }
 
   _handleInput(e) {
-    // ✅ 불필요한 태그 제거
     this._sanitizeContent();
+
+    // 자동 페이지 나누기: 편집 중인 페이지가 넘치면 분할
+    if (this.editingCell && this.viewer.renderer) {
+      const pageDiv = this.editingCell.closest('.hwp-page-container');
+      if (pageDiv && this.viewer.renderer.checkPaginationDebounced) {
+        this.viewer.renderer.checkPaginationDebounced(pageDiv, 800);
+      }
+    }
   }
 
   /**
@@ -675,6 +682,14 @@ export class InlineEditor {
     }
 
     logger.debug('✅ Newline inserted, cursor positioned correctly');
+
+    // 줄바꿈 후 자동 페이지 나누기 체크
+    if (this.editingCell && this.viewer.renderer) {
+      const pageDiv = this.editingCell.closest('.hwp-page-container');
+      if (pageDiv && this.viewer.renderer.checkPaginationDebounced) {
+        this.viewer.renderer.checkPaginationDebounced(pageDiv, 300);
+      }
+    }
   }
 
   /**
