@@ -31,7 +31,7 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: #e8e8e8;
   overflow: hidden;
 }
 

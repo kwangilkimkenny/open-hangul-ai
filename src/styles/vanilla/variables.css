@@ -13,14 +13,31 @@
    * 🎨 색상 팔레트
    * ============================================ */
   
-  /* Primary Colors */
-  --hanview-primary-color: #667eea;
-  --hanview-primary-hover: #5a6fd6;
-  --hanview-primary-light: rgba(102, 126, 234, 0.1);
-  
+  /* Primary Colors - Hangul Office Style */
+  --hanview-primary-color: #2b579a;
+  --hanview-primary-hover: #1e3f73;
+  --hanview-primary-light: rgba(43, 87, 154, 0.08);
+
   /* Secondary Colors */
-  --hanview-secondary-color: #764ba2;
-  --hanview-secondary-hover: #6a4292;
+  --hanview-secondary-color: #3b6cb5;
+  --hanview-secondary-hover: #2b579a;
+
+  /* Ribbon / Toolbar */
+  --hanview-ribbon-bg: #f0f2f5;
+  --hanview-ribbon-tab-bg: transparent;
+  --hanview-ribbon-tab-active-bg: #ffffff;
+  --hanview-ribbon-tab-hover-bg: #e4e8ed;
+  --hanview-ribbon-tab-text: #444444;
+  --hanview-ribbon-tab-active-text: #2b579a;
+  --hanview-ribbon-border: #d1d5db;
+  --hanview-ribbon-group-label: #888888;
+
+  /* Menu Bar */
+  --hanview-menubar-bg: #ffffff;
+  --hanview-menubar-text: #333333;
+  --hanview-menubar-hover-bg: #e8f0fe;
+  --hanview-menubar-active-bg: #d0e2ff;
+  --hanview-menubar-border: #e0e0e0;
   
   /* Accent Colors */
   --hanview-accent-color: #4CAF50;
@@ -64,11 +81,17 @@
   --hanview-container-bg: #f5f7fa;
   --hanview-container-padding: 20px;
   
-  /* Header */
-  --hanview-header-height: 60px;
-  --hanview-header-bg: linear-gradient(135deg, var(--hanview-primary-color), var(--hanview-secondary-color));
-  --hanview-header-text-color: var(--hanview-white);
-  --hanview-header-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  /* Menu Bar */
+  --hanview-menubar-height: 28px;
+
+  /* Ribbon Toolbar */
+  --hanview-ribbon-height: 90px;
+
+  /* Header (legacy compat) */
+  --hanview-header-height: 118px;
+  --hanview-header-bg: var(--hanview-ribbon-bg);
+  --hanview-header-text-color: var(--hanview-gray-800);
+  --hanview-header-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   
   /* Footer */
   --hanview-footer-height: 32px;

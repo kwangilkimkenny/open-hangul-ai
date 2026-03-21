@@ -1,37 +1,44 @@
 /**
  * HAN-View React App
- * Vanilla JS Viewer를 React Wrapper로 통합
- * 
- * @version 2.0.0
+ * Hangul-style UI with Ribbon Toolbar
+ *
+ * @version 3.0.0
  */
 
 import { useState, useCallback } from 'react';
 import { Toaster } from 'react-hot-toast';
-import SimpleHeader from './components/SimpleHeader';
+import HangulStyleToolbar from './components/HangulStyleToolbar';
+import HangulStatusBar from './components/HangulStatusBar';
 import HWPXViewerWrapper from './components/HWPXViewerWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import type { HWPXViewerInstance } from './types/viewer';
 import { devLog, devError } from './utils/logger';
 
-// ✅ 전역 스타일 (레이아웃만)
+// Styles
 import './App.css';
+import './styles/hangul-toolbar.css';
 
 function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [viewerInstance, setViewerInstance] = useState<HWPXViewerInstance | null>(null);
+  const [showAIPanel, setShowAIPanel] = useState(false);
 
   const handleFileSelect = useCallback((file: File) => {
-    devLog('📁 File selected:', file.name);
+    devLog('File selected:', file.name);
     setSelectedFile(file);
   }, []);
 
   const handleViewerReady = useCallback((viewer: HWPXViewerInstance) => {
-    devLog('✅ Viewer instance ready:', viewer);
+    devLog('Viewer instance ready');
     setViewerInstance(viewer);
   }, []);
 
   const handleError = useCallback((error: Error) => {
-    devError('❌ Error in App:', error);
+    devError('Error in App:', error);
+  }, []);
+
+  const handleToggleAI = useCallback(() => {
+    setShowAIPanel(prev => !prev);
   }, []);
 
   return (
@@ -42,41 +49,33 @@ function App() {
           position="top-right"
           toastOptions={{
             duration: 3000,
-            style: {
-              background: '#363636',
-              color: '#fff',
-            },
-            success: {
-              duration: 2000,
-              iconTheme: {
-                primary: '#4ade80',
-                secondary: '#fff',
-              },
-            },
-            error: {
-              duration: 4000,
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: '#fff',
-              },
-            },
+            style: { background: '#363636', color: '#fff' },
+            success: { duration: 2000, iconTheme: { primary: '#4ade80', secondary: '#fff' } },
+            error: { duration: 4000, iconTheme: { primary: '#ef4444', secondary: '#fff' } },
           }}
         />
 
-        {/* Header */}
-        <SimpleHeader 
-          onFileSelect={handleFileSelect}
+        {/* Hangul-Style Toolbar (Menu Bar + Ribbon) */}
+        <HangulStyleToolbar
           viewer={viewerInstance}
+          onFileSelect={handleFileSelect}
+          onToggleAI={handleToggleAI}
+          showAIPanel={showAIPanel}
         />
 
-        {/* HWPX Viewer (Vanilla JS Wrapper) */}
+        {/* HWPX Viewer */}
         <HWPXViewerWrapper
           className="main-viewer"
           file={selectedFile}
           onDocumentLoad={handleViewerReady}
           onError={handleError}
           enableAI={true}
+          showAIPanel={showAIPanel}
+          onToggleAI={handleToggleAI}
         />
+
+        {/* Hangul-Style Status Bar */}
+        <HangulStatusBar viewer={viewerInstance} />
       </div>
     </ErrorBoundary>
   );

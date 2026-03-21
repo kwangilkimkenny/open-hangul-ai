@@ -1,0 +1,523 @@
+/**
+ * Hangul-Style Toolbar CSS
+ * 한글과컴퓨터 한글 편집기 UI 재현
+ */
+
+/* ============================================================
+   Hide legacy Vanilla JS editing toolbar (replaced by Ribbon)
+   ============================================================ */
+
+.hwpx-editing-toolbar {
+  display: none !important;
+}
+
+/* ============================================================
+   Root Container
+   ============================================================ */
+
+.hwp-toolbar-root {
+  display: flex;
+  flex-direction: column;
+  background: #f0f2f5;
+  border-bottom: 1px solid #c8ccd0;
+  user-select: none;
+  font-family: 'Malgun Gothic', 'Segoe UI', -apple-system, sans-serif;
+  font-size: 12px;
+}
+
+/* ============================================================
+   Menu Bar (파일 | 편집 | 보기 | ...)
+   ============================================================ */
+
+.hwp-menubar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 4px;
+}
+
+.hwp-menu-item-wrapper {
+  position: relative;
+}
+
+.hwp-menu-trigger {
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 28px;
+}
+
+.hwp-menu-trigger:hover,
+.hwp-menu-trigger.active {
+  background: #e8f0fe;
+}
+
+.hwp-menu-trigger.active {
+  background: #d0e2ff;
+}
+
+/* Dropdown */
+.hwp-menu-dropdown {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10001;
+  padding: 4px 0;
+  animation: hwp-menu-fadein 0.1s ease-out;
+}
+
+@keyframes hwp-menu-fadein {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hwp-menu-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 16px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.hwp-menu-option:hover:not(.disabled) {
+  background: #e8f0fe;
+}
+
+.hwp-menu-option.disabled {
+  color: #aaa;
+  cursor: default;
+}
+
+.hwp-menu-label {
+  flex: 1;
+}
+
+.hwp-menu-shortcut {
+  margin-left: 24px;
+  font-size: 11px;
+  color: #888;
+}
+
+.hwp-menu-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 4px 8px;
+}
+
+/* ============================================================
+   Ribbon Tabs (홈 | 삽입 | 서식 | ...)
+   ============================================================ */
+
+.hwp-ribbon-tabs {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 8px;
+  background: #f0f2f5;
+  gap: 1px;
+  height: 28px;
+}
+
+.hwp-ribbon-tab {
+  padding: 4px 16px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  font-size: 12px;
+  color: #555;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 3px 3px 0 0;
+  height: 26px;
+  line-height: 18px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.hwp-ribbon-tab:hover {
+  background: #e4e8ed;
+  color: #333;
+}
+
+.hwp-ribbon-tab.active {
+  background: #ffffff;
+  color: #2b579a;
+  font-weight: 600;
+  border-color: #c8ccd0;
+  position: relative;
+}
+
+/* Hide bottom border for active tab to merge with content */
+.hwp-ribbon-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #ffffff;
+}
+
+.hwp-ribbon-tab.ai-tab {
+  color: #2b579a;
+  font-weight: 500;
+}
+
+.hwp-ribbon-tab.ai-tab.active {
+  color: #2b579a;
+  background: #e8f0fe;
+  border-color: #a8c4e8;
+}
+
+.hwp-ribbon-tab.ai-tab.active::after {
+  background: #e8f0fe;
+}
+
+/* ============================================================
+   Ribbon Content Area
+   ============================================================ */
+
+.hwp-ribbon-content {
+  background: #ffffff;
+  border-top: 1px solid #c8ccd0;
+  min-height: 66px;
+  padding: 4px 8px;
+}
+
+.hwp-ribbon-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  height: 100%;
+}
+
+/* Ribbon Group (vertical section with label) */
+.hwp-ribbon-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 2px 8px;
+  border-right: 1px solid #e4e4e4;
+  min-width: 60px;
+  position: relative;
+}
+
+.hwp-ribbon-group:last-child {
+  border-right: none;
+}
+
+.hwp-ribbon-group-label {
+  text-align: center;
+  font-size: 10px;
+  color: #888;
+  margin-top: 2px;
+  padding-top: 1px;
+  line-height: 1;
+}
+
+.hwp-ribbon-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+}
+
+.hwp-ribbon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  color: #aaa;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ============================================================
+   Ribbon Buttons
+   ============================================================ */
+
+.hwp-ribbon-btn {
+  width: 26px;
+  height: 24px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #333;
+  font-family: inherit;
+  padding: 0;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.hwp-ribbon-btn:hover {
+  background: #dce6f0;
+  border-color: #b0c4de;
+}
+
+.hwp-ribbon-btn:active,
+.hwp-ribbon-btn.active {
+  background: #c8d8e8;
+  border-color: #90b0d0;
+}
+
+.hwp-ribbon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.hwp-ribbon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Large ribbon button (icon + text vertically) */
+.hwp-ribbon-btn-lg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  color: #444;
+  font-family: inherit;
+  min-width: 48px;
+  transition: background 0.1s;
+}
+
+.hwp-ribbon-btn-lg:hover {
+  background: #dce6f0;
+  border-color: #b0c4de;
+}
+
+.hwp-ribbon-btn-lg.active {
+  background: #c8d8e8;
+  border-color: #90b0d0;
+}
+
+.hwp-ribbon-btn-lg:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.hwp-ribbon-btn-lg svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Separator */
+.hwp-ribbon-sep {
+  width: 1px;
+  height: 18px;
+  background: #d0d0d0;
+  margin: 0 3px;
+}
+
+/* ============================================================
+   Font / Size Selects
+   ============================================================ */
+
+.hwp-font-select {
+  width: 120px;
+  height: 22px;
+  border: 1px solid #c8ccd0;
+  border-radius: 2px;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 0 4px;
+  background: #fff;
+  color: #333;
+  outline: none;
+}
+
+.hwp-font-select:focus {
+  border-color: #2b579a;
+}
+
+.hwp-size-select {
+  width: 48px;
+  height: 22px;
+  border: 1px solid #c8ccd0;
+  border-radius: 2px;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 0 2px;
+  background: #fff;
+  color: #333;
+  outline: none;
+  text-align: center;
+}
+
+.hwp-size-select:focus {
+  border-color: #2b579a;
+}
+
+.hwp-lineheight-select {
+  width: 56px;
+  height: 22px;
+  border: 1px solid #c8ccd0;
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 0 2px;
+  background: #fff;
+  color: #333;
+  outline: none;
+}
+
+/* ============================================================
+   Status Bar (하단)
+   ============================================================ */
+
+.hwp-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  background: #f3f4f6;
+  border-top: 1px solid #d1d5db;
+  padding: 0 12px;
+  font-size: 11px;
+  color: #555;
+  font-family: 'Malgun Gothic', 'Segoe UI', -apple-system, sans-serif;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  user-select: none;
+}
+
+.hwp-statusbar-left,
+.hwp-statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hwp-statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.hwp-statusbar-label {
+  color: #888;
+}
+
+.hwp-statusbar-value {
+  color: #333;
+  font-weight: 500;
+}
+
+.hwp-statusbar-sep {
+  width: 1px;
+  height: 14px;
+  background: #d0d0d0;
+}
+
+/* Zoom controls */
+.hwp-statusbar-zoom-btn {
+  width: 20px;
+  height: 18px;
+  border: 1px solid #c8c8c8;
+  background: #fff;
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1;
+  color: #555;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.hwp-statusbar-zoom-btn:hover {
+  background: #e8f0fe;
+  border-color: #a0b8d0;
+}
+
+.hwp-statusbar-zoom-slider {
+  width: 100px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #d0d0d0;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.hwp-statusbar-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #2b579a;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.hwp-statusbar-zoom-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: #2b579a;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.hwp-statusbar-zoom-value {
+  min-width: 36px;
+  text-align: center;
+  font-size: 11px;
+  color: #333;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.hwp-statusbar-zoom-value:hover {
+  background: #e8f0fe;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .hwp-ribbon-content {
+    overflow-x: auto;
+  }
+
+  .hwp-ribbon-panel {
+    min-width: max-content;
+  }
+
+  .hwp-font-select {
+    width: 90px;
+  }
+}

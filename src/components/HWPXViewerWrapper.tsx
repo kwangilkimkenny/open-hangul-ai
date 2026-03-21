@@ -30,9 +30,11 @@ import '../styles/vanilla/external-api.css';
 interface HWPXViewerWrapperProps {
   className?: string;
   file?: File | null;
-  onDocumentLoad?: (viewer: HWPXViewerInstance) => void; // ✅ viewer 인스턴스 전달
+  onDocumentLoad?: (viewer: HWPXViewerInstance) => void;
   onError?: (error: Error) => void;
   enableAI?: boolean;
+  showAIPanel?: boolean;
+  onToggleAI?: () => void;
 }
 
 export function HWPXViewerWrapper({
@@ -41,6 +43,8 @@ export function HWPXViewerWrapper({
   onDocumentLoad,
   onError,
   enableAI = true,
+  showAIPanel: showAIPanelProp,
+  onToggleAI,
 }: HWPXViewerWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HWPXViewerInstance | null>(null);
@@ -50,7 +54,11 @@ export function HWPXViewerWrapper({
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({ count: 0, current: 0 });
-  const [showAIPanel, setShowAIPanel] = useState(false); // AI 패널 표시 여부
+  // AI panel: use prop if provided, otherwise internal state
+  const [showAIPanelInternal, setShowAIPanelInternal] = useState(false);
+  const showAIPanel = showAIPanelProp !== undefined ? showAIPanelProp : showAIPanelInternal;
+  const setShowAIPanel = onToggleAI || (() => setShowAIPanelInternal(prev => !prev));
+  const [aiReady, setAiReady] = useState(false);
 
   // ✅ Viewer 초기화 (마운트 시 1번만)
   useEffect(() => {
@@ -154,6 +162,44 @@ export function HWPXViewerWrapper({
       setIsLoading(false);
     }
   }, []);
+
+  // ✅ AI 패널 열릴 때 AI 모듈 로드 및 ChatPanel 초기화
+  useEffect(() => {
+    if (!showAIPanel || !viewerRef.current || !isInitialized) return;
+
+    const viewer = viewerRef.current as any;
+
+    // AI 모듈이 이미 로드되어 ChatPanel이 초기화되었으면 re-init만
+    if (viewer._aiModulesLoaded && viewer.chatPanel) {
+      // DOM이 React에 의해 재생성되었으므로 ChatPanel re-init 필요
+      viewer.chatPanel.init();
+      setAiReady(true);
+      return;
+    }
+
+    // AI 모듈 lazy load
+    const initAI = async () => {
+      try {
+        await viewer.loadAIFeatures();
+        // loadAIFeatures 내부에서 chatPanel.init()을 호출하지만
+        // React DOM이 아직 마운트 중일 수 있으므로 다음 프레임에 re-init
+        requestAnimationFrame(() => {
+          if (viewer.chatPanel) {
+            viewer.chatPanel.init();
+          }
+          setAiReady(true);
+        });
+      } catch (error: any) {
+        devError('❌ Failed to load AI features:', error);
+        toast.error(`AI 기능 로드 실패: ${error?.message}`);
+      }
+    };
+
+    // React DOM이 렌더링된 후 init 호출을 위해 다음 프레임 대기
+    requestAnimationFrame(() => {
+      initAI();
+    });
+  }, [showAIPanel, isInitialized]);
 
   // ✅ 파일 prop 변경 시 자동 로드
   useEffect(() => {
@@ -627,27 +673,8 @@ export function HWPXViewerWrapper({
         </div>
       </div>
 
-      {/* Status Text (하단 상태 표시줄) */}
-      <div
-        id="status-text"
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '32px',
-          background: '#f5f5f5',
-          borderTop: '1px solid #e0e0e0',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 16px',
-          fontSize: '12px',
-          color: '#666',
-          zIndex: 100,
-        }}
-      >
-        준비됨
-      </div>
+      {/* Status Text - now rendered by HangulStatusBar in App.tsx */}
+      <div id="status-text" style={{ display: 'none' }}>준비됨</div>
 
       {/* Progress Container */}
       <div id="progress-container" style={{ display: 'none' }}>
@@ -655,43 +682,43 @@ export function HWPXViewerWrapper({
         <div id="progress-text">0%</div>
       </div>
 
-      {/* AI Panel Toggle Button */}
-      {enableAI && (
+      {/* AI Panel Toggle Button (small, unobtrusive) */}
+      {enableAI && !showAIPanel && (
         <button
-          onClick={() => setShowAIPanel(prev => !prev)}
-          aria-label={showAIPanel ? 'AI 패널 닫기' : 'AI 패널 열기'}
-          aria-expanded={showAIPanel}
+          onClick={() => typeof setShowAIPanel === 'function' && setShowAIPanel()}
+          aria-label="AI 패널 열기"
           style={{
             position: 'fixed',
-            bottom: '50px',
-            right: '20px',
-            width: '56px',
-            height: '56px',
+            bottom: '36px',
+            right: '12px',
+            width: '36px',
+            height: '36px',
             borderRadius: '50%',
-            background: showAIPanel
-              ? '#ef4444'
-              : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: '#2b579a',
             border: 'none',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '24px',
+            fontSize: '16px',
             color: 'white',
             zIndex: 9997,
             transition: 'all 0.2s ease',
+            opacity: 0.8,
           }}
-          title={showAIPanel ? 'AI 패널 닫기' : 'AI 패널 열기'}
+          title="AI 패널 열기"
+          onMouseEnter={e => { (e.target as HTMLElement).style.opacity = '1'; }}
+          onMouseLeave={e => { (e.target as HTMLElement).style.opacity = '0.8'; }}
         >
-          {showAIPanel ? '✕' : '🤖'}
+          AI
         </button>
       )}
 
       {/* ✅ AI Chat Panel (Vanilla JS UI) */}
       {showAIPanel && enableAI && (
         <>
-          <div className="ai-chat-panel" id="ai-chat-panel" role="complementary" aria-label="AI 문서 편집 패널">
+          <div className="ai-chat-panel open" id="ai-chat-panel" role="complementary" aria-label="AI 문서 편집 패널">
             <div className="ai-chat-header">
               <h3 id="ai-chat-panel-title">AI 문서 편집</h3>
               <button className="ai-chat-toggle" id="ai-chat-toggle" aria-label="AI 패널 닫기">
