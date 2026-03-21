@@ -790,69 +790,53 @@ export function HWPXViewerWrapper({
               {/* Messages will be dynamically added here */}
             </div>
 
-            <div className="ai-structure-preview">
-              <button className="preview-structure-btn" id="preview-structure-btn">
-                문서 구조 보기
-              </button>
-              <button
-                className="preview-structure-btn"
-                id="apply-style-btn"
-                title="일관된 서식 자동 적용"
-              >
-                스타일 적용
-              </button>
-              <button
-                className="ai-save-btn"
-                id="extract-template-btn"
-                title="헤더만 남기고 내용 제거"
-              >
-                템플릿 추출
-              </button>
-              <button
-                className="ai-save-btn"
-                id="fill-template-btn"
-                title="레이아웃 유지 + AI로 전체 내용 채우기"
-                style={{ background: '#10b981', color: 'white', fontWeight: 600 }}
-              >
-                템플릿 채우기
-              </button>
-              <button
-                className="preview-structure-btn"
-                id="cell-select-mode-btn"
-                title="셀 단위로 유지/수정/생성 모드 설정"
-              >
-                셀 선택
-              </button>
-              <button
-                className="ai-save-btn"
-                id="external-api-btn"
-                title="외부 API에서 JSON 데이터를 가져와 문서에 채우기"
-              >
-                외부 API
-              </button>
-              <button
-                className="ai-save-btn"
-                id="ai-regenerate-btn"
-                title="다른 주제/난이도로 재생성"
-              >
-                다시 생성
-              </button>
-              <button className="ai-save-btn" id="partial-edit-btn" title="선택한 항목만 수정">
-                부분 수정
-              </button>
-              <button className="ai-save-btn" id="validate-document-btn" title="빈 칸, 오류 검사">
-                검증
-              </button>
-              <button
-                className="ai-save-btn"
-                id="batch-generate-btn"
-                title="여러 주제 한 번에 생성"
-              >
-                일괄 생성
-              </button>
-              <button className="ai-save-btn" id="ai-save-btn">
-                HWPX 저장
-              </button>
+            {/* Tab switcher: 도구 | 어시스턴트 */}
+            <div className="ai-panel-tabs" id="ai-panel-tabs">
+              <button className="ai-panel-tab active" id="ai-tab-tools" data-tab="tools">도구</button>
+              <button className="ai-panel-tab" id="ai-tab-assistant" data-tab="assistant">어시스턴트</button>
+            </div>
+
+            {/* 도구 탭 (기존 버튼들) */}
+            <div className="ai-structure-preview ai-tab-content" id="ai-tools-content" data-tab-content="tools">
+              <button className="preview-structure-btn" id="preview-structure-btn">문서 구조 보기</button>
+              <button className="preview-structure-btn" id="apply-style-btn" title="일관된 서식 자동 적용">스타일 적용</button>
+              <button className="ai-save-btn" id="extract-template-btn" title="헤더만 남기고 내용 제거">템플릿 추출</button>
+              <button className="ai-save-btn" id="fill-template-btn" title="레이아웃 유지 + AI로 전체 내용 채우기" style={{ background: '#10b981', color: 'white', fontWeight: 600 }}>템플릿 채우기</button>
+              <button className="preview-structure-btn" id="cell-select-mode-btn" title="셀 단위로 유지/수정/생성 모드 설정">셀 선택</button>
+              <button className="ai-save-btn" id="external-api-btn" title="외부 API에서 JSON 데이터를 가져와 문서에 채우기">외부 API</button>
+              <button className="ai-save-btn" id="ai-regenerate-btn" title="다른 주제/난이도로 재생성">다시 생성</button>
+              <button className="ai-save-btn" id="partial-edit-btn" title="선택한 항목만 수정">부분 수정</button>
+              <button className="ai-save-btn" id="validate-document-btn" title="빈 칸, 오류 검사">검증</button>
+              <button className="ai-save-btn" id="batch-generate-btn" title="여러 주제 한 번에 생성">일괄 생성</button>
+              <button className="ai-save-btn" id="ai-save-btn">HWPX 저장</button>
+            </div>
+
+            {/* 어시스턴트 탭 (NEW) */}
+            <div className="ai-assistant-content ai-tab-content" id="ai-assistant-content" data-tab-content="assistant" style={{ display: 'none' }}>
+              <div className="ai-assistant-group">
+                <div className="ai-assistant-group-label">문서 분석</div>
+                <button className="ai-assistant-btn" id="ai-ast-summary" title="문서의 핵심 내용 3줄 요약">📋 핵심 요약</button>
+                <button className="ai-assistant-btn" id="ai-ast-keywords" title="주요 키워드/태그 추출">🏷️ 키워드 추출</button>
+                <button className="ai-assistant-btn" id="ai-ast-audience" title="난이도/대상 독자 분석">📊 독자 수준 분석</button>
+              </div>
+              <div className="ai-assistant-group">
+                <div className="ai-assistant-group-label">업무 커뮤니케이션</div>
+                <button className="ai-assistant-btn" id="ai-ast-forward-email" title="문서 전달용 이메일 본문 생성">📧 전달 메일 작성</button>
+                <button className="ai-assistant-btn" id="ai-ast-report-email" title="상사에게 보고할 메일 생성">📨 보고 메일 작성</button>
+                <button className="ai-assistant-btn" id="ai-ast-meeting" title="문서를 회의록 형태로 변환">📝 회의록 변환</button>
+              </div>
+              <div className="ai-assistant-group">
+                <div className="ai-assistant-group-label">검토 / 피드백</div>
+                <button className="ai-assistant-btn" id="ai-ast-review" title="검토자 관점에서 체크리스트 생성">✅ 검토 의견</button>
+                <button className="ai-assistant-btn" id="ai-ast-improve" title="문서 품질 개선점 분석">💡 개선 제안</button>
+                <button className="ai-assistant-btn" id="ai-ast-actions" title="후속 조치 사항 추출">📌 액션 아이템</button>
+              </div>
+              <div className="ai-assistant-group">
+                <div className="ai-assistant-group-label">변환 / 재작성</div>
+                <button className="ai-assistant-btn" id="ai-ast-simplify" title="초등학생 수준으로 재작성">🎓 쉽게 풀어쓰기</button>
+                <button className="ai-assistant-btn" id="ai-ast-formal" title="격식체 공문서 스타일로 변환">📄 공식 문서화</button>
+                <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">🌐 영문 번역</button>
+              </div>
             </div>
 
             <div className="ai-chat-input-container">

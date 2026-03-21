@@ -284,6 +284,52 @@ export class ChatPanel {
                 this.handleFillTemplate();
             });
         }
+
+        // ── AI 어시스턴트 탭 전환 ──
+        const tabTools = document.getElementById('ai-tab-tools');
+        const tabAssistant = document.getElementById('ai-tab-assistant');
+        const toolsContent = document.getElementById('ai-tools-content');
+        const assistantContent = document.getElementById('ai-assistant-content');
+
+        if (tabTools && tabAssistant && toolsContent && assistantContent) {
+            tabTools.addEventListener('click', () => {
+                tabTools.classList.add('active');
+                tabAssistant.classList.remove('active');
+                toolsContent.style.display = '';
+                assistantContent.style.display = 'none';
+            });
+            tabAssistant.addEventListener('click', () => {
+                tabAssistant.classList.add('active');
+                tabTools.classList.remove('active');
+                assistantContent.style.display = '';
+                toolsContent.style.display = 'none';
+            });
+        }
+
+        // ── AI 어시스턴트 퀵 액션 버튼들 ──
+        const assistantActions = {
+            'ai-ast-summary':       '이 문서의 핵심 내용을 3줄로 요약해줘. 결론과 핵심 키워드를 포함해줘.',
+            'ai-ast-keywords':      '이 문서의 핵심 키워드와 태그를 10개 추출해줘. 카테고리별로 분류해줘.',
+            'ai-ast-audience':      '이 문서의 난이도, 적합한 독자 수준, 전문성 정도를 분석해줘.',
+            'ai-ast-forward-email': '이 문서를 첨부파일로 보낼 때 사용할 전달 이메일을 작성해줘. 수신자에게 문서 내용을 간략히 안내하는 형태로 작성해줘.',
+            'ai-ast-report-email':  '이 문서 내용을 요약하여 상사에게 보고하는 이메일을 작성해줘. 핵심 사항, 진행 상황, 건의 사항을 포함해줘.',
+            'ai-ast-meeting':       '이 문서를 회의록 형태(일시/참석자/안건/논의내용/결정사항/후속조치)로 변환해줘.',
+            'ai-ast-review':        '이 문서의 검토자가 확인해야 할 체크리스트를 만들어줘. 완성도, 정확성, 누락 항목을 점검해줘.',
+            'ai-ast-improve':       '이 문서의 개선이 필요한 부분과 구체적인 수정 방향을 제안해줘. 구조, 표현, 내용 측면에서 분석해줘.',
+            'ai-ast-actions':       '이 문서에서 담당자별 액션 아이템(할 일)을 추출해줘. 우선순위와 기한도 제안해줘.',
+            'ai-ast-simplify':      '이 문서를 초등학생도 이해할 수 있도록 쉽게 다시 써줘. 어려운 단어는 쉬운 말로 바꿔줘.',
+            'ai-ast-formal':        '이 문서를 공식 문서(공문) 스타일로 격식체로 변환해줘. 발신/수신/제목/본문 형식을 갖춰줘.',
+            'ai-ast-translate':     '이 문서를 영어로 번역해줘. 원문의 구조와 형식을 최대한 유지해줘.',
+        };
+
+        Object.entries(assistantActions).forEach(([btnId, prompt]) => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    this._executeAssistantAction(prompt);
+                });
+            }
+        });
     }
     
     /**
@@ -1049,6 +1095,116 @@ export class ChatPanel {
     // 🆕 AI 기능 핸들러 메서드들
     // ===================================
     
+    // ===================================
+    // AI 어시스턴트 퀵 액션
+    // ===================================
+
+    /**
+     * 어시스턴트 퀵 액션 실행
+     * 문서 내용을 분석하여 결과를 채팅에 표시 (문서 수정 없음)
+     * @param {string} prompt - AI에게 보낼 프롬프트
+     * @private
+     */
+    async _executeAssistantAction(prompt) {
+        logger.info('🤖 AI Assistant action:', prompt.substring(0, 40));
+
+        if (!this.aiController.hasApiKey()) {
+            this.addSystemMessage('[알림] OpenAI API 키를 먼저 설정해주세요.');
+            this.promptForApiKey();
+            return;
+        }
+
+        const doc = this.aiController.viewer.getDocument();
+        if (!doc) {
+            this.addSystemMessage('[알림] 먼저 문서를 로드해주세요.');
+            return;
+        }
+
+        // 문서 텍스트 추출
+        let docText = '';
+        (doc.sections || []).forEach(section => {
+            (section.elements || []).forEach(el => {
+                if (el.type === 'paragraph' && el.runs) {
+                    docText += el.runs.map(r => r.text || '').join('') + '\n';
+                } else if (el.type === 'table' && el.rows) {
+                    el.rows.forEach(row => {
+                        (row.cells || []).forEach(cell => {
+                            (cell.elements || []).forEach(ce => {
+                                if (ce.runs) docText += ce.runs.map(r => r.text || '').join('') + '\t';
+                            });
+                        });
+                        docText += '\n';
+                    });
+                }
+            });
+        });
+
+        // 사용자 메시지 표시
+        this.addUserMessage(prompt);
+        const loadingId = this.addLoadingMessage('AI가 분석 중입니다...');
+
+        try {
+            // AI 호출 (문서 컨텍스트 + 프롬프트)
+            const fullPrompt = `다음 문서를 기반으로 요청에 응답해줘.\n\n[문서 내용]\n${docText.substring(0, 4000)}\n\n[요청]\n${prompt}`;
+
+            if (this.aiController.generator) {
+                // GPT API 직접 호출 (문서 수정 없이 텍스트만 생성)
+                const messages = [
+                    { role: 'system', content: '당신은 문서 분석 및 업무 지원 전문 AI 어시스턴트입니다. 한국어로 응답해주세요.' },
+                    { role: 'user', content: fullPrompt }
+                ];
+                const apiResponse = await this.aiController.generator.callAPIWithRetry(messages);
+                const responseText = apiResponse?.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
+                this.removeMessage(loadingId);
+                const messageId = this.addAssistantMessage(responseText);
+                this._addCopyButton(messageId, responseText);
+            } else {
+                this.removeMessage(loadingId);
+                this.elements.input.value = prompt;
+                await this.handleSendMessage();
+            }
+        } catch (error) {
+            this.removeMessage(loadingId);
+            logger.error('❌ AI Assistant action failed:', error);
+            this.addSystemMessage(`[오류] AI 응답 실패: ${error.message}`);
+        }
+    }
+
+    /**
+     * 메시지에 클립보드 복사 버튼 추가
+     * @param {string} messageId - 메시지 ID
+     * @param {string} text - 복사할 텍스트
+     * @private
+     */
+    _addCopyButton(messageId, text) {
+        const msgEl = this.elements.messages?.querySelector(`[data-message-id="${messageId}"]`);
+        if (!msgEl) return;
+
+        const btn = document.createElement('button');
+        btn.className = 'ai-copy-btn';
+        btn.textContent = '📋 복사';
+        btn.title = '결과를 클립보드에 복사';
+        btn.style.cssText = 'margin-top:8px;padding:4px 12px;border:1px solid #d1d5db;border-radius:4px;background:#f9fafb;cursor:pointer;font-size:12px;';
+        btn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(text);
+                btn.textContent = '✅ 복사됨';
+                setTimeout(() => { btn.textContent = '📋 복사'; }, 2000);
+            } catch {
+                // fallback
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.textContent = '✅ 복사됨';
+                setTimeout(() => { btn.textContent = '📋 복사'; }, 2000);
+            }
+        });
+        msgEl.appendChild(btn);
+    }
+
     /**
      * 문서 구조 보기
      */

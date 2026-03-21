@@ -671,3 +671,122 @@
     from { opacity: 0; }
     to { opacity: 1; }
 }
+
+/* ============================================================
+   AI Panel Tabs (도구 | 어시스턴트)
+   ============================================================ */
+
+.ai-panel-tabs {
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f7f8fa;
+    padding: 0;
+}
+
+.ai-panel-tab {
+    flex: 1;
+    padding: 8px 0;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+    font-weight: 500;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+.ai-panel-tab:hover {
+    color: #2b579a;
+    background: #eef1f7;
+}
+
+.ai-panel-tab.active {
+    color: #2b579a;
+    border-bottom-color: #2b579a;
+    font-weight: 600;
+}
+
+/* ============================================================
+   AI Assistant Content
+   ============================================================ */
+
+.ai-assistant-content {
+    padding: 8px 12px;
+    background: #f0f2f5;
+    border-top: none;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.ai-assistant-group {
+    margin-bottom: 8px;
+}
+
+.ai-assistant-group-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 2px 4px;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 4px;
+}
+
+.ai-assistant-btn {
+    display: inline-block;
+    width: calc(33.33% - 4px);
+    margin: 2px;
+    padding: 8px 4px;
+    background: #ffffff;
+    color: #333;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-assistant-btn:hover {
+    background: #eef3ff;
+    border-color: #2b579a;
+    color: #2b579a;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(43, 87, 154, 0.15);
+}
+
+.ai-assistant-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* 복사 버튼 */
+.ai-copy-btn {
+    margin-top: 8px;
+    padding: 4px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #f9fafb;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s;
+}
+
+.ai-copy-btn:hover {
+    background: #eef3ff;
+    border-color: #2b579a;
+}
+
+/* 반응형: 모바일에서 2열 */
+@media (max-width: 400px) {
+    .ai-assistant-btn {
+        width: calc(50% - 4px);
+    }
+}
