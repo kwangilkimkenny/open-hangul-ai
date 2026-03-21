@@ -510,14 +510,148 @@ export class InlineEditor {
 
   _handleInput(e) {
     this._sanitizeContent();
+    this._checkPageOverflow();
+  }
 
-    // 자동 페이지 나누기: 편집 중인 페이지가 넘치면 분할
-    if (this.editingCell && this.viewer.renderer) {
-      const pageDiv = this.editingCell.closest('.hwp-page-container');
-      if (pageDiv && this.viewer.renderer.checkPaginationDebounced) {
-        this.viewer.renderer.checkPaginationDebounced(pageDiv, 800);
+  /**
+   * 편집 중 페이지 오버플로우 감지 및 자동 페이지 분할
+   * contentEditable의 단일 paragraph가 페이지를 넘을 때,
+   * 넘치는 내용을 새 페이지로 분리한다.
+   * @private
+   */
+  _checkPageOverflow() {
+    if (!this.editingCell) return;
+
+    // 디바운스: 빠른 타이핑 시 과도한 호출 방지
+    if (this._overflowTimer) clearTimeout(this._overflowTimer);
+    this._overflowTimer = setTimeout(() => {
+      this._performPageSplit();
+    }, 500);
+  }
+
+  /**
+   * 실제 페이지 분할 실행
+   * @private
+   */
+  _performPageSplit() {
+    if (!this.editingCell) return;
+
+    const pageDiv = this.editingCell.closest('.hwp-page-container');
+    if (!pageDiv) return;
+
+    const pageHeight = pageDiv.clientHeight;
+    const contentHeight = pageDiv.scrollHeight;
+
+    // 오버플로우가 없으면 스킵
+    if (contentHeight <= pageHeight + 30) return;
+
+    logger.info(`📄 Page overflow detected: content=${contentHeight}px > page=${pageHeight}px`);
+
+    // 현재 편집 중인 요소의 내용을 줄 단위로 분석
+    const editingEl = this.editingCell;
+    const childNodes = Array.from(editingEl.childNodes);
+
+    // 페이지 하단 좌표 계산
+    const pageRect = pageDiv.getBoundingClientRect();
+    const pageBottom = pageRect.top + pageHeight;
+
+    // 넘치는 노드 찾기: 각 노드의 위치가 페이지 하단을 넘는지 체크
+    let splitIndex = -1;
+    for (let i = 0; i < childNodes.length; i++) {
+      const node = childNodes[i];
+      const rect = node.nodeType === Node.ELEMENT_NODE
+        ? node.getBoundingClientRect()
+        : (() => {
+            const range = document.createRange();
+            range.selectNode(node);
+            return range.getBoundingClientRect();
+          })();
+
+      if (rect.bottom > pageBottom) {
+        splitIndex = i;
+        break;
       }
     }
+
+    if (splitIndex <= 0) return; // 분할할 위치를 못 찾거나 첫 노드부터 넘침
+
+    logger.info(`📄 Splitting at node index ${splitIndex} of ${childNodes.length}`);
+
+    // 넘치는 노드들을 추출
+    const overflowNodes = childNodes.slice(splitIndex);
+
+    // 새 페이지 생성
+    const container = pageDiv.parentElement;
+    const section = pageDiv._section;
+    const newPage = document.createElement('div');
+    newPage.className = 'hwp-page-container';
+    newPage.style.width = pageDiv.style.width;
+    newPage.style.height = pageDiv.style.height;
+    newPage.style.boxSizing = pageDiv.style.boxSizing;
+    newPage.style.padding = pageDiv.style.padding;
+    newPage.style.position = 'relative';
+    newPage._section = section;
+
+    const nextPageNum = (parseInt(pageDiv.getAttribute('data-page-number')) || 1) + 1;
+    newPage.setAttribute('data-page-number', String(nextPageNum));
+
+    // 새 paragraph 생성 (넘치는 내용 이동)
+    const newPara = document.createElement('div');
+    newPara.className = editingEl.className;
+    newPara.style.cssText = editingEl.style.cssText;
+    // contentEditable은 설정하지 않음 (클릭 시 활성화)
+    newPara.style.outline = '';
+    newPara.style.outlineOffset = '';
+    newPara.style.backgroundColor = '';
+
+    // _paraData 복제
+    if (editingEl._paraData) {
+      newPara._paraData = {
+        type: 'paragraph',
+        runs: [{ text: '', style: {} }],
+        style: editingEl._paraData.style ? { ...editingEl._paraData.style } : {},
+      };
+    }
+
+    // 넘치는 노드들을 새 paragraph로 이동
+    // 첫 번째가 <br>이면 제거 (페이지 시작에 빈 줄 방지)
+    let skipFirst = overflowNodes[0]?.nodeName === 'BR';
+    overflowNodes.forEach((node, i) => {
+      if (i === 0 && skipFirst) {
+        node.remove();
+        return;
+      }
+      newPara.appendChild(node);
+    });
+
+    newPage.appendChild(newPara);
+
+    // 페이지를 현재 페이지 뒤에 삽입
+    const nextSibling = pageDiv.nextSibling;
+    if (nextSibling) {
+      container.insertBefore(newPage, nextSibling);
+    } else {
+      container.appendChild(newPage);
+    }
+
+    // 새 paragraph에 편집 기능 활성화
+    if (!newPara.closest('.hwp-table')) {
+      newPara.classList.add('editable-paragraph');
+      newPara.style.cursor = 'text';
+      newPara.addEventListener('click', (e) => {
+        if (window.editModeManager && !window.editModeManager.isGlobalEditMode) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.enableEditMode(newPara, newPara._paraData);
+      });
+    }
+
+    // 상태바 페이지 수 업데이트
+    if (this.viewer.renderer) {
+      this.viewer.renderer.totalPages = container.querySelectorAll('.hwp-page-container').length;
+    }
+
+    logger.info(`📄 Page split complete: new page ${nextPageNum} created with ${newPara.childNodes.length} nodes`);
   }
 
   /**
@@ -684,12 +818,7 @@ export class InlineEditor {
     logger.debug('✅ Newline inserted, cursor positioned correctly');
 
     // 줄바꿈 후 자동 페이지 나누기 체크
-    if (this.editingCell && this.viewer.renderer) {
-      const pageDiv = this.editingCell.closest('.hwp-page-container');
-      if (pageDiv && this.viewer.renderer.checkPaginationDebounced) {
-        this.viewer.renderer.checkPaginationDebounced(pageDiv, 300);
-      }
-    }
+    this._checkPageOverflow();
   }
 
   /**
