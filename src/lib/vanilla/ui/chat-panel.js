@@ -90,7 +90,7 @@ export class ChatPanel {
      */
     init() {
         logger.info('💬 Initializing chat panel...');
-        
+
         // DOM 요소 가져오기
         this.elements.panel = document.getElementById(this.options.containerId);
         this.elements.input = document.getElementById(this.options.inputId);
@@ -101,8 +101,8 @@ export class ChatPanel {
         this.elements.apiKeyButton = document.getElementById(this.options.apiKeyButtonId);
         this.elements.customApiButton = document.getElementById('custom-api-settings-btn');
         this.elements.saveButton = document.getElementById('ai-save-btn');
-        
-        // 🆕 AI 기능 버튼들
+
+        // AI 기능 버튼들
         this.elements.previewStructureBtn = document.getElementById('preview-structure-btn');
         this.elements.applyStyleBtn = document.getElementById('apply-style-btn');
         this.elements.extractTemplateBtn = document.getElementById('extract-template-btn');
@@ -114,34 +114,40 @@ export class ChatPanel {
         this.elements.cellSelectModeBtn = document.getElementById('cell-select-mode-btn');
         this.elements.externalApiBtn = document.getElementById('external-api-btn');
         this.elements.fillTemplateBtn = document.getElementById('fill-template-btn');
-        
+
+        if (!this.elements.panel || !this.elements.input || !this.elements.messages) {
+            logger.error('❌ Required DOM elements not found');
+            return;
+        }
+
+        // 중복 init 방지: 이미 초기화된 경우 DOM 재바인딩만 하고 리턴
+        if (this._initialized) {
+            logger.info('💬 Chat panel re-initialized (DOM rebind only)');
+            return;
+        }
+        this._initialized = true;
+
         // CellSelector 초기화
         if (this.aiController && this.aiController.viewer) {
             this.cellSelector = new CellSelector(this.aiController.viewer);
             this.cellSelector.onSelectionChange = (summary) => {
                 this._onCellSelectionChange(summary);
             };
-            
-            // 셀 선택 적용 이벤트 리스너
+
             document.addEventListener('cellSelectionApplied', (e) => {
                 this._handleCellSelectionApplied(e.detail);
             });
         }
-        
-        if (!this.elements.panel || !this.elements.input || !this.elements.messages) {
-            logger.error('❌ Required DOM elements not found');
-            return;
-        }
-        
-        // 이벤트 리스너 등록
+
+        // 이벤트 리스너 등록 (최초 1회만)
         this.attachEventListeners();
-        
-        // 초기 메시지 표시
+
+        // 초기 메시지 표시 (최초 1회만)
         this.addSystemMessage('AI 문서 편집 기능에 오신 것을 환영합니다! 문서 구조를 유지하면서 내용을 변경할 수 있습니다.');
-        
+
         // API 키 상태 확인
         this.updateApiKeyStatus();
-        
+
         logger.info('✅ Chat panel initialized');
     }
     
