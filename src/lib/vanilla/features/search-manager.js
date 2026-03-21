@@ -362,30 +362,138 @@ export class SearchManager {
     }
   }
 
-  // ✅ Phase 3: Replace Methods
+  // ===========================
+  // Replace Methods
+  // ===========================
 
   /**
-   * 현재 매치 바꾸기
-   * @param {string} replaceText - 바꿀 텍스트
+   * 텍스트 교체 (검색 후 현재 매치 교체)
+   * Command 시스템을 통해 history/undo와 연동
+   *
+   * @param {string} searchTerm - 검색할 텍스트
+   * @param {string} replaceWith - 바꿀 텍스트
+   * @param {Object} [options] - 검색 옵션
+   * @param {boolean} [options.caseSensitive=false] - 대소문자 구분
+   * @param {boolean} [options.wholeWord=false] - 전체 단어 일치
+   * @param {boolean} [options.useRegex=false] - 정규식 사용
    * @returns {boolean} 성공 여부
    */
-  replaceNext(replaceText) {
+  replaceText(searchTerm, replaceWith, options = {}) {
+    if (!searchTerm) {
+      logger.warn('⚠️ replaceText: searchTerm is empty');
+      return false;
+    }
+
+    // 현재 검색어와 다르면 새로 검색
+    if (this.searchText !== searchTerm || this.matches.length === 0) {
+      const count = this.find(searchTerm, options);
+      if (count === 0) {
+        logger.debug(`⚠️ replaceText: No matches found for "${searchTerm}"`);
+        return false;
+      }
+    }
+
+    // Command 시스템을 통해 교체 (history/undo 연동)
+    if (this.viewer.command) {
+      const result = this.viewer.command.replace(replaceWith);
+      logger.info(`🔄 replaceText: "${searchTerm}" → "${replaceWith}" (${result ? '성공' : '실패'})`);
+      return result;
+    }
+
+    // Command 시스템이 없으면 직접 DOM 교체 (fallback)
+    return this._replaceCurrentMatchInDOM(replaceWith);
+  }
+
+  /**
+   * 현재 매치 바꾸기 (이미 검색된 상태에서 사용)
+   * @param {string} replaceWith - 바꿀 텍스트
+   * @returns {boolean} 성공 여부
+   */
+  replaceNext(replaceWith) {
     const currentMatch = this.getCurrentMatch();
     if (!currentMatch) {
       logger.warn('⚠️ No current match to replace');
       return false;
     }
 
+    // Command 시스템을 통해 교체 (history/undo 연동)
+    if (this.viewer.command) {
+      return this.viewer.command.replace(replaceWith);
+    }
+
+    // Fallback: 직접 DOM 교체
+    return this._replaceCurrentMatchInDOM(replaceWith);
+  }
+
+  /**
+   * 모두 바꾸기
+   * Command 시스템을 통해 history/undo와 연동
+   *
+   * @param {string} searchTerm - 검색할 텍스트
+   * @param {string} replaceWith - 바꿀 텍스트
+   * @param {Object} [options] - 검색 옵션
+   * @param {boolean} [options.caseSensitive=false] - 대소문자 구분
+   * @param {boolean} [options.wholeWord=false] - 전체 단어 일치
+   * @param {boolean} [options.useRegex=false] - 정규식 사용
+   * @returns {number} 바꾼 개수
+   */
+  replaceAll(searchTerm, replaceWith, options = {}) {
+    if (!searchTerm) {
+      logger.warn('⚠️ replaceAll: searchTerm is empty');
+      return 0;
+    }
+
+    // Command 시스템을 통해 모두 교체 (history/undo 연동)
+    if (this.viewer.command) {
+      const count = this.viewer.command.replaceAll(searchTerm, replaceWith, options);
+      logger.info(
+        `🔄 replaceAll: "${searchTerm}" → "${replaceWith}" (${count}개 교체)`
+      );
+      return count;
+    }
+
+    // Fallback: 직접 교체
+    return this._replaceAllInDOM(searchTerm, replaceWith, options);
+  }
+
+  /**
+   * 찾아서 바꾸기 (한 번에)
+   * @param {string} searchTerm - 검색할 텍스트
+   * @param {string} replaceWith - 바꿀 텍스트
+   * @param {Object} [options] - 검색 옵션
+   * @returns {Object} { found: number, replaced: number }
+   */
+  findAndReplace(searchTerm, replaceWith, options = {}) {
+    const found = this.find(searchTerm, options);
+
+    if (found === 0) {
+      return { found: 0, replaced: 0 };
+    }
+
+    const replaced = this.replaceAll(searchTerm, replaceWith, options);
+    return { found, replaced };
+  }
+
+  /**
+   * 현재 매치를 DOM에서 직접 교체 (Command 시스템 없을 때 fallback)
+   * @private
+   * @param {string} replaceWith - 바꿀 텍스트
+   * @returns {boolean} 성공 여부
+   */
+  _replaceCurrentMatchInDOM(replaceWith) {
+    const currentMatch = this.getCurrentMatch();
+    if (!currentMatch) {
+      return false;
+    }
+
     try {
-      // DOM에서 해당 텍스트 찾아 교체
-      const result = this._replaceMatchInDOM(currentMatch, replaceText);
+      const result = this._replaceMatchInDOM(currentMatch, replaceWith);
       if (result) {
-        logger.info(`🔄 Replaced: "${currentMatch.text}" → "${replaceText}"`);
+        logger.info(`🔄 DOM Replace: "${currentMatch.text}" → "${replaceWith}"`);
 
         // 검색 결과 갱신
         this._performSearch();
 
-        // 다음 매치로 이동
         if (this.matches.length > 0) {
           this.currentMatchIndex = Math.min(this.currentMatchIndex, this.matches.length - 1);
           this._highlightMatches();
@@ -394,98 +502,53 @@ export class SearchManager {
           this._clearHighlights();
         }
 
-        // History 기록
-        if (this.viewer.historyManager) {
-          this.viewer.historyManager.execute(
-            () => {},
-            () => {
-              // Undo 로직은 복잡하므로 기본적인 기록만
-              return () => {};
-            },
-            '바꾸기'
-          );
-        }
-
         return true;
       }
     } catch (error) {
-      logger.error('❌ Replace failed:', error);
+      logger.error('❌ _replaceCurrentMatchInDOM failed:', error);
     }
     return false;
   }
 
   /**
-   * 모두 바꾸기
-   * @param {string} replaceText - 바꿀 텍스트
-   * @returns {number} 바꾼 개수
+   * 모든 매치를 DOM에서 직접 교체 (Command 시스템 없을 때 fallback)
+   * @private
+   * @param {string} searchTerm - 검색할 텍스트
+   * @param {string} replaceWith - 바꿀 텍스트
+   * @param {Object} options - 검색 옵션
+   * @returns {number} 교체된 개수
    */
-  replaceAll(replaceText) {
-    if (this.matches.length === 0) {
-      logger.warn('⚠️ No matches to replace');
+  _replaceAllInDOM(searchTerm, replaceWith, options = {}) {
+    const count = this.find(searchTerm, options);
+    if (count === 0) {
       return 0;
     }
 
     let replacedCount = 0;
-    const originalText = this.searchText;
 
-    try {
-      // 역순으로 교체 (인덱스 유지를 위해)
-      const matchesCopy = [...this.matches].reverse();
+    // 역순으로 교체 (인덱스 유지를 위해)
+    const matchesCopy = [...this.matches].reverse();
 
-      for (const match of matchesCopy) {
-        const result = this._replaceMatchInDOM(match, replaceText);
-        if (result) {
-          replacedCount++;
-        }
+    for (const match of matchesCopy) {
+      const result = this._replaceMatchInDOM(match, replaceWith);
+      if (result) {
+        replacedCount++;
       }
-
-      logger.info(
-        `🔄 Replaced all: ${replacedCount} occurrences of "${originalText}" → "${replaceText}"`
-      );
-
-      // 검색 결과 초기화
-      this.clearSearch();
-
-      // History 기록
-      if (this.viewer.historyManager) {
-        this.viewer.historyManager.execute(
-          () => {},
-          () => {
-            return () => {};
-          },
-          `모두 바꾸기 (${replacedCount}개)`
-        );
-      }
-    } catch (error) {
-      logger.error('❌ Replace all failed:', error);
     }
 
+    logger.info(
+      `🔄 DOM Replace All: ${replacedCount} occurrences of "${searchTerm}" → "${replaceWith}"`
+    );
+
+    this.clearSearch();
     return replacedCount;
-  }
-
-  /**
-   * 찾아서 바꾸기 (한 번에)
-   * @param {string} searchText - 검색할 텍스트
-   * @param {string} replaceText - 바꿀 텍스트
-   * @param {Object} options - 검색 옵션
-   * @returns {Object} { found: number, replaced: number }
-   */
-  findAndReplace(searchText, replaceText, options = {}) {
-    const found = this.find(searchText, options);
-
-    if (found === 0) {
-      return { found: 0, replaced: 0 };
-    }
-
-    const replaced = this.replaceAll(replaceText);
-    return { found, replaced };
   }
 
   /**
    * DOM에서 매치된 텍스트 교체
    * @private
    */
-  _replaceMatchInDOM(match, replaceText) {
+  _replaceMatchInDOM(match, replaceWith) {
     try {
       const positions = this.positionManager.getPositionList();
       if (!positions || positions.length === 0) {
@@ -495,8 +558,7 @@ export class SearchManager {
       // 첫 번째 매치 위치의 element 찾기
       const startPosition = positions[match.startIndex];
       if (!startPosition || !startPosition.element) {
-        // element가 없으면 container에서 직접 찾기
-        return this._replaceTextInContainer(match.text, replaceText);
+        return this._replaceTextInContainer(match.text, replaceWith);
       }
 
       // 요소가 텍스트 노드인 경우
@@ -507,7 +569,7 @@ export class SearchManager {
         if (index !== -1) {
           element.textContent =
             textContent.substring(0, index) +
-            replaceText +
+            replaceWith +
             textContent.substring(index + match.text.length);
           return true;
         }
@@ -518,14 +580,13 @@ export class SearchManager {
         const textContent = element.textContent;
         const index = textContent.indexOf(match.text);
         if (index !== -1) {
-          // innerHTML 사용하여 교체
-          element.innerHTML = element.innerHTML.replace(match.text, replaceText);
+          element.innerHTML = element.innerHTML.replace(match.text, replaceWith);
           return true;
         }
       }
 
       // Fallback: container에서 교체
-      return this._replaceTextInContainer(match.text, replaceText);
+      return this._replaceTextInContainer(match.text, replaceWith);
     } catch (error) {
       logger.error('❌ _replaceMatchInDOM error:', error);
       return false;
@@ -536,7 +597,7 @@ export class SearchManager {
    * 컨테이너 내 텍스트 교체 (Fallback)
    * @private
    */
-  _replaceTextInContainer(searchText, replaceText) {
+  _replaceTextInContainer(searchText, replaceWith) {
     const container = this.viewer.container;
     if (!container) return false;
 
@@ -546,7 +607,7 @@ export class SearchManager {
     let node;
     while ((node = walker.nextNode())) {
       if (node.textContent.includes(searchText)) {
-        node.textContent = node.textContent.replace(searchText, replaceText);
+        node.textContent = node.textContent.replace(searchText, replaceWith);
         return true;
       }
     }

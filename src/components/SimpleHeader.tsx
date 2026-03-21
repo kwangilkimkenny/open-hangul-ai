@@ -5,7 +5,7 @@
  * @version 2.0.0
  */
 
-import { useRef } from 'react';
+import { useRef, useCallback, useMemo, memo } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';
@@ -35,7 +35,7 @@ interface SimpleHeaderProps {
   backgroundGradient?: string;
 }
 
-export function SimpleHeader({
+export const SimpleHeader = memo(function SimpleHeader({
   onFileSelect,
   viewer,
   title = 'HAN-View',
@@ -47,7 +47,7 @@ export function SimpleHeader({
   // 파일 입력 ref - 디버깅용
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     devLog('📁 [SimpleHeader] File change event triggered');
     devLog('📁 [SimpleHeader] Selected file:', file?.name, 'size:', file?.size);
@@ -65,9 +65,9 @@ export function SimpleHeader({
 
     // 같은 파일 다시 선택할 수 있도록 초기화
     e.target.value = '';
-  };
+  }, [onFileSelect]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!viewer) {
       toast.error('뷰어가 초기화되지 않았습니다');
       return;
@@ -94,9 +94,9 @@ export function SimpleHeader({
       console.error('❌ saveFile method not found on viewer');
       toast.error('저장 기능이 지원되지 않습니다');
     }
-  };
+  }, [viewer]);
 
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     if (!viewer) {
       toast.error('뷰어가 초기화되지 않았습니다');
       return;
@@ -108,7 +108,7 @@ export function SimpleHeader({
     } else {
       window.print();
     }
-  };
+  }, [viewer]);
 
   // 버튼 스타일 헬퍼
   const getButtonStyle = (variant?: 'primary' | 'secondary' | 'danger') => {
@@ -188,6 +188,7 @@ export function SimpleHeader({
         <div style={{ display: 'flex', gap: '12px' }}>
           {/* 파일 열기 - 파일 입력을 버튼 스타일 div 위에 겹쳐서 실제 클릭 */}
           <label
+            aria-label="HWPX 파일 열기"
             style={{
               position: 'relative',
               padding: '10px 20px',
@@ -231,6 +232,7 @@ export function SimpleHeader({
 
           <button
             onClick={handleSave}
+            aria-label="문서 저장 (Ctrl+S)"
             style={{
               padding: '10px 20px',
               background: 'rgba(255, 255, 255, 0.2)',
@@ -258,6 +260,7 @@ export function SimpleHeader({
 
           <button
             onClick={handlePrint}
+            aria-label="인쇄 (Ctrl+P)"
             style={{
               visibility: 'hidden', // 임시로 숨김
               position: 'absolute', // 레이아웃에서 제거
@@ -317,6 +320,6 @@ export function SimpleHeader({
       {/* 파일 입력은 이제 버튼 위에 직접 배치됨 - 브라우저 보안 정책 준수 */}
     </>
   );
-}
+});
 
 export default SimpleHeader;

@@ -18,6 +18,10 @@ const DEFAULT_INTERVAL = 30000; // 30초
 const MAX_SESSIONS = 10;
 const MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7일
 
+// 스토리지 쿼터 임계값
+const QUOTA_WARNING_THRESHOLD = 10 * 1024 * 1024; // 10MB
+const QUOTA_CRITICAL_THRESHOLD = 1 * 1024 * 1024;  // 1MB
+
 /**
  * 자동 저장 관리자 클래스
  */
@@ -194,6 +198,46 @@ export class AutoSaveManager {
     }
 
     /**
+     * 스토리지 쿼터 확인
+     * @private
+     * @returns {{ ok: boolean, warning: boolean, usage: number, quota: number, available: number }} 쿼터 상태
+     */
+    async _checkStorageQuota() {
+        // navigator.storage.estimate()를 지원하지 않는 환경에서는 검사 건너뜀
+        if (!navigator?.storage?.estimate) {
+            logger.debug('Storage estimate API not available, skipping quota check');
+            return { ok: true, warning: false, usage: 0, quota: 0, available: Infinity };
+        }
+
+        try {
+            const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+            const available = quota - usage;
+
+            if (available < QUOTA_CRITICAL_THRESHOLD) {
+                logger.error(
+                    `Storage quota critical: ${this._formatBytes(available)} remaining ` +
+                    `(${this._formatBytes(usage)} / ${this._formatBytes(quota)})`
+                );
+                return { ok: false, warning: true, usage, quota, available };
+            }
+
+            if (available < QUOTA_WARNING_THRESHOLD) {
+                logger.warn(
+                    `Storage quota low: ${this._formatBytes(available)} remaining ` +
+                    `(${this._formatBytes(usage)} / ${this._formatBytes(quota)})`
+                );
+                return { ok: true, warning: true, usage, quota, available };
+            }
+
+            return { ok: true, warning: false, usage, quota, available };
+        } catch (error) {
+            logger.warn('Failed to check storage quota:', error);
+            // 쿼터 확인 실패 시에도 저장은 진행
+            return { ok: true, warning: false, usage: 0, quota: 0, available: Infinity };
+        }
+    }
+
+    /**
      * 지금 저장
      * @param {string} [name] - 세션 이름
      */
@@ -208,6 +252,18 @@ export class AutoSaveManager {
             if (!document) {
                 logger.warn('No document to save');
                 return null;
+            }
+
+            // 스토리지 쿼터 확인
+            const quotaStatus = await this._checkStorageQuota();
+            if (!quotaStatus.ok) {
+                logger.error('Auto-save skipped: insufficient storage space');
+                return null;
+            }
+            if (quotaStatus.warning) {
+                logger.warn(
+                    `Storage space running low: ${this._formatBytes(quotaStatus.available)} remaining`
+                );
             }
 
             // 세션 ID 생성 (현재 세션 없으면)
@@ -292,7 +348,25 @@ export class AutoSaveManager {
             const request = store.put(session);
 
             request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
+            request.onerror = () => {
+                const error = request.error;
+                // QuotaExceededError 처리
+                if (error?.name === 'QuotaExceededError') {
+                    logger.error('IndexedDB quota exceeded. Attempting cleanup before retry.');
+                    this._cleanupOldSessions()
+                        .then(() => {
+                            // 정리 후 재시도
+                            const retryTx = this.db.transaction([STORE_NAME], 'readwrite');
+                            const retryStore = retryTx.objectStore(STORE_NAME);
+                            const retryReq = retryStore.put(session);
+                            retryReq.onsuccess = () => resolve();
+                            retryReq.onerror = () => reject(retryReq.error);
+                        })
+                        .catch(() => reject(error));
+                } else {
+                    reject(error);
+                }
+            };
         });
     }
 

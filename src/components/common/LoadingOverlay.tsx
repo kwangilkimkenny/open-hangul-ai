@@ -6,6 +6,7 @@
  * @version 1.0.0
  */
 
+import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface LoadingOverlayProps {
@@ -13,23 +14,23 @@ interface LoadingOverlayProps {
   fullScreen?: boolean;
 }
 
-export function LoadingOverlay({ 
-  message = '로딩 중...', 
-  fullScreen = false 
+export const LoadingOverlay = memo(function LoadingOverlay({
+  message = '로딩 중...',
+  fullScreen = false
 }: LoadingOverlayProps) {
-  const className = fullScreen 
-    ? 'loading-overlay loading-overlay-fullscreen' 
+  const className = fullScreen
+    ? 'loading-overlay loading-overlay-fullscreen'
     : 'loading-overlay';
 
   return (
-    <div className={className}>
+    <div className={className} role="status" aria-live="polite" aria-label={message}>
       <div className="loading-content">
-        <Loader2 className="loading-spinner" size={48} />
+        <Loader2 className="loading-spinner" size={48} aria-hidden="true" />
         <p className="loading-message">{message}</p>
       </div>
     </div>
   );
-}
+});
 
 export default LoadingOverlay;
 

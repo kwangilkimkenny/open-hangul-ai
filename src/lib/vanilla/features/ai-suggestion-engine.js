@@ -418,13 +418,13 @@ ${contextInfo}${localIssuesInfo}
      * 디버깅 정보 출력
      */
     debug() {
-        console.log('='.repeat(80));
-        console.log('🤖 AISuggestionEngine Debug Info');
-        console.log('='.repeat(80));
-        console.log('Stats:', this.getStats());
-        console.log('Cache Keys:', Array.from(this.cache.keys()).slice(0, 5));
-        console.log('Analyzing:', Array.from(this.analyzing));
-        console.log('='.repeat(80));
+        logger.debug('='.repeat(80));
+        logger.debug('AISuggestionEngine Debug Info');
+        logger.debug('='.repeat(80));
+        logger.debug('Stats:', this.getStats());
+        logger.debug('Cache Keys:', Array.from(this.cache.keys()).slice(0, 5));
+        logger.debug('Analyzing:', Array.from(this.analyzing));
+        logger.debug('='.repeat(80));
     }
 }
 

@@ -571,22 +571,28 @@ export class HWPXViewer {
       let document;
 
       if (this.workerManager && this.options.useWorker) {
-        // Worker 초기화 (필요시)
-        if (!this.workerManager.isReady) {
-          await this.workerManager.initialize();
-        }
-
-        // Worker에서 파싱
-        document = await this.workerManager.parseHWPX(buffer, progress => {
-          this.state.parseProgress = progress.percent;
-          updateStatus(`${progress.message} (${Math.round(progress.percent)}%)`);
-
-          if (this.options.onProgress) {
-            this.options.onProgress(progress);
+        try {
+          // Worker 초기화 (필요시)
+          if (!this.workerManager.isReady) {
+            await this.workerManager.initialize();
           }
 
-          showProgress(progress.percent, progress.message);
-        });
+          // Worker에서 파싱
+          document = await this.workerManager.parseHWPX(buffer, progress => {
+            this.state.parseProgress = progress.percent;
+            updateStatus(`${progress.message} (${Math.round(progress.percent)}%)`);
+
+            if (this.options.onProgress) {
+              this.options.onProgress(progress);
+            }
+
+            showProgress(progress.percent, progress.message);
+          });
+        } catch (workerError) {
+          // Worker 파싱 실패 시 메인 스레드로 자동 폴백
+          logger.warn('⚠️ Worker parsing failed, falling back to main thread:', workerError.message);
+          document = await this.parser.parse(buffer);
+        }
       } else {
         // Main thread에서 파싱
         document = await this.parser.parse(buffer);
@@ -849,7 +855,7 @@ export class HWPXViewer {
           }
 
           // 콘솔에 position 객체 전체 출력
-          console.log('Position Object:', position);
+          logger.debug('Position Object:', position);
         } else {
           logger.warn('⚠️ No position found at click location');
         }

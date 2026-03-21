@@ -7,6 +7,7 @@
  * @version 1.0.0
  */
 
+import { memo, useCallback } from 'react';
 import { useHistory } from '../contexts/HistoryContext';
 import type { HWPXViewerInstance } from '../types/viewer';
 
@@ -31,22 +32,22 @@ interface UndoRedoButtonsProps {
  * </HistoryProvider>
  * ```
  */
-export function UndoRedoButtons({ viewer, className = '' }: UndoRedoButtonsProps) {
+export const UndoRedoButtons = memo(function UndoRedoButtons({ viewer, className = '' }: UndoRedoButtonsProps) {
   // ✅ Use history context
   const history = useHistory();
 
   // Handler functions
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (viewer?.historyManager) {
       viewer.historyManager.undo();
     }
-  };
+  }, [viewer]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     if (viewer?.historyManager) {
       viewer.historyManager.redo();
     }
-  };
+  }, [viewer]);
 
   return (
     <div className={`history-buttons ${className}`}>
@@ -75,26 +76,26 @@ export function UndoRedoButtons({ viewer, className = '' }: UndoRedoButtonsProps
       </button>
     </div>
   );
-}
+});
 
 /**
  * Compact Undo/Redo Buttons (icons only)
  * ✅ Phase 2 P3: Minimal UI variant
  */
-export function UndoRedoButtonsCompact({ viewer, className = '' }: UndoRedoButtonsProps) {
+export const UndoRedoButtonsCompact = memo(function UndoRedoButtonsCompact({ viewer, className = '' }: UndoRedoButtonsProps) {
   const history = useHistory();
 
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (viewer?.historyManager) {
       viewer.historyManager.undo();
     }
-  };
+  }, [viewer]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     if (viewer?.historyManager) {
       viewer.historyManager.redo();
     }
-  };
+  }, [viewer]);
 
   return (
     <div className={`history-buttons-compact ${className}`}>
@@ -119,7 +120,7 @@ export function UndoRedoButtonsCompact({ viewer, className = '' }: UndoRedoButto
       </button>
     </div>
   );
-}
+});
 
 /**
  * History Status Display

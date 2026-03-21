@@ -9,6 +9,9 @@
 import { HWPXConstants } from '../core/constants.js';
 import { renderParagraph } from './paragraph.js';
 import { renderTable } from './table.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('ShapeRenderer');
 
 /**
  * 🆕 Line 렌더링 (SVG)
@@ -124,8 +127,8 @@ export function renderShape(shape, images = null) {
 
         // Debug log for small shapes (like buttons)
         if (shape.width < 200) {
-            console.log(`[Shape Renderer] Small shape: width=${widthPx}, height=${shape.height}px, bg=${shape.style?.backgroundColor || shape.fillColor || 'none'}`);
-            console.log(`[Shape Renderer] cssText: ${wrapper.style.cssText?.substring(0, 300)}`);
+            logger.debug(`[Shape Renderer] Small shape: width=${widthPx}, height=${shape.height}px, bg=${shape.style?.backgroundColor || shape.fillColor || 'none'}`);
+            logger.debug(`[Shape Renderer] cssText: ${wrapper.style.cssText?.substring(0, 300)}`);
         }
     }
     if (shape.height) {
@@ -154,7 +157,7 @@ export function renderShape(shape, images = null) {
                 wrapper.style.top = '0';
             }
 
-            console.log(`[Shape Renderer] Background shape positioned at (${wrapper.style.left}, ${wrapper.style.top})`);
+            logger.debug(`[Shape Renderer] Background shape positioned at (${wrapper.style.left}, ${wrapper.style.top})`);
         } else if (shape.position.treatAsChar || shape.treatAsChar) {
             // ✅ 인라인 Shape - 원본 크기 유지, 내용물 보이기
             wrapper.style.display = 'inline-block';
@@ -300,7 +303,7 @@ export function renderShape(shape, images = null) {
             // Tables inside drawText paragraphs are rendered as placeholders by paragraph.js
             const tablePlaceholders = paraElem.querySelectorAll('.hwp-inline-table-placeholder');
             if (tablePlaceholders.length > 0) {
-                console.log(`[Shape Renderer] Found ${tablePlaceholders.length} table placeholder(s) in drawText paragraph`);
+                logger.debug(`[Shape Renderer] Found ${tablePlaceholders.length} table placeholder(s) in drawText paragraph`);
                 tablePlaceholders.forEach(placeholder => {
                     const tableData = placeholder._tableData;
                     if (tableData) {
@@ -309,7 +312,7 @@ export function renderShape(shape, images = null) {
                         tableElem.style.width = '100%';
                         tableElem.style.maxWidth = '100%';
                         placeholder.replaceWith(tableElem);
-                        console.log(`  → Replaced table placeholder with actual table (${tableData.rows?.length || 0} rows)`);
+                        logger.debug(`  → Replaced table placeholder with actual table (${tableData.rows?.length || 0} rows)`);
                     }
                 });
             }
@@ -366,7 +369,7 @@ export function renderShape(shape, images = null) {
         // Set the final style attribute
         wrapper.setAttribute('style', styleProps.join('; '));
 
-        console.log(`[Shape Renderer] FINAL style attribute for small shape: ${wrapper.getAttribute('style')}`);
+        logger.debug(`[Shape Renderer] FINAL style attribute for small shape: ${wrapper.getAttribute('style')}`);
     }
 
     return wrapper;

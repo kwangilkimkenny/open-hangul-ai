@@ -87,24 +87,28 @@ export function AIGenerationModal({
   };
 
   return (
-    <div className="ai-generation-modal-overlay" onClick={handleClose}>
+    <div className="ai-generation-modal-overlay" onClick={handleClose} role="presentation">
       <div
         className="ai-generation-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ai-generation-modal-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
         <div className="ai-generation-modal-header">
-          <div className="ai-generation-modal-title">
-            <Sparkles size={20} />
+          <div className="ai-generation-modal-title" id="ai-generation-modal-title">
+            <Sparkles size={20} aria-hidden="true" />
             <span>AI로 콘텐츠 생성</span>
           </div>
           <button
             className="ai-generation-modal-close"
             onClick={handleClose}
             title="닫기 (Esc)"
+            aria-label="모달 닫기"
           >
-            <X size={20} />
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
@@ -128,16 +132,18 @@ export function AIGenerationModal({
 
           {/* 사용자 요청 입력 */}
           <div className="ai-generation-input-group">
-            <label className="ai-generation-label">
+            <label className="ai-generation-label" htmlFor="ai-generation-request">
               요청 내용 <span style={{ color: '#667eea' }}>*</span>
             </label>
             <textarea
+              id="ai-generation-request"
               className="ai-generation-input"
               placeholder="예: 겨울 놀이 활동에 대해 작성해줘"
               value={userRequest}
               onChange={(e) => setUserRequest(e.target.value)}
               disabled={isGenerating}
               autoFocus
+              aria-required="true"
             />
             <div style={{ marginTop: '4px', fontSize: '12px', color: '#999' }}>
               Ctrl+Enter로 생성
@@ -147,6 +153,7 @@ export function AIGenerationModal({
           {/* 에러 메시지 */}
           {error && (
             <div
+              role="alert"
               style={{
                 padding: '12px',
                 backgroundColor: '#fee',
@@ -163,8 +170,8 @@ export function AIGenerationModal({
 
           {/* 미리보기 */}
           <div className="ai-generation-input-group">
-            <label className="ai-generation-label">미리보기</label>
-            <div className="ai-generation-preview">
+            <label className="ai-generation-label" id="ai-generation-preview-label">미리보기</label>
+            <div className="ai-generation-preview" aria-labelledby="ai-generation-preview-label" aria-live="polite">
               {isGenerating ? (
                 <div className="ai-generation-preview-loading">
                   <div className="ai-generation-loading-spinner" />

@@ -6,10 +6,13 @@
  * @version 2.0.0
  */
 
+import { getLogger } from '../utils/logger.js';
 import { renderParagraph } from './paragraph.js';
 import { renderImage } from './image.js';
 import { renderShape } from './shape.js';
 import { renderTable } from './table.js';
+
+const logger = getLogger('ContainerRenderer');
 
 /**
  * 컨테이너 렌더링
@@ -82,7 +85,7 @@ export function renderContainer(container) {
                 renderedElement = renderContainer(element); // Recursive
                 break;
             default:
-                console.warn(`[Container] Unknown element type: ${element.type}`);
+                logger.warn(`[Container] Unknown element type: ${element.type}`);
                 return;
         }
 

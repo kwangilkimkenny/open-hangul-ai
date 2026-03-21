@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import { FileText, Image as ImageIcon, Layout, Cloud } from 'lucide-react';
 import type { HWPXViewerInstance } from '../types/viewer';
 
@@ -9,7 +9,7 @@ interface SidebarProps {
   width?: number;
 }
 
-export default function Sidebar({ viewer, file, isOpen = true, width = 280 }: SidebarProps) {
+const Sidebar = memo(function Sidebar({ viewer, file, isOpen = true, width = 280 }: SidebarProps) {
   const [totalPages, setTotalPages] = useState(0);
   const [sectionCount, setSectionCount] = useState(0);
   const [imageCount, setImageCount] = useState(0);
@@ -79,7 +79,7 @@ export default function Sidebar({ viewer, file, isOpen = true, width = 280 }: Si
     }
   }, [viewer, updateInfo]);
 
-  const handlePageClick = (pageNum: number) => {
+  const handlePageClick = useCallback((pageNum: number) => {
     if (viewer && viewer.container) {
       const pageEl = viewer.container.querySelector(
         `.hwp-page-container[data-page-number="${pageNum}"]`
@@ -89,7 +89,7 @@ export default function Sidebar({ viewer, file, isOpen = true, width = 280 }: Si
         setActivePage(pageNum);
       }
     }
-  };
+  }, [viewer]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -116,6 +116,8 @@ export default function Sidebar({ viewer, file, isOpen = true, width = 280 }: Si
   return (
     <div
       className="sidebar"
+      role="complementary"
+      aria-label="문서 정보"
       style={{
         width: `${width}px`,
         height: '100%',
@@ -304,6 +306,11 @@ export default function Sidebar({ viewer, file, isOpen = true, width = 280 }: Si
                 key={pageNum}
                 className={`thumbnail-item ${isActive ? 'active' : ''}`}
                 onClick={() => handlePageClick(pageNum)}
+                role="button"
+                tabIndex={0}
+                aria-label={`페이지 ${pageNum}${isActive ? ' (현재 페이지)' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePageClick(pageNum); } }}
                 style={{
                   backgroundColor: isActive ? '#eef2ff' : '#fff',
                   border: `1px solid ${isActive ? '#667eea' : '#e0e0e0'}`,
@@ -349,4 +356,6 @@ export default function Sidebar({ viewer, file, isOpen = true, width = 280 }: Si
       </div>
     </div>
   );
-}
+});
+
+export default Sidebar;

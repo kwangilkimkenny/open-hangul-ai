@@ -185,7 +185,7 @@ export function Toolbar() {
   }, [theme, setTheme]);
 
   return (
-    <div className="toolbar">
+    <div className="toolbar" role="toolbar" aria-label="문서 도구 모음">
       {/* 숨겨진 파일 입력 */}
       <input
         ref={fileInputRef}
@@ -257,7 +257,7 @@ export function Toolbar() {
           <ZoomOut size={20} />
         </button>
 
-        <span className="zoom-level">{zoom}%</span>
+        <span className="zoom-level" aria-live="polite" aria-atomic="true">{zoom}%</span>
 
         <button className="toolbar-btn" onClick={zoomIn} title="확대">
           <ZoomIn size={20} />

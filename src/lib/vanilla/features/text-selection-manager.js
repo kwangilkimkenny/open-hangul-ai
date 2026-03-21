@@ -381,14 +381,14 @@ export class TextSelectionManager {
      * 디버깅 정보 출력
      */
     debug() {
-        console.log('='.repeat(80));
-        console.log('📝 TextSelectionManager Debug Info');
-        console.log('='.repeat(80));
-        console.log('Enabled:', this.enabled);
-        console.log('Current Selection:', this.currentSelection);
-        console.log('Selection Data:', this.selectionData);
-        console.log('Registered Callbacks:', Array.from(this.callbacks.keys()));
-        console.log('='.repeat(80));
+        logger.debug('='.repeat(80));
+        logger.debug('TextSelectionManager Debug Info');
+        logger.debug('='.repeat(80));
+        logger.debug('Enabled:', this.enabled);
+        logger.debug('Current Selection:', this.currentSelection);
+        logger.debug('Selection Data:', this.selectionData);
+        logger.debug('Registered Callbacks:', Array.from(this.callbacks.keys()));
+        logger.debug('='.repeat(80));
     }
 }
 

@@ -21,6 +21,7 @@ import {
 import { renderShape } from './shape.js';
 import { renderContainer } from './container.js';
 import { renderTable } from './table.js';
+import { applyImageOptimizations } from './image.js';
 
 const logger = getLogger();
 
@@ -113,13 +114,13 @@ export function renderParagraph(para) {
 
     // ✅ v2.2.10: Render background shapes (BEHIND_TEXT) - 절대 위치로 배치
     if (para.backgroundShapes && para.backgroundShapes.length > 0) {
-        console.log(`[Paragraph Renderer] Rendering ${para.backgroundShapes.length} background shapes`);
+        logger.debug(`[Paragraph Renderer] Rendering ${para.backgroundShapes.length} background shapes`);
         para.backgroundShapes.forEach((shape, idx) => {
             const shapeElem = renderShape(shape);
             if (shapeElem) {
                 // renderShape에서 이미 position: absolute, z-index: -1 설정됨
                 paraDiv.appendChild(shapeElem);
-                console.log(`  → Background shape ${idx + 1} appended`);
+                logger.debug(`  → Background shape ${idx + 1} appended`);
             }
         });
     }
@@ -134,17 +135,17 @@ export function renderParagraph(para) {
     // Render inline shapes/containers (treatAsChar objects)
     // Only if NOT using run-based shape rendering
     if (para.shapes && para.shapes.length > 0 && !hasShapeRuns) {
-        console.log(`[Paragraph Renderer] Rendering ${para.shapes.length} shapes/containers (legacy mode)`);
+        logger.debug(`[Paragraph Renderer] Rendering ${para.shapes.length} shapes/containers (legacy mode)`);
 
         para.shapes.forEach((shape, idx) => {
-            console.log(`  → Shape/Container ${idx + 1}: type=${shape.type}, treatAsChar=${shape.treatAsChar}, width=${shape.width}`);
+            logger.debug(`  → Shape/Container ${idx + 1}: type=${shape.type}, treatAsChar=${shape.treatAsChar}, width=${shape.width}`);
             if (shape.treatAsChar) {
                 let shapeElem;
 
                 // ✅ Distinguish between containers and shapes
                 if (shape.type === 'container') {
                     shapeElem = renderContainer(shape);
-                    console.log(`    ✓ Rendered as container, elem width: ${shapeElem.style.width}`);
+                    logger.debug(`    Rendered as container, elem width: ${shapeElem.style.width}`);
 
                     // ✅ For large containers (images with overlays), render as block instead of inline
                     // This prevents size compression issues
@@ -152,7 +153,7 @@ export function renderParagraph(para) {
                         shapeElem.style.display = 'block';
                         shapeElem.style.marginTop = '10px';
                         shapeElem.style.marginBottom = '10px';
-                        console.log(`    → Large container: rendered as block`);
+                        logger.debug(`    → Large container: rendered as block`);
                     } else {
                         shapeElem.style.display = 'inline-block';
                         shapeElem.style.verticalAlign = 'middle';
@@ -160,17 +161,17 @@ export function renderParagraph(para) {
                 } else {
                     shapeElem = renderShape(shape);
                     // ✅ v2.2.14: DO NOT override styles - shape.js sets final style attribute
-                    console.log(`    ✓ Rendered as shape`);
+                    logger.debug(`    Rendered as shape`);
                 }
 
                 if (shapeElem) {
                     targetContainer.appendChild(shapeElem);
-                    console.log(`    ✓ Appended to paragraph`);
+                    logger.debug(`    Appended to paragraph`);
                 }
             }
         });
     } else if (hasShapeRuns) {
-        console.log(`[Paragraph Renderer] Shapes will be rendered in run order (${para.shapes?.length || 0} shapes)`);
+        logger.debug(`[Paragraph Renderer] Shapes will be rendered in run order (${para.shapes?.length || 0} shapes)`);
     }
 
     // ✅ Set default font size for empty/blank paragraphs (for vertical spacing)
@@ -227,11 +228,11 @@ export function renderParagraph(para) {
                     imgWrapper.style.position = 'absolute';
                     if (image.position?.x !== undefined) {
                         imgWrapper.style.left = `${image.position.x}px`;
-                        console.log(`[Paragraph] Image absolute left: ${image.position.x}px`);
+                        logger.debug(`[Paragraph] Image absolute left: ${image.position.x}px`);
                     }
                     if (image.position?.y !== undefined) {
                         imgWrapper.style.top = `${image.position.y}px`;
-                        console.log(`[Paragraph] Image absolute top: ${image.position.y}px`);
+                        logger.debug(`[Paragraph] Image absolute top: ${image.position.y}px`);
                     }
                     // 정확한 크기 적용
                     if (image.width) {
@@ -271,7 +272,6 @@ export function renderParagraph(para) {
 
                 const imgElem = document.createElement('img');
                 imgElem.className = 'hwp-image';
-                imgElem.src = image.src || image.url;
                 imgElem.alt = image.alt || '';
 
                 // ✅ v2.2.10: 래퍼에 크기가 설정되면 img는 100% 사용
@@ -285,6 +285,10 @@ export function renderParagraph(para) {
                 }
                 imgElem.style.objectFit = 'contain';
                 imgElem.style.display = 'block';
+
+                // ✅ v2.1.0: Apply lazy loading and image optimization
+                const imgSrc = image.src || image.url;
+                applyImageOptimizations(imgElem, imgSrc, imgWrapper);
 
                 imgWrapper.appendChild(imgElem);
                 targetContainer.appendChild(imgWrapper);
@@ -333,10 +337,10 @@ export function renderParagraph(para) {
                         // The final style attribute is already set with !important in shape.js
 
                         // ✅ v2.2.14: Debug log to verify inline styles
-                        console.log(`[Paragraph Renderer] Shape after render - style attr:`, shapeElem.getAttribute('style')?.substring(0, 300));
+                        logger.debug(`[Paragraph Renderer] Shape after render - style attr:`, shapeElem.getAttribute('style')?.substring(0, 300));
 
                         targetContainer.appendChild(shapeElem);
-                        console.log(`[Paragraph Renderer] Rendered shape in run order at index ${shapeIndex}, replaced ${placeholders.length} table placeholders`);
+                        logger.debug(`[Paragraph Renderer] Rendered shape in run order at index ${shapeIndex}, replaced ${placeholders.length} table placeholders`);
                     }
                 }
             }
@@ -389,7 +393,7 @@ export function renderParagraph(para) {
         // ✅ v2.2.10: 빈 요소의 line-height도 제거해야 함
         paraDiv.style.lineHeight = '0';
         paraDiv.style.fontSize = '0';
-        console.log(`[Paragraph Renderer] Background-only paragraph - height set to 0`);
+        logger.debug(`[Paragraph Renderer] Background-only paragraph - height set to 0`);
     }
 
 

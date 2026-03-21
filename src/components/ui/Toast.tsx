@@ -6,19 +6,24 @@
  * @version 1.0.0
  */
 
+import { memo, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import { useUIStore, type ToastMessage } from '../../stores/uiStore';
 
 export function ToastContainer() {
   const { toasts, removeToast } = useUIStore();
 
+  const handleClose = useCallback((id: string) => {
+    removeToast(id);
+  }, [removeToast]);
+
   return (
-    <div className="toast-container">
+    <div className="toast-container" aria-live="polite" aria-relevant="additions removals" role="status">
       {toasts.map((toast) => (
-        <ToastItem 
-          key={toast.id} 
-          toast={toast} 
-          onClose={() => removeToast(toast.id)} 
+        <ToastItem
+          key={toast.id}
+          toast={toast}
+          onClose={handleClose}
         />
       ))}
     </div>
@@ -27,10 +32,10 @@ export function ToastContainer() {
 
 interface ToastItemProps {
   toast: ToastMessage;
-  onClose: () => void;
+  onClose: (id: string) => void;
 }
 
-function ToastItem({ toast, onClose }: ToastItemProps) {
+const ToastItem = memo(function ToastItem({ toast, onClose }: ToastItemProps) {
   const getIcon = () => {
     switch (toast.type) {
       case 'success':
@@ -45,7 +50,7 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
   };
 
   return (
-    <div className={`toast-item ${toast.type}`}>
+    <div className={`toast-item ${toast.type}`} role="alert" aria-live="assertive">
       <div className="toast-content">
         {getIcon()}
         <div className="toast-text">
@@ -55,12 +60,12 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
           )}
         </div>
       </div>
-      <button className="toast-close" onClick={onClose}>
+      <button className="toast-close" onClick={() => onClose(toast.id)} aria-label="알림 닫기">
         <X size={16} />
       </button>
     </div>
   );
-}
+});
 
 export default ToastContainer;
 

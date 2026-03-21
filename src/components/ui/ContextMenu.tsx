@@ -7,6 +7,7 @@
  */
 
 /* eslint-disable react-refresh/only-export-components */
+import { memo, useCallback } from 'react';
 import { Copy, Clipboard, Edit3, Sparkles } from 'lucide-react';
 import '../../styles/editing.css';
 
@@ -27,8 +28,8 @@ export interface ContextMenuProps {
   onClose: () => void;
 }
 
-export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
-  const handleItemClick = (item: ContextMenuItem) => {
+export const ContextMenu = memo(function ContextMenu({ position, items, onClose }: ContextMenuProps) {
+  const handleItemClick = useCallback((item: ContextMenuItem) => {
     if (item.disabled) return;
 
     if (item.onClick) {
@@ -36,11 +37,13 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
     }
 
     onClose();
-  };
+  }, [onClose]);
 
   return (
     <div
       className="context-menu"
+      role="menu"
+      aria-label="편집 메뉴"
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
@@ -58,9 +61,18 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
             className={`context-menu-item ${item.className || ''} ${
               item.disabled ? 'disabled' : ''
             }`}
+            role="menuitem"
+            tabIndex={item.disabled ? -1 : 0}
+            aria-disabled={item.disabled || undefined}
             onClick={() => handleItemClick(item)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleItemClick(item);
+              }
+            }}
           >
-            {item.icon && <span className="context-menu-item-icon">{item.icon}</span>}
+            {item.icon && <span className="context-menu-item-icon" aria-hidden="true">{item.icon}</span>}
             <span className="context-menu-item-label">{item.label}</span>
             {item.shortcut && <span className="context-menu-item-shortcut">{item.shortcut}</span>}
           </div>
@@ -68,7 +80,7 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
       })}
     </div>
   );
-}
+});
 
 /**
  * 기본 편집 메뉴 아이템 생성

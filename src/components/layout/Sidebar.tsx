@@ -133,7 +133,7 @@ export function Sidebar({ className, onPageSelect, currentPage = 1 }: SidebarPro
   const imageCount = document?.images?.size || 0;
 
   return (
-    <aside className={`sidebar ${className || ''}`}>
+    <aside className={`sidebar ${className || ''}`} aria-label="문서 정보 사이드바">
       {/* 사이드바 헤더 */}
       <div className="sidebar-header">
         문서 정보
@@ -185,12 +185,16 @@ export function Sidebar({ className, onPageSelect, currentPage = 1 }: SidebarPro
 
         {/* 키보드 단축키 패널 */}
         <div className="shortcuts-panel">
-          <h3 
+          <h3
             className="panel-title clickable"
             onClick={() => setShowShortcuts(!showShortcuts)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={showShortcuts}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowShortcuts(!showShortcuts); } }}
           >
-            {showShortcuts ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            <Keyboard size={16} />
+            {showShortcuts ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
+            <Keyboard size={16} aria-hidden="true" />
             키보드 단축키
           </h3>
 
@@ -214,12 +218,16 @@ export function Sidebar({ className, onPageSelect, currentPage = 1 }: SidebarPro
 
         {/* 자동 저장 패널 */}
         <div className="autosave-panel">
-          <h3 
+          <h3
             className="panel-title clickable"
             onClick={() => setShowAutoSavePanel(!showAutoSavePanel)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={showAutoSavePanel}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAutoSavePanel(!showAutoSavePanel); } }}
           >
-            {showAutoSavePanel ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            <Clock size={16} />
+            {showAutoSavePanel ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
+            <Clock size={16} aria-hidden="true" />
             자동 저장
           </h3>
 
@@ -250,19 +258,21 @@ export function Sidebar({ className, onPageSelect, currentPage = 1 }: SidebarPro
                         </span>
                       </div>
                       <div className="autosave-item-actions">
-                        <button 
+                        <button
                           className="restore"
                           onClick={() => handleRestoreSession(session.id)}
                           title="복원"
+                          aria-label={`${session.fileName || '문서'} 복원`}
                         >
-                          <RotateCcw size={14} />
+                          <RotateCcw size={14} aria-hidden="true" />
                         </button>
-                        <button 
+                        <button
                           className="delete"
                           onClick={() => handleDeleteSession(session.id)}
                           title="삭제"
+                          aria-label={`${session.fileName || '문서'} 삭제`}
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={14} aria-hidden="true" />
                         </button>
                       </div>
                     </div>
@@ -276,11 +286,15 @@ export function Sidebar({ className, onPageSelect, currentPage = 1 }: SidebarPro
         {/* 페이지 썸네일 */}
         {document && totalPages > 0 && (
           <div className="thumbnails-panel">
-            <h3 
+            <h3
               className="panel-title clickable"
               onClick={() => setShowThumbnails(!showThumbnails)}
+              role="button"
+              tabIndex={0}
+              aria-expanded={showThumbnails}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowThumbnails(!showThumbnails); } }}
             >
-              {showThumbnails ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {showThumbnails ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
               페이지 미리보기
             </h3>
 
@@ -291,6 +305,11 @@ export function Sidebar({ className, onPageSelect, currentPage = 1 }: SidebarPro
                     key={index}
                     className={`thumbnail-item ${currentPage === index + 1 ? 'active' : ''}`}
                     onClick={() => handlePageClick(index + 1)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`페이지 ${index + 1}${currentPage === index + 1 ? ' (현재 페이지)' : ''}`}
+                    aria-current={currentPage === index + 1 ? 'page' : undefined}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePageClick(index + 1); } }}
                   >
                     <div className="thumbnail-preview">
                       <span className="thumbnail-number">{index + 1}</span>

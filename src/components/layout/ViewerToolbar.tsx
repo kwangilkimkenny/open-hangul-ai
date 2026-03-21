@@ -6,9 +6,9 @@
  * @version 1.0.0
  */
 
-import { useCallback } from 'react';
-import { 
-  Maximize2, 
+import { memo, useCallback } from 'react';
+import {
+  Maximize2,
   Minimize2,
   RotateCcw,
   RotateCw
@@ -19,7 +19,7 @@ interface ViewerToolbarProps {
   className?: string;
 }
 
-export function ViewerToolbar({ className }: ViewerToolbarProps) {
+export const ViewerToolbar = memo(function ViewerToolbar({ className }: ViewerToolbarProps) {
   const { zoom, setZoom, rotation, setRotation } = useUIStore();
 
   // 너비 맞춤
@@ -72,7 +72,7 @@ export function ViewerToolbar({ className }: ViewerToolbarProps) {
   }, [setZoom]);
 
   return (
-    <div className={`viewer-toolbar ${className || ''}`}>
+    <div className={`viewer-toolbar ${className || ''}`} role="toolbar" aria-label="뷰어 도구 모음">
       <div className="toolbar-group">
         <button 
           className="toolbar-btn" 
@@ -97,10 +97,11 @@ export function ViewerToolbar({ className }: ViewerToolbarProps) {
 
       <div className="toolbar-group">
         <span className="toolbar-label">확대/축소:</span>
-        <select 
-          className="zoom-select" 
+        <select
+          className="zoom-select"
           value={zoom}
           onChange={handleZoomChange}
+          aria-label="확대/축소 비율 선택"
         >
           <option value={50}>50%</option>
           <option value={75}>75%</option>
@@ -134,7 +135,7 @@ export function ViewerToolbar({ className }: ViewerToolbarProps) {
       </div>
     </div>
   );
-}
+});
 
 export default ViewerToolbar;
 

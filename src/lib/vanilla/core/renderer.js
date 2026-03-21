@@ -13,7 +13,7 @@ import { withErrorBoundary, withAsyncErrorBoundary, safeDOMOperation } from '../
 // Renderers
 import { renderParagraph } from '../renderers/paragraph.js';
 import { renderTable } from '../renderers/table.js';
-import { renderImage } from '../renderers/image.js';
+import { renderImage, clearImageCache } from '../renderers/image.js';
 import { renderShape } from '../renderers/shape.js';
 import { renderContainer } from '../renderers/container.js';
 
@@ -1125,6 +1125,7 @@ export class DocumentRenderer {
         this.pageNumber = 1;
         this.totalPages = 0;
         this.container.innerHTML = '';
+        clearImageCache();
         logger.info('🔄 Renderer reset');
     }
 }

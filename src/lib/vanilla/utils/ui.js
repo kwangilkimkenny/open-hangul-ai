@@ -6,6 +6,10 @@
  * @version 2.0.0
  */
 
+import { getLogger } from './logger.js';
+
+const logger = getLogger('UI');
+
 /**
  * Toast 타입
  * @enum {string}
@@ -33,7 +37,7 @@ Object.freeze(ToastType);
 export function showToast(type, title, message, duration = 5000) {
     const container = document.getElementById('toast-container');
     if (!container) {
-        console.warn('Toast container not found');
+        logger.warn('Toast container not found');
         return;
     }
 
@@ -206,7 +210,7 @@ export function closeAllToasts() {
 export function showLoading(show, message = '') {
     const overlay = document.getElementById('loading-overlay');
     if (!overlay) {
-        console.warn('Loading overlay not found');
+        logger.warn('Loading overlay not found');
         return;
     }
 

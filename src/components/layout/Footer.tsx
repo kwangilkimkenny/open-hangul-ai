@@ -6,11 +6,11 @@
  * @version 1.0.0
  */
 
-import { useCallback, useState, useEffect } from 'react';
-import { 
-  ChevronsLeft, 
-  ChevronLeft, 
-  ChevronRight, 
+import { memo, useCallback, useState, useEffect } from 'react';
+import {
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
   ChevronsRight,
   ZoomIn,
   ZoomOut
@@ -27,7 +27,7 @@ interface FooterProps {
   onPageChange: (page: number) => void;
 }
 
-export function Footer({ className, currentPage, totalPages, onPageChange }: FooterProps) {
+export const Footer = memo(function Footer({ className, currentPage, totalPages, onPageChange }: FooterProps) {
   const { document } = useDocumentStore();
   const { zoom, zoomIn, zoomOut } = useUIStore();
   
@@ -99,7 +99,7 @@ export function Footer({ className, currentPage, totalPages, onPageChange }: Foo
 
       {/* 중앙: 페이지 네비게이션 */}
       {document && totalPages > 0 && (
-        <div className="page-navigator">
+        <div className="page-navigator" role="navigation" aria-label="페이지 탐색">
           <div className="page-nav-controls">
             <button 
               className="nav-btn first-page" 
@@ -131,6 +131,7 @@ export function Footer({ className, currentPage, totalPages, onPageChange }: Foo
                 onBlur={handlePageInputBlur}
                 min={1}
                 max={totalPages}
+                aria-label={`현재 페이지 (총 ${totalPages} 페이지 중)`}
               />
               <span className="page-separator">/</span>
               <span className="total-pages">{totalPages}</span>
@@ -158,7 +159,7 @@ export function Footer({ className, currentPage, totalPages, onPageChange }: Foo
           </div>
 
           {/* 줌 컨트롤 */}
-          <div className="zoom-controls">
+          <div className="zoom-controls" role="group" aria-label="확대/축소">
             <button 
               className="nav-btn" 
               onClick={zoomOut}
@@ -168,7 +169,7 @@ export function Footer({ className, currentPage, totalPages, onPageChange }: Foo
               <ZoomOut size={16} />
             </button>
             
-            <span className="zoom-value">{zoom}%</span>
+            <span className="zoom-value" aria-live="polite" aria-atomic="true">{zoom}%</span>
 
             <button 
               className="nav-btn" 
@@ -183,7 +184,7 @@ export function Footer({ className, currentPage, totalPages, onPageChange }: Foo
       )}
     </footer>
   );
-}
+});
 
 export default Footer;
 

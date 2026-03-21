@@ -374,14 +374,14 @@ export class SuggestionTooltip {
      * 디버깅 정보 출력
      */
     debug() {
-        console.log('='.repeat(80));
-        console.log('💬 SuggestionTooltip Debug Info');
-        console.log('='.repeat(80));
-        console.log('Registered Suggestions:', this.suggestionRegistry.size);
-        console.log('Current Highlight ID:', this.currentHighlightId);
-        console.log('Current Suggestion:', this.currentSuggestion);
-        console.log('Tooltip Visible:', this.tooltip.style.display !== 'none');
-        console.log('='.repeat(80));
+        logger.debug('='.repeat(80));
+        logger.debug('💬 SuggestionTooltip Debug Info');
+        logger.debug('='.repeat(80));
+        logger.debug('Registered Suggestions:', this.suggestionRegistry.size);
+        logger.debug('Current Highlight ID:', this.currentHighlightId);
+        logger.debug('Current Suggestion:', this.currentSuggestion);
+        logger.debug('Tooltip Visible:', this.tooltip.style.display !== 'none');
+        logger.debug('='.repeat(80));
     }
 }
 

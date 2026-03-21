@@ -26,7 +26,7 @@ export class WorkerManager {
      * @param {string} workerPath - Worker 스크립트 경로
      * @returns {Promise<void>}
      */
-    async initialize(workerPath = '/src/workers/parser.worker.js') {
+    async initialize() {
         if (this.worker) {
             logger.warn('Worker already initialized');
             return;
@@ -34,7 +34,10 @@ export class WorkerManager {
 
         return new Promise((resolve, reject) => {
             try {
-                this.worker = new Worker(workerPath);
+                this.worker = new Worker(
+                    new URL('../workers/parser.worker.js', import.meta.url),
+                    { type: 'module' }
+                );
                 
                 this.worker.addEventListener('message', (event) => {
                     this.handleMessage(event.data);

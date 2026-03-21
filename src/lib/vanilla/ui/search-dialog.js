@@ -44,23 +44,26 @@ export class SearchDialog {
         // 다이얼로그 컨테이너
         this.dialogElement = document.createElement('div');
         this.dialogElement.className = 'hwpx-search-dialog';
+        this.dialogElement.setAttribute('role', 'dialog');
+        this.dialogElement.setAttribute('aria-label', '찾기 및 바꾸기');
+        this.dialogElement.setAttribute('aria-modal', 'false');
         this.dialogElement.style.display = 'none';
 
         this.dialogElement.innerHTML = `
             <div class="hwpx-search-dialog-header">
-                <div class="hwpx-search-dialog-tabs">
-                    <button class="hwpx-search-tab active" data-tab="find">찾기</button>
-                    <button class="hwpx-search-tab" data-tab="replace">바꾸기</button>
+                <div class="hwpx-search-dialog-tabs" role="tablist" aria-label="검색 모드">
+                    <button class="hwpx-search-tab active" data-tab="find" role="tab" aria-selected="true">찾기</button>
+                    <button class="hwpx-search-tab" data-tab="replace" role="tab" aria-selected="false">바꾸기</button>
                 </div>
-                <button class="hwpx-search-close">×</button>
+                <button class="hwpx-search-close" aria-label="검색 닫기">×</button>
             </div>
             <div class="hwpx-search-dialog-body">
                 <div class="hwpx-search-input-group">
-                    <input type="text" class="hwpx-search-input" placeholder="찾을 내용" />
-                    <div class="hwpx-search-match-info"></div>
+                    <input type="text" class="hwpx-search-input" placeholder="찾을 내용" aria-label="찾을 내용" />
+                    <div class="hwpx-search-match-info" aria-live="polite" aria-atomic="true"></div>
                 </div>
                 <div class="hwpx-replace-input-group" style="display: none;">
-                    <input type="text" class="hwpx-replace-input" placeholder="바꿀 내용" />
+                    <input type="text" class="hwpx-replace-input" placeholder="바꿀 내용" aria-label="바꿀 내용" />
                 </div>
                 <div class="hwpx-search-options">
                     <label><input type="checkbox" class="hwpx-option-case" /> 대소문자 구분</label>
@@ -69,8 +72,8 @@ export class SearchDialog {
                 </div>
                 <div class="hwpx-search-actions">
                     <button class="hwpx-btn hwpx-btn-find">찾기</button>
-                    <button class="hwpx-btn hwpx-btn-find-prev">이전</button>
-                    <button class="hwpx-btn hwpx-btn-find-next">다음</button>
+                    <button class="hwpx-btn hwpx-btn-find-prev" aria-label="이전 결과">이전</button>
+                    <button class="hwpx-btn hwpx-btn-find-next" aria-label="다음 결과">다음</button>
                     <button class="hwpx-btn hwpx-btn-replace" style="display: none;">교체</button>
                     <button class="hwpx-btn hwpx-btn-replace-all" style="display: none;">모두 교체</button>
                 </div>
@@ -138,6 +141,20 @@ export class SearchDialog {
                     this._handleFindPrevious();
                 } else {
                     this._handleFindNext();
+                }
+                e.preventDefault();
+            }
+        });
+
+        // 바꾸기 입력에서 Enter 키로 교체
+        this.replaceInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                    // Shift+Enter: 모두 교체
+                    this._handleReplaceAll();
+                } else {
+                    // Enter: 현재 매치 교체
+                    this._handleReplace();
                 }
                 e.preventDefault();
             }
@@ -217,13 +234,30 @@ export class SearchDialog {
      * @private
      */
     _handleReplace() {
+        const searchText = this.searchInput.value;
         const replaceText = this.replaceInput.value;
+
+        if (!searchText) {
+            return;
+        }
+
+        // 매치가 없으면 먼저 검색 실행
+        if (!this.viewer.searchManager || this.viewer.searchManager.getMatches().length === 0) {
+            this._handleFind();
+            return;
+        }
+
         const success = this.viewer.command.replace(replaceText);
 
         if (success) {
-            // 다음 매치로 자동 이동
-            this._handleFindNext();
+            // executeReplace가 이미 refreshHighlights를 호출하므로
+            // 약간의 딜레이 후 매치 정보만 갱신
+            setTimeout(() => {
+                this._updateMatchInfo();
+            }, 100);
         }
+
+        logger.debug(`🔄 Replace: "${searchText}" → "${replaceText}" (${success ? '성공' : '실패'})`);
     }
 
     /**
@@ -241,8 +275,17 @@ export class SearchDialog {
         const options = this._getSearchOptions();
         const count = this.viewer.command.replaceAll(searchText, replaceText, options);
 
-        this._updateMatchInfo();
-        logger.debug(`🔄 Replaced ${count} occurrences`);
+        // 교체 후 매치 정보 갱신
+        setTimeout(() => {
+            this._updateMatchInfo();
+
+            if (count > 0) {
+                this.matchInfo.textContent = `${count}개 교체 완료`;
+                this.matchInfo.style.color = '#4caf50';
+            }
+        }, 100);
+
+        logger.debug(`🔄 Replace All: ${count} occurrences of "${searchText}" → "${replaceText}"`);
     }
 
     /**
@@ -295,11 +338,13 @@ export class SearchDialog {
 
         // 탭 활성화
         this.dialogElement.querySelectorAll('.hwpx-search-tab').forEach(tab => {
-            if (tab.dataset.tab === mode) {
+            const isActive = tab.dataset.tab === mode;
+            if (isActive) {
                 tab.classList.add('active');
             } else {
                 tab.classList.remove('active');
             }
+            tab.setAttribute('aria-selected', String(isActive));
         });
 
         // UI 표시/숨김

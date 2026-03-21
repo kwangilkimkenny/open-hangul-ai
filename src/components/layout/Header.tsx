@@ -267,7 +267,7 @@ export function Header({ className }: HeaderProps) {
                 <FileDown className="btn-icon" size={18} />
               )}
               <span className="btn-text">HWPX 저장</span>
-              {isDirty && <span className="dirty-indicator">●</span>}
+              {isDirty && <span className="dirty-indicator" aria-label="저장되지 않은 변경사항 있음">●</span>}
             </button>
 
             <button
@@ -300,8 +300,8 @@ export function Header({ className }: HeaderProps) {
 
         {/* 자동 저장 상태 */}
         {document && isInitialized && (
-          <div className="autosave-status">
-            <Save className="autosave-icon" size={18} />
+          <div className="autosave-status" aria-live="polite" aria-atomic="true">
+            <Save className="autosave-icon" size={18} aria-hidden="true" />
             <span className="autosave-text">{formatLastSaveTime()}</span>
           </div>
         )}

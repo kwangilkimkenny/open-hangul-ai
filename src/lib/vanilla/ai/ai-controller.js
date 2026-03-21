@@ -1341,20 +1341,265 @@ export class AIDocumentController {
   getDataFetcher() {
     return this.dataFetcher;
   }
+
+  /**
+   * 템플릿 모드: 레이아웃 유지 + 내용 비우기 + AI로 전체 채우기
+   * @param {string} userMessage - 채울 내용에 대한 요청 (예: "3월 유치원 알림장")
+   * @param {Object} [options={}] - 옵션
+   * @param {boolean} [options.preview=false] - 미리보기 모드 (렌더링 안 함)
+   * @returns {Promise<Object>} 처리 결과
+   */
+  async fillTemplate(userMessage, options = {}) {
+    logger.info('Handling template fill request...');
+    logger.time('Template Fill');
+
+    if (this.state.isProcessing) {
+      throw new HWPXError(
+        ErrorType.VALIDATION_ERROR,
+        '이미 요청을 처리 중입니다. 완료 후 다시 시도하세요.'
+      );
+    }
+
+    if (!this.hasApiKey()) {
+      throw new HWPXError(ErrorType.VALIDATION_ERROR, AIConfig.prompts.errorMessages.noApiKey);
+    }
+
+    this.state.isProcessing = true;
+    this.state.currentRequest = userMessage;
+    this.state.error = null;
+
+    try {
+      // 1. 현재 문서 가져오기
+      const currentDocument = this.viewer.getDocument();
+      if (!currentDocument) {
+        throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다');
+      }
+
+      // 원본 문서 백업 (되돌리기용)
+      this.state.originalDocument = JSON.parse(JSON.stringify(currentDocument));
+
+      // 2. 템플릿 추출 - 레이아웃 유지, 내용 셀 비우기
+      logger.info('  Step 1/3: Extracting template (clearing content cells)...');
+      const { templateDocument, headerContentMap, clearedCount } =
+        this._extractTemplate(currentDocument);
+
+      logger.info(`    Cleared ${clearedCount} content cells, ${headerContentMap.length} headers found`);
+
+      if (headerContentMap.length === 0) {
+        throw new HWPXError(
+          ErrorType.VALIDATION_ERROR,
+          '문서에서 채울 수 있는 내용 셀을 찾지 못했습니다. 표 구조가 있는 문서를 사용해주세요.'
+        );
+      }
+
+      // 3. GPT로 전체 내용 생성
+      logger.info('  Step 2/3: Generating content with GPT...');
+      const pairsToGenerate = headerContentMap.map(item => ({
+        header: item.header,
+        content: '', // 빈 내용 — GPT가 새로 생성
+        path: item.path,
+        mode: 'generate',
+      }));
+
+      const { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
+        pairsToGenerate,
+        userMessage
+      );
+
+      logger.info(`    Generated content for ${Object.keys(generatedJSON).length} items`);
+
+      // 4. 생성된 내용을 템플릿에 병합
+      logger.info('  Step 3/3: Merging generated content into template...');
+      const filledDocument = this.mergeStructuredContent(
+        templateDocument,
+        generatedJSON,
+        pairsToGenerate
+      );
+
+      this.state.updatedDocument = filledDocument;
+
+      // 5. 렌더링 (미리보기가 아닌 경우)
+      if (!options.preview && this.options.autoRender) {
+        await this.viewer.updateDocument(filledDocument);
+      }
+
+      // 6. 이력 저장
+      if (this.options.saveHistory) {
+        this.saveToHistory({
+          request: `[템플릿 채우기] ${userMessage}`,
+          original: this.state.originalDocument,
+          updated: filledDocument,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            mode: 'template-fill',
+            clearedCount,
+            itemsGenerated: Object.keys(generatedJSON).length,
+            tokensUsed,
+          },
+        });
+      }
+
+      const result = {
+        success: true,
+        updatedDocument: filledDocument,
+        metadata: {
+          request: userMessage,
+          mode: 'template-fill',
+          headers: headerContentMap.map(h => h.header),
+          clearedCount,
+          itemsGenerated: Object.keys(generatedJSON).length,
+          tokensUsed,
+          generatedContent: generatedJSON,
+        },
+      };
+
+      logger.timeEnd('Template Fill');
+      logger.info('Template fill completed successfully');
+
+      return result;
+    } catch (error) {
+      this.state.error = error;
+      logger.error('Template fill failed:', error);
+      logger.timeEnd('Template Fill');
+      throw error;
+    } finally {
+      this.state.isProcessing = false;
+      this.state.currentRequest = null;
+    }
+  }
+
+  /**
+   * 문서에서 템플릿 추출 (레이아웃 유지, 내용 비우기)
+   * @param {Object} document - 원본 문서
+   * @returns {Object} { templateDocument, headerContentMap, clearedCount }
+   * @private
+   */
+  _extractTemplate(document) {
+    const templateDocument = JSON.parse(JSON.stringify(document));
+    const headerContentMap = [];
+    let clearedCount = 0;
+
+    templateDocument.sections?.forEach((section, sectionIdx) => {
+      section.elements?.forEach((element, tableIdx) => {
+        if (element.type !== 'table') return;
+
+        element.rows?.forEach((row, rowIdx) => {
+          const cells = row.cells || [];
+
+          // 첫 번째 행은 헤더로 유지
+          if (rowIdx === 0) return;
+
+          cells.forEach((cell, cellIdx) => {
+            const cellText = this._getCellText(cell);
+
+            // 첫 번째 열이면서 30자 이하면 헤더 라벨로 유지
+            const isHeaderLabel = cellIdx === 0 && cellText.trim().length <= 30;
+
+            if (isHeaderLabel) {
+              // 이 헤더에 대응하는 내용 셀 찾기 (오른쪽 셀)
+              if (cellIdx + 1 < cells.length) {
+                headerContentMap.push({
+                  header: cellText.trim(),
+                  path: {
+                    section: sectionIdx,
+                    table: tableIdx,
+                    row: rowIdx,
+                    headerCell: cellIdx,
+                    contentCell: cellIdx + 1,
+                  },
+                });
+
+                // 내용 셀 비우기
+                const contentCell = cells[cellIdx + 1];
+                clearedCount += this._clearCellContent(contentCell);
+              }
+            } else if (cellIdx > 0) {
+              // 헤더가 아닌 셀의 내용 비우기 (이미 headerContentMap에 추가되지 않은 경우)
+              const alreadyMapped = headerContentMap.some(
+                h =>
+                  h.path.section === sectionIdx &&
+                  h.path.table === tableIdx &&
+                  h.path.row === rowIdx &&
+                  h.path.contentCell === cellIdx
+              );
+              if (!alreadyMapped && cellText.trim().length > 0) {
+                // 왼쪽에서 헤더 찾기
+                let headerText = null;
+                for (let i = cellIdx - 1; i >= 0; i--) {
+                  const leftText = this._getCellText(cells[i]);
+                  if (leftText.trim().length > 0 && leftText.trim().length <= 30) {
+                    headerText = leftText.trim();
+                    headerContentMap.push({
+                      header: headerText,
+                      path: {
+                        section: sectionIdx,
+                        table: tableIdx,
+                        row: rowIdx,
+                        headerCell: i,
+                        contentCell: cellIdx,
+                      },
+                    });
+                    break;
+                  }
+                }
+                clearedCount += this._clearCellContent(cell);
+              }
+            }
+          });
+        });
+      });
+    });
+
+    return { templateDocument, headerContentMap, clearedCount };
+  }
+
+  /**
+   * 셀에서 전체 텍스트 추출
+   * @private
+   */
+  _getCellText(cell) {
+    let text = '';
+    const extract = (elements) => {
+      elements?.forEach(el => {
+        if (el.type === 'paragraph' && el.runs) {
+          el.runs.forEach(run => {
+            text += run.text || '';
+          });
+        } else if (el.elements) {
+          extract(el.elements);
+        }
+      });
+    };
+    extract(cell.elements);
+    return text;
+  }
+
+  /**
+   * 셀 내용 비우기 (구조는 유지)
+   * @private
+   * @returns {number} 비운 텍스트 런 수
+   */
+  _clearCellContent(cell) {
+    let count = 0;
+    const clear = (elements) => {
+      elements?.forEach(el => {
+        if (el.type === 'paragraph' && el.runs) {
+          el.runs.forEach(run => {
+            if (run.text && run.text.trim()) {
+              run.text = '';
+              count++;
+            }
+          });
+        } else if (el.elements) {
+          clear(el.elements);
+        }
+      });
+    };
+    clear(cell.elements);
+    return count;
+  }
 }
 
-/**
- * 간편 함수: AI 요청 처리
- * @param {Object} viewer - Viewer 인스턴스
- * @param {string} apiKey - API 키
- * @param {string} userMessage - 사용자 메시지
- * @param {Object} [options={}] - 옵션
- * @returns {Promise<Object>} 처리 결과
- *
- * @example
- * import { processAIRequest } from './ai-controller.js';
- * const result = await processAIRequest(viewer, apiKey, '쉽게 바꿔줘');
- */
 export async function processAIRequest(viewer, apiKey, userMessage, options = {}) {
   const controller = new AIDocumentController(viewer, options);
   controller.setApiKey(apiKey);

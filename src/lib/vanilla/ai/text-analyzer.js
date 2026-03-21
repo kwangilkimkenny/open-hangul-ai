@@ -342,16 +342,16 @@ export class TextAnalyzer {
      * 디버깅 정보 출력
      */
     debug() {
-        console.log('='.repeat(80));
-        console.log('📊 TextAnalyzer Debug Info');
-        console.log('='.repeat(80));
-        console.log('Rule Categories:', Object.keys(this.rules));
-        console.log('Spelling Rules:', Object.keys(this.rules.spelling).length);
-        console.log('Spacing Rules:', this.rules.spacing.length);
-        console.log('Duplication Rules:', this.rules.duplication.length);
-        console.log('Prohibited Words:', this.rules.prohibited.length);
-        console.log('Punctuation Rules:', this.rules.punctuation.length);
-        console.log('='.repeat(80));
+        logger.debug('='.repeat(80));
+        logger.debug('📊 TextAnalyzer Debug Info');
+        logger.debug('='.repeat(80));
+        logger.debug('Rule Categories:', Object.keys(this.rules));
+        logger.debug('Spelling Rules:', Object.keys(this.rules.spelling).length);
+        logger.debug('Spacing Rules:', this.rules.spacing.length);
+        logger.debug('Duplication Rules:', this.rules.duplication.length);
+        logger.debug('Prohibited Words:', this.rules.prohibited.length);
+        logger.debug('Punctuation Rules:', this.rules.punctuation.length);
+        logger.debug('='.repeat(80));
     }
 }
 

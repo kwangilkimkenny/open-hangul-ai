@@ -57,7 +57,7 @@ class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div style={styles.container}>
+        <div style={styles.container} role="alert">
           <div style={styles.card}>
             <div style={styles.iconWrapper}>
               <span style={styles.icon}>⚠️</span>

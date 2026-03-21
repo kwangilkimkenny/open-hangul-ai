@@ -11,7 +11,7 @@
  * @version 2.0.0
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import SimpleHeader from './SimpleHeader';
@@ -211,35 +211,41 @@ export function HanViewApp({
   // }, [viewerInstance]);
 
   // 컨테이너 스타일
-  const containerStyle: CSSProperties = {
+  const containerStyle: CSSProperties = useMemo(() => ({
     display: 'flex',
     flexDirection: 'column',
     height: typeof height === 'number' ? `${height}px` : height,
     width: '100%',
     overflow: 'hidden',
     ...style,
-  };
+  }), [height, style]);
 
-  // 사이드바 토글 버튼 추가
-  const toggleSidebarButton: HeaderButton = {
-    id: 'toggle-sidebar',
-    label: showSidebar ? '정보 숨기기' : '정보 보기',
-    icon: <span style={{ fontSize: '16px' }}>ℹ️</span>,
-    onClick: () => setShowSidebar(prev => !prev),
-    variant: 'secondary',
-  };
+  // 사이드바 토글 핸들러
+  const handleToggleSidebar = useCallback(() => {
+    setShowSidebar(prev => !prev);
+  }, []);
 
-  // 저장 버튼 (문서 로드 시에만 활성화)
-  const saveButton: HeaderButton = {
-    id: 'save-document',
-    label: '저장',
-    icon: <span style={{ fontSize: '16px' }}>💾</span>,
-    onClick: handleSave,
-    disabled: !viewerInstance,
-    variant: 'primary',
-  };
+  // 헤더 버튼 목록 (memoized to prevent unnecessary SimpleHeader re-renders)
+  const combinedHeaderButtons = useMemo(() => {
+    const toggleSidebarButton: HeaderButton = {
+      id: 'toggle-sidebar',
+      label: showSidebar ? '정보 숨기기' : '정보 보기',
+      icon: <span style={{ fontSize: '16px' }}>ℹ️</span>,
+      onClick: handleToggleSidebar,
+      variant: 'secondary',
+    };
 
-  const combinedHeaderButtons = [saveButton, toggleSidebarButton, ...headerButtons];
+    const saveButton: HeaderButton = {
+      id: 'save-document',
+      label: '저장',
+      icon: <span style={{ fontSize: '16px' }}>💾</span>,
+      onClick: handleSave,
+      disabled: !viewerInstance,
+      variant: 'primary',
+    };
+
+    return [saveButton, toggleSidebarButton, ...headerButtons];
+  }, [showSidebar, handleToggleSidebar, handleSave, viewerInstance, headerButtons]);
 
   return (
     <ErrorBoundary>

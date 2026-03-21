@@ -344,13 +344,13 @@ export class HighlightOverlay {
      * 디버깅 정보 출력
      */
     debug() {
-        console.log('='.repeat(80));
-        console.log('🎨 HighlightOverlay Debug Info');
-        console.log('='.repeat(80));
-        console.log('Total Highlights:', this.overlays.size);
-        console.log('By Type:', this.getHighlightCountByType());
-        console.log('Highlight IDs:', Array.from(this.overlays.keys()));
-        console.log('='.repeat(80));
+        logger.debug('='.repeat(80));
+        logger.debug('🎨 HighlightOverlay Debug Info');
+        logger.debug('='.repeat(80));
+        logger.debug('Total Highlights:', this.overlays.size);
+        logger.debug('By Type:', this.getHighlightCountByType());
+        logger.debug('Highlight IDs:', Array.from(this.overlays.keys()));
+        logger.debug('='.repeat(80));
     }
 }
 

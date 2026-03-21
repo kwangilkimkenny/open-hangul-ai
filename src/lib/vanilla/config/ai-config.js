@@ -1,10 +1,14 @@
 /**
  * AI Configuration
  * OpenAI API 및 AI 기능 설정
- * 
+ *
  * @module config/ai-config
  * @version 2.1.0
  */
+
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('AIConfig');
 
 /**
  * AI 설정 객체
@@ -28,7 +32,7 @@ export const AIConfig = {
          * - 민감한 API 키는 클라이언트에 저장하지 마세요
          */
         getApiKey() {
-            // 환경변수 (Vite 환경)
+            // 환경변수 (Vite 환경) - 권장
             if (import.meta && import.meta.env && import.meta.env.VITE_OPENAI_API_KEY) {
                 return import.meta.env.VITE_OPENAI_API_KEY;
             }
@@ -38,36 +42,11 @@ export const AIConfig = {
                 return process.env.OPENAI_API_KEY;
             }
 
-            // 브라우저 환경
-            if (typeof window !== 'undefined') {
-                // sessionStorage 우선 (세션 종료 시 자동 삭제 - 더 안전)
-                if (window.sessionStorage) {
-                    const sessionKey = window.sessionStorage.getItem('openai_api_key');
-                    if (sessionKey) {
-                        // Base64 디코딩 (간단한 난독화)
-                        try {
-                            return atob(sessionKey);
-                        } catch (e) {
-                            return sessionKey;
-                        }
-                    }
-                }
-
-                // localStorage (호환성을 위해 유지)
-                if (window.localStorage) {
-                    const localKey = window.localStorage.getItem('openai_api_key');
-                    if (localKey) {
-                        // Base64 디코딩
-                        try {
-                            return atob(localKey);
-                        } catch (e) {
-                            return localKey;
-                        }
-                    }
-                }
+            // 브라우저 환경 - sessionStorage만 사용 (세션 종료 시 자동 삭제)
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                return window.sessionStorage.getItem('openai_api_key') || null;
             }
 
-            // 사용자 입력 필요
             return null;
         },
 
@@ -79,26 +58,20 @@ export const AIConfig = {
          *
          * ⚠️ Security: sessionStorage 사용 권장 (세션 종료 시 자동 삭제)
          */
-        setApiKey(apiKey, options = {}) {
+        setApiKey(apiKey) {
             if (typeof window === 'undefined') return;
 
             // 보안 경고 (개발 모드에서만)
             if (import.meta && import.meta.env && import.meta.env.DEV) {
-                console.warn(
+                logger.warn(
                     '⚠️ Security Warning: API 키를 클라이언트에 저장하는 것은 보안상 위험합니다. ' +
                     '프로덕션 환경에서는 서버 프록시 사용을 권장합니다.'
                 );
             }
 
-            // Base64 인코딩 (간단한 난독화 - 완전한 보안은 아님)
-            const encodedKey = btoa(apiKey);
-
-            // sessionStorage 우선 사용 (더 안전)
-            if (options.useSessionStorage !== false && window.sessionStorage) {
-                window.sessionStorage.setItem('openai_api_key', encodedKey);
-            } else if (window.localStorage) {
-                // localStorage는 영구 저장 (하위 호환성)
-                window.localStorage.setItem('openai_api_key', encodedKey);
+            // sessionStorage에만 저장 (세션 종료 시 자동 삭제)
+            if (window.sessionStorage) {
+                window.sessionStorage.setItem('openai_api_key', apiKey);
             }
         },
 
@@ -106,13 +79,8 @@ export const AIConfig = {
          * API 키 삭제
          */
         clearApiKey() {
-            if (typeof window !== 'undefined') {
-                if (window.sessionStorage) {
-                    window.sessionStorage.removeItem('openai_api_key');
-                }
-                if (window.localStorage) {
-                    window.localStorage.removeItem('openai_api_key');
-                }
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.removeItem('openai_api_key');
             }
         },
         

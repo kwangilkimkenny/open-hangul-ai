@@ -37,6 +37,8 @@ export class ContextMenu {
         this.menuElement = document.createElement('div');
         this.menuElement.id = 'context-menu';
         this.menuElement.className = 'context-menu';
+        this.menuElement.setAttribute('role', 'menu');
+        this.menuElement.setAttribute('aria-label', '편집 메뉴');
         this.menuElement.style.display = 'none';
         document.body.appendChild(this.menuElement);
 
@@ -134,9 +136,12 @@ export class ContextMenu {
             } else {
                 const menuItem = document.createElement('div');
                 menuItem.className = 'context-menu-item';
-                
+                menuItem.setAttribute('role', 'menuitem');
+                menuItem.setAttribute('tabindex', item.disabled ? '-1' : '0');
+
                 if (item.disabled) {
                     menuItem.classList.add('disabled');
+                    menuItem.setAttribute('aria-disabled', 'true');
                 }
                 
                 // 아이콘
@@ -167,6 +172,14 @@ export class ContextMenu {
                         e.stopPropagation();
                         this.hide();
                         item.action(this.currentTarget);
+                    });
+                    menuItem.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.hide();
+                            item.action(this.currentTarget);
+                        }
                     });
                 }
 

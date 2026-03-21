@@ -7,7 +7,7 @@
  */
 
 export { renderParagraph, renderParagraphs } from './paragraph.js';
-export { renderImage } from './image.js';
+export { renderImage, applyImageOptimizations, clearImageCache } from './image.js';
 export { renderTable } from './table.js';
 export { renderShape } from './shape.js';
 export { renderContainer } from './container.js';

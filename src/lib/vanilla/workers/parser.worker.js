@@ -1,13 +1,14 @@
 /**
- * Parser Web Worker
- * 백그라운드에서 HWPX 파일 파싱을 수행하여 UI 블로킹 방지
+ * Parser Web Worker - High Performance Edition (v3.0)
+ *
+ * Uses the same SimpleHWPXParser as the main thread for full feature parity.
+ * Runs in background to prevent UI blocking.
  */
 
-// JSZip import (worker context)
-importScripts('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+import { SimpleHWPXParser } from '../core/parser.js';
 
 /**
- * Worker 메시지 핸들러
+ * Worker message handler
  */
 self.addEventListener('message', async (event) => {
     const { type, payload, id } = event.data;
@@ -17,15 +18,11 @@ self.addEventListener('message', async (event) => {
         case 'PARSE_HWPX':
             await parseHWPX(payload.buffer, id);
             break;
-            
+
         case 'CANCEL':
-            // 파싱 취소 (구현 예정)
-            self.postMessage({
-                type: 'CANCELLED',
-                id
-            });
+            self.postMessage({ type: 'CANCELLED', id });
             break;
-            
+
         default:
             throw new Error(`Unknown message type: ${type}`);
         }
@@ -42,209 +39,112 @@ self.addEventListener('message', async (event) => {
 });
 
 /**
- * HWPX 파일 파싱
- * @param {ArrayBuffer} buffer - HWPX 파일 버퍼
- * @param {string} id - 요청 ID
+ * HWPX file parsing using full SimpleHWPXParser
+ * @param {ArrayBuffer} buffer - HWPX file buffer
+ * @param {string} id - Request ID
  */
 async function parseHWPX(buffer, id) {
     const startTime = performance.now();
 
-    // Progress 전송
     sendProgress(id, 0, 'ZIP 압축 해제 중...');
 
-    // 1. Unzip
-    const zip = new JSZip();
-    const zipData = await zip.loadAsync(buffer);
-    const entries = {};
+    const parser = new SimpleHWPXParser({
+        parseImages: true,
+        parseTables: true,
+        parseStyles: true
+    });
 
-    const files = Object.keys(zipData.files);
-    let processedFiles = 0;
+    sendProgress(id, 10, '파서 초기화 완료...');
 
-    for (const path of files) {
-        const zipEntry = zipData.files[path];
-        if (!zipEntry.dir) {
-            const data = await zipEntry.async('uint8array');
-            entries[path] = Array.from(data); // Convert to regular array for transfer
-            
-            processedFiles++;
-            const progress = (processedFiles / files.length) * 30; // 30% for unzipping
-            sendProgress(id, progress, `파일 추출 중... (${processedFiles}/${files.length})`);
-        }
-    }
+    // Hook into parser phases for progress reporting
+    const originalUnzip = parser.unzip.bind(parser);
+    parser.unzip = async function(buf) {
+        sendProgress(id, 15, 'ZIP 압축 해제 중...');
+        const result = await originalUnzip(buf);
+        sendProgress(id, 30, 'ZIP 압축 해제 완료');
+        return result;
+    };
 
-    sendProgress(id, 35, '이미지 로딩 중...');
+    const originalLoadBinData = parser.loadBinData.bind(parser);
+    parser.loadBinData = async function() {
+        sendProgress(id, 35, '이미지 로딩 중...');
+        const result = await originalLoadBinData();
+        sendProgress(id, 45, '이미지 로딩 완료');
+        return result;
+    };
 
-    // 2. Load images
+    const originalLoadHeader = parser.loadHeaderDefinitions.bind(parser);
+    parser.loadHeaderDefinitions = async function() {
+        sendProgress(id, 50, '스타일 정의 파싱 중...');
+        const result = await originalLoadHeader();
+        sendProgress(id, 65, '스타일 정의 파싱 완료');
+        return result;
+    };
+
+    const originalParseContent = parser.parseContent.bind(parser);
+    parser.parseContent = async function() {
+        sendProgress(id, 70, '문서 내용 파싱 중...');
+        const result = await originalParseContent();
+        sendProgress(id, 90, '문서 내용 파싱 완료');
+        return result;
+    };
+
+    // Run full parse
+    const document = await parser.parse(buffer);
+
+    // Images: convert from Map to serializable array (Worker can't transfer Maps with blob URLs)
+    // The main thread will need to recreate blob URLs from the raw image data
     const images = [];
-    for (const [path, data] of Object.entries(entries)) {
+    for (const [path, data] of parser.entries) {
         if (path.startsWith('BinData/')) {
             const ext = path.split('.').pop().toLowerCase();
             const mimeTypes = {
-                'jpg': 'image/jpeg',
-                'jpeg': 'image/jpeg',
-                'png': 'image/png',
-                'gif': 'image/gif',
-                'bmp': 'image/bmp'
+                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                'png': 'image/png', 'gif': 'image/gif',
+                'bmp': 'image/bmp', 'svg': 'image/svg+xml',
+                'webp': 'image/webp'
             };
-            
+
             const mimeType = mimeTypes[ext] || 'application/octet-stream';
             const filename = path.split('/').pop();
             const imageId = filename.replace(/\.[^.]+$/, '');
-            
+
             images.push({
                 id: imageId,
                 path,
                 mimeType,
-                data, // Array of bytes
+                data: Array.from(data),
                 size: data.length
             });
         }
     }
 
-    sendProgress(id, 50, '문서 구조 파싱 중...');
-
-    // 3. Parse content
-    const sections = [];
-    const sectionFiles = Object.keys(entries)
-        .filter(path => path.match(/Contents\/section\d+\.xml/))
-        .sort();
-
-    for (let i = 0; i < sectionFiles.length; i++) {
-        const sectionPath = sectionFiles[i];
-        const sectionData = entries[sectionPath];
-        
-        if (sectionData) {
-            const sectionXml = new TextDecoder('utf-8').decode(new Uint8Array(sectionData));
-            const section = parseSection(sectionXml);
-            sections.push(section);
-            
-            const progress = 50 + (i / sectionFiles.length) * 40; // 50-90%
-            sendProgress(id, progress, `섹션 파싱 중... (${i + 1}/${sectionFiles.length})`);
-        }
-    }
-
     sendProgress(id, 95, '최종 처리 중...');
 
-    // 4. Build document
-    const document = {
-        sections,
+    // Build serializable result
+    const result = {
+        sections: document.sections,
         images,
+        borderFills: Object.fromEntries(document.borderFills || new Map()),
+        rawHeaderXml: document.rawHeaderXml,
         metadata: {
-            parsedAt: new Date().toISOString(),
-            sectionsCount: sections.length,
-            imagesCount: images.length,
-            parseTime: performance.now() - startTime
+            ...document.metadata,
+            parseTime: performance.now() - startTime,
+            workerParsed: true
         }
     };
 
     sendProgress(id, 100, '완료!');
 
-    // Send result
     self.postMessage({
         type: 'PARSE_COMPLETE',
         id,
-        result: document
+        result
     });
 }
 
 /**
- * 섹션 파싱 (간단한 구현)
- * @param {string} xmlString - XML 문자열
- * @returns {Object} 파싱된 섹션
- */
-function parseSection(xmlString) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xmlString, 'text/xml');
-    
-    const section = {
-        elements: []
-    };
-
-    // Parse paragraphs
-    const paragraphs = doc.querySelectorAll('p, hp\\:p');
-    paragraphs.forEach(pElem => {
-        const para = parseParagraph(pElem);
-        if (para) {
-            section.elements.push(para);
-        }
-    });
-
-    // Parse tables
-    const tables = doc.querySelectorAll('tbl, hp\\:tbl');
-    tables.forEach(tblElem => {
-        const table = parseTable(tblElem);
-        if (table) {
-            section.elements.push(table);
-        }
-    });
-
-    return section;
-}
-
-/**
- * 단락 파싱
- */
-function parseParagraph(pElem) {
-    const runs = pElem.querySelectorAll('t, hp\\:t');
-    if (runs.length === 0) {
-        return null;
-    }
-
-    const para = {
-        type: 'paragraph',
-        runs: []
-    };
-
-    runs.forEach(tElem => {
-        para.runs.push({
-            text: tElem.textContent || '',
-            charPrIDRef: tElem.getAttribute('charPrIDRef')
-        });
-    });
-
-    return para;
-}
-
-/**
- * 테이블 파싱
- */
-function parseTable(tblElem) {
-    const rows = tblElem.querySelectorAll('tr, hp\\:tr');
-    if (rows.length === 0) {
-        return null;
-    }
-
-    const table = {
-        type: 'table',
-        rows: []
-    };
-
-    rows.forEach(trElem => {
-        const row = { cells: [] };
-        const cells = trElem.querySelectorAll('tc, hp\\:tc');
-        
-        cells.forEach(tcElem => {
-            const cell = { elements: [] };
-            const paras = tcElem.querySelectorAll('p, hp\\:p');
-            
-            paras.forEach(pElem => {
-                const para = parseParagraph(pElem);
-                if (para) {
-                    cell.elements.push(para);
-                }
-            });
-            
-            row.cells.push(cell);
-        });
-        
-        table.rows.push(row);
-    });
-
-    return table;
-}
-
-/**
- * Progress 전송
+ * Progress reporting
  */
 function sendProgress(id, percent, message) {
     self.postMessage({
@@ -258,7 +158,4 @@ function sendProgress(id, percent, message) {
 }
 
 // Worker ready
-self.postMessage({
-    type: 'READY'
-});
-
+self.postMessage({ type: 'READY' });

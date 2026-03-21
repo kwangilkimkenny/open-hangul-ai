@@ -315,7 +315,7 @@ export class AIEditorController {
         logger.debug(`Showing details for: ${id}`);
 
         // 상세 정보 표시 (향후 구현)
-        console.log('Suggestion Details:', suggestion);
+        logger.debug('Suggestion Details:', suggestion);
     }
 
     /**
@@ -366,7 +366,7 @@ export class AIEditorController {
         if (window.showToast) {
             window.showToast('info', 'AI 편집', message);
         } else {
-            console.log(`[AI Editor] ${message}`);
+            logger.info(`[AI Editor] ${message}`);
         }
     }
 
@@ -378,7 +378,7 @@ export class AIEditorController {
         if (window.showToast) {
             window.showToast(type, 'AI 편집', message);
         } else {
-            console.log(`[${type.toUpperCase()}] ${message}`);
+            logger.info(`[${type.toUpperCase()}] ${message}`);
         }
     }
 
@@ -416,16 +416,16 @@ export class AIEditorController {
      * 디버깅 정보 출력
      */
     debug() {
-        console.log('='.repeat(80));
-        console.log('🎯 AIEditorController Debug Info');
-        console.log('='.repeat(80));
-        console.log('Stats:', this.getStats());
-        console.log('\nModules:');
+        logger.debug('='.repeat(80));
+        logger.debug('AIEditorController Debug Info');
+        logger.debug('='.repeat(80));
+        logger.debug('Stats:', this.getStats());
+        logger.debug('\nModules:');
         this.selectionManager.debug();
         this.highlightOverlay.debug();
         this.suggestionTooltip.debug();
         this.suggestionEngine.debug();
-        console.log('='.repeat(80));
+        logger.debug('='.repeat(80));
     }
 }
 

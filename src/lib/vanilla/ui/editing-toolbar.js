@@ -50,6 +50,8 @@ export class EditingToolbar {
   _createToolbar() {
     const toolbar = document.createElement('div');
     toolbar.className = 'hwpx-editing-toolbar';
+    toolbar.setAttribute('role', 'toolbar');
+    toolbar.setAttribute('aria-label', '편집 도구 모음');
     toolbar.innerHTML = `
             <style>
                 .hwpx-editing-toolbar {
@@ -126,15 +128,15 @@ export class EditingToolbar {
             </style>
             
             <!-- 서식 그룹 -->
-            <span class="hwpx-toolbar-label">서식</span>
-            <div class="hwpx-toolbar-group">
-                <button class="hwpx-toolbar-btn" data-action="bold" title="굵게 (Ctrl+B)">
+            <span class="hwpx-toolbar-label" id="hwpx-format-label">서식</span>
+            <div class="hwpx-toolbar-group" role="group" aria-labelledby="hwpx-format-label">
+                <button class="hwpx-toolbar-btn" data-action="bold" title="굵게 (Ctrl+B)" aria-label="굵게" aria-pressed="false">
                     <strong>B</strong>
                 </button>
-                <button class="hwpx-toolbar-btn" data-action="italic" title="기울임 (Ctrl+I)">
+                <button class="hwpx-toolbar-btn" data-action="italic" title="기울임 (Ctrl+I)" aria-label="기울임" aria-pressed="false">
                     <em>I</em>
                 </button>
-                <button class="hwpx-toolbar-btn" data-action="underline" title="밑줄 (Ctrl+U)">
+                <button class="hwpx-toolbar-btn" data-action="underline" title="밑줄 (Ctrl+U)" aria-label="밑줄" aria-pressed="false">
                     <u>U</u>
                 </button>
             </div>
@@ -142,41 +144,41 @@ export class EditingToolbar {
             <div class="hwpx-toolbar-divider"></div>
             
             <!-- 정렬 그룹 -->
-            <span class="hwpx-toolbar-label">정렬</span>
-            <div class="hwpx-toolbar-group">
-                <button class="hwpx-toolbar-btn active" data-action="alignLeft" title="왼쪽 정렬">
-                    <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h12v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2zm0 4h18v2H3v-2z"/></svg>
+            <span class="hwpx-toolbar-label" id="hwpx-align-label">정렬</span>
+            <div class="hwpx-toolbar-group" role="group" aria-labelledby="hwpx-align-label">
+                <button class="hwpx-toolbar-btn active" data-action="alignLeft" title="왼쪽 정렬" aria-label="왼쪽 정렬" aria-pressed="true">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v2H3V3zm0 4h12v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2zm0 4h18v2H3v-2z"/></svg>
                 </button>
-                <button class="hwpx-toolbar-btn" data-action="alignCenter" title="가운데 정렬">
-                    <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm3 4h12v2H6V7zm-3 4h18v2H3v-2zm3 4h12v2H6v-2zm-3 4h18v2H3v-2z"/></svg>
+                <button class="hwpx-toolbar-btn" data-action="alignCenter" title="가운데 정렬" aria-label="가운데 정렬" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v2H3V3zm3 4h12v2H6V7zm-3 4h18v2H3v-2zm3 4h12v2H6v-2zm-3 4h18v2H3v-2z"/></svg>
                 </button>
-                <button class="hwpx-toolbar-btn" data-action="alignRight" title="오른쪽 정렬">
-                    <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm6 4h12v2H9V7zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/></svg>
+                <button class="hwpx-toolbar-btn" data-action="alignRight" title="오른쪽 정렬" aria-label="오른쪽 정렬" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v2H3V3zm6 4h12v2H9V7zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/></svg>
                 </button>
             </div>
             
             <div class="hwpx-toolbar-divider"></div>
             
             <!-- 기능 그룹 -->
-            <span class="hwpx-toolbar-label">도구</span>
-            <div class="hwpx-toolbar-group">
-                <button class="hwpx-toolbar-btn" data-action="specialChar" title="특수문자 (Ctrl+F10)">
+            <span class="hwpx-toolbar-label" id="hwpx-tools-label">도구</span>
+            <div class="hwpx-toolbar-group" role="group" aria-labelledby="hwpx-tools-label">
+                <button class="hwpx-toolbar-btn" data-action="specialChar" title="특수문자 (Ctrl+F10)" aria-label="특수문자 삽입">
                     Ω
                 </button>
-                <button class="hwpx-toolbar-btn" data-action="copyFormat" title="서식 복사 (Alt+C)">
-                    <svg viewBox="0 0 24 24"><path d="M17 7h-4V3h4v4zm-6 0H7V3h4v4zm6 6h-4V9h4v4zm-6 0H7V9h4v4zm6 6h-4v-4h4v4zm-6 0H7v-4h4v4z"/></svg>
+                <button class="hwpx-toolbar-btn" data-action="copyFormat" title="서식 복사 (Alt+C)" aria-label="서식 복사">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7h-4V3h4v4zm-6 0H7V3h4v4zm6 6h-4V9h4v4zm-6 0H7V9h4v4zm6 6h-4v-4h4v4zm-6 0H7v-4h4v4z"/></svg>
                 </button>
             </div>
             
             <div class="hwpx-toolbar-divider"></div>
             
             <!-- 실행취소 그룹 -->
-            <div class="hwpx-toolbar-group">
-                <button class="hwpx-toolbar-btn" data-action="undo" title="실행취소 (Ctrl+Z)">
-                    <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+            <div class="hwpx-toolbar-group" role="group" aria-label="실행취소/다시실행">
+                <button class="hwpx-toolbar-btn" data-action="undo" title="실행취소 (Ctrl+Z)" aria-label="실행취소">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
                 </button>
-                <button class="hwpx-toolbar-btn" data-action="redo" title="다시실행 (Ctrl+Y)">
-                    <svg viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 9 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22l2.36.78c1.05-3.19 4.06-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
+                <button class="hwpx-toolbar-btn" data-action="redo" title="다시실행 (Ctrl+Y)" aria-label="다시실행">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 10.6C16.55 9 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22l2.36.78c1.05-3.19 4.06-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
                 </button>
             </div>
         `;
@@ -304,6 +306,7 @@ export class EditingToolbar {
   _toggleActiveState(btn, type) {
     this.activeStates[type] = !this.activeStates[type];
     btn.classList.toggle('active', this.activeStates[type]);
+    btn.setAttribute('aria-pressed', String(this.activeStates[type]));
   }
 
   /**
@@ -325,7 +328,9 @@ export class EditingToolbar {
     ['alignLeft', 'alignCenter', 'alignRight'].forEach(align => {
       const btn = this.toolbarElement.querySelector(`[data-action="${align}"]`);
       if (btn) {
-        btn.classList.toggle('active', align === activeAlign);
+        const isActive = align === activeAlign;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
       }
       this.activeStates[align] = align === activeAlign;
     });
@@ -343,6 +348,7 @@ export class EditingToolbar {
       const btn = this.toolbarElement.querySelector(`[data-action="${type}"]`);
       if (btn) {
         btn.classList.toggle('active', format[type]);
+        btn.setAttribute('aria-pressed', String(!!format[type]));
         this.activeStates[type] = format[type];
       }
     });

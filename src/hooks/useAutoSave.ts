@@ -21,6 +21,10 @@ const STORE_NAME = 'sessions';
 const TEMP_STORAGE_KEY = 'hwpx-crash-recovery';
 const META_STORAGE_KEY = 'hwpx-autosave-meta';
 
+// 스토리지 쿼터 임계값
+const QUOTA_WARNING_THRESHOLD = 10 * 1024 * 1024; // 10MB
+const QUOTA_CRITICAL_THRESHOLD = 1 * 1024 * 1024;  // 1MB
+
 // 싱글톤 패턴: 타이머는 한 번만 시작
 let globalTimerId: number | null = null;
 let initializationCount = 0;
@@ -155,6 +159,44 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
     }
   }, [loadMetadata]);
 
+  // 스토리지 쿼터 확인
+  const checkStorageQuota = useCallback(async (): Promise<{
+    ok: boolean;
+    warning: boolean;
+    available: number;
+  }> => {
+    if (!navigator?.storage?.estimate) {
+      logger.debug('Storage estimate API not available, skipping quota check');
+      return { ok: true, warning: false, available: Infinity };
+    }
+
+    try {
+      const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+      const available = quota - usage;
+
+      if (available < QUOTA_CRITICAL_THRESHOLD) {
+        logger.error(
+          `Storage quota critical: ${formatSize(available)} remaining (${formatSize(usage)} / ${formatSize(quota)})`
+        );
+        showToast('error', '저장 공간 부족', '저장 공간이 부족하여 자동 저장을 건너뜁니다. 불필요한 세션을 삭제해 주세요.');
+        return { ok: false, warning: true, available };
+      }
+
+      if (available < QUOTA_WARNING_THRESHOLD) {
+        logger.warn(
+          `Storage quota low: ${formatSize(available)} remaining (${formatSize(usage)} / ${formatSize(quota)})`
+        );
+        showToast('warning', '저장 공간 부족 경고', `남은 저장 공간이 ${formatSize(available)}입니다.`);
+        return { ok: true, warning: true, available };
+      }
+
+      return { ok: true, warning: false, available };
+    } catch (error) {
+      logger.warn('Failed to check storage quota:', error);
+      return { ok: true, warning: false, available: Infinity };
+    }
+  }, [showToast]);
+
   // 세션 저장
   const saveSession = useCallback(async (name?: string): Promise<string | null> => {
     // isDirty가 false면 저장 안 함 (변경사항 없음)
@@ -163,6 +205,13 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
     if (!dbRef.current || !document) return null;
 
     try {
+      // 스토리지 쿼터 확인
+      const quotaStatus = await checkStorageQuota();
+      if (!quotaStatus.ok) {
+        logger.error('Auto-save skipped: insufficient storage space');
+        return null;
+      }
+
       // 세션 ID 생성/유지
       const sessionId = currentSessionId || `session-${Date.now()}`;
       
@@ -198,7 +247,14 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
       await new Promise<void>((resolve, reject) => {
         const request = store.put(session);
         request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
+        request.onerror = () => {
+          const error = request.error;
+          if (error?.name === 'QuotaExceededError') {
+            logger.error('IndexedDB quota exceeded during save');
+            showToast('error', '저장 실패', '저장 공간이 가득 찼습니다. 이전 세션을 삭제해 주세요.');
+          }
+          reject(error);
+        };
       });
 
       setLastSaveTime(new Date());
@@ -236,7 +292,7 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
       logger.error('AutoSave failed:', error);
       return null;
     }
-  }, [document, fileName, currentSessionId, isDirty, setDirty, onSave, saveMetadata]);
+  }, [document, fileName, currentSessionId, isDirty, setDirty, onSave, saveMetadata, checkStorageQuota, showToast]);
   
   // saveSession을 ref에 저장 (타이머에서 안정적으로 사용)
   saveSessionRef.current = saveSession;

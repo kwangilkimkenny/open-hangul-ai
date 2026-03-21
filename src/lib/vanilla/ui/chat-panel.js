@@ -7,7 +7,7 @@
  */
 
 import { getLogger } from '../utils/logger.js';
-import { showToast } from '../utils/ui.js';
+import { showToast, escapeHtml } from '../utils/ui.js';
 import { AIConfig } from '../config/ai-config.js';
 import { CellSelector, CellMode } from '../features/cell-selector.js';
 
@@ -61,7 +61,8 @@ export class ChatPanel {
             batchGenerateBtn: null,
             clearBtn: null,
             cellSelectModeBtn: null,  // 셀 선택 모드 버튼
-            externalApiBtn: null      // 외부 API 연동 버튼
+            externalApiBtn: null,     // 외부 API 연동 버튼
+            fillTemplateBtn: null     // 템플릿 채우기 버튼
         };
         
         // 셀 선택기 (나중에 초기화)
@@ -112,6 +113,7 @@ export class ChatPanel {
         this.elements.clearBtn = document.getElementById('ai-clear-btn');
         this.elements.cellSelectModeBtn = document.getElementById('cell-select-mode-btn');
         this.elements.externalApiBtn = document.getElementById('external-api-btn');
+        this.elements.fillTemplateBtn = document.getElementById('fill-template-btn');
         
         // CellSelector 초기화
         if (this.aiController && this.aiController.viewer) {
@@ -267,6 +269,13 @@ export class ChatPanel {
         if (this.elements.externalApiBtn) {
             this.elements.externalApiBtn.addEventListener('click', () => {
                 this.showExternalApiModal();
+            });
+        }
+
+        // 템플릿 채우기 버튼
+        if (this.elements.fillTemplateBtn) {
+            this.elements.fillTemplateBtn.addEventListener('click', () => {
+                this.handleFillTemplate();
             });
         }
     }
@@ -806,19 +815,19 @@ export class ChatPanel {
                         <input type="text" 
                                id="custom-endpoint" 
                                placeholder="https://your-api.com/v1/chat/completions"
-                               value="${AIConfig.custom.getEndpoint() || ''}"
+                               value="${escapeHtml(AIConfig.custom.getEndpoint() || '')}"
                                ${!AIConfig.custom.isEnabled() ? 'disabled' : ''}>
                         <p class="help-text">
                             OpenAI 호환 형식의 엔드포인트를 입력하세요.
                         </p>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>API Key *</label>
-                        <input type="password" 
-                               id="custom-api-key" 
+                        <input type="password"
+                               id="custom-api-key"
                                placeholder="your-api-key-here"
-                               value="${AIConfig.custom.getApiKey() || ''}"
+                               value="${escapeHtml(AIConfig.custom.getApiKey() || '')}"
                                ${!AIConfig.custom.isEnabled() ? 'disabled' : ''}>
                         <p class="help-text">
                             Bearer Token으로 사용됩니다.
@@ -1240,7 +1249,105 @@ export class ChatPanel {
             this.addSystemMessage(`[오류] 템플릿 추출 실패: ${error.message}`);
         }
     }
-    
+
+    /**
+     * 템플릿 채우기 - 레이아웃 유지하고 AI로 전체 내용 채우기
+     */
+    async handleFillTemplate() {
+        logger.info('Template fill clicked');
+
+        const document = this.aiController.viewer.getDocument();
+        if (!document) {
+            this.addSystemMessage('[알림] 먼저 HWPX 문서를 로드해주세요.');
+            return;
+        }
+
+        if (!this.aiController.hasApiKey()) {
+            this.addSystemMessage('[알림] API 키를 먼저 설정해주세요.');
+            this.promptForApiKey();
+            return;
+        }
+
+        // 문서 구조 미리보기 - 어떤 헤더들이 있는지 보여주기
+        const pairs = this.aiController.extractor.extractTableHeaderContentPairs(document);
+        const headers = [];
+        document.sections?.forEach(section => {
+            section.elements?.forEach(element => {
+                if (element.type === 'table') {
+                    element.rows?.forEach((row, rowIdx) => {
+                        if (rowIdx === 0) return;
+                        const cells = row.cells || [];
+                        cells.forEach((cell, cellIdx) => {
+                            if (cellIdx === 0) {
+                                const text = this.aiController._getCellText(cell).trim();
+                                if (text.length > 0 && text.length <= 30) {
+                                    headers.push(text);
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+        });
+
+        const headerList = headers.length > 0
+            ? headers.map(h => `  - ${h}`).join('\n')
+            : '  (헤더를 찾지 못했습니다)';
+
+        // 사용자에게 주제 입력 받기
+        const userRequest = prompt(
+            '문서의 레이아웃은 유지하고, 내용을 AI가 새로 채웁니다.\n\n' +
+            '감지된 항목:\n' + headerList + '\n\n' +
+            '어떤 내용으로 채울까요?\n' +
+            '예시:\n' +
+            '- 3월 봄맞이 유치원 알림장\n' +
+            '- 5세반 여름 놀이 활동 계획안\n' +
+            '- 신입원아 적응 프로그램 안내문'
+        );
+
+        if (!userRequest) return;
+
+        // 사용자 메시지 표시
+        this.addUserMessage(`[템플릿 채우기] ${userRequest}`);
+
+        const loadingId = this.addLoadingMessage(
+            `레이아웃을 유지하고 "${userRequest}" 주제로 내용을 생성하는 중...`
+        );
+
+        try {
+            const result = await this.aiController.fillTemplate(userRequest);
+
+            this.removeMessage(loadingId);
+
+            // 결과 메시지
+            const meta = result.metadata;
+            const generatedHeaders = meta.headers || [];
+            const contentPreview = generatedHeaders.map(h => {
+                const content = meta.generatedContent[h];
+                const preview = content ? content.substring(0, 40) + '...' : '(생성 실패)';
+                return `  ${h}: ${preview}`;
+            }).join('\n');
+
+            this.addAssistantMessage(
+                `[완료] 템플릿 채우기가 완료되었습니다!\n\n` +
+                `- 비운 셀: ${meta.clearedCount}개\n` +
+                `- 생성된 항목: ${meta.itemsGenerated}개\n` +
+                `- 토큰 사용량: ${meta.tokensUsed}\n\n` +
+                `생성된 내용:\n${contentPreview}\n\n` +
+                `되돌리기: "원본으로 되돌리기" 버튼 또는 Ctrl+Z`
+            );
+
+            showToast('success', '완료', `${meta.itemsGenerated}개 항목이 생성되었습니다`);
+
+        } catch (error) {
+            this.removeMessage(loadingId);
+            logger.error('Template fill failed:', error);
+            this.addSystemMessage(`[오류] 템플릿 채우기 실패: ${error.message}`);
+            showToast('error', '실패', error.message);
+        }
+    }
+
+
     /**
      * 다시 생성 (다른 주제/난이도로 재생성)
      */
@@ -1701,7 +1808,7 @@ export class ChatPanel {
                         <label>API URL</label>
                         <input type="text" id="external-api-url" 
                                placeholder="https://api.example.com/data"
-                               value="${this.externalApiConfig.url || ''}">
+                               value="${escapeHtml(this.externalApiConfig.url || '')}">
                     </div>
                     
                     <div class="external-api-section">
@@ -1715,7 +1822,7 @@ export class ChatPanel {
                     <div class="external-api-section">
                         <label>헤더 (JSON)</label>
                         <textarea id="external-api-headers" rows="3" 
-                                  placeholder='{"Authorization": "Bearer xxx"}'>${JSON.stringify(this.externalApiConfig.headers || {}, null, 2)}</textarea>
+                                  placeholder='{"Authorization": "Bearer xxx"}'>${escapeHtml(JSON.stringify(this.externalApiConfig.headers || {}, null, 2))}</textarea>
                     </div>
                     
                     <div class="external-api-section">

@@ -78,7 +78,7 @@ export function HWPXViewerWrapper({
       const viewer = new HWPXViewer({
         container: containerRef.current,
         enableAI,
-        useWorker: false, // ✅ Worker 비활성화 (Vite 호환성 문제)
+        useWorker: true, // ES Module Worker (Vite 호환)
         onLoad: (doc: any) => {
           devLog('✅ Document loaded:', doc);
           setIsLoading(false);
@@ -410,6 +410,8 @@ export function HWPXViewerWrapper({
       {/* ✅ 검색 바 */}
       {showSearch && (
         <div
+          role="search"
+          aria-label="문서 내 검색"
           style={{
             position: 'fixed',
             top: '80px',
@@ -429,6 +431,7 @@ export function HWPXViewerWrapper({
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            aria-label="검색어"
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 if (e.shiftKey) {
@@ -455,13 +458,14 @@ export function HWPXViewerWrapper({
           />
 
           {searchResults.count > 0 && (
-            <span style={{ fontSize: '13px', color: '#6b7280', minWidth: '60px' }}>
+            <span style={{ fontSize: '13px', color: '#6b7280', minWidth: '60px' }} aria-live="polite" aria-atomic="true">
               {searchResults.current}/{searchResults.count}
             </span>
           )}
 
           <button
             onClick={handleSearchPrev}
+            aria-label="이전 검색 결과"
             style={{
               background: '#f3f4f6',
               border: 'none',
@@ -477,6 +481,7 @@ export function HWPXViewerWrapper({
 
           <button
             onClick={handleSearchNext}
+            aria-label="다음 검색 결과"
             style={{
               background: '#f3f4f6',
               border: 'none',
@@ -492,6 +497,7 @@ export function HWPXViewerWrapper({
 
           <button
             onClick={handleCloseSearch}
+            aria-label="검색 닫기"
             style={{
               background: 'transparent',
               border: 'none',
@@ -523,6 +529,9 @@ export function HWPXViewerWrapper({
       {/* ✅ 개선된 Loading Overlay */}
       <div
         id="loading-overlay"
+        role="status"
+        aria-live="polite"
+        aria-label={isLoading ? '문서 로드 중' : undefined}
         style={{
           display: isLoading ? 'flex' : 'none',
           position: 'fixed',
@@ -650,6 +659,8 @@ export function HWPXViewerWrapper({
       {enableAI && (
         <button
           onClick={() => setShowAIPanel(prev => !prev)}
+          aria-label={showAIPanel ? 'AI 패널 닫기' : 'AI 패널 열기'}
+          aria-expanded={showAIPanel}
           style={{
             position: 'fixed',
             bottom: '50px',
@@ -680,10 +691,10 @@ export function HWPXViewerWrapper({
       {/* ✅ AI Chat Panel (Vanilla JS UI) */}
       {showAIPanel && enableAI && (
         <>
-          <div className="ai-chat-panel" id="ai-chat-panel">
+          <div className="ai-chat-panel" id="ai-chat-panel" role="complementary" aria-label="AI 문서 편집 패널">
             <div className="ai-chat-header">
-              <h3>AI 문서 편집</h3>
-              <button className="ai-chat-toggle" id="ai-chat-toggle">
+              <h3 id="ai-chat-panel-title">AI 문서 편집</h3>
+              <button className="ai-chat-toggle" id="ai-chat-toggle" aria-label="AI 패널 닫기">
                 ✕
               </button>
             </div>
@@ -709,6 +720,14 @@ export function HWPXViewerWrapper({
                 title="헤더만 남기고 내용 제거"
               >
                 템플릿 추출
+              </button>
+              <button
+                className="ai-save-btn"
+                id="fill-template-btn"
+                title="레이아웃 유지 + AI로 전체 내용 채우기"
+                style={{ background: '#10b981', color: 'white', fontWeight: 600 }}
+              >
+                템플릿 채우기
               </button>
               <button
                 className="preview-structure-btn"
@@ -755,6 +774,7 @@ export function HWPXViewerWrapper({
                 id="ai-chat-input"
                 placeholder="예: 이 문서를 초등학생이 이해할 수 있게 쉽게 바꿔줘&#10;(Shift+Enter: 줄바꿈, Enter: 전송)"
                 rows={3}
+                aria-label="AI에게 보낼 메시지 입력"
               />
               <button className="ai-chat-send" id="ai-chat-send">
                 AI로 변경하기
