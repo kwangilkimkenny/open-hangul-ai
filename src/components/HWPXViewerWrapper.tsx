@@ -853,12 +853,6 @@ export function HWPXViewerWrapper({
             </div>
 
             <div className="ai-chat-footer">
-              <button className="ai-action-btn" id="ai-api-key-btn">
-                API 키 설정
-              </button>
-              <button className="ai-action-btn" id="custom-api-settings-btn">
-                커스텀 API
-              </button>
               <button className="ai-action-btn" id="ai-clear-btn">
                 대화 지우기
               </button>
