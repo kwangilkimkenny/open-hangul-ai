@@ -38,7 +38,7 @@ interface SimpleHeaderProps {
 export const SimpleHeader = memo(function SimpleHeader({
   onFileSelect,
   viewer,
-  title = 'HAN-View',
+  title = '오픈한글 AI',
   subtitle = 'HWPX Viewer & AI Editor',
   logo,
   additionalButtons = [],
@@ -53,7 +53,7 @@ export const SimpleHeader = memo(function SimpleHeader({
     devLog('📁 [SimpleHeader] Selected file:', file?.name, 'size:', file?.size);
 
     if (file) {
-      if (!file.name.toLowerCase().match(/\.(hwpx|hwp)$/i)) {
+      if (!file.name.toLowerCase().match(/\.(hwpx|hwp|md)$/i)) {
         toast.error('HWPX 파일만 지원됩니다');
         return;
       }
@@ -215,7 +215,7 @@ export const SimpleHeader = memo(function SimpleHeader({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".hwpx,.hwp"
+              accept=".hwpx,.hwp,.md"
               onChange={handleFileChange}
               aria-label="Load HWPX file"
               style={{

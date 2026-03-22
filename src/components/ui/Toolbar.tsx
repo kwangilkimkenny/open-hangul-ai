@@ -190,7 +190,7 @@ export function Toolbar() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".hwpx,.hwp"
+        accept=".hwpx,.hwp,.md"
         onChange={handleFileSelect}
         style={{ display: 'none' }}
         aria-label="Load HWPX file"

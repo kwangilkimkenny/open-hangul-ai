@@ -165,7 +165,7 @@ export function printEnvInfo(): void {
   console.group('🔧 Environment Configuration');
   console.log('Mode:', import.meta.env.MODE);
   console.log('Base URL:', import.meta.env.BASE_URL);
-  console.log('App Name:', getEnvString('VITE_APP_NAME', 'HAN-View React App'));
+  console.log('App Name:', getEnvString('VITE_APP_NAME', '오픈한글 AI App'));
   console.log('Log Level:', getEnvString('VITE_LOG_LEVEL', 'info'));
   console.log('Debug Mode:', getEnvBoolean('VITE_DEBUG_MODE', false));
   console.log('AI Features:', isFeatureEnabled('AI_FEATURES'));
@@ -216,7 +216,7 @@ export function createEnvConfig() {
 
     // App
     app: {
-      name: getEnvString('VITE_APP_NAME', 'HAN-View React App'),
+      name: getEnvString('VITE_APP_NAME', '오픈한글 AI App'),
       version: getEnvString('VITE_APP_VERSION', '3.0.0'),
       baseUrl: getEnvString('VITE_BASE_URL', '/'),
     },
@@ -224,7 +224,7 @@ export function createEnvConfig() {
     // File Upload
     fileUpload: {
       maxSizeMB: getEnvNumber('VITE_MAX_FILE_SIZE_MB', 50),
-      allowedExtensions: getEnvString('VITE_ALLOWED_FILE_EXTENSIONS', '.hwpx,.hwp')
+      allowedExtensions: getEnvString('VITE_ALLOWED_FILE_EXTENSIONS', '.hwpx,.hwp,.md')
         .split(',')
         .map(ext => ext.trim()),
     },

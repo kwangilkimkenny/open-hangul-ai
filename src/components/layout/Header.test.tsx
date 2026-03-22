@@ -132,7 +132,7 @@ describe('Header', () => {
     render(<Header />);
     const fileInput = screen.getByLabelText('Load HWPX file');
     expect(fileInput).toBeInTheDocument();
-    expect(fileInput).toHaveAttribute('accept', '.hwpx,.hwp');
+    expect(fileInput).toHaveAttribute('accept', '.hwpx,.hwp,.md');
     expect(fileInput).toHaveStyle({ display: 'none' });
   });
 });

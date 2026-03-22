@@ -545,8 +545,8 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.name.toLowerCase().match(/\.(hwpx|hwp)$/i)) {
-        toast.error('HWP/HWPX 파일만 지원됩니다');
+      if (!file.name.toLowerCase().match(/\.(hwpx|hwp|md)$/i)) {
+        toast.error('HWP/HWPX/MD 파일만 지원됩니다');
         return;
       }
       onFileSelect?.(file);
@@ -575,7 +575,7 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
     setActiveMenu(null);
     const filename = window.prompt('파일명을 입력하세요', '새문서.hwpx');
     if (!filename) return;
-    const name = filename.match(/\.(hwpx|hwp)$/i) ? filename : `${filename}.hwpx`;
+    const name = filename.match(/\.(hwpx|hwp|md)$/i) ? filename : `${filename}.hwpx`;
     if (viewer && typeof (viewer as any).saveFile === 'function') {
       try {
         toast.loading('저장 중...', { id: 'saving' });
@@ -673,6 +673,29 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
       { label: '다른 이름으로 저장', shortcut: 'Ctrl+Shift+S', action: handleSaveAs },
       { label: '', divider: true },
       { label: 'PDF로 내보내기', action: handleExportPDF },
+      { label: 'Markdown으로 내보내기', action: async () => {
+        setActiveMenu(null);
+        const v = (viewer || (window as any).__hwpxViewer) as any;
+        if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
+        try {
+          const doc = v.getDocument?.();
+          if (!doc) { toast.error('내보낼 문서가 없습니다'); return; }
+          const { exportToMarkdown } = await import('../lib/markdown/parser');
+          const md = exportToMarkdown(doc);
+          const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = '문서.md';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast.success('Markdown 내보내기 완료');
+        } catch (err: any) {
+          toast.error(`Markdown 내보내기 실패: ${err?.message}`);
+        }
+      }},
       { label: '인쇄', shortcut: 'Ctrl+P', action: handlePrint },
       { label: '', divider: true },
       { label: '문서 정보', action: () => { setActiveMenu(null); const doc = (viewer as any)?.getDocument?.(); const meta = doc?.metadata; if (meta) { toast(`섹션: ${meta.sectionsCount || 0}개, 이미지: ${meta.imagesCount || 0}개\n파싱: ${meta.parsedAt || '-'}`, { duration: 4000 }); } else { toast('문서가 로드되지 않았습니다'); } } },
@@ -867,7 +890,7 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
 
   return (
     <div ref={menuRef} className="hwp-menubar">
-      <input ref={fileInputRef} type="file" accept=".hwpx,.hwp" onChange={handleFileChange} style={{ display: 'none' }} />
+      <input ref={fileInputRef} type="file" accept=".hwpx,.hwp,.md" onChange={handleFileChange} style={{ display: 'none' }} />
       {Object.entries(menus).map(([name, items]) => (
         <div key={name} className="hwp-menu-item-wrapper">
           <button

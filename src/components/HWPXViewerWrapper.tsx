@@ -159,6 +159,33 @@ export function HWPXViewerWrapper({
 
       let fileToLoad = file;
 
+      // Markdown 파일인 경우 문서 데이터로 직접 변환
+      if (file.name.toLowerCase().endsWith('.md')) {
+        toast.loading('Markdown 로드 중...', { id: 'loading' });
+        try {
+          const text = await file.text();
+          const { parseMarkdown } = await import('../lib/markdown/parser');
+          const mdDocument = parseMarkdown(text);
+          await viewerRef.current.updateDocument(mdDocument as any);
+          // 원본 파일명 저장 (저장 시 참조)
+          (viewerRef.current as any).state.markdownSource = true;
+          (viewerRef.current as any).state.isNewDocument = true;
+          toast.dismiss('loading');
+          toast.success('Markdown 문서 로드 완료');
+          setIsLoading(false);
+          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+            (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
+          }
+          document.body.classList.add('global-edit-mode');
+        } catch (mdError: any) {
+          toast.dismiss('loading');
+          devError('Markdown parse failed:', mdError);
+          toast.error(`Markdown 로드 실패: ${mdError?.message}`);
+          setIsLoading(false);
+        }
+        return;
+      }
+
       // HWP 파일인 경우 HWPX로 변환
       if (file.name.toLowerCase().endsWith('.hwp')) {
         toast.loading('HWP → HWPX 변환 중...', { id: 'loading' });
@@ -347,7 +374,7 @@ export function HWPXViewerWrapper({
           devLog('⌨️ Ctrl+O: 파일 열기');
           const input = document.createElement('input');
           input.type = 'file';
-          input.accept = '.hwpx,.hwp';
+          input.accept = '.hwpx,.hwp,.md';
           input.onchange = ev => {
             const file = (ev.target as HTMLInputElement).files?.[0];
             if (file) handleFileOpen(file);
@@ -443,8 +470,8 @@ export function HWPXViewerWrapper({
       const droppedFile = files[0];
 
       // HWPX 파일 확인
-      if (!droppedFile.name.toLowerCase().match(/\.(hwpx|hwp)$/)) {
-        toast.error('HWP/HWPX 파일만 지원합니다');
+      if (!droppedFile.name.toLowerCase().match(/\.(hwpx|hwp|md)$/)) {
+        toast.error('HWP/HWPX/MD 파일만 지원합니다');
         return;
       }
 

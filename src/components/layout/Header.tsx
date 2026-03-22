@@ -213,7 +213,7 @@ export function Header({ className }: HeaderProps) {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".hwpx,.hwp"
+        accept=".hwpx,.hwp,.md"
         onChange={handleFileSelect}
         aria-label="Load HWPX file"
         style={{ display: 'none' }}
