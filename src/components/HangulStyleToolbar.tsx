@@ -57,249 +57,135 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
   }, []);
 
   const showHelpDialog = useCallback(() => {
-    // 기존 다이얼로그 제거
-    document.getElementById('hanview-help-dialog')?.remove();
+    const v = viewer as any;
+    if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
 
-    const overlay = document.createElement('div');
-    overlay.id = 'hanview-help-dialog';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    // 도움말을 편집기 문서로 로드
+    const helpDocument = {
+      sections: [{
+        elements: [
+          { type: 'paragraph', runs: [{ text: '오픈한글 AI v3.0.0 도움말', style: {} }], style: { textAlign: 'center', lineHeight: '2.0', fontSize: '24pt', fontWeight: 'bold' } },
+          { type: 'paragraph', runs: [{ text: 'AI 기반 한글 문서(HWP/HWPX) 편집기', style: {} }], style: { textAlign: 'center', lineHeight: '1.6' } },
+          { type: 'paragraph', runs: [{ text: '', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '1. 편집기 소개', style: {}, inlineStyle: { bold: true, fontSize: '16pt' } }] },
+          { type: 'paragraph', runs: [{ text: '', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '오픈한글 AI는 웹 브라우저에서 한글 문서를 열고, 편집하고, AI로 업무를 자동화하는 문서 편집기입니다.', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '', style: {} }] },
+          { type: 'paragraph', runs: [
+            { text: '지원 파일: ', inlineStyle: { bold: true } },
+            { text: 'HWP (레거시 바이너리) + HWPX (최신 XML)', style: {} },
+          ]},
+          { type: 'paragraph', runs: [
+            { text: 'AI 엔진: ', inlineStyle: { bold: true } },
+            { text: 'OpenAI GPT-4 (커스텀 LLM 연동 가능)', style: {} },
+          ]},
+          { type: 'paragraph', runs: [
+            { text: '기술 스택: ', inlineStyle: { bold: true } },
+            { text: 'React 19 + TypeScript + Vite', style: {} },
+          ]},
+          { type: 'paragraph', runs: [
+            { text: '테스트: ', inlineStyle: { bold: true } },
+            { text: '964개 단위 테스트 통과', style: {} },
+          ]},
+          { type: 'paragraph', runs: [{ text: '', style: {} }] },
 
-    const dialog = document.createElement('div');
-    dialog.style.cssText = 'background:white;border-radius:12px;width:720px;max-width:90vw;max-height:85vh;overflow-y:auto;padding:0;box-shadow:0 25px 50px rgba(0,0,0,0.25);font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+          { type: 'paragraph', runs: [{ text: '2. 주요 기능', style: {}, inlineStyle: { bold: true, fontSize: '16pt' } }] },
+          { type: 'paragraph', runs: [{ text: '', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '[파일] 새 문서, 열기(HWP/HWPX), 저장, 다른 이름으로 저장, PDF 내보내기, 인쇄', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '[편집] 서식(굵게/기울임/밑줄), 글꼴 변경, 정렬, 목록, 들여쓰기, 실행취소/다시실행', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '[삽입] 표, 이미지, 특수문자, 머리글/바닥글, 각주, 페이지 나누기', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '[AI] 문서 편집, 요약, 메일 작성, 번역, 검토 의견 등 12개 AI 어시스턴트', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '[보기] 줌(25%~400%), 다크 모드, 편집 모드 전환', style: {} }] },
+          { type: 'paragraph', runs: [{ text: '', style: {} }] },
 
-    dialog.innerHTML = `
-      <div style="position:sticky;top:0;background:linear-gradient(135deg,#2b579a,#3a6bc5);color:white;padding:20px 24px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;">
-        <h2 style="margin:0;font-size:18px;">오픈한글 AI React v3.0.0 도움말</h2>
-        <button id="help-close-btn" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:4px 8px;">&times;</button>
-      </div>
-      <div style="padding:24px;">
+          { type: 'paragraph', runs: [{ text: '3. 키보드 단축키', style: {}, inlineStyle: { bold: true, fontSize: '16pt' } }] },
+          { type: 'paragraph', runs: [{ text: '', style: {} }] },
+        ],
+        pageSettings: { width: '794px', height: '1123px', marginLeft: '85px', marginRight: '85px', marginTop: '71px', marginBottom: '57px' },
+        pageWidth: 794, pageHeight: 1123,
+        headers: { both: null, odd: null, even: null },
+        footers: { both: null, odd: null, even: null },
+      }],
+      images: new Map(),
+      borderFills: new Map(),
+      metadata: { parsedAt: new Date().toISOString(), sectionsCount: 1, imagesCount: 0, borderFillsCount: 0 },
+    };
 
-        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;margin-top:0;">편집기 소개</h3>
-        <p style="color:#555;line-height:1.8;">
-          오픈한글 AI는 <strong>AI 기반 한글 문서(HWP/HWPX) 편집기</strong>입니다.
-          웹 브라우저에서 한글 문서를 열고, 편집하고, AI로 업무를 자동화합니다.
-        </p>
-        <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:13px;">
-          <tr style="background:#f5f7fa;"><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">지원 파일</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">HWP (레거시) + HWPX (최신)</td></tr>
-          <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">AI 엔진</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">OpenAI GPT-4 (커스텀 LLM 연동 가능)</td></tr>
-          <tr style="background:#f5f7fa;"><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">테스트</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">964개 단위 테스트 통과</td></tr>
-          <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">기술 스택</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">React 19 + TypeScript + Vite</td></tr>
-        </table>
+    // 단축키 테이블
+    const shortcuts = [
+      ['Ctrl+N', '새 문서'], ['Ctrl+O', '열기'], ['Ctrl+S', '저장'], ['Ctrl+P', '인쇄'],
+      ['Ctrl+B', '굵게'], ['Ctrl+I', '기울임'], ['Ctrl+U', '밑줄'],
+      ['Ctrl+Z', '실행취소'], ['Ctrl+Y', '다시실행'],
+      ['Ctrl+F', '찾기'], ['Ctrl+H', '바꾸기'], ['Ctrl+F10', '특수문자'],
+      ['Enter', '줄바꿈(단락) / 다음셀(표)'], ['Escape', '편집 종료'],
+      ['Tab', '다음 요소 이동'], ['Shift+Tab', '이전 요소 이동'],
+    ];
+    const shortcutTable = {
+      type: 'table',
+      rows: [
+        { cells: [
+          { elements: [{ type: 'paragraph', runs: [{ text: '단축키', inlineStyle: { bold: true } }] }] },
+          { elements: [{ type: 'paragraph', runs: [{ text: '기능', inlineStyle: { bold: true } }] }] },
+        ]},
+        ...shortcuts.map(([key, desc]) => ({
+          cells: [
+            { elements: [{ type: 'paragraph', runs: [{ text: key }] }] },
+            { elements: [{ type: 'paragraph', runs: [{ text: desc }] }] },
+          ]
+        })),
+      ],
+    };
+    helpDocument.sections[0].elements.push(shortcutTable as any);
 
-        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;">주요 기능</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0;font-size:13px;">
-          <div style="background:#f0f7ff;padding:12px;border-radius:8px;"><strong>파일</strong><br/>새 문서, 열기(HWP/HWPX), 저장, PDF 내보내기, 인쇄</div>
-          <div style="background:#f0fff4;padding:12px;border-radius:8px;"><strong>편집</strong><br/>서식(B/I/U), 글꼴, 정렬, 목록, 들여쓰기, 실행취소</div>
-          <div style="background:#fffbf0;padding:12px;border-radius:8px;"><strong>삽입</strong><br/>표, 이미지, 특수문자, 머리글/바닥글, 각주, 페이지 나누기</div>
-          <div style="background:#fff0f0;padding:12px;border-radius:8px;"><strong>AI</strong><br/>문서 편집, 요약, 메일 작성, 번역 등 12개 어시스턴트</div>
-        </div>
+    // 빈 줄 + AI 안전성 섹션
+    const aiSection = [
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '4. AI 안전성 연동 — TruthAnchor + AEGIS', style: {}, inlineStyle: { bold: true, fontSize: '16pt' } }] },
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '오픈한글 AI는 두 가지 외부 서비스를 연동하여 AI 생성 콘텐츠의 품질 보증과 보안을 강화합니다.', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [
+        { text: 'TruthAnchor (품질 보증): ', inlineStyle: { bold: true } },
+        { text: '할루시네이션 탐지(97%+), 근거 기반 생성(RAG), 컴플라이언스 가드레일, 인용 링킹, 불확실성 점수' },
+      ]},
+      { type: 'paragraph', runs: [
+        { text: 'AEGIS (보안 게이트웨이): ', inlineStyle: { bold: true } },
+        { text: '입출력 검사, 프롬프트 인젝션 탐지, PII 자동 마스킹, 콘텐츠 차단/수정, 다국어 방어' },
+      ]},
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '통합 아키텍처:', inlineStyle: { bold: true } }] },
+      { type: 'paragraph', runs: [{ text: '  사용자 → 오픈한글 AI → server/proxy.js (BFF)', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '    ├─ AEGIS (입력검사: APPROVE/BLOCK/MODIFY)', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '    ├─ LLM API (OpenAI / Custom)', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '    ├─ AEGIS (출력검사: PII 마스킹, 유해 콘텐츠 차단)', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '    └─ TruthAnchor (품질검증: 할루시네이션, 신뢰도, 인용)', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '  → 편집기에 안전한 결과 표시', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '연동 방식:', inlineStyle: { bold: true } }] },
+      { type: 'paragraph', runs: [{ text: '  1. Proxy (권장) — proxy.js에서 AEGIS/TruthAnchor 경유, 보안 최우선' }] },
+      { type: 'paragraph', runs: [{ text: '  2. SDK 내장 — npm/pip 패키지로 백엔드에 직접 통합, 세밀한 제어' }] },
+      { type: 'paragraph', runs: [{ text: '  3. SaaS — 클라우드 엔드포인트 직접 연결, 관리 부담 최소화' }] },
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '신뢰도 시각화 기준 (TruthAnchor):', inlineStyle: { bold: true } }] },
+      { type: 'paragraph', runs: [{ text: '  0.0~0.2: 높은 신뢰도 (녹색) | 0.2~0.5: 주의 (노란색) | 0.5~0.8: 수동 검토 (주황색) | 0.8~1.0: 사용 금지 (빨간색)' }] },
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: 'AEGIS Decision 타입:', inlineStyle: { bold: true } }] },
+      { type: 'paragraph', runs: [{ text: '  APPROVE(정상) | MODIFY(수정) | BLOCK(차단) | ESCALATE(관리자 검토) | REASK(재입력) | THROTTLE(속도 제한)' }] },
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '연동 절차:', inlineStyle: { bold: true } }] },
+      { type: 'paragraph', runs: [{ text: '  1. server/proxy.js 수정 — 요청 전처리(AEGIS) / 응답 후처리(TruthAnchor) 훅 추가' }] },
+      { type: 'paragraph', runs: [{ text: '  2. .env 설정 — AEGIS_URL, AEGIS_API_KEY, TRUTHANCHOR_URL, TRUTHANCHOR_API_KEY' }] },
+      { type: 'paragraph', runs: [{ text: '  3. 정책 설정 — AEGIS: fail-close / TruthAnchor: 신뢰도 임계값 0.5' }] },
+      { type: 'paragraph', runs: [{ text: '  4. UX 구현 — 신뢰도 인디케이터, 인용 사이드 패널, 위반 하이라이트' }] },
+      { type: 'paragraph', runs: [{ text: '  5. 테스트 — 프롬프트 인젝션 시도 → 차단 확인 → 품질 점수 확인' }] },
+      { type: 'paragraph', runs: [{ text: '', style: {} }] },
+      { type: 'paragraph', runs: [{ text: '핵심: 모든 연동은 server/proxy.js에서 처리됩니다. 프론트엔드 코드 변경 없이 보안/품질 서비스를 추가할 수 있으며, API 키는 서버 .env에서 관리됩니다.', inlineStyle: { bold: true } }] },
+    ];
+    helpDocument.sections[0].elements.push(...aiSection as any[]);
 
-        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;">키보드 단축키</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:13px;margin:12px 0;">
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+N</code> 새 문서</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+O</code> 열기</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+S</code> 저장</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+P</code> 인쇄</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+B</code> 굵게</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+I</code> 기울임</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+U</code> 밑줄</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+Z</code> 실행취소</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+Y</code> 다시실행</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+F</code> 찾기</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+H</code> 바꾸기</div>
-          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+F10</code> 특수문자</div>
-        </div>
-
-        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;">AI 안전성 연동 — TruthAnchor + AEGIS</h3>
-        <p style="color:#555;line-height:1.8;font-size:13px;">
-          오픈한글 AI는 두 가지 외부 서비스를 연동하여 AI 생성 콘텐츠의 <strong>품질 보증</strong>과 <strong>보안</strong>을 강화합니다.
-        </p>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0;font-size:13px;">
-          <div style="background:#f0f7ff;padding:14px;border-radius:8px;border-left:4px solid #2b579a;">
-            <strong style="color:#2b579a;">TruthAnchor</strong> — AI 품질 보증<br/>
-            <span style="color:#666;">할루시네이션 탐지 (97%+), 근거 기반 생성(RAG), 컴플라이언스 가드레일, 인용 링킹, 불확실성 점수</span>
-          </div>
-          <div style="background:#fff0f0;padding:14px;border-radius:8px;border-left:4px solid #e53e3e;">
-            <strong style="color:#e53e3e;">AEGIS</strong> — AI 보안 게이트웨이<br/>
-            <span style="color:#666;">입출력 검사, 프롬프트 인젝션 탐지, PII 자동 마스킹, 콘텐츠 차단/수정, 다국어 방어</span>
-          </div>
-        </div>
-
-        <h4 style="color:#333;margin-top:16px;">통합 아키텍처</h4>
-        <pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.6;">
-  [사용자] → [오픈한글 AI 편집기]
-                   │
-                   ▼
-          server/proxy.js (BFF)
-                   │
-     ┌─────────────┼─────────────┐
-     ▼             ▼             ▼
-  [AEGIS]     [LLM API]   [TruthAnchor]
-  입력검사     생성/편집    품질검증
-     │             │             │
-     ▼             ▼             ▼
-  Decision:    AI 응답     검증 결과:
-  APPROVE/     (텍스트)    - 할루시네이션 여부
-  BLOCK/                  - 신뢰도 점수
-  MODIFY                  - 인용 출처
-     │             │             │
-     └─────────────┼─────────────┘
-                   ▼
-          [편집기에 안전한 결과 표시]
-          - 신뢰도 인디케이터
-          - 인용 사이드 패널
-          - 위반 항목 하이라이트</pre>
-
-        <h4 style="color:#333;margin-top:16px;">TruthAnchor 연동 시나리오</h4>
-        <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px;">
-          <tr style="background:#2b579a;color:white;">
-            <th style="padding:6px 10px;text-align:left;">시나리오</th>
-            <th style="padding:6px 10px;text-align:left;">API</th>
-            <th style="padding:6px 10px;text-align:left;">용도</th>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">실시간 문서 생성</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">POST /api/v1/chat (stream)</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">SSE 스트리밍 + 문장별 검증 + 인용</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">작성 문서 검증</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">POST /api/v2/validate/batch</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">문단별 할루시네이션/위반 감지</td>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">실시간 컴플라이언스</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">POST /api/v1/chat (짧은 검증)</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">타이핑 중 가드레일 위반 감지</td>
-          </tr>
-        </table>
-
-        <h4 style="color:#333;margin-top:16px;">AEGIS 연동 시나리오</h4>
-        <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px;">
-          <tr style="background:#e53e3e;color:white;">
-            <th style="padding:6px 10px;text-align:left;">시나리오</th>
-            <th style="padding:6px 10px;text-align:left;">API</th>
-            <th style="padding:6px 10px;text-align:left;">Decision</th>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">프롬프트 입력 검사</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">POST /v1/judge</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">APPROVE / BLOCK / MODIFY / REASK</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">LLM 출력 검사</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">POST /v1/judge</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">PII 마스킹, 유해 콘텐츠 차단</td>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">문서 PII 스캔</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">POST /v1/judge (pii_scan)</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">개인정보 자동 가명화</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">문서 일괄 검사</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">POST /v1/judge/batch</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">최대 100건 동시 판정</td>
-          </tr>
-        </table>
-
-        <h4 style="color:#333;margin-top:16px;">연동 방식 (3가지 지원)</h4>
-        <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px;">
-          <tr style="background:#333;color:white;">
-            <th style="padding:6px 10px;">방식</th><th style="padding:6px 10px;">설명</th><th style="padding:6px 10px;">적합한 경우</th>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-weight:600;">Proxy (권장)</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">proxy.js에서 AEGIS/TruthAnchor를 경유</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">신규 연동, 보안 최우선</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-weight:600;">SDK 내장</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">npm/pip 패키지로 백엔드에 직접 통합</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">온프레미스, 세밀한 제어</td>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-weight:600;">SaaS</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">클라우드 엔드포인트 직접 연결</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">관리 부담 최소화</td>
-          </tr>
-        </table>
-
-        <h4 style="color:#333;margin-top:16px;">연동 절차</h4>
-        <ol style="color:#555;line-height:2;font-size:13px;">
-          <li><strong>server/proxy.js 수정</strong> — 요청 전처리(AEGIS) / 응답 후처리(TruthAnchor) 훅 추가</li>
-          <li><strong>.env 설정</strong>
-            <pre style="background:#f5f7fa;padding:8px 12px;border-radius:4px;font-size:11px;margin:4px 0;"># AEGIS (보안 게이트웨이)
-AEGIS_URL=https://aegis.your-domain.com
-AEGIS_API_KEY=aegis_sk_xxxxxxxxxxxx
-
-# TruthAnchor (품질 보증)
-TRUTHANCHOR_URL=https://api.truthanchor.io
-TRUTHANCHOR_API_KEY=ta-your-api-key
-TRUTHANCHOR_TENANT_ID=my-editor-service</pre>
-          </li>
-          <li><strong>정책 설정</strong> — AEGIS: fail-close(차단 우선) / TruthAnchor: 신뢰도 임계값 0.5</li>
-          <li><strong>UX 구현</strong> — 신뢰도 인디케이터(색상 4단계), 인용 사이드 패널, 위반 하이라이트</li>
-          <li><strong>테스트</strong> — 프롬프트 인젝션 시도 → 차단 확인 → 품질 점수 확인</li>
-        </ol>
-
-        <h4 style="color:#333;margin-top:16px;">신뢰도 시각화 기준 (TruthAnchor)</h4>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin:8px 0;font-size:11px;text-align:center;">
-          <div style="background:#dcfce7;padding:8px;border-radius:6px;"><strong>0.0~0.2</strong><br/>높은 신뢰도</div>
-          <div style="background:#fef9c3;padding:8px;border-radius:6px;"><strong>0.2~0.5</strong><br/>주의 필요</div>
-          <div style="background:#fed7aa;padding:8px;border-radius:6px;"><strong>0.5~0.8</strong><br/>수동 검토 권장</div>
-          <div style="background:#fecaca;padding:8px;border-radius:6px;"><strong>0.8~1.0</strong><br/>사용 금지 권고</div>
-        </div>
-
-        <h4 style="color:#333;margin-top:16px;">AEGIS Decision 타입</h4>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:8px 0;font-size:11px;text-align:center;">
-          <div style="background:#dcfce7;padding:8px;border-radius:6px;"><strong>APPROVE</strong><br/>정상 처리</div>
-          <div style="background:#fef9c3;padding:8px;border-radius:6px;"><strong>MODIFY</strong><br/>수정 후 처리</div>
-          <div style="background:#fecaca;padding:8px;border-radius:6px;"><strong>BLOCK</strong><br/>차단</div>
-          <div style="background:#e0e7ff;padding:8px;border-radius:6px;"><strong>ESCALATE</strong><br/>관리자 검토</div>
-          <div style="background:#f3e8ff;padding:8px;border-radius:6px;"><strong>REASK</strong><br/>재입력 요청</div>
-          <div style="background:#f5f5f5;padding:8px;border-radius:6px;"><strong>THROTTLE</strong><br/>속도 제한</div>
-        </div>
-
-        <h4 style="color:#333;margin-top:16px;">핵심 코드 위치</h4>
-        <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:11px;">
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">server/proxy.js</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">API 프록시 — AEGIS/TruthAnchor 연동 진입점</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/ai/gpt-content-generator.js</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">LLM API 호출 (callAPI 메서드)</td>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/ai/prompt-builder.js</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">시스템/사용자 프롬프트 생성</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/config/ai-config.js</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">API 키, 엔드포인트, 프록시 설정</td>
-          </tr>
-          <tr style="background:#f5f7fa;">
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/ai/ai-controller.js</td>
-            <td style="padding:6px 10px;border:1px solid #e0e0e0;">AI 오케스트레이터 (전체 흐름 제어)</td>
-          </tr>
-        </table>
-
-        <div style="background:#eff6ff;border-left:4px solid #2b579a;padding:12px 16px;border-radius:0 8px 8px 0;margin-top:16px;font-size:13px;">
-          <strong>핵심:</strong> 모든 연동은 <code>server/proxy.js</code>에서 처리됩니다. 프론트엔드 코드 변경 없이 보안/품질 서비스를 추가할 수 있으며, 서비스 API 키는 서버 <code>.env</code>에서 관리되어 브라우저에 노출되지 않습니다.
-        </div>
-      </div>
-    `;
-
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-
-    document.getElementById('help-close-btn')?.addEventListener('click', () => overlay.remove());
-    document.addEventListener('keydown', function escHandler(e) {
-      if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); }
-    });
+    v.updateDocument(helpDocument);
+    toast.success('도움말 문서가 로드되었습니다');
+    document.body.classList.add('global-edit-mode');
   }, []);
 
   const handleFileOpen = useCallback(() => {
