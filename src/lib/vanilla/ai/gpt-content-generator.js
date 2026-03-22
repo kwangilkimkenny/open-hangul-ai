@@ -203,8 +203,15 @@ export class GPTContentGenerator {
             messages: messages,
             temperature: this.options.temperature,
             max_tokens: this.options.maxTokens,
-            response_format: { type: 'json_object' } // JSON mode 강제
         };
+
+        // JSON mode는 메시지에 "json"이 포함된 경우에만 활성화
+        const hasJsonMention = messages.some(m =>
+            m.content && m.content.toLowerCase().includes('json')
+        );
+        if (hasJsonMention) {
+            requestBody.response_format = { type: 'json_object' };
+        }
         
         // 디버그 로깅
         if (AIConfig.debug.logRequests) {
@@ -493,7 +500,7 @@ export class GPTContentGenerator {
             messages: [
                 {
                     role: 'user',
-                    content: 'Hello'
+                    content: 'Say hello in json format'
                 }
             ],
             max_tokens: 10,
