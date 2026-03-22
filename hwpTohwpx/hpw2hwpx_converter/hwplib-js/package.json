@@ -1,0 +1,54 @@
+{
+  "name": "hwplib-js",
+  "version": "1.1.0",
+  "description": "HWP file format parser for JavaScript/TypeScript",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --coverage --ci --reporters=default --reporters=jest-junit"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "hwp",
+    "hangul",
+    "parser",
+    "korean",
+    "document"
+  ],
+  "author": "HWP2HWPX Team",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kwangilkimkenny/hpw2hwpx_converter.git",
+    "directory": "hwplib-js"
+  },
+  "bugs": {
+    "url": "https://github.com/kwangilkimkenny/hpw2hwpx_converter/issues"
+  },
+  "homepage": "https://github.com/kwangilkimkenny/hpw2hwpx_converter/tree/main/hwplib-js#readme",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.10.6",
+    "jest": "^30.2.0",
+    "rollup": "^4.9.4",
+    "ts-jest": "^29.4.6",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@types/pako": "^2.0.4",
+    "iconv-lite": "^0.6.3",
+    "pako": "^2.1.0"
+  }
+}
