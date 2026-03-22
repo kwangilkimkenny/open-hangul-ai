@@ -34,7 +34,7 @@ export const AIConfig = {
         getApiKey() {
             // 환경변수 (Vite 환경) - 권장
             if (import.meta && import.meta.env && import.meta.env.VITE_OPENAI_API_KEY) {
-                return import.meta.env.VITE_OPENAI_API_KEY;
+                return import.meta.env.VITE_OPENAI_API_KEY.trim();
             }
 
             // Node.js 환경 (레거시 지원)

@@ -143,10 +143,11 @@ export class ChatPanel {
         this.attachEventListeners();
 
         // 초기 메시지 표시 (최초 1회만)
-        this.addSystemMessage('AI 문서 편집 기능에 오신 것을 환영합니다! 문서 구조를 유지하면서 내용을 변경할 수 있습니다.');
-
-        // API 키 상태 확인
-        this.updateApiKeyStatus();
+        if (this.aiController.hasApiKey()) {
+            this.addSystemMessage('AI 문서 편집 기능에 오신 것을 환영합니다! 문서 구조를 유지하면서 내용을 변경할 수 있습니다.');
+        } else {
+            this.addSystemMessage('AI 기능을 사용하려면 .env 파일에 VITE_OPENAI_API_KEY를 설정하고 서버를 재시작해주세요.');
+        }
 
         logger.info('✅ Chat panel initialized');
     }
@@ -343,10 +344,9 @@ export class ChatPanel {
             return;
         }
         
-        // API 키 확인
+        // API 키 확인 (환경변수/.env에서 자동 로드되므로 보통 여기 안 옴)
         if (!this.aiController.hasApiKey()) {
-            this.addSystemMessage('[알림] OpenAI API 키를 먼저 설정해주세요.');
-            this.promptForApiKey();
+            this.addSystemMessage('[알림] AI API 키가 설정되지 않았습니다. .env 파일에 VITE_OPENAI_API_KEY를 설정하고 서버를 재시작해주세요.');
             return;
         }
         
