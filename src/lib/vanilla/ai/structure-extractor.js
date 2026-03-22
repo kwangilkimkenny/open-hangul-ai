@@ -534,9 +534,9 @@ export class DocumentStructureExtractor {
      */
     extractTableHeaderContentPairs(parsedDocument) {
         logger.info('📋 Extracting table header-content pairs...');
-        
+
         const pairs = [];
-        
+
         parsedDocument.sections?.forEach((section, sectionIdx) => {
             section.elements?.forEach((element, elementIdx) => {
                 if (element.type === 'table') {
@@ -545,7 +545,14 @@ export class DocumentStructureExtractor {
                 }
             });
         });
-        
+
+        // 테이블이 없는 경우: 단락(paragraph) 기반 문서 처리
+        if (pairs.length === 0) {
+            logger.info('📝 No table pairs found, extracting paragraph pairs...');
+            const paraPairs = this.extractParagraphPairs(parsedDocument);
+            pairs.push(...paraPairs);
+        }
+
         logger.info(`✅ Extracted ${pairs.length} header-content pairs`);
         return pairs;
     }
@@ -663,6 +670,49 @@ export class DocumentStructureExtractor {
         return pairs;
     }
     
+    /**
+     * 단락(paragraph) 기반 문서에서 헤더-내용 쌍 추출
+     * 테이블이 없는 문서에서 각 단락을 개별 항목으로 처리
+     * @param {Object} parsedDocument - 파싱된 문서
+     * @returns {Array<Object>} 헤더-내용 쌍 배열
+     * @private
+     */
+    extractParagraphPairs(parsedDocument) {
+        const pairs = [];
+
+        parsedDocument.sections?.forEach((section, sectionIdx) => {
+            section.elements?.forEach((element, elementIdx) => {
+                if (element.type === 'paragraph' && element.runs) {
+                    const text = element.runs
+                        .filter(r => r.text)
+                        .map(r => r.text)
+                        .join('');
+                    const trimmed = text.trim();
+
+                    if (trimmed.length >= this.options.minTextLength) {
+                        const pairId = generateSlotId();
+                        pairs.push({
+                            pairId,
+                            header: `paragraph_${sectionIdx}_${elementIdx}`,
+                            content: trimmed,
+                            path: {
+                                section: sectionIdx,
+                                element: elementIdx,
+                                type: 'paragraph',
+                            },
+                            isEmpty: false,
+                        });
+
+                        logger.debug(`  ✓ Paragraph pair: "${trimmed.substring(0, 40)}..."`);
+                    }
+                }
+            });
+        });
+
+        logger.info(`📝 Extracted ${pairs.length} paragraph pairs`);
+        return pairs;
+    }
+
     /**
      * 셀에서 텍스트 추출
      * @param {Object} cell - 셀 객체

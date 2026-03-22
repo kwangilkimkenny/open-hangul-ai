@@ -421,15 +421,27 @@ export class ChatPanel {
                 // 로딩 메시지 제거
                 this.removeMessage(loadingMessageId);
                 
-                // 성공 메시지 표시
-                this.addAssistantMessage(
-                    `✅ [완료] 문서가 성공적으로 업데이트되었습니다!\n\n` +
-                    `- 변경된 텍스트 슬롯: ${result.metadata?.slotsUpdated || result.metadata?.itemsUpdated || '알 수 없음'}개\n` +
-                    `- 사용된 토큰: ${result.metadata?.tokensUsed || '알 수 없음'}개`
-                );
-                
-                // 토스트 알림 (단일 페이지)
-                showToast('success', '성공', '문서가 업데이트되었습니다');
+                // 성공/경고 메시지 표시
+                const updatedCount = result.metadata?.slotsUpdated || result.metadata?.itemsUpdated || 0;
+                const generatedCount = result.metadata?.itemsGenerated || updatedCount;
+
+                if (updatedCount > 0) {
+                    this.addAssistantMessage(
+                        `✅ [완료] 문서가 성공적으로 업데이트되었습니다!\n\n` +
+                        `- 변경된 텍스트 슬롯: ${updatedCount}개\n` +
+                        `- 사용된 토큰: ${result.metadata?.tokensUsed || '알 수 없음'}개`
+                    );
+                    showToast('success', '성공', '문서가 업데이트되었습니다');
+                } else {
+                    this.addAssistantMessage(
+                        `⚠️ [경고] AI가 콘텐츠를 생성했지만 문서에 반영하지 못했습니다.\n\n` +
+                        `- AI 생성 항목: ${generatedCount}개\n` +
+                        `- 실제 반영: 0개\n` +
+                        `- 사용된 토큰: ${result.metadata?.tokensUsed || '알 수 없음'}개\n\n` +
+                        `테이블이 포함된 문서를 열고 다시 시도해주세요.`
+                    );
+                    showToast('warning', '경고', '문서에 변경 사항을 반영하지 못했습니다');
+                }
             }
             
         } catch (error) {

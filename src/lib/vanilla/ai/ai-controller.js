@@ -201,11 +201,13 @@ export class AIDocumentController {
 
       // 4. 콘텐츠 병합 (구조화된 방식)
       logger.info('  🔀 Step 3/4: Merging generated content...');
-      const updatedDocument = this.mergeStructuredContent(
+      const mergeResult = this.mergeStructuredContent(
         currentDocument,
         generatedJSON,
         headerContentPairs
       );
+      const updatedDocument = mergeResult.document;
+      const actualUpdatedCount = mergeResult.updatedCount;
 
       this.state.updatedDocument = updatedDocument;
 
@@ -224,7 +226,7 @@ export class AIDocumentController {
           updated: updatedDocument,
           metadata: {
             timestamp: new Date().toISOString(),
-            itemsUpdated: Object.keys(generatedJSON).length,
+            itemsUpdated: actualUpdatedCount,
             tokensUsed: tokensUsed,
           },
         });
@@ -236,7 +238,8 @@ export class AIDocumentController {
         updatedDocument: updatedDocument,
         metadata: {
           request: userMessage,
-          itemsUpdated: Object.keys(generatedJSON).length,
+          itemsUpdated: actualUpdatedCount,
+          itemsGenerated: Object.keys(generatedJSON).length,
           tokensUsed: tokensUsed,
           processingTime: Date.now() - (this.state.processingStartTime || Date.now()),
         },
@@ -507,13 +510,34 @@ export class AIDocumentController {
 
       if (newContent) {
         try {
-          // 문서에서 해당 셀 찾기
           const section = updatedDocument.sections[pair.path.section];
           if (!section) {
             logger.error(`  ❌ Section ${pair.path.section} not found`);
             return;
           }
 
+          // 단락(paragraph) 타입 처리
+          if (pair.path.type === 'paragraph') {
+            const element = section.elements[pair.path.element];
+            if (!element) {
+              logger.error(`  ❌ Element ${pair.path.element} not found`);
+              return;
+            }
+
+            if (!element.runs || element.runs.length === 0) {
+              element.runs = [{ text: newContent, style: {} }];
+            } else {
+              // 기존 runs의 텍스트를 모두 합쳐서 첫 번째 run에 새 내용으로 교체
+              const firstRunStyle = element.runs[0].style || {};
+              element.runs = [{ text: newContent, style: firstRunStyle }];
+            }
+
+            updatedCount++;
+            logger.info(`  ✓ Updated paragraph "${pair.header}": "${newContent.substring(0, 30)}..."`);
+            return;
+          }
+
+          // 테이블 셀 타입 처리
           const table = section.elements[pair.path.table];
           if (!table) {
             logger.error(`  ❌ Table ${pair.path.table} not found`);
@@ -532,9 +556,7 @@ export class AIDocumentController {
             return;
           }
 
-          // 🔥 셀 내용 업데이트 또는 생성
           if (!cell.elements || cell.elements.length === 0) {
-            // 비어있는 셀: 새로운 구조 생성
             logger.debug(`  📝 Creating new paragraph for empty cell`);
             cell.elements = [
               {
@@ -550,11 +572,9 @@ export class AIDocumentController {
             updatedCount++;
             logger.info(`  ✓ Created "${pair.header}": "${newContent.substring(0, 30)}..."`);
           } else {
-            // 기존 셀: 업데이트
             const paragraph = cell.elements[0];
 
             if (!paragraph.runs || paragraph.runs.length === 0) {
-              // runs가 없으면 생성
               logger.debug(`  📝 Creating new runs`);
               paragraph.runs = [
                 {
@@ -563,7 +583,6 @@ export class AIDocumentController {
                 },
               ];
             } else {
-              // runs가 있으면 업데이트
               paragraph.runs[0].text = newContent;
             }
 
@@ -580,7 +599,7 @@ export class AIDocumentController {
 
     logger.info(`✅ Updated ${updatedCount} / ${headerContentPairs.length} items`);
 
-    return updatedDocument;
+    return { document: updatedDocument, updatedCount };
   }
 
   /**

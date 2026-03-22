@@ -88,7 +88,15 @@ export class PromptBuilder {
     buildStructuredPrompt(headerContentPairs, userRequest) {
         logger.info('📝 Building structured prompt...');
         logger.time('Structured Prompt Build');
-        
+
+        // 단락 기반 문서인지 판별
+        const isParagraphBased = headerContentPairs.length > 0 &&
+            headerContentPairs[0]?.path?.type === 'paragraph';
+
+        if (isParagraphBased) {
+            return this.buildParagraphPrompt(headerContentPairs, userRequest);
+        }
+
         // 헤더-내용 쌍을 객체로 변환
         const contentMap = {};
         headerContentPairs.forEach(pair => {
@@ -243,6 +251,71 @@ ${userRequest}
         return messages;
     }
     
+    /**
+     * 단락(paragraph) 기반 문서용 프롬프트 빌드
+     * @param {Array<Object>} headerContentPairs - 단락 쌍 배열
+     * @param {string} userRequest - 사용자 요청
+     * @returns {Array} OpenAI Chat API 메시지 배열
+     * @private
+     */
+    buildParagraphPrompt(headerContentPairs, userRequest) {
+        // 단락 내용을 키-값 맵으로 변환
+        const contentMap = {};
+        headerContentPairs.forEach(pair => {
+            contentMap[pair.header] = pair.content || '(비어있음)';
+        });
+
+        const systemMessage = {
+            role: 'system',
+            content: `당신은 문서 편집 전문가입니다. 사용자의 요청에 따라 문서의 각 단락을 수정합니다.
+
+**역할**:
+- 주어진 단락들을 사용자의 요청에 맞게 수정
+- 각 단락의 키(key)를 그대로 유지하면서 내용만 변경
+
+**응답 형식 (JSON)**:
+입력과 동일한 키를 사용하여 수정된 내용을 반환하세요.
+{
+  "paragraph_0_0": "수정된 내용1",
+  "paragraph_0_1": "수정된 내용2",
+  ...
+}
+
+**중요 규칙**:
+1. 반드시 JSON 형식으로만 응답
+2. 입력에 있는 **모든 키를 그대로** 포함해야 함 (키 이름 변경 금지!)
+3. 한글 문법과 맞춤법 준수
+4. 다른 텍스트 포함 금지 (JSON만)`
+        };
+
+        const userMessage = {
+            role: 'user',
+            content: `다음 문서의 단락들을 수정해주세요:
+
+**현재 문서 내용**:
+${JSON.stringify(contentMap, null, 2)}
+
+**사용자 요청**:
+${userRequest}
+
+**필수 지시사항**:
+1. 위의 모든 키(${Object.keys(contentMap).join(', ')})를 응답에 포함하세요
+2. 키 이름은 절대 변경하지 마세요 (예: "paragraph_0_0" → "paragraph_0_0")
+3. 각 단락의 내용을 사용자 요청에 맞게 수정하세요
+4. 응답은 JSON 형식으로만 제공하세요`
+        };
+
+        const messages = [systemMessage, userMessage];
+
+        const estimatedTokens = this.estimateTokens(messages);
+        logger.info(`📊 Paragraph prompt tokens: ${estimatedTokens}`);
+        logger.info(`📊 Total pairs: ${headerContentPairs.length}`);
+
+        logger.timeEnd('Structured Prompt Build');
+
+        return messages;
+    }
+
     /**
      * 구조 최적화 (토큰 절약)
      * 불필요한 정보 제거, 구조만 유지
