@@ -66,6 +66,22 @@ export class AIDocumentController {
     // 변경 이력
     this.history = [];
 
+    // 프록시 모드 또는 환경변수 API 키로 자동 초기화
+    try {
+      if (typeof AIConfig.isProxyMode === 'function' && AIConfig.isProxyMode()) {
+        this.generator = new GPTContentGenerator('proxy');
+        logger.info('🔒 Proxy mode: generator auto-initialized');
+      } else {
+        const envKey = AIConfig.openai?.getApiKey?.();
+        if (envKey) {
+          this.generator = new GPTContentGenerator(envKey);
+          logger.info('✅ API key loaded from environment');
+        }
+      }
+    } catch (e) {
+      // 자동 초기화 실패는 무시 (사용자가 나중에 수동 설정)
+    }
+
     logger.info('🤖 AIDocumentController initialized');
   }
 
@@ -128,10 +144,13 @@ export class AIDocumentController {
     this.state.error = null;
 
     try {
-      // 1. 현재 문서 가져오기
+      // 1. 현재 문서 가져오기 (DOM 동기화 포함)
+      if (this.viewer._syncDocumentFromDOM) {
+        this.viewer._syncDocumentFromDOM();
+      }
       const currentDocument = this.viewer.getDocument();
       if (!currentDocument) {
-        throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다');
+        throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다. 문서를 열거나 새 문서를 생성해주세요.');
       }
 
       this.state.originalDocument = currentDocument;
@@ -1369,10 +1388,13 @@ export class AIDocumentController {
     this.state.error = null;
 
     try {
-      // 1. 현재 문서 가져오기
+      // 1. 현재 문서 가져오기 (DOM 동기화 포함)
+      if (this.viewer._syncDocumentFromDOM) {
+        this.viewer._syncDocumentFromDOM();
+      }
       const currentDocument = this.viewer.getDocument();
       if (!currentDocument) {
-        throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다');
+        throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다. 문서를 열거나 새 문서를 생성해주세요.');
       }
 
       // 원본 문서 백업 (되돌리기용)

@@ -1109,35 +1109,43 @@ export class ChatPanel {
         logger.info('🤖 AI Assistant action:', prompt.substring(0, 40));
 
         if (!this.aiController.hasApiKey()) {
-            this.addSystemMessage('[알림] OpenAI API 키를 먼저 설정해주세요.');
-            this.promptForApiKey();
+            this.addSystemMessage('[알림] API 키가 설정되지 않았습니다. 프록시 서버(npm run proxy)를 실행하거나 .env에 API 키를 설정해주세요.');
             return;
         }
 
-        const doc = this.aiController.viewer.getDocument();
-        if (!doc) {
-            this.addSystemMessage('[알림] 먼저 문서를 로드해주세요.');
-            return;
-        }
-
-        // 문서 텍스트 추출
+        // 문서 텍스트 추출: 데이터 모델 또는 DOM에서 직접 추출
         let docText = '';
-        (doc.sections || []).forEach(section => {
-            (section.elements || []).forEach(el => {
-                if (el.type === 'paragraph' && el.runs) {
-                    docText += el.runs.map(r => r.text || '').join('') + '\n';
-                } else if (el.type === 'table' && el.rows) {
-                    el.rows.forEach(row => {
-                        (row.cells || []).forEach(cell => {
-                            (cell.elements || []).forEach(ce => {
-                                if (ce.runs) docText += ce.runs.map(r => r.text || '').join('') + '\t';
-                            });
+        const doc = this.aiController.viewer.getDocument();
+        if (doc && doc.sections) {
+            (doc.sections || []).forEach(section => {
+                (section.elements || []).forEach(el => {
+                    if (el.type === 'paragraph' && el.runs) {
+                        docText += el.runs.map(r => r.text || '').join('') + '\n';
+                    } else if (el.type === 'table' && el.rows) {
+                        el.rows.forEach(row => {
+                            (row.cells || []).forEach(cell => {
+                                (cell.elements || []).forEach(ce => {
+                                    if (ce.runs) docText += ce.runs.map(r => r.text || '').join('') + '\t';
+                                });
                         });
                         docText += '\n';
                     });
                 }
             });
         });
+        } else {
+            // DOM에서 직접 텍스트 추출 (새 문서 편집 중)
+            const container = this.aiController.viewer.container;
+            if (container) {
+                docText = container.textContent || '';
+                docText = docText.replace(/\s+/g, ' ').trim();
+            }
+        }
+
+        if (!docText.trim()) {
+            this.addSystemMessage('[알림] 분석할 문서 내용이 없습니다. 텍스트를 입력한 후 다시 시도해주세요.');
+            return;
+        }
 
         // 사용자 메시지 표시
         this.addUserMessage(prompt);
