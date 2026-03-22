@@ -57,8 +57,12 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
   }, []);
 
   const showHelpDialog = useCallback(() => {
-    const v = viewer as any;
-    if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
+    // viewer prop 또는 글로벌 인스턴스에서 뷰어 가져오기
+    const v = (viewer || (window as any).__hwpxViewer) as any;
+    if (!v || typeof v.updateDocument !== 'function') {
+      toast.error('뷰어가 초기화되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
 
     // 도움말을 편집기 문서로 로드
     const helpDocument = {
