@@ -53,7 +53,7 @@ export const SimpleHeader = memo(function SimpleHeader({
     devLog('📁 [SimpleHeader] Selected file:', file?.name, 'size:', file?.size);
 
     if (file) {
-      if (!file.name.toLowerCase().endsWith('.hwpx')) {
+      if (!file.name.toLowerCase().match(/\.(hwpx|hwp)$/i)) {
         toast.error('HWPX 파일만 지원됩니다');
         return;
       }
@@ -215,7 +215,7 @@ export const SimpleHeader = memo(function SimpleHeader({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".hwpx"
+              accept=".hwpx,.hwp"
               onChange={handleFileChange}
               aria-label="Load HWPX file"
               style={{

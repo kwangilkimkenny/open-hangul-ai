@@ -156,9 +156,39 @@ export function HWPXViewerWrapper({
 
     try {
       setIsLoading(true);
-      toast.loading('문서 로드 중...', { id: 'loading' });
 
-      await viewerRef.current.loadFile(file);
+      let fileToLoad = file;
+
+      // HWP 파일인 경우 HWPX로 변환
+      if (file.name.toLowerCase().endsWith('.hwp')) {
+        toast.loading('HWP → HWPX 변환 중...', { id: 'loading' });
+        try {
+          const { Hwp2Hwpx } = await import('@hwp2hwpx/core/Hwp2Hwpx');
+          const arrayBuffer = await file.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const hwpxBinary = await Hwp2Hwpx.convert(uint8Array, {
+            onProgress: (progress: any) => {
+              devLog(`HWP 변환: ${progress.percent}% - ${progress.stage || ''}`);
+            },
+          });
+          fileToLoad = new File(
+            [hwpxBinary],
+            file.name.replace(/\.hwp$/i, '.hwpx'),
+            { type: 'application/hwp+zip' }
+          );
+          toast.dismiss('loading');
+          toast.success('HWP → HWPX 변환 완료');
+        } catch (convertError: any) {
+          toast.dismiss('loading');
+          devError('❌ HWP conversion failed:', convertError);
+          toast.error(`HWP 변환 실패: ${convertError?.message || '알 수 없는 오류'}`);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      toast.loading('문서 로드 중...', { id: 'loading' });
+      await viewerRef.current.loadFile(fileToLoad);
 
       toast.dismiss('loading');
     } catch (error) {
@@ -306,7 +336,7 @@ export function HWPXViewerWrapper({
           devLog('⌨️ Ctrl+O: 파일 열기');
           const input = document.createElement('input');
           input.type = 'file';
-          input.accept = '.hwpx';
+          input.accept = '.hwpx,.hwp';
           input.onchange = ev => {
             const file = (ev.target as HTMLInputElement).files?.[0];
             if (file) handleFileOpen(file);
@@ -402,8 +432,8 @@ export function HWPXViewerWrapper({
       const droppedFile = files[0];
 
       // HWPX 파일 확인
-      if (!droppedFile.name.toLowerCase().endsWith('.hwpx')) {
-        toast.error('HWPX 파일만 지원합니다');
+      if (!droppedFile.name.toLowerCase().match(/\.(hwpx|hwp)$/)) {
+        toast.error('HWP/HWPX 파일만 지원합니다');
         return;
       }
 
@@ -507,7 +537,7 @@ export function HWPXViewerWrapper({
               HWPX 파일을 여기에 놓으세요
             </div>
             <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '8px' }}>
-              .hwpx 파일만 지원됩니다
+              .hwp/.hwpx 파일만 지원됩니다
             </div>
           </div>
         </div>

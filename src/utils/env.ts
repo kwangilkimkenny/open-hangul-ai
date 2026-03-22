@@ -224,7 +224,7 @@ export function createEnvConfig() {
     // File Upload
     fileUpload: {
       maxSizeMB: getEnvNumber('VITE_MAX_FILE_SIZE_MB', 50),
-      allowedExtensions: getEnvString('VITE_ALLOWED_FILE_EXTENSIONS', '.hwpx')
+      allowedExtensions: getEnvString('VITE_ALLOWED_FILE_EXTENSIONS', '.hwpx,.hwp')
         .split(',')
         .map(ext => ext.trim()),
     },

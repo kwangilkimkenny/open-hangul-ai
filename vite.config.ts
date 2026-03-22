@@ -1,10 +1,17 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      'hwplib-js': path.resolve(__dirname, 'hwpTohwpx/hpw2hwpx_converter/hwplib-js/dist/index.esm.js'),
+      '@hwp2hwpx': path.resolve(__dirname, 'hwpTohwpx/hpw2hwpx_converter/hwp2hwpx-js/src'),
+    },
+  },
   server: {
     port: 5090,        // 고정 포트
     strictPort: true,  // 포트 사용 중이면 에러 발생 (자동 변경 안 함)

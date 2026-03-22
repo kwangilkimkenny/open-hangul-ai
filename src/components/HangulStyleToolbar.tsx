@@ -64,8 +64,8 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.name.toLowerCase().endsWith('.hwpx')) {
-        toast.error('HWPX 파일만 지원됩니다');
+      if (!file.name.toLowerCase().match(/\.(hwpx|hwp)$/i)) {
+        toast.error('HWP/HWPX 파일만 지원됩니다');
         return;
       }
       onFileSelect?.(file);
@@ -94,7 +94,7 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
     setActiveMenu(null);
     const filename = window.prompt('파일명을 입력하세요', '새문서.hwpx');
     if (!filename) return;
-    const name = filename.endsWith('.hwpx') ? filename : `${filename}.hwpx`;
+    const name = filename.match(/\.(hwpx|hwp)$/i) ? filename : `${filename}.hwpx`;
     if (viewer && typeof (viewer as any).saveFile === 'function') {
       try {
         toast.loading('저장 중...', { id: 'saving' });
@@ -377,7 +377,7 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
 
   return (
     <div ref={menuRef} className="hwp-menubar">
-      <input ref={fileInputRef} type="file" accept=".hwpx" onChange={handleFileChange} style={{ display: 'none' }} />
+      <input ref={fileInputRef} type="file" accept=".hwpx,.hwp" onChange={handleFileChange} style={{ display: 'none' }} />
       {Object.entries(menus).map(([name, items]) => (
         <div key={name} className="hwp-menu-item-wrapper">
           <button
