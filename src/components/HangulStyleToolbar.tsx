@@ -56,6 +56,170 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const showHelpDialog = useCallback(() => {
+    // 기존 다이얼로그 제거
+    document.getElementById('hanview-help-dialog')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'hanview-help-dialog';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'background:white;border-radius:12px;width:720px;max-width:90vw;max-height:85vh;overflow-y:auto;padding:0;box-shadow:0 25px 50px rgba(0,0,0,0.25);font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+
+    dialog.innerHTML = `
+      <div style="position:sticky;top:0;background:linear-gradient(135deg,#2b579a,#3a6bc5);color:white;padding:20px 24px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;font-size:18px;">HAN-View React v3.0.0 도움말</h2>
+        <button id="help-close-btn" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:4px 8px;">&times;</button>
+      </div>
+      <div style="padding:24px;">
+
+        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;margin-top:0;">편집기 소개</h3>
+        <p style="color:#555;line-height:1.8;">
+          HAN-View는 <strong>AI 기반 한글 문서(HWP/HWPX) 편집기</strong>입니다.
+          웹 브라우저에서 한글 문서를 열고, 편집하고, AI로 업무를 자동화합니다.
+        </p>
+        <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:13px;">
+          <tr style="background:#f5f7fa;"><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">지원 파일</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">HWP (레거시) + HWPX (최신)</td></tr>
+          <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">AI 엔진</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">OpenAI GPT-4 (커스텀 LLM 연동 가능)</td></tr>
+          <tr style="background:#f5f7fa;"><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">테스트</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">964개 단위 테스트 통과</td></tr>
+          <tr><td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">기술 스택</td><td style="padding:8px 12px;border:1px solid #e0e0e0;">React 19 + TypeScript + Vite</td></tr>
+        </table>
+
+        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;">주요 기능</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0;font-size:13px;">
+          <div style="background:#f0f7ff;padding:12px;border-radius:8px;"><strong>파일</strong><br/>새 문서, 열기(HWP/HWPX), 저장, PDF 내보내기, 인쇄</div>
+          <div style="background:#f0fff4;padding:12px;border-radius:8px;"><strong>편집</strong><br/>서식(B/I/U), 글꼴, 정렬, 목록, 들여쓰기, 실행취소</div>
+          <div style="background:#fffbf0;padding:12px;border-radius:8px;"><strong>삽입</strong><br/>표, 이미지, 특수문자, 머리글/바닥글, 각주, 페이지 나누기</div>
+          <div style="background:#fff0f0;padding:12px;border-radius:8px;"><strong>AI</strong><br/>문서 편집, 요약, 메일 작성, 번역 등 12개 어시스턴트</div>
+        </div>
+
+        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;">키보드 단축키</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:13px;margin:12px 0;">
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+N</code> 새 문서</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+O</code> 열기</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+S</code> 저장</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+P</code> 인쇄</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+B</code> 굵게</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+I</code> 기울임</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+U</code> 밑줄</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+Z</code> 실행취소</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+Y</code> 다시실행</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+F</code> 찾기</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+H</code> 바꾸기</div>
+          <div><code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Ctrl+F10</code> 특수문자</div>
+        </div>
+
+        <h3 style="color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:8px;">AI 보안/품질 서비스 연동 가이드</h3>
+        <p style="color:#555;line-height:1.8;font-size:13px;">
+          HAN-View는 LLM API 호출 시 <strong>보안 게이트웨이</strong>와 <strong>품질 보증 서비스</strong>를
+          연동할 수 있습니다. 이를 통해 민감 데이터 유출을 방지하고, AI 생성 콘텐츠의 원본 충실도를 보장합니다.
+        </p>
+
+        <h4 style="color:#333;margin-top:16px;">아키텍처</h4>
+        <pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;line-height:1.6;">
+  브라우저 (HAN-View)
+      |
+      v
+  server/proxy.js (API 프록시)
+      |
+      +--[1] 보안 게이트웨이 (전처리)
+      |     - 시스템 프롬프트 보호
+      |     - 민감 데이터 마스킹 (PII, 개인정보)
+      |     - 허용된 요청인지 정책 검증
+      |
+      +--[2] LLM API (OpenAI / Custom)
+      |
+      +--[3] 보안 게이트웨이 (후처리)
+      |     - 응답 내 민감 정보 노출 확인
+      |     - 프롬프트 인젝션 탐지
+      |
+      +--[4] 품질 보증 서비스
+      |     - 원본 문서 대비 충실도 검증
+      |     - 할루시네이션 감지
+      |     - 품질 미달 시 재생성 또는 경고
+      |
+      v
+  브라우저 (결과 표시)</pre>
+
+        <h4 style="color:#333;margin-top:16px;">연동 방식 (3가지 지원)</h4>
+        <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:13px;">
+          <tr style="background:#2b579a;color:white;">
+            <th style="padding:8px 12px;text-align:left;">방식</th>
+            <th style="padding:8px 12px;text-align:left;">설명</th>
+            <th style="padding:8px 12px;text-align:left;">적합한 경우</th>
+          </tr>
+          <tr style="background:#f5f7fa;">
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">REST API</td>
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;">proxy.js에서 HTTP 호출로 연동</td>
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;">SaaS 서비스, 마이크로서비스</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">SDK</td>
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;">npm 패키지로 proxy.js에 직접 통합</td>
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;">온프레미스, 빠른 응답 필요</td>
+          </tr>
+          <tr style="background:#f5f7fa;">
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;font-weight:600;">SaaS</td>
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;">클라우드 서비스 엔드포인트 연결</td>
+            <td style="padding:8px 12px;border:1px solid #e0e0e0;">관리 부담 최소화</td>
+          </tr>
+        </table>
+
+        <h4 style="color:#333;margin-top:16px;">연동 절차</h4>
+        <ol style="color:#555;line-height:2;font-size:13px;">
+          <li><strong>server/proxy.js 수정</strong> — 요청 전처리(보안) / 응답 후처리(품질) 훅 추가</li>
+          <li><strong>.env 설정</strong> — 보안/품질 서비스 엔드포인트 및 API 키 등록
+            <pre style="background:#f5f7fa;padding:8px 12px;border-radius:4px;font-size:12px;margin:4px 0;">SECURITY_GATEWAY_URL=https://security-service.example.com/api/v1/check
+SECURITY_GATEWAY_KEY=sg-xxx
+QUALITY_SERVICE_URL=https://quality-service.example.com/api/v1/verify
+QUALITY_SERVICE_KEY=qs-xxx</pre>
+          </li>
+          <li><strong>정책 설정</strong> — 마스킹 규칙, 품질 임계값, 재시도 횟수 등 구성</li>
+          <li><strong>테스트</strong> — AI 채팅에서 요청 → 보안 로그 확인 → 품질 점수 확인</li>
+        </ol>
+
+        <h4 style="color:#333;margin-top:16px;">핵심 코드 위치</h4>
+        <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;">
+          <tr style="background:#f5f7fa;">
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">server/proxy.js</td>
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;">API 프록시 서버 (연동 진입점)</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/ai/gpt-content-generator.js</td>
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;">LLM API 호출 (callAPI 메서드)</td>
+          </tr>
+          <tr style="background:#f5f7fa;">
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/ai/prompt-builder.js</td>
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;">시스템/사용자 프롬프트 생성</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/config/ai-config.js</td>
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;">API 키, 엔드포인트, 프록시 설정</td>
+          </tr>
+          <tr style="background:#f5f7fa;">
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;font-family:monospace;">src/lib/vanilla/ai/ai-controller.js</td>
+            <td style="padding:6px 10px;border:1px solid #e0e0e0;">AI 오케스트레이터 (전체 흐름 제어)</td>
+          </tr>
+        </table>
+
+        <div style="background:#eff6ff;border-left:4px solid #2b579a;padding:12px 16px;border-radius:0 8px 8px 0;margin-top:16px;font-size:13px;">
+          <strong>참고:</strong> 보안/품질 서비스 연동은 프론트엔드 코드 변경 없이 <code>server/proxy.js</code>만 수정하면 됩니다.
+          서비스의 API 키도 서버 <code>.env</code>에서 관리되어 브라우저에 노출되지 않습니다.
+        </div>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    document.getElementById('help-close-btn')?.addEventListener('click', () => overlay.remove());
+    document.addEventListener('keydown', function escHandler(e) {
+      if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); }
+    });
+  }, []);
+
   const handleFileOpen = useCallback(() => {
     fileInputRef.current?.click();
     setActiveMenu(null);
@@ -371,6 +535,15 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
           setLocale(next as any);
           toast(`언어가 ${next === 'ko' ? '한국어' : 'English'}로 변경되었습니다.\n새로고침 후 적용됩니다.`, { duration: 3000 });
         });
+      }},
+      { label: '', divider: true },
+      { label: '도움말', shortcut: 'F1', action: () => {
+        setActiveMenu(null);
+        showHelpDialog();
+      }},
+      { label: 'HAN-View 정보', action: () => {
+        setActiveMenu(null);
+        toast('HAN-View React v3.0.0\nAI 기반 한글 문서 편집기\n\n964 Tests Passing | TypeScript + React 19', { duration: 5000 });
       }},
     ],
   };
