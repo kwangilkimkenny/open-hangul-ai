@@ -1530,6 +1530,36 @@ ${sectionRefs}
   </ha:refList>
 </ha:head>`);
 
+      // 이미지 수집: DOM에서 img 태그를 찾아 BinData에 저장
+      const images = this.container.querySelectorAll('img');
+      let imageIndex = 0;
+      for (const img of images) {
+        try {
+          const src = img.src;
+          if (!src) continue;
+          let imageData;
+          if (src.startsWith('data:')) {
+            // data URL → binary
+            const base64 = src.split(',')[1];
+            const binary = atob(base64);
+            imageData = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) imageData[i] = binary.charCodeAt(i);
+          } else if (src.startsWith('blob:')) {
+            // blob URL → fetch
+            const resp = await fetch(src);
+            const ab = await resp.arrayBuffer();
+            imageData = new Uint8Array(ab);
+          }
+          if (imageData) {
+            const ext = src.includes('png') ? 'png' : 'jpg';
+            zip.file(`BinData/image${imageIndex}.${ext}`, imageData);
+            imageIndex++;
+          }
+        } catch (imgErr) {
+          logger.warn('⚠️ Failed to save image:', imgErr);
+        }
+      }
+
       // Contents/section0.xml (각 섹션)
       doc.sections.forEach((section, sIdx) => {
         const sectionXml = this._generateSectionXml(section);
@@ -1613,13 +1643,34 @@ ${bodyContent}
     const runs = para.runs || [];
     let runContent = '';
 
-    runs.forEach(run => {
+    runs.forEach((run, idx) => {
       if (run.type === 'linebreak') {
-        runContent += `        <hp:run charPrIDRef="0"><hp:t>
-</hp:t></hp:run>\n`;
+        runContent += `        <hp:run charPrIDRef="0"><hp:t>\n</hp:t></hp:run>\n`;
       } else {
         const text = (run.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        runContent += `        <hp:run charPrIDRef="0"><hp:t>${text}</hp:t></hp:run>\n`;
+        const style = run.inlineStyle || run.style || {};
+
+        // 인라인 스타일 → charPr 속성 변환
+        const charPrAttrs = [];
+        if (style.bold) charPrAttrs.push('bold="true"');
+        if (style.italic) charPrAttrs.push('italic="true"');
+        if (style.underline) charPrAttrs.push('underline="true"');
+        if (style.strikethrough) charPrAttrs.push('strikeout="true"');
+        if (style.fontSize) {
+          const pt = parseFloat(style.fontSize);
+          if (pt) charPrAttrs.push(`height="${Math.round(pt * 100)}"`);
+        }
+        if (style.color) charPrAttrs.push(`color="${style.color.replace('#', '')}"`);
+        if (style.fontFamily) charPrAttrs.push(`fontFace="${style.fontFamily}"`);
+
+        if (charPrAttrs.length > 0) {
+          runContent += `        <hp:run>\n`;
+          runContent += `          <hp:charPr ${charPrAttrs.join(' ')}/>\n`;
+          runContent += `          <hp:t>${text}</hp:t>\n`;
+          runContent += `        </hp:run>\n`;
+        } else {
+          runContent += `        <hp:run charPrIDRef="0"><hp:t>${text}</hp:t></hp:run>\n`;
+        }
       }
     });
 
@@ -1627,8 +1678,7 @@ ${bodyContent}
       runContent = `        <hp:run charPrIDRef="0"><hp:t></hp:t></hp:run>\n`;
     }
 
-    return `      <hp:p paraPrIDRef="0" styleIDRef="0">
-${runContent}      </hp:p>\n`;
+    return `      <hp:p paraPrIDRef="0" styleIDRef="0">\n${runContent}      </hp:p>\n`;
   }
 
   /**

@@ -508,6 +508,39 @@
    Responsive
    ============================================================ */
 
+/* Tablet (769px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .hwp-ribbon-btn {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+
+  .hwp-ribbon-btn-lg {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 6px;
+  }
+
+  .hwp-menu-action {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .hwp-font-select,
+  .hwp-size-select,
+  .hwp-lineheight-select {
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .hwp-statusbar {
+    font-size: 12px;
+    padding: 4px 12px;
+  }
+}
+
+/* Mobile (< 768px) */
 @media (max-width: 768px) {
   .hwp-ribbon-content {
     overflow-x: auto;
@@ -517,7 +550,18 @@
     min-width: max-content;
   }
 
+  .hwp-ribbon-btn,
+  .hwp-ribbon-btn-lg {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .hwp-font-select {
     width: 90px;
+  }
+
+  .hwp-menu-action {
+    padding: 12px 16px;
+    font-size: 14px;
   }
 }

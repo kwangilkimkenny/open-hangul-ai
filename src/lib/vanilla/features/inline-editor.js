@@ -511,6 +511,91 @@ export class InlineEditor {
   _handleInput(e) {
     this._sanitizeContent();
     this._checkPageOverflow();
+    this._checkPageMerge();
+  }
+
+  /**
+   * 페이지 병합: 삭제로 페이지가 비었으면 이전 페이지로 내용을 병합하고 빈 페이지 제거
+   * @private
+   */
+  _checkPageMerge() {
+    if (!this.editingCell) return;
+    if (this._mergeTimer) clearTimeout(this._mergeTimer);
+    this._mergeTimer = setTimeout(() => {
+      this._performPageMerge();
+    }, 1000);
+  }
+
+  /**
+   * 실제 페이지 병합 수행
+   * @private
+   */
+  _performPageMerge() {
+    if (!this.editingCell) return;
+
+    const pageDiv = this.editingCell.closest('.hwp-page-container');
+    if (!pageDiv) return;
+
+    const container = pageDiv.parentElement;
+    if (!container) return;
+
+    const allPages = Array.from(container.querySelectorAll('.hwp-page-container'));
+    if (allPages.length <= 1) return;
+
+    const pageIndex = allPages.indexOf(pageDiv);
+
+    // 현재 페이지의 컨텐츠 높이가 페이지의 30% 이하이고 이전 페이지가 있으면 병합
+    const contentHeight = pageDiv.scrollHeight;
+    const pageHeight = pageDiv.clientHeight;
+
+    if (contentHeight > pageHeight * 0.3 || pageIndex === 0) return;
+
+    const prevPage = allPages[pageIndex - 1];
+    if (!prevPage) return;
+
+    // 이전 페이지에 여유 공간이 있는지 확인
+    const prevContentHeight = prevPage.scrollHeight;
+    const prevPageHeight = prevPage.clientHeight;
+    const prevAvailable = prevPageHeight - prevContentHeight;
+
+    if (prevAvailable < contentHeight - 50) return; // 여유 공간 부족
+
+    logger.info(`📄 Page merge: page ${pageIndex + 1} → page ${pageIndex} (content ${contentHeight}px, available ${prevAvailable}px)`);
+
+    // 현재 페이지의 본문 요소를 이전 페이지로 이동
+    const bodyElements = Array.from(pageDiv.children).filter(el =>
+      !el.classList.contains('hwp-page-header') &&
+      !el.classList.contains('hwp-page-footer') &&
+      !el.classList.contains('hwp-page-number')
+    );
+
+    bodyElements.forEach(el => {
+      prevPage.appendChild(el);
+    });
+
+    // 빈 페이지 제거
+    pageDiv.remove();
+
+    // 편집 중인 셀 업데이트 (이동된 요소에서 계속 편집)
+    if (this.editingCell && !this.editingCell.isConnected) {
+      // 편집 셀이 제거된 경우 이전 페이지에서 마지막 편집 가능 요소 찾기
+      const lastEditable = prevPage.querySelector('.editable-paragraph:last-child, [contenteditable="true"]:last-child');
+      if (lastEditable) {
+        this.editingCell = lastEditable;
+      }
+    }
+
+    // 페이지 수 업데이트
+    if (this.viewer.renderer) {
+      this.viewer.renderer.totalPages = container.querySelectorAll('.hwp-page-container').length;
+    }
+
+    // 남은 페이지 번호 재정렬
+    container.querySelectorAll('.hwp-page-container').forEach((p, i) => {
+      p.setAttribute('data-page-number', String(i + 1));
+    });
+
+    logger.info(`📄 Page merge complete: ${allPages.length} → ${allPages.length - 1} pages`);
   }
 
   /**

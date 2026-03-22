@@ -163,9 +163,20 @@ export function HWPXViewerWrapper({
       if (file.name.toLowerCase().endsWith('.hwp')) {
         toast.loading('HWP → HWPX 변환 중...', { id: 'loading' });
         try {
-          const { Hwp2Hwpx } = await import('@hwp2hwpx/core/Hwp2Hwpx');
           const arrayBuffer = await file.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
+
+          // 매직바이트 검증 (OLE Compound Document: D0 CF 11 E0 A1 B1 1A E1)
+          if (uint8Array.length < 8 ||
+              uint8Array[0] !== 0xD0 || uint8Array[1] !== 0xCF ||
+              uint8Array[2] !== 0x11 || uint8Array[3] !== 0xE0) {
+            toast.dismiss('loading');
+            toast.error('유효한 HWP 파일이 아닙니다. 파일이 손상되었거나 지원되지 않는 형식입니다.');
+            setIsLoading(false);
+            return;
+          }
+
+          const { Hwp2Hwpx } = await import('@hwp2hwpx/core/Hwp2Hwpx');
           const hwpxBinary = await Hwp2Hwpx.convert(uint8Array, {
             onProgress: (progress: any) => {
               devLog(`HWP 변환: ${progress.percent}% - ${progress.stage || ''}`);
