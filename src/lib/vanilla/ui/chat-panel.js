@@ -144,7 +144,7 @@ export class ChatPanel {
 
         // 초기 메시지 표시 (최초 1회만)
         if (this.aiController.hasApiKey()) {
-            this.addSystemMessage('AI 문서 편집 기능에 오신 것을 환영합니다! 문서 구조를 유지하면서 내용을 변경할 수 있습니다.');
+            this.addSystemMessage('AI 어시스턴트에 오신 것을 환영합니다! 자유롭게 대화하거나, 문서를 열어 편집할 수 있습니다. "문서로 만들어줘"라고 하면 대화 내용을 문서로 변환합니다.');
         } else {
             this.addSystemMessage('AI 기능을 사용하려면 .env 파일에 VITE_OPENAI_API_KEY를 설정하고 서버를 재시작해주세요.');
         }
@@ -332,35 +332,60 @@ export class ChatPanel {
      * 메시지 전송 처리
      * @private
      */
+    /**
+     * 문서화 요청 키워드 감지
+     * @param {string} message - 사용자 메시지
+     * @returns {boolean} 문서화 요청 여부
+     * @private
+     */
+    _isDocumentCreateRequest(message) {
+        const keywords = [
+            '문서로 만들', '문서로 작성', '문서화', '문서 만들', '문서 작성',
+            '문서로 변환', '문서로 정리', '문서에 넣', '문서에 반영',
+            '에디터에', '편집기에', '본문에',
+        ];
+        return keywords.some(k => message.includes(k));
+    }
+
     async handleSendMessage() {
         const message = this.elements.input.value.trim();
-        
+
         if (!message) {
             return;
         }
-        
-        // API 키 확인 (환경변수/.env에서 자동 로드되므로 보통 여기 안 옴)
+
+        // API 키 확인
         if (!this.aiController.hasApiKey()) {
             this.addSystemMessage('[알림] AI API 키가 설정되지 않았습니다. .env 파일에 VITE_OPENAI_API_KEY를 설정하고 서버를 재시작해주세요.');
             return;
         }
-        
+
         // 입력창 비우기
         this.elements.input.value = '';
-        
+
         // 사용자 메시지 표시
         this.addUserMessage(message);
-        
+
+        // 문서가 로드되지 않은 경우 → 자유 대화 모드
+        const currentDoc = this.aiController.viewer.getDocument();
+        const hasDocument = currentDoc && currentDoc.sections && currentDoc.sections.length > 0
+            && currentDoc.sections.some(s => s.elements && s.elements.length > 0);
+
+        if (!hasDocument) {
+            await this._handleFreeChat(message);
+            return;
+        }
+
         // 로딩 메시지 표시
         const loadingMessageId = this.addLoadingMessage('요청을 처리하는 중...');
-        
+
         try {
             // 📄 다중 페이지 감지 및 처리
-            const document = this.aiController.viewer.getDocument();
+            const document = currentDoc;
             const isMultiPage = document && document.sections && document.sections.length > 1;
-            
+
             let result;
-            
+
             if (isMultiPage) {
                 // 다중 페이지 처리
                 logger.info(`📄 Multi-page document detected (${document.sections.length} pages)`);
@@ -1172,6 +1197,64 @@ export class ChatPanel {
      * @param {string} prompt - AI에게 보낼 프롬프트
      * @private
      */
+    /**
+     * 자유 대화 모드 (문서 없이 AI와 대화)
+     * "문서로 만들어줘" 등의 키워드 감지 시 AI 응답을 문서로 변환
+     * @param {string} message - 사용자 메시지
+     * @private
+     */
+    async _handleFreeChat(message) {
+        const loadingId = this.addLoadingMessage('AI와 대화 중...');
+
+        try {
+            // 대화 히스토리 관리 (컨텍스트 유지)
+            if (!this._chatHistory) {
+                this._chatHistory = [
+                    { role: 'system', content: '당신은 만능 AI 어시스턴트입니다. 한국어로 친절하게 응답해주세요. 사용자가 문서 작성, 기획, 아이디어 등을 요청하면 구체적이고 실용적인 내용을 제공해주세요.' }
+                ];
+            }
+
+            this._chatHistory.push({ role: 'user', content: message });
+
+            // 히스토리가 너무 길면 최근 20개만 유지
+            if (this._chatHistory.length > 21) {
+                this._chatHistory = [this._chatHistory[0], ...this._chatHistory.slice(-20)];
+            }
+
+            const apiResponse = await this.aiController.generator.callAPIWithRetry(this._chatHistory);
+            const responseText = apiResponse?.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
+
+            // 히스토리에 응답 추가
+            this._chatHistory.push({ role: 'assistant', content: responseText });
+
+            this.removeMessage(loadingId);
+
+            // 문서화 요청 감지
+            if (this._isDocumentCreateRequest(message)) {
+                // AI 응답을 마크다운 문서로 변환하여 에디터에 로드
+                try {
+                    const { markdownToDocument } = await import('../utils/markdown-to-document.js');
+                    const doc = markdownToDocument(responseText);
+                    this.aiController.viewer.updateDocument(doc);
+                    this.addAssistantMessage('문서가 에디터에 생성되었습니다. 아래는 생성된 내용입니다:\n\n' + responseText);
+                    showToast('success', '문서 생성 완료', '에디터에 문서가 로드되었습니다');
+                } catch (docError) {
+                    logger.error('❌ Document creation failed:', docError);
+                    const msgId = this.addAssistantMessage(responseText);
+                    this._addCopyButton(msgId, responseText);
+                    this.addSystemMessage('[알림] 문서 변환에 실패했습니다. 위 내용을 복사하여 사용해주세요.');
+                }
+            } else {
+                const msgId = this.addAssistantMessage(responseText);
+                this._addCopyButton(msgId, responseText);
+            }
+        } catch (error) {
+            this.removeMessage(loadingId);
+            logger.error('❌ Free chat failed:', error);
+            this.addAssistantMessage(`[오류] AI 응답 실패: ${error.message}`);
+        }
+    }
+
     async _executeAssistantAction(prompt) {
         logger.info('🤖 AI Assistant action:', prompt.substring(0, 40));
 
