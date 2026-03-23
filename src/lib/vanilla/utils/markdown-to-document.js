@@ -3,7 +3,7 @@
  * 마크다운 문자열을 HWPX 파싱 문서 구조로 변환
  *
  * @module utils/markdown-to-document
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 /**
@@ -38,14 +38,8 @@ export function markdownToDocument(markdown, options = {}) {
       i++; // skip closing ```
       elements.push({
         type: 'paragraph',
-        runs: [{ text: codeLines.join('\n'), style: {} }],
-        style: {
-          backgroundColor: '#f5f5f5',
-          fontFamily: 'monospace',
-          fontSize: '10pt',
-          lineHeight: '1.4',
-          paddingLeft: '12px',
-        },
+        runs: [{ text: codeLines.join('\n'), style: { fontFamily: "'Courier New', monospace", fontSize: '9pt', backgroundColor: '#f5f5f5' } }],
+        style: { lineHeight: '1.5', margin: '4px 0 4px 12px' },
       });
       continue;
     }
@@ -61,8 +55,8 @@ export function markdownToDocument(markdown, options = {}) {
     if (/^(\s*[-_*]){3,}\s*$/.test(line)) {
       elements.push({
         type: 'paragraph',
-        runs: [{ text: '─'.repeat(60), style: {} }],
-        style: { textAlign: 'center', color: '#ccc' },
+        runs: [{ text: '─'.repeat(60), style: { color: '#ccc' } }],
+        style: { textAlign: 'center' },
       });
       i++;
       continue;
@@ -123,10 +117,10 @@ export function markdownToDocument(markdown, options = {}) {
       elements.push({
         type: 'paragraph',
         runs: [
-          { text: prefix, style: {}, inlineStyle: { color: '#666' } },
+          { text: prefix, style: { color: '#666' } },
           ...parseInlineRuns(listMatch[3], {}),
         ],
-        style: { paddingLeft: `${20 + indent * 16}px` },
+        style: { margin: `0 0 0 ${20 + indent * 16}px` },
       });
       i++;
       continue;
@@ -162,7 +156,7 @@ export function markdownToDocument(markdown, options = {}) {
 
 /**
  * 인라인 마크다운 서식을 runs 배열로 변환
- * **bold**, *italic*, `code`, [text](url) 등 처리
+ * 스타일은 run.style에 직접 설정 (렌더러가 run.style을 사용)
  * @param {string} text - 인라인 텍스트
  * @param {Object} baseStyle - 기본 스타일
  * @returns {Array} runs 배열
@@ -179,8 +173,7 @@ function parseInlineRuns(text, baseStyle) {
     if (match.index > lastIndex) {
       runs.push({
         text: text.slice(lastIndex, match.index),
-        style: {},
-        ...(Object.keys(baseStyle).length > 0 ? { inlineStyle: { ...baseStyle } } : {}),
+        style: { ...baseStyle },
       });
     }
 
@@ -188,25 +181,22 @@ function parseInlineRuns(text, baseStyle) {
       // **bold**
       runs.push({
         text: match[2],
-        style: {},
-        inlineStyle: { ...baseStyle, bold: true },
+        style: { ...baseStyle, bold: true },
       });
     } else if (match[4]) {
       // *italic*
       runs.push({
         text: match[4],
-        style: {},
-        inlineStyle: { ...baseStyle, italic: true },
+        style: { ...baseStyle, italic: true },
       });
     } else if (match[6]) {
       // `code`
       runs.push({
         text: match[6],
-        style: {},
-        inlineStyle: {
+        style: {
           ...baseStyle,
-          fontFamily: 'monospace',
-          fontSize: '10pt',
+          fontFamily: "'Courier New', monospace",
+          fontSize: '9pt',
           backgroundColor: '#f0f0f0',
         },
       });
@@ -219,8 +209,7 @@ function parseInlineRuns(text, baseStyle) {
   if (lastIndex < text.length) {
     runs.push({
       text: text.slice(lastIndex),
-      style: {},
-      ...(Object.keys(baseStyle).length > 0 ? { inlineStyle: { ...baseStyle } } : {}),
+      style: { ...baseStyle },
     });
   }
 
@@ -228,8 +217,7 @@ function parseInlineRuns(text, baseStyle) {
   if (runs.length === 0) {
     runs.push({
       text,
-      style: {},
-      ...(Object.keys(baseStyle).length > 0 ? { inlineStyle: { ...baseStyle } } : {}),
+      style: { ...baseStyle },
     });
   }
 
