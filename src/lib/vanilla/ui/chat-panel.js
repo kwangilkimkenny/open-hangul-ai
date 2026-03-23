@@ -371,9 +371,54 @@ export class ChatPanel {
         const keywords = [
             '문서로 만들', '문서로 작성', '문서화', '문서 만들', '문서 작성',
             '문서로 변환', '문서로 정리', '문서에 넣', '문서에 반영',
-            '에디터에', '편집기에', '본문에',
+            '에디터에', '편집기에', '본문에 반영', '본문에 적용', '본문에 넣',
+            '반영해', '적용해',
         ];
         return keywords.some(k => message.includes(k));
+    }
+
+    /**
+     * 마지막 AI 응답을 찾아 문서에 반영
+     * @param {string} message - 사용자 메시지
+     * @returns {Promise<boolean>} 처리 여부
+     * @private
+     */
+    async _applyLastResponseToDocument(message) {
+        // 채팅 히스토리에서 마지막 assistant 응답 찾기
+        let lastResponse = '';
+        if (this._chatHistory && this._chatHistory.length > 0) {
+            for (let i = this._chatHistory.length - 1; i >= 0; i--) {
+                if (this._chatHistory[i].role === 'assistant') {
+                    lastResponse = this._chatHistory[i].content;
+                    break;
+                }
+            }
+        }
+
+        // 채팅 히스토리에 없으면 DOM에서 마지막 assistant 메시지 텍스트 가져오기
+        if (!lastResponse && this.elements.messages) {
+            const assistantMsgs = this.elements.messages.querySelectorAll('.ai-message.assistant');
+            if (assistantMsgs.length > 0) {
+                lastResponse = assistantMsgs[assistantMsgs.length - 1].textContent || '';
+            }
+        }
+
+        if (!lastResponse.trim()) {
+            this.addSystemMessage('[알림] 반영할 AI 응답이 없습니다. 먼저 AI에게 내용 생성을 요청해주세요.');
+            return true;
+        }
+
+        try {
+            const { markdownToDocument } = await import('../utils/markdown-to-document.js');
+            const doc = markdownToDocument(lastResponse);
+            this.aiController.viewer.updateDocument(doc);
+            this.addAssistantMessage('이전 AI 응답을 문서 본문에 반영했습니다.');
+            showToast('success', '문서 반영 완료', '본문이 업데이트되었습니다');
+        } catch (err) {
+            logger.error('❌ Apply to document failed:', err);
+            this.addSystemMessage(`[오류] 문서 반영 실패: ${err.message}`);
+        }
+        return true;
     }
 
     async handleSendMessage() {
@@ -394,6 +439,12 @@ export class ChatPanel {
 
         // 사용자 메시지 표시
         this.addUserMessage(message);
+
+        // "본문에 반영해줘" 같은 요청 → 이전 AI 응답을 문서로 변환
+        if (this._isDocumentCreateRequest(message)) {
+            await this._applyLastResponseToDocument(message);
+            return;
+        }
 
         // 문서가 로드되지 않은 경우 → 자유 대화 모드
         const currentDoc = this.aiController.viewer.getDocument();
