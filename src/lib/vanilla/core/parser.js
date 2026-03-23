@@ -1719,6 +1719,9 @@ export class SimpleHWPXParser {
             this._calculateColumnWidths(table, tblElem);
         }
 
+        // Build grid map and mark covered cells for rowSpan/colSpan
+        this._buildGridMap(table);
+
         return table.rows.length > 0 ? table : null;
     }
 
@@ -1936,6 +1939,73 @@ export class SimpleHWPXParser {
             table.colWidths.push(widthPx.toFixed(2) + 'px');
             table.colWidthsPercent.push(widthPercent.toFixed(4) + '%');
         }
+    }
+
+    /**
+     * 테이블 그리드맵 구축 및 covered cell 마킹
+     * rowSpan/colSpan을 반영하여 논리적 그리드를 생성하고
+     * 병합으로 가려진 셀에 isCovered = true를 설정
+     * @param {Object} table - 파싱된 테이블 객체
+     * @private
+     */
+    _buildGridMap(table) {
+        const rows = table.rows || [];
+        if (rows.length === 0) return;
+
+        // 논리적 그리드: grid[row][col] = cell reference 또는 null
+        const maxCols = table.colCount || Math.max(...rows.map(r => (r.cells || []).length));
+        const maxRows = rows.length;
+        const grid = Array.from({ length: maxRows }, () => new Array(maxCols).fill(null));
+
+        rows.forEach((row, rowIdx) => {
+            let colPos = 0;
+            (row.cells || []).forEach(cell => {
+                // 이미 점유된 위치 건너뛰기 (이전 행의 rowSpan으로 점유된 경우)
+                while (colPos < maxCols && grid[rowIdx][colPos] !== null) {
+                    colPos++;
+                }
+                if (colPos >= maxCols) return;
+
+                const rs = cell.rowSpan || 1;
+                const cs = cell.colSpan || 1;
+
+                // 셀의 논리적 위치 저장
+                cell.logicalRow = rowIdx;
+                cell.logicalCol = colPos;
+
+                // 그리드에 셀 점유 영역 표시
+                for (let r = 0; r < rs && (rowIdx + r) < maxRows; r++) {
+                    for (let c = 0; c < cs && (colPos + c) < maxCols; c++) {
+                        if (r === 0 && c === 0) {
+                            grid[rowIdx + r][colPos + c] = cell;
+                        } else {
+                            grid[rowIdx + r][colPos + c] = 'covered';
+                        }
+                    }
+                }
+
+                colPos += cs;
+            });
+
+            // 이 행의 셀 중 covered 위치에 있는 셀 마킹
+            (row.cells || []).forEach(cell => {
+                if (cell.logicalRow === undefined) {
+                    // 그리드에 위치를 잡지 못한 셀 = covered
+                    cell.isCovered = true;
+                }
+            });
+        });
+
+        // covered 셀 마킹: 크기가 0인 셀도 covered로 처리
+        rows.forEach(row => {
+            (row.cells || []).forEach(cell => {
+                if (!cell.isCovered && cell.widthHWPU === 0 && cell.heightHWPU === 0) {
+                    cell.isCovered = true;
+                }
+            });
+        });
+
+        table.gridMap = grid;
     }
 
     // ========================================================================

@@ -473,46 +473,52 @@ export class DocumentStructureExtractor {
      * @returns {boolean} 헤더 여부
      * @private
      */
-    detectHeaderCell(text, rowIdx, cellIdx, style) {
+    detectHeaderCell(text, rowIdx, cellIdx, style, cellStyle) {
         const trimmed = text.trim();
-        
-        // 🔥 규칙 1: 첫 번째 행은 항상 헤더 (테이블 헤더)
-        if (rowIdx === 0) {
-            logger.debug(`      🏷️  Cell [${rowIdx},${cellIdx}] detected as HEADER (first row): "${trimmed}"`);
-            return true;
+        if (!trimmed) return false;
+
+        // 규칙 1: 첫 번째 행은 항상 헤더
+        if (rowIdx === 0) return true;
+
+        // 규칙 2: 첫 번째 열 + 짧은 텍스트 (15자 이하)
+        if (cellIdx === 0 && trimmed.length <= 15) return true;
+
+        // 규칙 3: 짧은 텍스트 + 키워드 매칭 (범용 문서 키워드 확장)
+        if (trimmed.length <= 15) {
+            const headerKeywords = [
+                // 공통
+                '항목', '구분', '내용', '비고', '설명', '제목', '분류', '번호',
+                // 사업계획서
+                '문제인식', '실현가능성', '성장전략', '사업개요', '목표시장', '자금',
+                '인력', '매출', '투자', '수익', '비용', '일정', '전략', '현황',
+                '기업', '대표', '사업', '제품', '서비스', '기술', '시장', '고객',
+                // 교육/놀이계획안
+                '활동', '목표', '주제', '시간', '날짜', '장소', '대상', '방법',
+                '평가', '준비물', '유의사항', '놀이', '기간', '연령',
+                // 일반 문서
+                '담당', '기한', '결과', '진행', '상태', '우선순위', '카테고리',
+            ];
+            if (headerKeywords.some(k => trimmed.includes(k))) return true;
         }
-        
-        // 🔥 규칙 2: 첫 번째 열이면서 짧은 텍스트 (10자 이하) → 제목/라벨
-        if (cellIdx === 0 && trimmed.length <= 10) {
-            logger.debug(`      🏷️  Cell [${rowIdx},${cellIdx}] detected as HEADER (first column + short): "${trimmed}"`);
-            return true;
-        }
-        
-        // 🔥 규칙 3: 짧은 텍스트 (8자 이하) + 키워드 → 제목
-        if (trimmed.length <= 8) {
-            const headerKeywords = ['활동', '목표', '주제', '내용', '시간', '날짜', '장소', '대상', '방법', '평가', '비고', '준비물', '유의사항', '놀이', '기간'];
-            const hasKeyword = headerKeywords.some(keyword => trimmed.includes(keyword));
-            
-            if (hasKeyword) {
-                logger.debug(`      🏷️  Cell [${rowIdx},${cellIdx}] detected as HEADER (short + keyword): "${trimmed}"`);
-                return true;
+
+        // 규칙 4: 굵은 글씨 + 짧은 텍스트 (20자 이하)
+        if (style && style.bold === true && trimmed.length <= 20) return true;
+
+        // 규칙 5: 셀 배경색이 있으면 헤더일 가능성 높음 (회색, 파랑 등)
+        if (cellStyle) {
+            const bg = cellStyle.backgroundColor;
+            if (bg && bg !== '#ffffff' && bg !== '#FFFFFF' && bg !== 'transparent' && bg !== 'rgb(255, 255, 255)') {
+                if (trimmed.length <= 25) return true;
             }
         }
-        
-        // 🔥 규칙 4: 굵은 글씨(bold) + 짧은 텍스트 (12자 이하) → 제목
-        if (style && style.bold === true && trimmed.length <= 12) {
-            logger.debug(`      🏷️  Cell [${rowIdx},${cellIdx}] detected as HEADER (bold + short): "${trimmed}"`);
-            return true;
-        }
-        
-        // 🔥 규칙 5: 콜론(:)으로 끝나는 텍스트는 라벨
-        if (trimmed.endsWith(':') || trimmed.endsWith('：')) {
-            logger.debug(`      🏷️  Cell [${rowIdx},${cellIdx}] detected as HEADER (ends with colon): "${trimmed}"`);
-            return true;
-        }
-        
-        // 기본: 내용 셀로 간주
-        logger.debug(`      📝 Cell [${rowIdx},${cellIdx}] detected as CONTENT: "${trimmed.substring(0, 30)}..."`);
+
+        // 규칙 6: 콜론으로 끝나는 텍스트
+        if (trimmed.endsWith(':') || trimmed.endsWith('：')) return true;
+
+        // 규칙 7: 번호 패턴 + 짧은 텍스트 (예: "1.", "1-1.", "□")
+        if (trimmed.length <= 20 && /^[\d\-\.]+\s/.test(trimmed)) return true;
+        if (trimmed.length <= 15 && /^[□■◇◆▶►●○]/.test(trimmed)) return true;
+
         return false;
     }
     
@@ -596,7 +602,7 @@ export class DocumentStructureExtractor {
             activeCells.forEach((cell, cellIdx) => {
                 const actualCellIdx = cells.indexOf(cell);
                 const cellText = this.extractTextFromCell(cell).trim();
-                const isHeader = this.detectHeaderCell(cellText, rowIdx, actualCellIdx, cell.elements?.[0]?.runs?.[0]?.style);
+                const isHeader = this.detectHeaderCell(cellText, rowIdx, actualCellIdx, cell.elements?.[0]?.runs?.[0]?.style, cell.style);
 
                 // 헤더 셀 자체는 쌍으로 추가하지 않음
                 if (isHeader) return;
@@ -611,7 +617,7 @@ export class DocumentStructureExtractor {
                     if (leftCell.isCovered) continue;
                     const leftText = this.extractTextFromCell(leftCell).trim();
                     if (leftText && leftText.length <= 20 &&
-                        this.detectHeaderCell(leftText, rowIdx, i, leftCell.elements?.[0]?.runs?.[0]?.style)) {
+                        this.detectHeaderCell(leftText, rowIdx, i, leftCell.elements?.[0]?.runs?.[0]?.style, leftCell.style)) {
                         headerText = leftText;
                         headerCellIdx = i;
                         break;
