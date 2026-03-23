@@ -556,39 +556,26 @@ export class AIDocumentController {
             return;
           }
 
-          if (!cell.elements || cell.elements.length === 0) {
-            logger.debug(`  📝 Creating new paragraph for empty cell`);
-            cell.elements = [
-              {
-                type: 'paragraph',
-                runs: [
-                  {
-                    text: newContent,
-                    style: {},
-                  },
-                ],
-              },
-            ];
-            updatedCount++;
-            logger.info(`  ✓ Created "${pair.header}": "${newContent.substring(0, 30)}..."`);
+          // 셀 내용 전체 업데이트 (다중 paragraph 지원)
+          const firstStyle = cell.elements?.[0]?.runs?.[0]?.style || {};
+          const contentLines = newContent.split('\n').filter(l => l.trim());
+
+          if (contentLines.length <= 1) {
+            // 단일 줄: 첫 paragraph만 업데이트, 나머지 제거
+            cell.elements = [{
+              type: 'paragraph',
+              runs: [{ text: newContent, style: { ...firstStyle } }],
+            }];
           } else {
-            const paragraph = cell.elements[0];
-
-            if (!paragraph.runs || paragraph.runs.length === 0) {
-              logger.debug(`  📝 Creating new runs`);
-              paragraph.runs = [
-                {
-                  text: newContent,
-                  style: {},
-                },
-              ];
-            } else {
-              paragraph.runs[0].text = newContent;
-            }
-
-            updatedCount++;
-            logger.info(`  ✓ Updated "${pair.header}": "${newContent.substring(0, 30)}..."`);
+            // 다중 줄: 각 줄을 별도 paragraph로
+            cell.elements = contentLines.map(line => ({
+              type: 'paragraph',
+              runs: [{ text: line, style: { ...firstStyle } }],
+            }));
           }
+
+          updatedCount++;
+          logger.info(`  ✓ Updated "${pair.header}": "${newContent.substring(0, 30)}..."`);
         } catch (error) {
           logger.error(`  ❌ Error updating "${pair.header}":`, error);
         }

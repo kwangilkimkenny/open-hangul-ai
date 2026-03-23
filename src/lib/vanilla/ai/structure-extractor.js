@@ -558,7 +558,7 @@ export class DocumentStructureExtractor {
     }
     
     /**
-     * 개별 테이블에서 헤더-내용 쌍 추출 (v2.2.5: 모든 빈 셀 감지)
+     * 개별 테이블에서 헤더-내용 쌍 추출 (v3.0: 다중 열, rowSpan 지원)
      * @param {Object} table - 테이블 객체
      * @param {number} sectionIdx - 섹션 인덱스
      * @param {number} tableIdx - 테이블 인덱스
@@ -567,106 +567,111 @@ export class DocumentStructureExtractor {
      */
     extractPairsFromTable(table, sectionIdx, tableIdx) {
         const pairs = [];
-        
-        table.rows?.forEach((row, rowIdx) => {
+        const rows = table.rows || [];
+        if (rows.length === 0) return pairs;
+
+        // 1. 헤더 행 감지: 첫 행의 모든 셀이 짧은 텍스트(≤20자)이면 헤더 행
+        const firstRowCells = rows[0]?.cells || [];
+        const headerRowTexts = firstRowCells.map(c => this.extractTextFromCell(c).trim());
+        const isHeaderRow = headerRowTexts.length > 0 &&
+            headerRowTexts.every(t => t.length > 0 && t.length <= 20);
+
+        // 중복 헤더 키 추적
+        const headerCounts = {};
+
+        const makeUniqueHeader = (header, rowIdx, cellIdx) => {
+            const key = header;
+            if (!headerCounts[key]) headerCounts[key] = 0;
+            headerCounts[key]++;
+            return headerCounts[key] > 1 ? `${header}_r${rowIdx}c${cellIdx}` : header;
+        };
+
+        // 2. 각 행/셀 순회
+        rows.forEach((row, rowIdx) => {
             const cells = row.cells || [];
-            
-            cells.forEach((cell, cellIdx) => {
-                const cellText = this.extractTextFromCell(cell);
-                
-                // 빈 셀이거나 매우 짧은 내용만 있는 셀 찾기
-                const isEmpty = !cellText || cellText.trim().length === 0;
-                
-                if (isEmpty) {
-                    // 왼쪽 셀에서 헤더 찾기
-                    let headerText = null;
-                    let headerCellIdx = null;
-                    
-                    // 같은 행의 왼쪽 셀들 중 텍스트가 있는 첫 번째 셀을 헤더로 사용
-                    for (let i = cellIdx - 1; i >= 0; i--) {
-                        const potentialHeader = this.extractTextFromCell(cells[i]);
-                        if (potentialHeader && potentialHeader.trim().length > 0) {
-                            headerText = potentialHeader.trim();
-                            headerCellIdx = i;
-                            break;
-                        }
+
+            // covered cell 건너뛰기 (파서가 isCovered 마킹한 경우)
+            const activeCells = cells.filter(c => !c.isCovered);
+
+            activeCells.forEach((cell, cellIdx) => {
+                const actualCellIdx = cells.indexOf(cell);
+                const cellText = this.extractTextFromCell(cell).trim();
+                const isHeader = this.detectHeaderCell(cellText, rowIdx, actualCellIdx, cell.elements?.[0]?.runs?.[0]?.style);
+
+                // 헤더 셀 자체는 쌍으로 추가하지 않음
+                if (isHeader) return;
+
+                // 3. 이 셀의 헤더 찾기 (여러 전략)
+                let headerText = null;
+                let headerCellIdx = null;
+
+                // 전략 A: 같은 행의 왼쪽에서 헤더 셀 찾기
+                for (let i = actualCellIdx - 1; i >= 0; i--) {
+                    const leftCell = cells[i];
+                    if (leftCell.isCovered) continue;
+                    const leftText = this.extractTextFromCell(leftCell).trim();
+                    if (leftText && leftText.length <= 20 &&
+                        this.detectHeaderCell(leftText, rowIdx, i, leftCell.elements?.[0]?.runs?.[0]?.style)) {
+                        headerText = leftText;
+                        headerCellIdx = i;
+                        break;
                     }
-                    
-                    // 왼쪽에 헤더가 없으면 위쪽 행에서 찾기
-                    if (!headerText && rowIdx > 0) {
-                        const aboveRow = table.rows[rowIdx - 1];
-                        if (aboveRow.cells && aboveRow.cells[cellIdx]) {
-                            const aboveText = this.extractTextFromCell(aboveRow.cells[cellIdx]);
-                            if (aboveText && aboveText.trim().length > 0) {
-                                headerText = aboveText.trim();
-                                headerCellIdx = cellIdx;
+                }
+
+                // 전략 B: 헤더 행이 있으면 같은 열의 헤더 행에서 찾기
+                if (!headerText && isHeaderRow && headerRowTexts[actualCellIdx]) {
+                    headerText = headerRowTexts[actualCellIdx];
+                    headerCellIdx = actualCellIdx;
+                }
+
+                // 전략 C: 위쪽 행에서 찾기 (rowSpan 고려)
+                if (!headerText) {
+                    for (let r = rowIdx - 1; r >= 0; r--) {
+                        const aboveRow = rows[r];
+                        if (!aboveRow?.cells) continue;
+                        // 같은 열 위치의 셀 찾기
+                        const aboveCell = aboveRow.cells[actualCellIdx];
+                        if (aboveCell && !aboveCell.isCovered) {
+                            const aboveText = this.extractTextFromCell(aboveCell).trim();
+                            // rowSpan으로 현재 행까지 덮는 셀도 헤더가 될 수 있음
+                            const span = aboveCell.rowSpan || 1;
+                            if (aboveText && aboveText.length <= 20 && (r + span > rowIdx || r === rowIdx - 1)) {
+                                headerText = aboveText;
+                                headerCellIdx = actualCellIdx;
+                                break;
                             }
                         }
                     }
-                    
-                    // 헤더를 찾았으면 쌍 추가
-                    if (headerText) {
-                        const pairId = generateSlotId();
-                        
-                        pairs.push({
-                            pairId: pairId,
-                            header: headerText,
-                            content: '',
-                            path: {
-                                section: sectionIdx,
-                                table: tableIdx,
-                                row: rowIdx,
-                                headerCell: headerCellIdx !== null ? headerCellIdx : cellIdx - 1,
-                                contentCell: cellIdx
-                            },
-                            isEmpty: true
-                        });
-                        
-                        logger.debug(`  ✓ Empty cell found: "${headerText}" at Row ${rowIdx}, Cell ${cellIdx}`);
-                    }
                 }
+
+                // 전략 D: 헤더를 찾지 못하면 위치 기반 이름 사용
+                if (!headerText) {
+                    headerText = `항목_${rowIdx}_${actualCellIdx}`;
+                    headerCellIdx = actualCellIdx;
+                }
+
+                // 4. 중복 헤더 방지
+                const uniqueHeader = makeUniqueHeader(headerText, rowIdx, actualCellIdx);
+
+                const pairId = generateSlotId();
+                pairs.push({
+                    pairId,
+                    header: uniqueHeader,
+                    content: cellText,
+                    path: {
+                        section: sectionIdx,
+                        table: tableIdx,
+                        row: rowIdx,
+                        headerCell: headerCellIdx,
+                        contentCell: actualCellIdx,
+                    },
+                    isEmpty: !cellText,
+                });
+
+                logger.debug(`  ✓ Pair [${rowIdx},${actualCellIdx}]: "${uniqueHeader}" → "${(cellText || '(비어있음)').substring(0, 30)}..."`);
             });
-            
-            // 🔥 기존 로직도 유지: 2열 구조 감지 (비어있지 않은 내용도 포함)
-            if (cells.length >= 2) {
-                const headerCell = cells[0];
-                const contentCell = cells[1];
-                
-                const headerText = this.extractTextFromCell(headerCell);
-                const contentText = this.extractTextFromCell(contentCell);
-                
-                // 헤더가 있고, 내용이 비어있지 않으면 (기존 내용도 GPT가 개선할 수 있도록)
-                if (headerText && headerText.length <= 15 && contentText && contentText.trim().length > 0) {
-                    // 이미 추가된 쌍이 아니면 추가
-                    const alreadyAdded = pairs.some(p => 
-                        p.path.row === rowIdx && 
-                        p.path.contentCell === 1 &&
-                        p.header === headerText.trim()
-                    );
-                    
-                    if (!alreadyAdded) {
-                        const pairId = generateSlotId();
-                        
-                        pairs.push({
-                            pairId: pairId,
-                            header: headerText.trim(),
-                            content: contentText.trim(),
-                            path: {
-                                section: sectionIdx,
-                                table: tableIdx,
-                                row: rowIdx,
-                                headerCell: 0,
-                                contentCell: 1
-                            },
-                            isEmpty: false
-                        });
-                        
-                        logger.debug(`  ✓ Pair: "${headerText}" → "${contentText.substring(0, 30)}..."`);
-                    }
-                }
-            }
         });
-        
+
         return pairs;
     }
     
@@ -721,17 +726,27 @@ export class DocumentStructureExtractor {
      */
     extractTextFromCell(cell) {
         let text = '';
-        
-        cell.elements?.forEach(element => {
-            if (element.type === 'paragraph') {
-                element.runs?.forEach(run => {
-                    if (run.text) {
-                        text += run.text;
-                    }
-                });
-            }
-        });
-        
+
+        const extractFromElements = (elements) => {
+            (elements || []).forEach(element => {
+                if (element.type === 'paragraph') {
+                    const paraText = (element.runs || [])
+                        .filter(r => r.text)
+                        .map(r => r.text)
+                        .join('');
+                    if (paraText) text += paraText + '\n';
+                } else if (element.type === 'table' && element.rows) {
+                    // 중첩 테이블 내 텍스트도 추출
+                    element.rows.forEach(row => {
+                        (row.cells || []).forEach(nestedCell => {
+                            extractFromElements(nestedCell.elements);
+                        });
+                    });
+                }
+            });
+        };
+
+        extractFromElements(cell.elements);
         return text.trim();
     }
     

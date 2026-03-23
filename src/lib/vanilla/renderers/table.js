@@ -107,10 +107,8 @@ export function renderTable(table, images) {
                     }
                 });
                 if (maxHeight > 0) {
-                    tr.style.height = maxHeight + 'px';
-                    tr.style.maxHeight = maxHeight + 'px';
                     tr.style.minHeight = maxHeight + 'px';
-                    tr.style.overflow = 'hidden'; // ✅ v2.2.10: 행 높이 초과 콘텐츠 숨김
+                    // maxHeight/overflow:hidden 제거 — AI 생성 콘텐츠가 잘리지 않도록
                 }
             }
 
