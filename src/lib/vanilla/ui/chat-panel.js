@@ -1217,13 +1217,79 @@ export class ChatPanel {
      * @private
      */
     /**
+     * HWP/HWPX 파일에서 텍스트 추출
+     * @param {File} file - 파일
+     * @param {string} ext - 확장자 (.hwp 또는 .hwpx)
+     * @returns {Promise<string>} 추출된 텍스트
+     * @private
+     */
+    async _extractTextFromHwp(file, ext) {
+        let arrayBuf = await file.arrayBuffer();
+
+        // HWP → HWPX 변환
+        if (ext === '.hwp') {
+            try {
+                const { Hwp2Hwpx } = await import('@hwp2hwpx/core/Hwp2Hwpx');
+                const uint8 = new Uint8Array(arrayBuf);
+                const hwpxBinary = await Hwp2Hwpx.convert(uint8);
+                arrayBuf = hwpxBinary.buffer || hwpxBinary;
+                logger.info(`✅ HWP → HWPX 변환 완료: ${file.name}`);
+            } catch (convertErr) {
+                logger.error('❌ HWP conversion failed:', convertErr);
+                return `(HWP 변환 실패: ${convertErr.message})`;
+            }
+        }
+
+        // HWPX 파싱
+        let text = '';
+        try {
+            if (this.aiController.viewer && this.aiController.viewer.parser) {
+                const parsed = await this.aiController.viewer.parser.parse(arrayBuf);
+                if (parsed && parsed.sections) {
+                    text = this._extractTextFromSections(parsed.sections);
+                }
+            }
+        } catch (parseErr) {
+            logger.error('❌ HWPX parse failed:', parseErr);
+        }
+        return text.trim() || '(파일 내용을 추출하지 못했습니다)';
+    }
+
+    /**
+     * 파싱된 섹션에서 텍스트 추출
+     * @param {Array} sections - 파싱된 섹션 배열
+     * @returns {string} 추출된 텍스트
+     * @private
+     */
+    _extractTextFromSections(sections) {
+        let text = '';
+        (sections || []).forEach(s => {
+            (s.elements || []).forEach(el => {
+                if (el.type === 'paragraph' && el.runs) {
+                    text += el.runs.map(r => r.text || '').join('') + '\n';
+                } else if (el.type === 'table' && el.rows) {
+                    el.rows.forEach(row => {
+                        (row.cells || []).forEach(cell => {
+                            (cell.elements || []).forEach(ce => {
+                                if (ce.runs) text += ce.runs.map(r => r.text || '').join('') + '\t';
+                            });
+                        });
+                        text += '\n';
+                    });
+                }
+            });
+        });
+        return text;
+    }
+
+    /**
      * 레퍼런스 파일 처리
      * @param {FileList} files - 업로드된 파일들
      * @private
      */
     async _handleReferenceFiles(files) {
         const fileListEl = document.getElementById('ai-ref-files');
-        const supported = ['.txt', '.md', '.csv', '.json', '.html', '.xml', '.hwpx'];
+        const supported = ['.txt', '.md', '.csv', '.json', '.html', '.xml', '.hwpx', '.hwp'];
 
         for (const file of files) {
             const ext = '.' + file.name.split('.').pop().toLowerCase();
@@ -1236,33 +1302,8 @@ export class ChatPanel {
             try {
                 let text = '';
 
-                if (ext === '.hwpx') {
-                    // HWPX는 zip이므로 텍스트만 추출 시도
-                    const arrayBuf = await file.arrayBuffer();
-                    if (this.aiController.viewer && this.aiController.viewer.parser) {
-                        const parsed = await this.aiController.viewer.parser.parse(arrayBuf);
-                        if (parsed && parsed.sections) {
-                            parsed.sections.forEach(s => {
-                                (s.elements || []).forEach(el => {
-                                    if (el.type === 'paragraph' && el.runs) {
-                                        text += el.runs.map(r => r.text || '').join('') + '\n';
-                                    } else if (el.type === 'table' && el.rows) {
-                                        el.rows.forEach(row => {
-                                            (row.cells || []).forEach(cell => {
-                                                (cell.elements || []).forEach(ce => {
-                                                    if (ce.runs) text += ce.runs.map(r => r.text || '').join('') + '\t';
-                                                });
-                                            });
-                                            text += '\n';
-                                        });
-                                    }
-                                });
-                            });
-                        }
-                    }
-                    if (!text.trim()) {
-                        text = '(HWPX 파일 내용을 추출하지 못했습니다)';
-                    }
+                if (ext === '.hwp' || ext === '.hwpx') {
+                    text = await this._extractTextFromHwp(file, ext);
                 } else {
                     text = await file.text();
                 }

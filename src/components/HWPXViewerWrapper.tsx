@@ -891,8 +891,8 @@ export function HWPXViewerWrapper({
               <div className="ai-ref-dropzone" id="ai-ref-dropzone">
                 <span className="ai-ref-icon">📎</span>
                 <span className="ai-ref-text">레퍼런스 파일 드래그 또는 클릭</span>
-                <span className="ai-ref-hint">.txt .md .hwpx .csv .json</span>
-                <input type="file" id="ai-ref-file-input" accept=".txt,.md,.hwpx,.csv,.json,.html,.xml" multiple style={{ display: 'none' }} />
+                <span className="ai-ref-hint">.hwp .hwpx .txt .md .csv .json</span>
+                <input type="file" id="ai-ref-file-input" accept=".hwp,.hwpx,.txt,.md,.csv,.json,.html,.xml" multiple style={{ display: 'none' }} />
               </div>
               <div className="ai-ref-files" id="ai-ref-files" style={{ display: 'none' }}></div>
             </div>
