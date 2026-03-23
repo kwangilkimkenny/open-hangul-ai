@@ -636,7 +636,11 @@ export class AIDocumentController {
 
       for (let i = 0; i < currentDocument.sections.length; i++) {
         const section = currentDocument.sections[i];
-        const pairs = this.extractor.extractTableHeaders(section);
+        // 섹션을 문서 형태로 감싸서 extractTableHeaderContentPairs 호출
+        const wrappedDoc = { sections: [section] };
+        const pairs = this.extractor.extractTableHeaderContentPairs(wrappedDoc);
+        // path.section을 0으로 보정 (감싼 문서 기준)
+        pairs.forEach(p => { p.path.section = 0; });
         allPagesData.push(pairs);
         logger.debug(`    Page ${i + 1}: ${pairs.length} items extracted`);
       }
@@ -761,16 +765,16 @@ export class AIDocumentController {
         const section = updatedDocument.sections[pageIndex];
 
         // 구조화된 콘텐츠 병합
-        const updatedSection = this.mergeStructuredContent(
+        const mergeResult = this.mergeStructuredContent(
           { sections: [section] },
           result.content,
           pageData
         );
 
         // 업데이트된 섹션 적용
-        if (updatedSection.sections && updatedSection.sections[0]) {
-          updatedDocument.sections[pageIndex] = updatedSection.sections[0];
-          logger.debug(`    ✓ Page ${pageIndex + 1} merged`);
+        if (mergeResult.document?.sections?.[0]) {
+          updatedDocument.sections[pageIndex] = mergeResult.document.sections[0];
+          logger.debug(`    ✓ Page ${pageIndex + 1} merged (${mergeResult.updatedCount} items)`);
         }
       } else if (result.error) {
         logger.warn(`    ⚠️ Page ${pageIndex + 1} skipped (generation failed)`);
