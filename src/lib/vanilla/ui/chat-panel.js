@@ -287,7 +287,8 @@ export class ChatPanel {
         }
 
         // ── AI 어시스턴트 퀵 액션 버튼들 ──
-        const assistantActions = {
+        // 분석/생성 액션: 채팅에만 결과 표시 (문서 수정 안 함)
+        const chatOnlyActions = {
             'ai-ast-summary':       '이 문서의 핵심 내용을 3줄로 요약해줘. 결론과 핵심 키워드를 포함해줘.',
             'ai-ast-keywords':      '이 문서의 핵심 키워드와 태그를 10개 추출해줘. 카테고리별로 분류해줘.',
             'ai-ast-audience':      '이 문서의 난이도, 적합한 독자 수준, 전문성 정도를 분석해줘.',
@@ -297,16 +298,31 @@ export class ChatPanel {
             'ai-ast-review':        '이 문서의 검토자가 확인해야 할 체크리스트를 만들어줘. 완성도, 정확성, 누락 항목을 점검해줘.',
             'ai-ast-improve':       '이 문서의 개선이 필요한 부분과 구체적인 수정 방향을 제안해줘. 구조, 표현, 내용 측면에서 분석해줘.',
             'ai-ast-actions':       '이 문서에서 담당자별 액션 아이템(할 일)을 추출해줘. 우선순위와 기한도 제안해줘.',
+        };
+
+        // 문서 변환 액션: AI가 문서 본문을 직접 수정
+        const documentEditActions = {
             'ai-ast-simplify':      '이 문서를 초등학생도 이해할 수 있도록 쉽게 다시 써줘. 어려운 단어는 쉬운 말로 바꿔줘.',
             'ai-ast-formal':        '이 문서를 공식 문서(공문) 스타일로 격식체로 변환해줘. 발신/수신/제목/본문 형식을 갖춰줘.',
             'ai-ast-translate':     '이 문서를 영어로 번역해줘. 원문의 구조와 형식을 최대한 유지해줘.',
         };
 
-        Object.entries(assistantActions).forEach(([btnId, prompt]) => {
+        Object.entries(chatOnlyActions).forEach(([btnId, prompt]) => {
             const btn = document.getElementById(btnId);
             if (btn) {
                 btn.addEventListener('click', () => {
                     this._executeAssistantAction(prompt);
+                });
+            }
+        });
+
+        Object.entries(documentEditActions).forEach(([btnId, prompt]) => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    // 입력창에 프롬프트를 넣고 문서 편집 경로로 전송
+                    this.elements.input.value = prompt;
+                    this.handleSendMessage();
                 });
             }
         });
