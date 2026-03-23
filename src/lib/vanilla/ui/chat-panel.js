@@ -568,14 +568,74 @@ export class ChatPanel {
      * @returns {string} 메시지 ID
      * @private
      */
+    /**
+     * 간단한 마크다운 → HTML 변환
+     * @param {string} text - 마크다운 텍스트
+     * @returns {string} HTML 문자열
+     * @private
+     */
+    _renderMarkdown(text) {
+        // XSS 방지: HTML 엔티티 이스케이프
+        let html = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // 코드 블록 (```...```)
+        html = html.replace(/```(\w*)\n([\s\S]*?)```/g,
+            (_, lang, code) => `<pre><code>${code.trim()}</code></pre>`);
+
+        // 인라인 코드 (`...`)
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        // 헤더 (###, ##, #)
+        html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+        html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+        // 굵게 (**...**)
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+        // 이탤릭 (*...*)
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+        // 리스트 (- item)
+        html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, match => `<ul>${match}</ul>`);
+
+        // 번호 리스트 (1. item)
+        html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+        // 수평선 (---)
+        html = html.replace(/^---$/gm, '<hr>');
+
+        // 줄바꿈 (연속 줄바꿈은 단락, 단일은 <br>)
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = html.replace(/\n/g, '<br>');
+
+        // 단락 감싸기
+        if (!html.startsWith('<h') && !html.startsWith('<ul') && !html.startsWith('<pre')) {
+            html = `<p>${html}</p>`;
+        }
+
+        return html;
+    }
+
     addMessage(type, content) {
         const messageId = `msg-${++this.messageIdCounter}`;
-        
+
         const messageDiv = document.createElement('div');
         messageDiv.id = messageId;
         messageDiv.className = `ai-message ${type}`;
-        messageDiv.textContent = content;
-        
+
+        // assistant 메시지는 마크다운 렌더링, 나머지는 텍스트
+        if (type === 'assistant') {
+            messageDiv.innerHTML = this._renderMarkdown(content);
+            messageDiv.classList.add('markdown');
+        } else {
+            messageDiv.textContent = content;
+        }
+
         this.elements.messages.appendChild(messageDiv);
         
         // 애니메이션
