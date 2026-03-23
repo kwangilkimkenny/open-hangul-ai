@@ -320,12 +320,31 @@ export class ChatPanel {
             const btn = document.getElementById(btnId);
             if (btn) {
                 btn.addEventListener('click', () => {
-                    // 입력창에 프롬프트를 넣고 문서 편집 경로로 전송
                     this.elements.input.value = prompt;
                     this.handleSendMessage();
                 });
             }
         });
+
+        // ── 레퍼런스 파일 업로드 ──
+        this._referenceTexts = [];
+        const dropzone = document.getElementById('ai-ref-dropzone');
+        const fileInput = document.getElementById('ai-ref-file-input');
+
+        if (dropzone && fileInput) {
+            dropzone.addEventListener('click', () => fileInput.click());
+            dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+            dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                this._handleReferenceFiles(e.dataTransfer.files);
+            });
+            fileInput.addEventListener('change', (e) => {
+                this._handleReferenceFiles(e.target.files);
+                fileInput.value = '';
+            });
+        }
     }
     
     /**
@@ -1198,6 +1217,109 @@ export class ChatPanel {
      * @private
      */
     /**
+     * 레퍼런스 파일 처리
+     * @param {FileList} files - 업로드된 파일들
+     * @private
+     */
+    async _handleReferenceFiles(files) {
+        const fileListEl = document.getElementById('ai-ref-files');
+        const supported = ['.txt', '.md', '.csv', '.json', '.html', '.xml', '.hwpx'];
+
+        for (const file of files) {
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+
+            if (!supported.includes(ext)) {
+                this.addSystemMessage(`[알림] 지원하지 않는 파일 형식입니다: ${file.name}`);
+                continue;
+            }
+
+            try {
+                let text = '';
+
+                if (ext === '.hwpx') {
+                    // HWPX는 zip이므로 텍스트만 추출 시도
+                    const arrayBuf = await file.arrayBuffer();
+                    if (this.aiController.viewer && this.aiController.viewer.parser) {
+                        const parsed = await this.aiController.viewer.parser.parse(arrayBuf);
+                        if (parsed && parsed.sections) {
+                            parsed.sections.forEach(s => {
+                                (s.elements || []).forEach(el => {
+                                    if (el.type === 'paragraph' && el.runs) {
+                                        text += el.runs.map(r => r.text || '').join('') + '\n';
+                                    } else if (el.type === 'table' && el.rows) {
+                                        el.rows.forEach(row => {
+                                            (row.cells || []).forEach(cell => {
+                                                (cell.elements || []).forEach(ce => {
+                                                    if (ce.runs) text += ce.runs.map(r => r.text || '').join('') + '\t';
+                                                });
+                                            });
+                                            text += '\n';
+                                        });
+                                    }
+                                });
+                            });
+                        }
+                    }
+                    if (!text.trim()) {
+                        text = '(HWPX 파일 내용을 추출하지 못했습니다)';
+                    }
+                } else {
+                    text = await file.text();
+                }
+
+                // 너무 긴 텍스트는 잘라내기
+                const maxLen = 8000;
+                const truncated = text.length > maxLen;
+                const finalText = truncated ? text.substring(0, maxLen) + '\n...(이하 생략)' : text;
+
+                this._referenceTexts.push({
+                    name: file.name,
+                    size: file.size,
+                    text: finalText,
+                });
+
+                // UI에 파일 표시
+                if (fileListEl) {
+                    fileListEl.style.display = '';
+                    const item = document.createElement('div');
+                    item.className = 'ai-ref-file-item';
+                    const idx = this._referenceTexts.length - 1;
+                    const sizeStr = file.size < 1024 ? `${file.size}B` : `${(file.size / 1024).toFixed(1)}KB`;
+                    item.innerHTML = `<span class="ref-name">${file.name}</span><span class="ref-size">${sizeStr}${truncated ? ' (일부)' : ''}</span><button class="ref-remove" data-idx="${idx}">&times;</button>`;
+                    item.querySelector('.ref-remove').addEventListener('click', () => {
+                        this._referenceTexts[idx] = null;
+                        item.remove();
+                        if (!this._referenceTexts.some(r => r !== null)) {
+                            fileListEl.style.display = 'none';
+                        }
+                    });
+                    fileListEl.appendChild(item);
+                }
+
+                const sizeStr2 = file.size < 1024 ? `${file.size}B` : `${(file.size / 1024).toFixed(1)}KB`;
+                this.addSystemMessage(`[레퍼런스] "${file.name}" 로드 완료 (${sizeStr2}). AI 대화에서 참고 자료로 활용됩니다.`);
+
+            } catch (err) {
+                logger.error('❌ Reference file read failed:', err);
+                this.addSystemMessage(`[오류] 파일 읽기 실패: ${file.name} — ${err.message}`);
+            }
+        }
+    }
+
+    /**
+     * 레퍼런스 텍스트를 프롬프트에 포함할 문자열로 반환
+     * @returns {string} 레퍼런스 컨텍스트 문자열
+     * @private
+     */
+    _getReferenceContext() {
+        const refs = (this._referenceTexts || []).filter(r => r !== null);
+        if (refs.length === 0) return '';
+        return '\n\n[참고 자료]\n' + refs.map((r, i) =>
+            `--- ${r.name} ---\n${r.text}`
+        ).join('\n\n');
+    }
+
+    /**
      * 자유 대화 모드 (문서 없이 AI와 대화)
      * "문서로 만들어줘" 등의 키워드 감지 시 AI 응답을 문서로 변환
      * @param {string} message - 사용자 메시지
@@ -1214,7 +1336,10 @@ export class ChatPanel {
                 ];
             }
 
-            this._chatHistory.push({ role: 'user', content: message });
+            // 레퍼런스 자료가 있으면 메시지에 포함
+            const refContext = this._getReferenceContext();
+            const userContent = refContext ? message + refContext : message;
+            this._chatHistory.push({ role: 'user', content: userContent });
 
             // 히스토리가 너무 길면 최근 20개만 유지
             if (this._chatHistory.length > 21) {
@@ -1303,7 +1428,8 @@ export class ChatPanel {
 
         try {
             // AI 호출 (문서 컨텍스트 + 프롬프트)
-            const fullPrompt = `다음 문서를 기반으로 요청에 응답해줘.\n\n[문서 내용]\n${docText.substring(0, 4000)}\n\n[요청]\n${prompt}`;
+            const refContext = this._getReferenceContext();
+            const fullPrompt = `다음 문서를 기반으로 요청에 응답해줘.\n\n[문서 내용]\n${docText.substring(0, 4000)}${refContext}\n\n[요청]\n${prompt}`;
 
             if (this.aiController.generator) {
                 // GPT API 직접 호출 (문서 수정 없이 텍스트만 생성)

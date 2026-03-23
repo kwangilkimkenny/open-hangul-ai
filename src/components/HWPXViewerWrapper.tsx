@@ -886,16 +886,27 @@ export function HWPXViewerWrapper({
               </div>
             </div>
 
+            {/* 레퍼런스 파일 업로드 영역 */}
+            <div className="ai-ref-upload" id="ai-ref-upload">
+              <div className="ai-ref-dropzone" id="ai-ref-dropzone">
+                <span className="ai-ref-icon">📎</span>
+                <span className="ai-ref-text">레퍼런스 파일 드래그 또는 클릭</span>
+                <span className="ai-ref-hint">.txt .md .hwpx .csv .json</span>
+                <input type="file" id="ai-ref-file-input" accept=".txt,.md,.hwpx,.csv,.json,.html,.xml" multiple style={{ display: 'none' }} />
+              </div>
+              <div className="ai-ref-files" id="ai-ref-files" style={{ display: 'none' }}></div>
+            </div>
+
             <div className="ai-chat-input-container">
               <textarea
                 className="ai-chat-input"
                 id="ai-chat-input"
-                placeholder="예: 이 문서를 초등학생이 이해할 수 있게 쉽게 바꿔줘&#10;(Shift+Enter: 줄바꿈, Enter: 전송)"
+                placeholder="자유롭게 대화하거나, 문서 편집을 요청하세요&#10;(Shift+Enter: 줄바꿈, Enter: 전송)"
                 rows={3}
                 aria-label="AI에게 보낼 메시지 입력"
               />
               <button className="ai-chat-send" id="ai-chat-send">
-                AI로 변경하기
+                전송
               </button>
             </div>
 
