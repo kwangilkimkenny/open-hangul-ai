@@ -35,8 +35,8 @@ describe('SimpleHeader', () => {
   it('renders the header element', () => {
     render(<SimpleHeader />);
 
-    // The header contains the default title "HAN-View"
-    expect(screen.getByText('HAN-View')).toBeInTheDocument();
+    // The header contains the default title "오픈한글 AI"
+    expect(screen.getByText('오픈한글 AI')).toBeInTheDocument();
   });
 
   // 2. Shows file open button/label

@@ -1,5 +1,5 @@
 /**
- * HAN-View App - 통합 컴포넌트
+ * 오픈한글 AI App - 통합 컴포넌트
  * 헤더 + 뷰어 + AI 패널이 모두 포함된 완성된 앱
  *
  * 사용법:
@@ -108,7 +108,7 @@ export function HanViewApp({
   initialFile = null,
   enableAI = true,
   showHeader = true,
-  headerTitle = 'HAN-View',
+  headerTitle = '오픈한글 AI',
   headerSubtitle = 'HWPX Viewer & AI Editor',
   headerLogo,
   customHeader,
