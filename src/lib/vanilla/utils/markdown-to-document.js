@@ -27,7 +27,7 @@ export function markdownToDocument(markdown, options = {}) {
   while (i < lines.length) {
     const line = lines[i];
 
-    // 코드 블록 (```) — 각 줄을 별도 paragraph로 생성
+    // 코드 블록 (```) — 배경색이 있는 단일 셀 테이블로 렌더링
     if (line.trimStart().startsWith('```')) {
       const codeLines = [];
       i++;
@@ -36,14 +36,28 @@ export function markdownToDocument(markdown, options = {}) {
         i++;
       }
       i++; // skip closing ```
-      const codeStyle = { fontFamily: "'Courier New', monospace", fontSize: '9pt', backgroundColor: '#f5f5f5' };
-      codeLines.forEach(codeLine => {
-        elements.push({
-          type: 'paragraph',
-          runs: [{ text: codeLine || ' ', style: { ...codeStyle } }],
-          style: { lineHeight: '1.4', margin: '0 0 0 20px' },
-        });
-      });
+      const codeRunStyle = { fontFamily: "'Courier New', monospace", fontSize: '9pt', color: '#e6e6e6' };
+      const codeTable = {
+        type: 'table',
+        rows: [{
+          cells: [{
+            elements: codeLines.map(codeLine => ({
+              type: 'paragraph',
+              runs: [{ text: codeLine || ' ', style: { ...codeRunStyle } }],
+              style: { lineHeight: '1.4' },
+            })),
+            style: {
+              backgroundColor: '#1e1e1e',
+              padding: '12px 16px',
+              borderLeftDef: { css: '3px solid #007acc' },
+              borderRightDef: { css: '1px solid #333' },
+              borderTopDef: { css: '1px solid #333' },
+              borderBottomDef: { css: '1px solid #333' },
+            },
+          }],
+        }],
+      };
+      elements.push(codeTable);
       continue;
     }
 
