@@ -157,13 +157,23 @@ export class ChatPanel {
      * @private
      */
     attachEventListeners() {
+        // 이벤트 중복 바인딩 방지 (React re-render 또는 다중 인스턴스 대응)
+        const panel = this.elements.panel;
+        if (panel && panel.dataset.eventsAttached === 'true') {
+            logger.info('💬 Events already attached, skipping');
+            return;
+        }
+        if (panel) {
+            panel.dataset.eventsAttached = 'true';
+        }
+
         // 전송 버튼 클릭
         if (this.elements.sendButton) {
             this.elements.sendButton.addEventListener('click', () => {
                 this.handleSendMessage();
             });
         }
-        
+
         // Enter 키로 전송 (Shift+Enter는 줄바꿈)
         if (this.elements.input) {
             this.elements.input.addEventListener('keydown', (e) => {
