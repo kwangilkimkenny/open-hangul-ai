@@ -858,29 +858,8 @@ export function HWPXViewerWrapper({
               {/* Messages will be dynamically added here */}
             </div>
 
-            {/* Tab switcher: 도구 | 어시스턴트 */}
-            <div className="ai-panel-tabs" id="ai-panel-tabs">
-              <button className="ai-panel-tab active" id="ai-tab-tools" data-tab="tools">도구</button>
-              <button className="ai-panel-tab" id="ai-tab-assistant" data-tab="assistant">어시스턴트</button>
-            </div>
-
-            {/* 도구 탭 (기존 버튼들) */}
-            <div className="ai-structure-preview ai-tab-content" id="ai-tools-content" data-tab-content="tools">
-              <button className="preview-structure-btn" id="preview-structure-btn">문서 구조 보기</button>
-              <button className="preview-structure-btn" id="apply-style-btn" title="일관된 서식 자동 적용">스타일 적용</button>
-              <button className="ai-save-btn" id="extract-template-btn" title="헤더만 남기고 내용 제거">템플릿 추출</button>
-              <button className="ai-save-btn" id="fill-template-btn" title="레이아웃 유지 + AI로 전체 내용 채우기" style={{ background: '#10b981', color: 'white', fontWeight: 600 }}>템플릿 채우기</button>
-              <button className="preview-structure-btn" id="cell-select-mode-btn" title="셀 단위로 유지/수정/생성 모드 설정">셀 선택</button>
-              <button className="ai-save-btn" id="external-api-btn" title="외부 API에서 JSON 데이터를 가져와 문서에 채우기">외부 API</button>
-              <button className="ai-save-btn" id="ai-regenerate-btn" title="다른 주제/난이도로 재생성">다시 생성</button>
-              <button className="ai-save-btn" id="partial-edit-btn" title="선택한 항목만 수정">부분 수정</button>
-              <button className="ai-save-btn" id="validate-document-btn" title="빈 칸, 오류 검사">검증</button>
-              <button className="ai-save-btn" id="batch-generate-btn" title="여러 주제 한 번에 생성">일괄 생성</button>
-              <button className="ai-save-btn" id="ai-save-btn">HWPX 저장</button>
-            </div>
-
-            {/* 어시스턴트 탭 (NEW) */}
-            <div className="ai-assistant-content ai-tab-content" id="ai-assistant-content" data-tab-content="assistant" style={{ display: 'none' }}>
+            {/* 어시스턴트 패널 */}
+            <div className="ai-assistant-content" id="ai-assistant-content">
               <div className="ai-assistant-group">
                 <div className="ai-assistant-group-label">문서 분석</div>
                 <button className="ai-assistant-btn" id="ai-ast-summary" title="문서의 핵심 내용 3줄 요약">핵심 요약</button>

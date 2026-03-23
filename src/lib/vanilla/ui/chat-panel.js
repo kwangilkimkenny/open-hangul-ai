@@ -286,27 +286,6 @@ export class ChatPanel {
             });
         }
 
-        // ── AI 어시스턴트 탭 전환 ──
-        const tabTools = document.getElementById('ai-tab-tools');
-        const tabAssistant = document.getElementById('ai-tab-assistant');
-        const toolsContent = document.getElementById('ai-tools-content');
-        const assistantContent = document.getElementById('ai-assistant-content');
-
-        if (tabTools && tabAssistant && toolsContent && assistantContent) {
-            tabTools.addEventListener('click', () => {
-                tabTools.classList.add('active');
-                tabAssistant.classList.remove('active');
-                toolsContent.style.display = '';
-                assistantContent.style.display = 'none';
-            });
-            tabAssistant.addEventListener('click', () => {
-                tabAssistant.classList.add('active');
-                tabTools.classList.remove('active');
-                assistantContent.style.display = '';
-                toolsContent.style.display = 'none';
-            });
-        }
-
         // ── AI 어시스턴트 퀵 액션 버튼들 ──
         const assistantActions = {
             'ai-ast-summary':       '이 문서의 핵심 내용을 3줄로 요약해줘. 결론과 핵심 키워드를 포함해줘.',
