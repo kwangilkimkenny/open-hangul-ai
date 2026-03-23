@@ -411,8 +411,9 @@ export class ChatPanel {
         try {
             const { markdownToDocument } = await import('../utils/markdown-to-document.js');
             const doc = markdownToDocument(lastResponse);
-            this.aiController.viewer.updateDocument(doc);
-            this.addAssistantMessage('이전 AI 응답을 문서 본문에 반영했습니다.');
+            // createNewDocument를 사용하여 isNewDocument 플래그 설정 (저장 시 새 HWPX 생성)
+            await this.aiController.viewer.createNewDocument(doc);
+            this.addAssistantMessage('이전 AI 응답을 문서 본문에 반영했습니다. 파일 > 저장으로 HWPX 파일을 저장할 수 있습니다.');
             showToast('success', '문서 반영 완료', '본문이 업데이트되었습니다');
         } catch (err) {
             logger.error('❌ Apply to document failed:', err);
@@ -1462,8 +1463,8 @@ export class ChatPanel {
                 try {
                     const { markdownToDocument } = await import('../utils/markdown-to-document.js');
                     const doc = markdownToDocument(responseText);
-                    this.aiController.viewer.updateDocument(doc);
-                    this.addAssistantMessage('문서가 에디터에 생성되었습니다. 아래는 생성된 내용입니다:\n\n' + responseText);
+                    await this.aiController.viewer.createNewDocument(doc);
+                    this.addAssistantMessage('문서가 에디터에 생성되었습니다. 파일 > 저장으로 HWPX 파일을 저장할 수 있습니다.\n\n' + responseText);
                     showToast('success', '문서 생성 완료', '에디터에 문서가 로드되었습니다');
                 } catch (docError) {
                     logger.error('❌ Document creation failed:', docError);
