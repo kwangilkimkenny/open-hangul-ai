@@ -27,7 +27,7 @@ export function markdownToDocument(markdown, options = {}) {
   while (i < lines.length) {
     const line = lines[i];
 
-    // 코드 블록 (```)
+    // 코드 블록 (```) — 각 줄을 별도 paragraph로 생성
     if (line.trimStart().startsWith('```')) {
       const codeLines = [];
       i++;
@@ -36,10 +36,13 @@ export function markdownToDocument(markdown, options = {}) {
         i++;
       }
       i++; // skip closing ```
-      elements.push({
-        type: 'paragraph',
-        runs: [{ text: codeLines.join('\n'), style: { fontFamily: "'Courier New', monospace", fontSize: '9pt', backgroundColor: '#f5f5f5' } }],
-        style: { lineHeight: '1.5', margin: '4px 0 4px 12px' },
+      const codeStyle = { fontFamily: "'Courier New', monospace", fontSize: '9pt', backgroundColor: '#f5f5f5' };
+      codeLines.forEach(codeLine => {
+        elements.push({
+          type: 'paragraph',
+          runs: [{ text: codeLine || ' ', style: { ...codeStyle } }],
+          style: { lineHeight: '1.4', margin: '0 0 0 20px' },
+        });
       });
       continue;
     }
