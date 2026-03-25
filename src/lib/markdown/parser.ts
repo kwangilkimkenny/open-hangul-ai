@@ -310,49 +310,166 @@ export function parseMarkdown(markdown: string): DocumentData {
 }
 
 /**
+ * Run의 스타일 정보를 통합적으로 읽기 (inlineStyle / style 모두 지원)
+ * - inlineStyle: parseMarkdown으로 생성된 문서
+ * - style: HWPX 파서에서 생성된 문서 (HWPXTextStyle)
+ */
+function getRunStyle(run: any): { bold: boolean; italic: boolean; strikethrough: boolean; underline: boolean; fontSize: number; fontFamily: string } {
+  const s = run.inlineStyle || run.style || {};
+  return {
+    bold: !!(s.bold || s.fontWeight === 'bold'),
+    italic: !!(s.italic || s.fontStyle === 'italic'),
+    strikethrough: !!s.strikethrough,
+    underline: !!s.underline,
+    fontSize: s.fontSize ? parseFloat(String(s.fontSize)) : 0,
+    fontFamily: s.fontFamily || '',
+  };
+}
+
+/**
+ * 문단이 제목인지 감지 (HWPX 문서의 큰 bold 텍스트)
+ */
+function detectHeadingLevel(el: any): number {
+  const runs = el.runs || [];
+  if (runs.length === 0) return 0;
+
+  // 모든 run이 bold이고 텍스트가 있는 경우만 제목으로 판단
+  const textRuns = runs.filter((r: any) => (r.text || '').trim());
+  if (textRuns.length === 0) return 0;
+
+  const allBold = textRuns.every((r: any) => getRunStyle(r).bold);
+  if (!allBold) return 0;
+
+  // 가장 큰 폰트 크기로 레벨 결정
+  const maxPt = Math.max(...textRuns.map((r: any) => getRunStyle(r).fontSize || 0));
+  if (maxPt >= 24) return 1;
+  if (maxPt >= 20) return 2;
+  if (maxPt >= 16) return 3;
+  if (maxPt >= 14) return 4;
+  return 0;
+}
+
+/**
+ * Run 텍스트에 인라인 마크다운 스타일 적용
+ */
+function applyRunStyle(text: string, run: any): string {
+  if (!text) return '';
+  const s = getRunStyle(run);
+  if (s.bold && s.italic) return `***${text}***`;
+  if (s.bold) return `**${text}**`;
+  if (s.italic) return `*${text}*`;
+  if (s.strikethrough) return `~~${text}~~`;
+  if (s.fontFamily === 'monospace') return `\`${text}\``;
+  return text;
+}
+
+/**
+ * 테이블 셀의 텍스트를 추출 (linebreak 처리 포함)
+ */
+function extractCellText(cell: any): string {
+  return (cell.elements || [])
+    .map((ce: any) => {
+      if (ce.type !== 'paragraph' || !ce.runs) return '';
+      return ce.runs.map((r: any) => {
+        if (r.type === 'linebreak') return ' ';
+        return (r.text || '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      }).join('');
+    })
+    .join(' ')
+    .trim();
+}
+
+/**
  * 문서 데이터를 Markdown으로 내보내기
+ * HWPX 파서 출력(style)과 마크다운 파서 출력(inlineStyle) 모두 지원
  */
 export function exportToMarkdown(doc: DocumentData): string {
   const lines: string[] = [];
 
-  doc.sections.forEach(section => {
+  doc.sections.forEach((section, sectionIdx) => {
+    if (sectionIdx > 0) lines.push('', '---', '');
+
     section.elements.forEach(el => {
       if (el.type === 'paragraph' && el.runs) {
+        // linebreak-only or tab-only 처리
+        const hasText = el.runs.some((r: any) => (r.text || '').trim());
+        if (!hasText) {
+          lines.push('');
+          return;
+        }
+
+        // 제목 감지
+        const headingLevel = detectHeadingLevel(el);
+        if (headingLevel > 0) {
+          const text = el.runs.map((r: any) => r.text || '').join('').trim();
+          lines.push(`${'#'.repeat(headingLevel)} ${text}`);
+          return;
+        }
+
+        // 일반 문단
         let line = '';
-        el.runs.forEach(run => {
-          let text = run.text || '';
-          if (!text) return;
-          const s = run.inlineStyle || {};
-          if (s.bold && s.italic) text = `***${text}***`;
-          else if (s.bold && s.fontSize) {
-            const pt = parseFloat(s.fontSize);
-            if (pt >= 24) text = `# ${text}`;
-            else if (pt >= 20) text = `## ${text}`;
-            else if (pt >= 16) text = `### ${text}`;
-            else if (pt >= 14) text = `#### ${text}`;
-            else text = `**${text}**`;
+        el.runs.forEach((run: any) => {
+          if (run.type === 'linebreak') {
+            line += '  \n'; // MD 줄바꿈 (trailing 2 spaces)
+            return;
           }
-          else if (s.bold) text = `**${text}**`;
-          else if (s.italic) text = `*${text}*`;
-          else if (s.strikethrough) text = `~~${text}~~`;
-          else if (s.fontFamily === 'monospace') text = `\`${text}\``;
-          line += text;
+          if (run.type === 'tab') {
+            line += '\t';
+            return;
+          }
+          const text = run.text || '';
+          if (!text) return;
+          line += applyRunStyle(text, run);
         });
         lines.push(line);
+
       } else if (el.type === 'table' && el.rows) {
-        el.rows.forEach((row: any, rowIdx: number) => {
-          const cells = (row.cells || []).map((cell: any) => {
-            const text = (cell.elements || [])
-              .map((ce: any) => (ce.runs || []).map((r: any) => r.text || '').join(''))
-              .join('');
-            return text;
-          });
+        // 빈 줄 추가 (테이블 앞)
+        if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
+
+        const rows = el.rows || [];
+        if (rows.length === 0) return;
+
+        // 열 수 결정 (첫 행 기준)
+        const colCount = Math.max(...rows.map((row: any) => (row.cells || []).length));
+        if (colCount === 0) return;
+
+        rows.forEach((row: any, rowIdx: number) => {
+          const cells = (row.cells || []).map((cell: any) => extractCellText(cell));
+          // 열 수 맞추기
+          while (cells.length < colCount) cells.push('');
           lines.push(`| ${cells.join(' | ')} |`);
+          // 첫 행 다음에 구분선
           if (rowIdx === 0) {
             lines.push(`| ${cells.map(() => '---').join(' | ')} |`);
           }
         });
-        lines.push('');
+        lines.push(''); // 테이블 뒤 빈 줄
+
+      } else if (el.type === 'image') {
+        const img = el as any;
+        const alt = img.alt || '이미지';
+        const src = img.src || img.url || '';
+        lines.push(`![${alt}](${src})`);
+
+      } else if (el.type === 'shape') {
+        // shape 내부 텍스트 추출
+        const shape = el as any;
+        if (shape.paragraphs) {
+          shape.paragraphs.forEach((p: any) => {
+            if (p.runs) {
+              const text = p.runs.map((r: any) => r.text || '').join('');
+              if (text.trim()) lines.push(text);
+            }
+          });
+        } else if (shape.elements) {
+          shape.elements.forEach((child: any) => {
+            if (child.type === 'paragraph' && child.runs) {
+              const text = child.runs.map((r: any) => r.text || '').join('');
+              if (text.trim()) lines.push(text);
+            }
+          });
+        }
       }
     });
   });

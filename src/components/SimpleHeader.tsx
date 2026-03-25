@@ -110,6 +110,31 @@ export const SimpleHeader = memo(function SimpleHeader({
     }
   }, [viewer]);
 
+  const handleExportMd = useCallback(async () => {
+    if (!viewer) {
+      toast.error('뷰어가 초기화되지 않았습니다');
+      return;
+    }
+    try {
+      const doc = (viewer as any).getDocument?.();
+      if (!doc) { toast.error('내보낼 문서가 없습니다'); return; }
+      const { exportToMarkdown } = await import('../lib/markdown/parser');
+      const md = exportToMarkdown(doc);
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '문서.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Markdown 내보내기 완료');
+    } catch (err: any) {
+      toast.error(`Markdown 내보내기 실패: ${err?.message}`);
+    }
+  }, [viewer]);
+
   // 버튼 스타일 헬퍼
   const getButtonStyle = (variant?: 'primary' | 'secondary' | 'danger') => {
     const baseStyle = {
@@ -256,6 +281,34 @@ export const SimpleHeader = memo(function SimpleHeader({
             title="Ctrl+S"
           >
             💾 저장
+          </button>
+
+          <button
+            onClick={handleExportMd}
+            aria-label="Markdown으로 내보내기"
+            style={{
+              padding: '10px 20px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '8px',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+            }}
+            title="Markdown으로 저장"
+          >
+            📝 MD 저장
           </button>
 
           <button

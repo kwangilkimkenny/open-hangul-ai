@@ -1,0 +1,24 @@
+{
+  "name": "hwp-wasm",
+  "type": "module",
+  "collaborators": [
+    "HWP2HWPX Team"
+  ],
+  "description": "WebAssembly module for HWP file parsing and compression",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/hwp2hwpx"
+  },
+  "files": [
+    "hwp_wasm_bg.wasm",
+    "hwp_wasm.js",
+    "hwp_wasm.d.ts"
+  ],
+  "main": "hwp_wasm.js",
+  "types": "hwp_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

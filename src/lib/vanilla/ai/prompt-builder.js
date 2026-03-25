@@ -590,6 +590,198 @@ ${JSON.stringify(pageData, null, 2)}
     }
 
     /**
+     * AI 친화 문서 교정 프롬프트 빌드
+     * 정부 AI 친화 문서 표준에 따라 문서를 교정
+     * @param {Array<Object>} headerContentPairs - 헤더-내용 쌍 배열
+     * @param {string} userRequest - 사용자 요청
+     * @param {string} [documentType='보고서'] - 문서 유형
+     * @returns {Array} OpenAI Chat API 메시지 배열
+     */
+    buildRefinementPrompt(headerContentPairs, userRequest, documentType = '보고서') {
+        logger.info('📝 Building AI-friendly refinement prompt...');
+        logger.time('Refinement Prompt Build');
+
+        const contentMap = {};
+        headerContentPairs.forEach(pair => {
+            contentMap[pair.header] = pair.content || '(비어있음)';
+        });
+
+        const documentTypeGuide = {
+            '보고서': '공공기관 보고서에 적합한 공식적이고 객관적인 문체를 사용하세요.',
+            '공문': '공문서 형식에 맞는 격식체를 사용하고, 수신/발신/참조 체계를 준수하세요.',
+            '회의록': '회의 진행 순서에 따라 논의사항과 결정사항을 명확히 구분하세요.',
+            '설명자료': '독자가 배경지식 없이도 이해할 수 있도록 충분한 설명을 포함하세요.',
+            '정책문서': '정책 목표, 추진배경, 기대효과를 논리적으로 연결하세요.',
+        };
+
+        const typeGuide = documentTypeGuide[documentType] || documentTypeGuide['보고서'];
+
+        const systemMessage = {
+            role: 'system',
+            content: `당신은 AI 친화적 문서 교정 전문가입니다. 사람과 AI가 모두 이해할 수 있는 구조화된 문서로 교정합니다.
+
+**문서 유형**: ${documentType}
+**문체 지침**: ${typeGuide}
+
+**AI 친화 문서 교정 7대 원칙**:
+
+1. **완전한 문장 작성**: 모든 문장에 주어와 서술어를 반드시 포함합니다.
+   - ❌ "AI 친화 문서 필요"
+   - ✅ "정부는 AI와 사람이 모두 읽기 쉬운 문서 작성 체계를 구축할 필요가 있다."
+
+2. **개조식 → 서술형 변환**: 단순 나열이나 개조식 표현을 의미가 완결된 서술형 문장으로 변환합니다.
+   - ❌ "- 예산 확보\\n- 인력 배치\\n- 시스템 구축"
+   - ✅ "본 사업을 추진하기 위해 예산 확보, 인력 배치, 시스템 구축을 단계적으로 진행할 계획이다."
+
+3. **모호한 지시어 제거**: "이것", "그것", "해당", "상기", "전술한" 등을 구체적인 명사로 교체합니다.
+   - ❌ "이를 통해 해당 문제를 해결한다"
+   - ✅ "디지털 전환 전략을 통해 행정 처리 지연 문제를 해결한다"
+
+4. **불필요한 꾸밈 제거**: 과도한 수식어, 미사여구, 장식적 표현을 제거합니다.
+   - ❌ "혁신적이고 획기적인 미래지향적 패러다임 전환"
+   - ✅ "업무 방식의 디지털 전환"
+
+5. **한 문단 = 한 핵심 메시지**: 각 문단에는 하나의 핵심 메시지만 담습니다.
+
+6. **핵심 정보 보존**: 날짜, 부서명, 담당자, 수치, 정책명 등 사실 정보는 절대 변경하지 않습니다.
+
+7. **논리적 흐름 유지**: 문장 간 인과관계, 시간순서, 논리적 연결이 분명하도록 합니다.
+
+**응답 형식**: 반드시 JSON만 응답
+{
+  "항목1": "교정된 내용",
+  "항목2": "교정된 내용",
+  ...
+}
+
+**중요 규칙**:
+1. 반드시 JSON 형식으로만 응답 (다른 텍스트 금지)
+2. 입력에 있는 **모든 키**를 포함해야 함
+3. 키 이름은 절대 변경하지 마세요
+4. 사실 정보(날짜, 수치, 고유명사)는 변경하지 마세요
+5. "(비어있음)" 항목은 문서 맥락에 맞는 적절한 내용으로 채우세요
+6. 교정 후에도 원래 의미를 보존해야 합니다`
+        };
+
+        const userMessage = {
+            role: 'user',
+            content: `다음 문서를 AI 친화적 기준으로 교정해주세요.
+
+**현재 문서 구조** (JSON):
+${JSON.stringify(contentMap, null, 2)}
+
+**사용자 요청**:
+${userRequest || 'AI 친화적 문서 표준에 맞게 전체 교정해주세요.'}
+
+**교정 시 반드시 확인할 사항**:
+1. 모든 키(${Object.keys(contentMap).join(', ')})를 응답에 포함하세요
+2. 주어+서술어가 없는 문장을 완전한 문장으로 수정하세요
+3. 개조식 나열은 서술형으로 변환하세요
+4. 모호한 지시어(이것, 그것, 해당)를 구체 명사로 교체하세요
+5. 불필요한 수식어와 장식 표현을 제거하세요
+6. JSON 형식으로만 응답하세요`
+        };
+
+        const messages = [systemMessage, userMessage];
+        const estimatedTokens = this.estimateTokens(messages);
+        logger.info(`📊 Refinement prompt tokens: ${estimatedTokens}`);
+        logger.timeEnd('Refinement Prompt Build');
+
+        return messages;
+    }
+
+    /**
+     * AI 친화도 품질 검증 프롬프트 빌드
+     * 문서가 AI 처리에 적합한지 5가지 기준으로 평가
+     * @param {Array<Object>} headerContentPairs - 헤더-내용 쌍 배열
+     * @returns {Array} OpenAI Chat API 메시지 배열
+     */
+    buildReadinessCheckPrompt(headerContentPairs) {
+        logger.info('📝 Building AI readiness check prompt...');
+        logger.time('Readiness Check Prompt Build');
+
+        const contentMap = {};
+        headerContentPairs.forEach(pair => {
+            contentMap[pair.header] = pair.content || '(비어있음)';
+        });
+
+        const systemMessage = {
+            role: 'system',
+            content: `당신은 문서의 AI 친화도를 평가하는 전문가입니다. 문서가 AI 처리(자동 요약, 검색, 질의응답, RAG, 분류)에 적합한지 5가지 기준으로 평가합니다.
+
+**평가 기준**:
+
+1. **문장 독립성** (sentence_independence)
+   - 각 문장이 다른 문장 없이도 독립적으로 이해 가능한가?
+   - 모호한 지시어("이것", "그것", "해당") 없이 구체적인가?
+   - 주어와 서술어가 분명한가?
+
+2. **구조 추출 가능성** (structure_extractability)
+   - AI가 제목, 항목, 본문을 구조적으로 구분할 수 있는가?
+   - 정보가 명확한 카테고리로 분리되어 있는가?
+   - 표의 열/행 구조가 명확한가?
+
+3. **논리적 연결성** (logical_coherence)
+   - 문장 간 인과관계, 시간순서가 분명한가?
+   - 문단의 흐름이 자연스러운가?
+   - 결론이나 요약이 본문과 일치하는가?
+
+4. **표현 명확성** (expression_clarity)
+   - 불필요한 수식어, 미사여구가 없는가?
+   - 전문 용어가 설명 없이 사용되지 않았는가?
+   - 숫자, 날짜, 고유명사가 정확한가?
+
+5. **표 구조 적합성** (table_structure)
+   - 병합된 셀이 없는가?
+   - 한 셀에 하나의 의미만 있는가?
+   - 열 제목과 행 제목이 명확한가?
+   - (표가 없으면 이 항목은 "해당없음"으로 처리)
+
+**응답 형식 (반드시 JSON)**:
+{
+  "score": 0-100,
+  "grade": "A|B|C|D|F",
+  "criteria": [
+    {
+      "name": "sentence_independence",
+      "label": "문장 독립성",
+      "score": 0-100,
+      "pass": true/false,
+      "issues": ["구체적 문제점 1", "구체적 문제점 2"]
+    },
+    ...5개 기준 모두 포함
+  ],
+  "suggestions": [
+    "가장 시급한 개선 제안 1",
+    "개선 제안 2",
+    "개선 제안 3"
+  ],
+  "summary": "전체 평가 요약 (2-3문장)"
+}`
+        };
+
+        const userMessage = {
+            role: 'user',
+            content: `다음 문서의 AI 친화도를 평가해주세요.
+
+**문서 내용**:
+${JSON.stringify(contentMap, null, 2)}
+
+**평가 요청**:
+위 문서를 5가지 기준(문장 독립성, 구조 추출 가능성, 논리적 연결성, 표현 명확성, 표 구조 적합성)으로 평가하고, 점수와 구체적인 개선 제안을 JSON 형식으로 응답해주세요.
+
+반드시 JSON 형식으로만 응답하세요.`
+        };
+
+        const messages = [systemMessage, userMessage];
+        const estimatedTokens = this.estimateTokens(messages);
+        logger.info(`📊 Readiness check prompt tokens: ${estimatedTokens}`);
+        logger.timeEnd('Readiness Check Prompt Build');
+
+        return messages;
+    }
+
+    /**
      * 단일 페이지용 컨텍스트 포함 프롬프트 빌드
      * @param {Object} pageData - 페이지 데이터
      * @param {Object} pageAnalysis - 페이지 분석 결과

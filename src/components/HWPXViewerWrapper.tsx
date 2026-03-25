@@ -884,6 +884,12 @@ export function HWPXViewerWrapper({
                 <button className="ai-assistant-btn" id="ai-ast-formal" title="격식체 공문서 스타일로 변환">공식 문서화</button>
                 <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">영문 번역</button>
               </div>
+              <div className="ai-assistant-group">
+                <div className="ai-assistant-group-label">AI 문서 품질</div>
+                <button className="ai-assistant-btn" id="ai-ast-refine" title="정부 AI 친화 문서 표준에 따라 문장 교정 (주어+서술어 보완, 개조식→서술형, 모호표현 제거)">AI 친화 교정</button>
+                <button className="ai-assistant-btn" id="ai-ast-readiness" title="문서의 AI 처리 적합도를 5가지 기준으로 평가 (0-100점)">AI 품질 검증</button>
+                <button className="ai-assistant-btn" id="ai-ast-local-check" title="GPT 호출 없이 로컬 규칙으로 빠른 문서 품질 체크">빠른 검사</button>
+              </div>
             </div>
 
             {/* 레퍼런스 파일 업로드 영역 */}

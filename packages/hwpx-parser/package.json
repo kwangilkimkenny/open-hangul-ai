@@ -1,0 +1,56 @@
+{
+  "name": "@hanview/hwpx-parser",
+  "version": "3.0.0",
+  "description": "HWP/HWPX document parser and serializer - Parse HWPX files to JSON and serialize back to HWPX",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "types": "types/hwpx.d.ts",
+  "files": [
+    "src/",
+    "types/",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./types/hwpx.d.ts"
+    },
+    "./parser": "./src/core/parser.js",
+    "./constants": "./src/core/constants.js",
+    "./exporter": "./src/export/hwpx-exporter.js",
+    "./safe-exporter": "./src/export/hwpx-safe-exporter.js",
+    "./json-to-xml": "./src/export/json-to-xml.js",
+    "./worker": "./src/worker/parser.worker.js",
+    "./types": "./types/hwpx.d.ts"
+  },
+  "scripts": {
+    "test": "vitest run --config ../../vitest.config.ts tests/",
+    "test:watch": "vitest --config ../../vitest.config.ts tests/",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0"
+  },
+  "keywords": [
+    "hwp",
+    "hwpx",
+    "parser",
+    "hancom",
+    "hangul",
+    "document",
+    "owpml",
+    "korean-word-processor"
+  ],
+  "author": "HanView Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "directory": "packages/hwpx-parser"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

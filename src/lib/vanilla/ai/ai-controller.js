@@ -16,7 +16,9 @@ import { HwpxSafeExporter } from '../export/hwpx-safe-exporter.js';
 import { MultiPageAnalyzer } from './multi-page-analyzer.js';
 import { SequentialPageGenerator } from './sequential-page-generator.js';
 import { PromptBuilder } from './prompt-builder.js';
+import { DocumentTypeDetector } from './document-type-detector.js';
 import { ExternalDataFetcher } from '../api/external-data-fetcher.js';
+import { pipelineLogger } from './pipeline-logger.js';
 
 const logger = getLogger();
 
@@ -124,9 +126,12 @@ export class AIDocumentController {
   async handleUserRequest(userMessage) {
     logger.info('🤖 Handling user request...');
     logger.time('AI Request Processing');
+    pipelineLogger.startSession('edit', userMessage);
 
     // 동시 요청 방지
     if (this.state.isProcessing) {
+      pipelineLogger.log('session', 'error', 'Concurrent request blocked');
+      pipelineLogger.endSession('error', { reason: 'concurrent_request' });
       throw new HWPXError(
         ErrorType.VALIDATION_ERROR,
         '이미 요청을 처리 중입니다. 완료 후 다시 시도하세요.'
@@ -135,6 +140,8 @@ export class AIDocumentController {
 
     // API 키 확인
     if (!this.hasApiKey()) {
+      pipelineLogger.log('session', 'error', 'No API key');
+      pipelineLogger.endSession('error', { reason: 'no_api_key' });
       throw new HWPXError(ErrorType.VALIDATION_ERROR, AIConfig.prompts.errorMessages.noApiKey);
     }
 
@@ -145,22 +152,34 @@ export class AIDocumentController {
 
     try {
       // 1. 현재 문서 가져오기 (DOM 동기화 포함)
+      pipelineLogger.log('extract', 'start', 'Syncing document from DOM');
       if (this.viewer._syncDocumentFromDOM) {
         this.viewer._syncDocumentFromDOM();
       }
       const currentDocument = this.viewer.getDocument();
       if (!currentDocument) {
+        pipelineLogger.log('extract', 'error', 'No document loaded');
         throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다. 문서를 열거나 새 문서를 생성해주세요.');
       }
 
       this.state.originalDocument = currentDocument;
+      const sectionCount = currentDocument.sections?.length || 0;
+      pipelineLogger.log('extract', 'info', `Document loaded: ${sectionCount} sections`);
 
       // 2. 구조 추출 (구조화된 방식)
       logger.info('  📊 Step 1/4: Extracting table structure...');
+      pipelineLogger.timeStart('structure_extraction');
 
       // 🔥 새로운 방식: 헤더-내용 쌍 추출
       const headerContentPairs = this.extractor.extractTableHeaderContentPairs(currentDocument);
       this.state.headerContentPairs = headerContentPairs;
+
+      const extractDuration = pipelineLogger.timeEnd('structure_extraction', 'extract');
+      pipelineLogger.log('extract', 'success', `Extracted ${headerContentPairs.length} header-content pairs`, {
+        pairCount: headerContentPairs.length,
+        headers: headerContentPairs.map(p => p.header),
+        duration: extractDuration,
+      });
 
       logger.info(`    ✓ Extracted ${headerContentPairs.length} header-content pairs`);
 
@@ -179,6 +198,7 @@ export class AIDocumentController {
         const partialRequest = window.partialEditor.parsePartialRequest(userMessage);
         if (partialRequest) {
           isPartialEdit = true;
+          pipelineLogger.log('extract', 'info', `Partial edit: ${partialRequest.targetItems.join(', ')}`);
           logger.info(`  ✏️ Partial edit detected: ${partialRequest.targetItems.join(', ')}`);
           pairsToGenerate = window.partialEditor.filterPairs(
             headerContentPairs,
@@ -192,15 +212,30 @@ export class AIDocumentController {
 
       // 3. GPT 콘텐츠 생성 (구조화된 방식)
       logger.info('  🤖 Step 2/4: Generating content with GPT (structured)...');
+      pipelineLogger.log('generate', 'start', `Generating for ${pairsToGenerate.length} pairs`);
+      pipelineLogger.timeStart('gpt_generation');
+
       const { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
         pairsToGenerate,
         userMessage
       );
 
-      logger.info(`    ✓ Generated content for ${Object.keys(generatedJSON).length} items`);
+      const genDuration = pipelineLogger.timeEnd('gpt_generation', 'generate');
+      const generatedKeys = Object.keys(generatedJSON);
+      pipelineLogger.log('generate', 'success', `Generated ${generatedKeys.length} items`, {
+        keys: generatedKeys,
+        tokensUsed,
+        duration: genDuration,
+        isPartialEdit,
+      });
+
+      logger.info(`    ✓ Generated content for ${generatedKeys.length} items`);
 
       // 4. 콘텐츠 병합 (구조화된 방식)
       logger.info('  🔀 Step 3/4: Merging generated content...');
+      pipelineLogger.log('merge', 'start', `Merging ${generatedKeys.length} items`);
+      pipelineLogger.timeStart('content_merge');
+
       const mergeResult = this.mergeStructuredContent(
         currentDocument,
         generatedJSON,
@@ -209,13 +244,26 @@ export class AIDocumentController {
       const updatedDocument = mergeResult.document;
       const actualUpdatedCount = mergeResult.updatedCount;
 
+      const mergeDuration = pipelineLogger.timeEnd('content_merge', 'merge');
+      pipelineLogger.log('merge', 'success', `Merged ${actualUpdatedCount}/${headerContentPairs.length}`, {
+        updatedCount: actualUpdatedCount,
+        totalPairs: headerContentPairs.length,
+        generatedCount: generatedKeys.length,
+        duration: mergeDuration,
+        unmatchedKeys: generatedKeys.filter(k => !headerContentPairs.some(p => p.header === k)),
+      });
+
       this.state.updatedDocument = updatedDocument;
 
       // 5. 재렌더링 (선택적)
       if (this.options.autoRender) {
         logger.info('  🎨 Step 4/4: Re-rendering document...');
+        pipelineLogger.log('render', 'start', 'Re-rendering document');
+        pipelineLogger.timeStart('render');
         // 🔥 중요: updateDocument()를 사용하여 상태와 렌더링을 원자적으로 수행
         await this.viewer.updateDocument(updatedDocument);
+        pipelineLogger.timeEnd('render', 'render');
+        pipelineLogger.log('render', 'success', 'Document re-rendered');
       }
 
       // 6. 이력 저장 (선택적)
@@ -239,7 +287,7 @@ export class AIDocumentController {
         metadata: {
           request: userMessage,
           itemsUpdated: actualUpdatedCount,
-          itemsGenerated: Object.keys(generatedJSON).length,
+          itemsGenerated: generatedKeys.length,
           tokensUsed: tokensUsed,
           processingTime: Date.now() - (this.state.processingStartTime || Date.now()),
         },
@@ -248,11 +296,20 @@ export class AIDocumentController {
       logger.timeEnd('AI Request Processing');
       logger.info('✅ Request processed successfully');
 
+      pipelineLogger.endSession('success', {
+        itemsUpdated: actualUpdatedCount,
+        itemsGenerated: generatedKeys.length,
+        tokensUsed,
+        isPartialEdit,
+      });
+
       return result;
     } catch (error) {
       this.state.error = error;
       logger.error('❌ Request processing failed:', error);
       logger.timeEnd('AI Request Processing');
+      pipelineLogger.log('session', 'error', error.message, { stack: error.stack?.substring(0, 300) });
+      pipelineLogger.endSession('error', { error: error.message });
       throw error;
     } finally {
       this.state.isProcessing = false;
@@ -423,12 +480,14 @@ export class AIDocumentController {
    * @returns {Promise<Object>} 생성된 JSON 객체와 메타데이터 { content: Object, tokensUsed: number }
    * @private
    */
-  async generateStructuredContent(headerContentPairs, userRequest) {
+  async generateStructuredContent(headerContentPairs, userRequest, promptBuilderFn = null) {
     // 프롬프트 빌더 생성
     const promptBuilder = new PromptBuilder();
 
-    // 구조화된 프롬프트 빌드
-    const messages = promptBuilder.buildStructuredPrompt(headerContentPairs, userRequest);
+    // 구조화된 프롬프트 빌드 (커스텀 빌더 함수 지원)
+    const messages = promptBuilderFn
+      ? promptBuilderFn(promptBuilder, headerContentPairs, userRequest)
+      : promptBuilder.buildStructuredPrompt(headerContentPairs, userRequest);
 
     // GPT API 호출 (재시도 포함)
     const response = await this.generator.callAPIWithRetry(messages);
@@ -1583,6 +1642,221 @@ export class AIDocumentController {
     });
 
     return { templateDocument, headerContentMap, clearedCount };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // AI 친화 문서 기능 (Phase 1)
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * AI 친화 문서 교정 요청 처리
+   * 정부 AI 친화 문서 표준에 따라 문서를 교정
+   *
+   * @param {string} userMessage - 사용자 추가 요청 (선택)
+   * @param {Object} [options={}] - 옵션
+   * @param {string} [options.documentType] - 문서 유형 (자동감지 또는 수동 지정)
+   * @returns {Promise<Object>} 교정 결과
+   */
+  async handleRefinementRequest(userMessage = '', options = {}) {
+    logger.info('🔧 Handling AI-friendly refinement request...');
+    pipelineLogger.startSession('refinement', userMessage || 'AI 친화 교정');
+
+    if (this.state.isProcessing) {
+      pipelineLogger.endSession('error', { reason: 'concurrent_request' });
+      throw new HWPXError(ErrorType.VALIDATION_ERROR, '이미 요청을 처리 중입니다.');
+    }
+
+    if (!this.hasApiKey()) {
+      pipelineLogger.endSession('error', { reason: 'no_api_key' });
+      throw new HWPXError(ErrorType.VALIDATION_ERROR, AIConfig.prompts.errorMessages.noApiKey);
+    }
+
+    this.state.isProcessing = true;
+    this.state.currentRequest = userMessage;
+    this.state.error = null;
+
+    try {
+      // 1. 문서 동기화 및 가져오기
+      if (this.viewer._syncDocumentFromDOM) this.viewer._syncDocumentFromDOM();
+      const currentDocument = this.viewer.getDocument();
+      if (!currentDocument) {
+        throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다.');
+      }
+      this.state.originalDocument = currentDocument;
+
+      // 2. 헤더-내용 쌍 추출
+      pipelineLogger.timeStart('structure_extraction');
+      const headerContentPairs = this.extractor.extractTableHeaderContentPairs(currentDocument);
+      pipelineLogger.timeEnd('structure_extraction', 'extract');
+      pipelineLogger.log('extract', 'success', `Extracted ${headerContentPairs.length} pairs`);
+
+      if (headerContentPairs.length === 0) {
+        throw new HWPXError(ErrorType.VALIDATION_ERROR, '교정할 내용이 없습니다.');
+      }
+
+      // 3. 문서 유형 감지 (자동 또는 수동)
+      let documentType = options.documentType;
+      if (!documentType) {
+        const detector = new DocumentTypeDetector();
+        const detection = detector.detect(headerContentPairs);
+        documentType = detection.type;
+        pipelineLogger.log('extract', 'info', `Auto-detected type: ${documentType} (${detection.confidence})`);
+      }
+
+      // 4. 교정 프롬프트로 GPT 생성
+      pipelineLogger.timeStart('gpt_generation');
+      const { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
+        headerContentPairs,
+        userMessage || 'AI 친화적 문서 표준에 맞게 전체 교정해주세요.',
+        (builder, pairs, request) => builder.buildRefinementPrompt(pairs, request, documentType)
+      );
+      pipelineLogger.timeEnd('gpt_generation', 'generate');
+
+      // 5. 병합
+      pipelineLogger.timeStart('content_merge');
+      const mergeResult = this.mergeStructuredContent(currentDocument, generatedJSON, headerContentPairs);
+      pipelineLogger.timeEnd('content_merge', 'merge');
+
+      this.state.updatedDocument = mergeResult.document;
+
+      // 6. 렌더링
+      if (this.options.autoRender) {
+        await this.viewer.updateDocument(mergeResult.document);
+      }
+
+      // 7. 이력 저장
+      if (this.options.saveHistory) {
+        this.saveToHistory({
+          request: `[교정] ${userMessage}`,
+          original: currentDocument,
+          updated: mergeResult.document,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            itemsUpdated: mergeResult.updatedCount,
+            tokensUsed,
+            documentType,
+          },
+        });
+      }
+
+      const result = {
+        success: true,
+        updatedDocument: mergeResult.document,
+        metadata: {
+          mode: 'refinement',
+          documentType,
+          itemsUpdated: mergeResult.updatedCount,
+          tokensUsed,
+        },
+      };
+
+      pipelineLogger.endSession('success', result.metadata);
+      logger.info(`✅ Refinement complete: ${mergeResult.updatedCount} items updated (type: ${documentType})`);
+      return result;
+    } catch (error) {
+      this.state.error = error;
+      logger.error('❌ Refinement failed:', error);
+      pipelineLogger.endSession('error', { error: error.message });
+      throw error;
+    } finally {
+      this.state.isProcessing = false;
+      this.state.currentRequest = null;
+    }
+  }
+
+  /**
+   * AI 친화도 품질 검증 요청 처리
+   * 문서가 AI 처리에 적합한지 5가지 기준으로 평가
+   *
+   * @returns {Promise<Object>} 검증 결과 { score, grade, criteria, suggestions, summary }
+   */
+  async handleReadinessCheck() {
+    logger.info('🔍 Handling AI readiness check...');
+    pipelineLogger.startSession('readiness_check', 'AI 친화도 검증');
+
+    if (this.state.isProcessing) {
+      pipelineLogger.endSession('error', { reason: 'concurrent_request' });
+      throw new HWPXError(ErrorType.VALIDATION_ERROR, '이미 요청을 처리 중입니다.');
+    }
+
+    if (!this.hasApiKey()) {
+      pipelineLogger.endSession('error', { reason: 'no_api_key' });
+      throw new HWPXError(ErrorType.VALIDATION_ERROR, AIConfig.prompts.errorMessages.noApiKey);
+    }
+
+    this.state.isProcessing = true;
+    this.state.error = null;
+
+    try {
+      // 1. 문서 가져오기
+      if (this.viewer._syncDocumentFromDOM) this.viewer._syncDocumentFromDOM();
+      const currentDocument = this.viewer.getDocument();
+      if (!currentDocument) {
+        throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 로드되지 않았습니다.');
+      }
+
+      // 2. 구조 추출
+      pipelineLogger.timeStart('structure_extraction');
+      const headerContentPairs = this.extractor.extractTableHeaderContentPairs(currentDocument);
+      pipelineLogger.timeEnd('structure_extraction', 'extract');
+
+      if (headerContentPairs.length === 0) {
+        throw new HWPXError(ErrorType.VALIDATION_ERROR, '검증할 내용이 없습니다.');
+      }
+
+      // 3. 검증 프롬프트로 GPT 호출
+      pipelineLogger.timeStart('gpt_generation');
+      const promptBuilder = new PromptBuilder();
+      const messages = promptBuilder.buildReadinessCheckPrompt(headerContentPairs);
+      const response = await this.generator.callAPIWithRetry(messages);
+      pipelineLogger.timeEnd('gpt_generation', 'generate');
+
+      // 4. 응답 파싱
+      let jsonText = '';
+      if (response.choices && response.choices[0]?.message) {
+        jsonText = response.choices[0].message.content.trim();
+      } else if (response.content) {
+        jsonText = response.content.trim();
+      } else {
+        throw new Error('응답에서 content를 찾을 수 없습니다');
+      }
+
+      const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/) || jsonText.match(/{[\s\S]*}/);
+      const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : jsonText;
+      const assessment = JSON.parse(jsonStr);
+
+      // 5. 문서 유형 자동 감지 (추가 정보)
+      const detector = new DocumentTypeDetector();
+      const typeDetection = detector.detect(headerContentPairs);
+
+      const result = {
+        success: true,
+        assessment: {
+          ...assessment,
+          documentType: typeDetection.type,
+          documentTypeConfidence: typeDetection.confidence,
+        },
+        metadata: {
+          mode: 'readiness_check',
+          pairsAnalyzed: headerContentPairs.length,
+          tokensUsed: response.usage?.total_tokens || 0,
+        },
+      };
+
+      pipelineLogger.endSession('success', {
+        score: assessment.score,
+        grade: assessment.grade,
+      });
+      logger.info(`✅ Readiness check complete: Score ${assessment.score}/100 (${assessment.grade})`);
+      return result;
+    } catch (error) {
+      this.state.error = error;
+      logger.error('❌ Readiness check failed:', error);
+      pipelineLogger.endSession('error', { error: error.message });
+      throw error;
+    } finally {
+      this.state.isProcessing = false;
+    }
   }
 
   /**

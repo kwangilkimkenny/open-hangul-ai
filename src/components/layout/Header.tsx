@@ -7,7 +7,7 @@
  */
 
 import { useRef, useCallback, useState, useEffect } from 'react';
-import { FolderOpen, Printer, Download, Save, FileDown, Loader2 } from 'lucide-react';
+import { FolderOpen, Printer, Download, Save, FileDown, FileText, Loader2 } from 'lucide-react';
 import { useDocumentStore } from '../../stores/documentStore';
 import { useUIStore } from '../../stores/uiStore';
 import { SimpleHWPXParser } from '../../lib/core/parser';
@@ -25,6 +25,7 @@ export function Header({ className }: HeaderProps) {
 
   const [isSavingHwpx, setIsSavingHwpx] = useState(false);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
+  const [isSavingMd, setIsSavingMd] = useState(false);
 
   const {
     document,
@@ -151,6 +152,36 @@ export function Header({ className }: HeaderProps) {
       showToast('error', '내보내기 실패', message);
     } finally {
       setIsSavingPdf(false);
+    }
+  }, [document, fileName, showToast]);
+
+  // Markdown 내보내기
+  const handleExportMd = useCallback(async () => {
+    if (!document) return;
+
+    const defaultName = fileName?.replace(/\.(hwpx|hwp)$/i, '') || '문서';
+    const inputName = prompt('Markdown 파일명을 입력하세요:', defaultName);
+    if (!inputName) return;
+
+    setIsSavingMd(true);
+    try {
+      const { exportToMarkdown } = await import('../../lib/markdown/parser');
+      const md = exportToMarkdown(document as any);
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = inputName.endsWith('.md') ? inputName : `${inputName}.md`;
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('success', 'Markdown 저장 완료', `${a.download} 파일이 저장되었습니다.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Markdown 내보내기에 실패했습니다.';
+      showToast('error', '내보내기 실패', message);
+    } finally {
+      setIsSavingMd(false);
     }
   }, [document, fileName, showToast]);
 
@@ -282,6 +313,20 @@ export function Header({ className }: HeaderProps) {
                 <Download className="btn-icon" size={18} />
               )}
               <span className="btn-text">PDF 다운로드</span>
+            </button>
+
+            <button
+              className="header-btn"
+              onClick={handleExportMd}
+              disabled={!document || isSavingMd}
+              title="Markdown으로 내보내기"
+            >
+              {isSavingMd ? (
+                <Loader2 className="btn-icon spinning" size={18} />
+              ) : (
+                <FileText className="btn-icon" size={18} />
+              )}
+              <span className="btn-text">MD 저장</span>
             </button>
 
             <button

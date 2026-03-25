@@ -336,6 +336,20 @@ export class ChatPanel {
             }
         });
 
+        // ── AI 문서 품질 버튼들 ──
+        const refineBtn = document.getElementById('ai-ast-refine');
+        if (refineBtn) {
+            refineBtn.addEventListener('click', () => this.handleAIRefinement());
+        }
+        const readinessBtn = document.getElementById('ai-ast-readiness');
+        if (readinessBtn) {
+            readinessBtn.addEventListener('click', () => this.handleAIReadinessCheck());
+        }
+        const localCheckBtn = document.getElementById('ai-ast-local-check');
+        if (localCheckBtn) {
+            localCheckBtn.addEventListener('click', () => this.handleLocalQualityCheck());
+        }
+
         // ── 레퍼런스 파일 업로드 ──
         this._referenceTexts = [];
         const dropzone = document.getElementById('ai-ref-dropzone');
@@ -2056,6 +2070,181 @@ export class ChatPanel {
         }
     }
     
+    // ═══════════════════════════════════════════════════════════
+    // AI 문서 품질 기능 (Phase 1)
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * AI 친화적 문서 교정
+     */
+    async handleAIRefinement() {
+        logger.info('🔧 AI 친화 교정 시작');
+
+        if (!this.aiController || !this.aiController.hasApiKey()) {
+            this.addSystemMessage('[알림] API 키를 먼저 설정해주세요.');
+            return;
+        }
+
+        const doc = this.aiController.viewer.getDocument();
+        if (!doc) {
+            this.addSystemMessage('[알림] 먼저 문서를 로드해주세요.');
+            return;
+        }
+
+        this.addUserMessage('AI 친화적 문서 표준에 따라 교정해주세요.');
+        const msgId = this.addLoadingMessage('AI 친화 문서 교정 중...');
+
+        try {
+            const result = await this.aiController.handleRefinementRequest();
+
+            let resultText = `✅ AI 친화 문서 교정 완료\n\n`;
+            resultText += `📋 문서 유형: ${result.metadata.documentType}\n`;
+            resultText += `📊 교정 항목: ${result.metadata.itemsUpdated}개\n`;
+            resultText += `🔢 토큰 사용: ${result.metadata.tokensUsed}\n\n`;
+            resultText += `**적용된 교정 원칙:**\n`;
+            resultText += `• 주어+서술어 완전한 문장으로 수정\n`;
+            resultText += `• 개조식 → 서술형 변환\n`;
+            resultText += `• 모호한 지시어 → 구체 명사 교체\n`;
+            resultText += `• 불필요한 꾸밈/장식 제거\n`;
+            resultText += `• 핵심 정보(날짜, 수치, 고유명사) 보존`;
+
+            this.removeLoadingMessage(msgId);
+            this.addAssistantMessage(resultText);
+            showToast('success', '교정 완료', `${result.metadata.itemsUpdated}개 항목이 교정되었습니다.`);
+        } catch (error) {
+            this.removeLoadingMessage(msgId);
+            logger.error('❌ AI 교정 실패:', error);
+            this.addSystemMessage(`[오류] AI 교정 실패: ${error.message}`);
+        }
+    }
+
+    /**
+     * AI 친화도 품질 검증 (GPT 기반)
+     */
+    async handleAIReadinessCheck() {
+        logger.info('🔍 AI 품질 검증 시작');
+
+        if (!this.aiController || !this.aiController.hasApiKey()) {
+            this.addSystemMessage('[알림] API 키를 먼저 설정해주세요.');
+            return;
+        }
+
+        const doc = this.aiController.viewer.getDocument();
+        if (!doc) {
+            this.addSystemMessage('[알림] 먼저 문서를 로드해주세요.');
+            return;
+        }
+
+        this.addUserMessage('이 문서의 AI 친화도를 검증해주세요.');
+        const msgId = this.addLoadingMessage('AI 친화도 분석 중...');
+
+        try {
+            const result = await this.aiController.handleReadinessCheck();
+            const a = result.assessment;
+
+            let resultText = `📊 AI 친화도 검증 결과\n\n`;
+            resultText += `🏆 **종합 점수: ${a.score}/100 (등급: ${a.grade})**\n`;
+            resultText += `📋 문서 유형: ${a.documentType}\n\n`;
+
+            if (a.criteria && a.criteria.length > 0) {
+                resultText += `**세부 평가:**\n`;
+                a.criteria.forEach(c => {
+                    const icon = c.pass ? '✅' : '❌';
+                    resultText += `${icon} ${c.label || c.name}: ${c.score || (c.pass ? '통과' : '미흡')}\n`;
+                    if (c.issues && c.issues.length > 0) {
+                        c.issues.forEach(issue => {
+                            resultText += `   • ${issue}\n`;
+                        });
+                    }
+                });
+            }
+
+            if (a.suggestions && a.suggestions.length > 0) {
+                resultText += `\n**개선 제안:**\n`;
+                a.suggestions.forEach((s, i) => {
+                    resultText += `${i + 1}. ${s}\n`;
+                });
+            }
+
+            if (a.summary) {
+                resultText += `\n**요약:** ${a.summary}`;
+            }
+
+            this.removeLoadingMessage(msgId);
+            this.addAssistantMessage(resultText);
+
+            const gradeEmoji = a.grade === 'A' ? '🎉' : a.grade === 'B' ? '👍' : '⚠️';
+            showToast(
+                a.score >= 70 ? 'success' : 'warning',
+                'AI 품질 검증 완료',
+                `${gradeEmoji} ${a.score}점 (${a.grade}등급)`
+            );
+        } catch (error) {
+            this.removeLoadingMessage(msgId);
+            logger.error('❌ AI 품질 검증 실패:', error);
+            this.addSystemMessage(`[오류] AI 품질 검증 실패: ${error.message}`);
+        }
+    }
+
+    /**
+     * 로컬 빠른 품질 검사 (GPT 호출 없음)
+     */
+    handleLocalQualityCheck() {
+        logger.info('⚡ 로컬 빠른 품질 검사 시작');
+
+        const doc = this.aiController?.viewer?.getDocument();
+        if (!doc) {
+            this.addSystemMessage('[알림] 먼저 문서를 로드해주세요.');
+            return;
+        }
+
+        try {
+            const pairs = this.aiController.extractor.extractTableHeaderContentPairs(doc);
+
+            // TextAnalyzer를 동적 import
+            import('../ai/text-analyzer.js').then(({ TextAnalyzer }) => {
+                const analyzer = new TextAnalyzer();
+                const result = analyzer.checkAIFriendliness(pairs);
+
+                let resultText = `⚡ 빠른 AI 친화도 검사 (로컬)\n\n`;
+                resultText += `📊 점수: ${result.score}/100 (등급: ${result.grade})\n`;
+                resultText += `📋 분석 항목: ${result.summary.totalPairs}개\n`;
+                resultText += `⚠️ 발견된 이슈: ${result.summary.totalIssues}개\n\n`;
+
+                const cat = result.summary.byCategory;
+                resultText += `**이슈 유형별:**\n`;
+                resultText += `• 불완전 문장: ${cat.incompleteSentence}개\n`;
+                resultText += `• 모호한 지시어: ${cat.vagueReference}개\n`;
+                resultText += `• 개조식 나열: ${cat.bulletOnly}개\n`;
+                resultText += `• 과도한 수식어: ${cat.verbose}개\n`;
+
+                if (result.issues.length > 0) {
+                    resultText += `\n**주요 이슈 (최대 8개):**\n`;
+                    result.issues.slice(0, 8).forEach(issue => {
+                        resultText += `• [${issue.header}] ${issue.reason}\n`;
+                    });
+                    if (result.issues.length > 8) {
+                        resultText += `... 외 ${result.issues.length - 8}개\n`;
+                    }
+                }
+
+                resultText += `\n💡 *정확한 AI 분석이 필요하면 "AI 품질 검증" 버튼을 사용하세요.*`;
+
+                this.addAssistantMessage(resultText);
+                showToast(
+                    result.score >= 70 ? 'success' : 'warning',
+                    '빠른 검사 완료',
+                    `${result.score}점 - ${result.summary.totalIssues}개 이슈`
+                );
+            }).catch(err => {
+                this.addSystemMessage(`[오류] 분석 모듈 로딩 실패: ${err.message}`);
+            });
+        } catch (error) {
+            logger.error('❌ 로컬 검사 실패:', error);
+            this.addSystemMessage(`[오류] 빠른 검사 실패: ${error.message}`);
+        }
+    }
+
     /**
      * 일괄 생성 (여러 주제 한 번에 생성)
      */

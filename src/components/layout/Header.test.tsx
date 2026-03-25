@@ -11,6 +11,7 @@ vi.mock('lucide-react', () => ({
   Download: (props: Record<string, unknown>) => <span data-testid="icon-download" {...props} />,
   Save: (props: Record<string, unknown>) => <span data-testid="icon-save" {...props} />,
   FileDown: (props: Record<string, unknown>) => <span data-testid="icon-file-down" {...props} />,
+  FileText: (props: Record<string, unknown>) => <span data-testid="icon-file-text" {...props} />,
   Loader2: (props: Record<string, unknown>) => <span data-testid="icon-loader" {...props} />,
 }));
 
