@@ -1,10 +1,14 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), ['VITE_', 'OPENAI_'])
+  const openaiApiKey = env.OPENAI_API_KEY || env.VITE_OPENAI_API_KEY
+
+  return {
   plugins: [react()],
   resolve: {
     alias: {
@@ -15,6 +19,21 @@ export default defineConfig({
   server: {
     port: 5090,        // 고정 포트
     strictPort: true,  // 포트 사용 중이면 에러 발생 (자동 변경 안 함)
+    proxy: {
+      // OpenAI API 프록시 - CORS 우회 + API 키 서버사이드 관리
+      '/api/ai/chat': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        rewrite: (path) => '/v1/chat/completions',
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            if (openaiApiKey) {
+              proxyReq.setHeader('Authorization', `Bearer ${openaiApiKey}`);
+            }
+          });
+        },
+      },
+    },
   },
   preview: {
     port: 5090,        // 빌드 미리보기도 동일 포트
@@ -121,4 +140,5 @@ export default defineConfig({
       include: ['src/lib/**/*.js', 'src/lib/**/*.ts', 'src/hooks/**/*.ts', 'src/components/**/*.tsx', 'src/stores/**/*.ts'],
     },
   },
+  }
 })
