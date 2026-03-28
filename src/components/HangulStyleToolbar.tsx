@@ -83,7 +83,7 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
 - **[편집]** 서식(굵게/기울임/밑줄), 글꼴 변경, 정렬, 목록, 들여쓰기, 실행취소/다시실행
 - **[삽입]** 표, 이미지, 특수문자, 머리글/바닥글, 각주, 페이지 나누기
 - **[AI]** 문서 편집, 요약, 메일 작성, 번역, 검토 의견, AI 친화 교정, 품질 검증 등 15개 AI 어시스턴트
-- **[보기]** 줌(25%~400%), 다크 모드, 편집 모드 전환
+- **[보기]** 줌(25%~400%), 다크 모드
 
 ## AI 문서 작성 방향
 
@@ -577,8 +577,6 @@ SSE 응답 이벤트:
       { label: '축소', shortcut: 'Ctrl+-', action: () => { setActiveMenu(null); const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>; pages.forEach(p => { const cur = parseFloat(p.style.transform?.replace(/scale\(([^)]+)\)/, '$1') || '1'); p.style.transform = `scale(${Math.max(0.25, cur - 0.25)})`; p.style.transformOrigin = 'top center'; }); } },
       { label: '100%', shortcut: 'Ctrl+0', action: () => { setActiveMenu(null); const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>; pages.forEach(p => { p.style.transform = 'scale(1)'; }); } },
       { label: '', divider: true },
-      { label: '편집 모드 전환', action: () => { setActiveMenu(null); (viewer as any)?.editModeManager?.toggleGlobalEditMode?.(); } },
-      { label: '', divider: true },
       { label: '다크 모드 전환', action: () => { setActiveMenu(null); const isDark = document.documentElement.getAttribute('data-theme') === 'dark'; document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark'); (viewer as any)?.themeManager?.setTheme?.(isDark ? 'light' : 'dark'); } },
     ],
     '삽입(I)': [
@@ -680,7 +678,6 @@ SSE 응답 이벤트:
     '도구(T)': [
       { label: '찾아 바꾸기', shortcut: 'Ctrl+H', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.show?.('replace'); } },
       { label: '', divider: true },
-      { label: '편집 모드 전환', shortcut: 'Ctrl+E', action: () => { setActiveMenu(null); (viewer as any)?.editModeManager?.toggleGlobalEditMode?.(); } },
       { label: '문서 검증', action: () => {
         setActiveMenu(null);
         const doc = (viewer as any)?.getDocument?.();
@@ -1301,13 +1298,9 @@ function RibbonTools({ viewer }: { viewer?: HWPXViewerInstance | null }) {
         <div className="hwp-ribbon-group-label">찾기</div>
       </div>
 
-      {/* Edit Mode */}
+      {/* Special Char */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.editModeManager?.toggleGlobalEditMode?.()} title="편집 모드 (Ctrl+E)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M13 3l4 4-10 10H3v-4L13 3z" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M11 5l4 4" stroke="currentColor" strokeWidth="1"/></svg>
-            <span>편집 모드</span>
-          </button>
           <button className="hwp-ribbon-btn-lg" onClick={() => v?.specialCharPicker?.open?.()} title="특수 문자 (Ctrl+F10)">
             <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="16" fontSize="16" fill="currentColor">&#937;</text></svg>
             <span>특수문자</span>
@@ -1414,16 +1407,6 @@ function RibbonView({ viewer }: { viewer?: HWPXViewerInstance | null }) {
         <div className="hwp-ribbon-group-label">빠른 배율</div>
       </div>
 
-      {/* Edit Mode */}
-      <div className="hwp-ribbon-group">
-        <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.editModeManager?.toggleGlobalEditMode?.()} title="편집 모드 전환 (Ctrl+E)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M13 3l4 4-10 10H3v-4L13 3z" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
-            <span>편집 모드</span>
-          </button>
-        </div>
-        <div className="hwp-ribbon-group-label">모드</div>
-      </div>
     </div>
   );
 }
