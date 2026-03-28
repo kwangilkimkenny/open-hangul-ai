@@ -165,7 +165,7 @@
    * 💬 AI 채팅 패널
    * ============================================ */
   
-  --hanview-ai-panel-width: 450px;
+  --hanview-ai-panel-width: 400px;
   --hanview-ai-panel-bg: #1e1e2e;
   --hanview-ai-panel-border: rgba(255, 255, 255, 0.1);
   --hanview-ai-panel-shadow: -5px 0 30px rgba(0, 0, 0, 0.3);

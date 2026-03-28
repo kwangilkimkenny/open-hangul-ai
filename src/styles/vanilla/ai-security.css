@@ -173,3 +173,136 @@ span.claim-neutral { color: #f57c00; }
     background: rgba(0, 0, 0, 0.02);
     border-radius: 3px;
 }
+
+/* ===== Validation Report Button (접이식) ===== */
+
+.validation-report-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 14px;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    background: #f9fafb;
+    color: #344054;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+}
+
+.validation-report-btn:hover {
+    background: #f0f2f5;
+    border-color: #98a2b3;
+}
+
+.validation-report-btn.has-issues {
+    border-color: #fda29b;
+    background: #fef3f2;
+    color: #b42318;
+}
+
+.validation-report-btn.has-issues:hover {
+    background: #fee4e2;
+}
+
+.validation-report-btn.all-clear {
+    border-color: #a6f4c5;
+    background: #f6fef9;
+    color: #027a48;
+}
+
+.validation-report-btn.all-clear:hover {
+    background: #ecfdf3;
+}
+
+.validation-report-btn::before {
+    content: '\25B6';
+    margin-right: 6px;
+    font-size: 9px;
+    display: inline-block;
+    transition: transform 0.15s ease;
+}
+
+.validation-report-btn.open::before {
+    transform: rotate(90deg);
+}
+
+/* Report Panel */
+.validation-report-panel {
+    margin-top: 6px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1px solid #e4e7ec;
+    border-radius: 6px;
+    animation: slideDown 0.15s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; max-height: 0; }
+    to { opacity: 1; max-height: 2000px; }
+}
+
+/* Evidence text in claims */
+.claim-evidence {
+    font-size: 10px;
+    color: #667;
+    margin-top: 2px;
+    padding-left: 8px;
+    border-left: 2px solid #ddd;
+}
+
+/* ===== Correction Action Buttons ===== */
+
+.validation-action-bar {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #e4e7ec;
+}
+
+.validation-apply-all-btn {
+    width: 100%;
+    padding: 8px 14px;
+    background: #b42318;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.validation-apply-all-btn:hover {
+    background: #912018;
+}
+
+.validation-apply-all-btn.applied {
+    background: #027a48;
+    cursor: default;
+}
+
+.validation-apply-btn {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 3px 10px;
+    background: #fff;
+    color: #b42318;
+    border: 1px solid #fda29b;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.validation-apply-btn:hover {
+    background: #fef3f2;
+}
+
+.validation-apply-btn.applied {
+    background: #ecfdf3;
+    color: #027a48;
+    border-color: #a6f4c5;
+    cursor: default;
+}

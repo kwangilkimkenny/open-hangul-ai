@@ -432,16 +432,20 @@ export class ChatPanel {
      * TruthAnchor 검증 결과를 채팅에 표시
      * @param {object} validation - 검증 결과 객체
      */
-    showValidationResults(validation) {
-        if (!validation || !validation.available) return;
-
-        const resultsEl = document.getElementById('validation-results');
+    /**
+     * 검증 리포트 HTML 생성 (접이식)
+     * @param {object} validation - 검증 결과
+     * @returns {string} HTML
+     * @private
+     */
+    _buildValidationReportHTML(validation) {
         const mode = validation.mode || 'offline';
         const modeBadge = mode === 'online'
             ? '<span class="validation-mode-badge validation-mode-online">온라인 검증</span>'
             : '<span class="validation-mode-badge validation-mode-offline">오프라인 검증</span>';
+        const score = Math.round(validation.overallScore * 100);
 
-        let html = `<div class="validation-header">${modeBadge} 할루시네이션 검증 결과 (점수: ${Math.round(validation.overallScore * 100)}%)</div>`;
+        let html = `<div class="validation-header">${modeBadge} 할루시네이션 검증 리포트 (${score}점)</div>`;
         if (mode === 'offline') {
             html += '<div class="validation-mode-info">오프라인 모드: 수치 오류, 규제 위반 패턴 검출. 서버 연동 시 NLI 의미분석 추가.</div>';
         }
@@ -457,6 +461,9 @@ export class ChatPanel {
                 const verdictLabel = claim.verdict === 'supported' ? '지지' : claim.verdict === 'contradicted' ? '모순' : '중립';
                 html += `<div class="claim-item ${verdictClass}">`;
                 html += `<span class="claim-verdict">[${verdictLabel}]</span> ${claim.text}`;
+                if (claim.evidence) {
+                    html += `<div class="claim-evidence">${claim.evidence}</div>`;
+                }
                 if (claim.correction) {
                     html += `<div class="claim-correction">교정: ${claim.correction}</div>`;
                 }
@@ -464,6 +471,163 @@ export class ChatPanel {
             }
             html += '</div>';
         }
+        return html;
+    }
+
+    /**
+     * 검증 결과를 채팅 메시지에 접이식 버튼으로 추가
+     * @param {string} messageId - 결과를 붙일 메시지 ID
+     * @param {object} validation - 검증 결과
+     */
+    attachValidationReport(messageId, validation) {
+        if (!validation || !validation.available) return;
+
+        const msgEl = document.getElementById(messageId);
+        if (!msgEl) return;
+
+        const score = Math.round(validation.overallScore * 100);
+        const hasIssues = validation.contradictedClaims > 0;
+        const contradicted = (validation.claims || []).filter(c => c.verdict === 'contradicted' && c.correction);
+
+        // 버튼 생성
+        const btn = document.createElement('button');
+        btn.className = `validation-report-btn ${hasIssues ? 'has-issues' : 'all-clear'}`;
+        btn.textContent = hasIssues
+            ? `검증 리포트 보기 (${validation.contradictedClaims}건 모순 발견)`
+            : `검증 리포트 보기 (${score}점 — 문제 없음)`;
+
+        // 리포트 패널 (초기 숨김)
+        const panel = document.createElement('div');
+        panel.className = 'validation-report-panel';
+        panel.style.display = 'none';
+        panel.innerHTML = this._buildValidationReportHTML(validation);
+
+        // 교정 적용 버튼들 (모순 + 교정 제안이 있는 클레임에만)
+        if (contradicted.length > 0) {
+            const actionBar = document.createElement('div');
+            actionBar.className = 'validation-action-bar';
+
+            // 전체 교정 버튼
+            const applyAllBtn = document.createElement('button');
+            applyAllBtn.className = 'validation-apply-all-btn';
+            applyAllBtn.textContent = `모든 모순 교정 적용 (${contradicted.length}건)`;
+            applyAllBtn.addEventListener('click', () => {
+                this._applyCorrections(contradicted);
+                applyAllBtn.textContent = '교정 적용 완료';
+                applyAllBtn.disabled = true;
+                applyAllBtn.classList.add('applied');
+            });
+            actionBar.appendChild(applyAllBtn);
+
+            panel.appendChild(actionBar);
+
+            // 개별 교정 버튼 (각 모순 클레임 옆에)
+            const claimItems = panel.querySelectorAll('.claim-item.claim-contradicted');
+            claimItems.forEach((item, idx) => {
+                const claim = contradicted[idx];
+                if (!claim || !claim.correction) return;
+                const applyBtn = document.createElement('button');
+                applyBtn.className = 'validation-apply-btn';
+                applyBtn.textContent = '이 교정 적용';
+                applyBtn.addEventListener('click', () => {
+                    this._applyCorrections([claim]);
+                    applyBtn.textContent = '적용됨';
+                    applyBtn.disabled = true;
+                    applyBtn.classList.add('applied');
+                });
+                item.appendChild(applyBtn);
+            });
+        }
+
+        // 토글 동작
+        btn.addEventListener('click', () => {
+            const isOpen = panel.style.display !== 'none';
+            panel.style.display = isOpen ? 'none' : 'block';
+            btn.classList.toggle('open', !isOpen);
+        });
+
+        // 메시지 하단에 추가
+        const content = msgEl.querySelector('.message-content') || msgEl;
+        content.appendChild(btn);
+        content.appendChild(panel);
+    }
+
+    /**
+     * 모순 교정을 문서 본문에 적용
+     * @param {Array} corrections - { text, correction } 배열
+     * @private
+     */
+    _applyCorrections(corrections) {
+        const viewer = this.aiController?.viewer;
+        if (!viewer) return;
+
+        const container = viewer.container;
+        if (!container) return;
+
+        let appliedCount = 0;
+
+        for (const claim of corrections) {
+            if (!claim.text || !claim.correction) continue;
+
+            // DOM에서 모순 텍스트를 찾아서 교정으로 교체
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+            let node;
+            while ((node = walker.nextNode())) {
+                if (node.textContent.includes(claim.text)) {
+                    node.textContent = node.textContent.replace(claim.text, claim.correction);
+                    appliedCount++;
+                    break;
+                }
+            }
+
+            // document 데이터 모델도 업데이트
+            if (viewer.state?.document?.sections) {
+                for (const section of viewer.state.document.sections) {
+                    for (const el of (section.elements || [])) {
+                        if (el.type === 'paragraph' && el.runs) {
+                            for (const run of el.runs) {
+                                if (run.text && run.text.includes(claim.text)) {
+                                    run.text = run.text.replace(claim.text, claim.correction);
+                                }
+                            }
+                        } else if (el.type === 'table' && el.rows) {
+                            for (const row of el.rows) {
+                                for (const cell of (row.cells || [])) {
+                                    for (const ce of (cell.elements || [])) {
+                                        if (ce.runs) {
+                                            for (const run of ce.runs) {
+                                                if (run.text && run.text.includes(claim.text)) {
+                                                    run.text = run.text.replace(claim.text, claim.correction);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (appliedCount > 0) {
+            this.addAssistantMessage(`할루시네이션 교정 ${appliedCount}건이 문서에 적용되었습니다.`);
+            showToast('success', '교정 적용', `${appliedCount}건의 모순이 교정되었습니다`);
+
+            // 자동저장 마킹
+            if (viewer.autoSaveManager) {
+                viewer.autoSaveManager.markDirty();
+            }
+        } else {
+            this.addAssistantMessage('교정 대상 텍스트를 문서에서 찾지 못했습니다. 문서가 이미 수정되었을 수 있습니다.');
+        }
+    }
+
+    showValidationResults(validation) {
+        if (!validation || !validation.available) return;
+
+        const resultsEl = document.getElementById('validation-results');
+        const html = this._buildValidationReportHTML(validation);
 
         // 채팅 메시지로 추가
         this.addAssistantMessage(html);
@@ -568,20 +732,27 @@ export class ChatPanel {
         // 사용자 메시지 표시
         this.addUserMessage(message);
 
-        // 문서가 로드되지 않은 경우 → 자유 대화 모드 (레퍼런스 기반 문서 생성 포함)
+        // 문서 상태 및 레퍼런스 확인
         const currentDoc = this.aiController.viewer.getDocument();
         const hasDocument = currentDoc && currentDoc.sections && currentDoc.sections.length > 0
             && currentDoc.sections.some(s => s.elements && s.elements.length > 0);
         const hasReference = this._referenceTexts && this._referenceTexts.length > 0;
 
+        // 레퍼런스가 있으면 → 자유 대화 모드 (새 문서 생성/반영)
+        // 레퍼런스 기반 요청은 기존 테이블 편집이 아닌 새 콘텐츠 생성이므로
+        if (hasReference) {
+            await this._handleFreeChat(message);
+            return;
+        }
+
         if (!hasDocument) {
-            // 문서 없음: 자유 대화 → 레퍼런스 있으면 문서 생성으로 자동 처리
+            // 문서 없음: 자유 대화
             await this._handleFreeChat(message);
             return;
         }
 
         // 문서가 있는 상태에서 "본문에 반영해줘" 같은 요청 → 이전 AI 응답을 문서로 변환
-        if (!hasReference && this._isDocumentCreateRequest(message)) {
+        if (this._isDocumentCreateRequest(message)) {
             await this._applyLastResponseToDocument(message);
             return;
         }
@@ -655,16 +826,17 @@ export class ChatPanel {
                 const updatedCount = result.metadata?.slotsUpdated || result.metadata?.itemsUpdated || 0;
                 const generatedCount = result.metadata?.itemsGenerated || updatedCount;
 
+                let resultMsgId;
                 if (updatedCount > 0) {
-                    this.addAssistantMessage(
-                        `✅ [완료] 문서가 성공적으로 업데이트되었습니다!\n\n` +
+                    resultMsgId = this.addAssistantMessage(
+                        `[완료] 문서가 성공적으로 업데이트되었습니다.\n\n` +
                         `- 변경된 텍스트 슬롯: ${updatedCount}개\n` +
                         `- 사용된 토큰: ${result.metadata?.tokensUsed || '알 수 없음'}개`
                     );
                     showToast('success', '성공', '문서가 업데이트되었습니다');
                 } else {
-                    this.addAssistantMessage(
-                        `⚠️ [경고] AI가 콘텐츠를 생성했지만 문서에 반영하지 못했습니다.\n\n` +
+                    resultMsgId = this.addAssistantMessage(
+                        `[경고] AI가 콘텐츠를 생성했지만 문서에 반영하지 못했습니다.\n\n` +
                         `- AI 생성 항목: ${generatedCount}개\n` +
                         `- 실제 반영: 0개\n` +
                         `- 사용된 토큰: ${result.metadata?.tokensUsed || '알 수 없음'}개\n\n` +
@@ -673,9 +845,9 @@ export class ChatPanel {
                     showToast('warning', '경고', '문서에 변경 사항을 반영하지 못했습니다');
                 }
 
-                // TruthAnchor 검증 결과 표시
-                if (result.validation && result.validation.available && result.validation.contradictedClaims > 0) {
-                    this.showValidationResults(result.validation);
+                // TruthAnchor 검증 리포트 버튼 (ON일 때만, 결과가 있을 때)
+                if (result.validation && result.validation.available) {
+                    this.attachValidationReport(resultMsgId, result.validation);
                 }
             }
 
@@ -1621,12 +1793,32 @@ export class ChatPanel {
                     await this.aiController.viewer.createNewDocument(doc);
 
                     const refNames = (this._referenceTexts || []).map(r => r.name).join(', ');
-                    this.addAssistantMessage(
+                    const docMsgId = this.addAssistantMessage(
                         `레퍼런스 기반 문서가 생성되었습니다.\n` +
                         `참고 자료: ${refNames || '없음'}\n\n` +
                         `파일 > 저장으로 HWPX 파일을 저장할 수 있습니다.`
                     );
                     showToast('success', '문서 생성 완료', '레퍼런스 기반 문서가 에디터에 로드되었습니다');
+
+                    // TruthAnchor 검증 리포트 (ON일 때)
+                    const taEnabled = AIConfig.security?.truthAnchor?.isEnabled();
+                    if (taEnabled) {
+                        try {
+                            // truthAnchorClient가 없으면 동적 생성
+                            if (!this.aiController.truthAnchorClient) {
+                                const m = await import('../ai/truthanchor-client.js');
+                                this.aiController.truthAnchorClient = new m.TruthAnchorClient();
+                            }
+                            const refText = (this._referenceTexts || []).map(r => r?.text || '').join('\n');
+                            const validation = await this.aiController.truthAnchorClient.validate(refText, responseText);
+                            logger.info('TruthAnchor validation result:', validation?.available, validation?.totalClaims);
+                            if (validation && validation.available) {
+                                this.attachValidationReport(docMsgId, validation);
+                            }
+                        } catch (valErr) {
+                            logger.warn('TruthAnchor validation failed:', valErr.message);
+                        }
+                    }
 
                     // max_tokens 복원
                     this.aiController.generator.options.maxTokens = AIConfig.openai.maxTokens;
@@ -1684,8 +1876,14 @@ export class ChatPanel {
             }
         }
 
+        // 레퍼런스 텍스트가 있으면 분석 대상에 포함
+        const refContext = this._getReferenceContext();
+        if (refContext) {
+            docText += '\n' + refContext;
+        }
+
         if (!docText.trim()) {
-            this.addSystemMessage('[알림] 분석할 문서 내용이 없습니다. 텍스트를 입력한 후 다시 시도해주세요.');
+            this.addSystemMessage('[알림] 분석할 문서 내용이 없습니다. 문서를 열거나 레퍼런스 파일을 업로드한 후 다시 시도해주세요.');
             return;
         }
 
