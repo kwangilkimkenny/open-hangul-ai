@@ -31,6 +31,44 @@
 }
 
 /* ============================================================
+   AI 패널 열림 시 본문 반응형 조정
+   - 문서 페이지가 좌측으로 이동하여 AI 패널과 겹치지 않음
+   ============================================================ */
+
+body.ai-panel-open .viewer-container,
+body.ai-panel-open .hanview-body-container {
+    margin-right: 400px;
+    transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 렌더 컨테이너: 좌측 패딩 최소화하여 문서 폭 확보 */
+body.ai-panel-open #render-container {
+    padding-left: 10px;
+    padding-right: 10px;
+    transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 문서 페이지를 좌측 정렬 (margin auto 해제) */
+body.ai-panel-open .hwp-page-container {
+    margin-left: 10px !important;
+    margin-right: 10px !important;
+    transition: margin 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 1200px 이하에서는 오버레이 모드 (본문 조정 없음) */
+@media (max-width: 1200px) {
+    body.ai-panel-open .viewer-container,
+    body.ai-panel-open .hanview-body-container {
+        margin-right: 0;
+    }
+
+    body.ai-panel-open .hwp-page-container {
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+}
+
+/* ============================================================
    Header
    ============================================================ */
 
