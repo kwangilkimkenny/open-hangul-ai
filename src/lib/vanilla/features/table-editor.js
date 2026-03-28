@@ -484,19 +484,23 @@ export class TableEditor {
      * @returns {Object} 새 셀
      */
     createEmptyCell() {
+        const defaultBorder = { css: '1px solid #000000', width: 1, style: 'solid', color: '#000000' };
         return {
             rowSpan: 1,
             colSpan: 1,
             elements: [
                 {
                     type: 'paragraph',
-                    runs: [
-                        {
-                            text: ''
-                        }
-                    ]
+                    runs: [{ text: '' }]
                 }
-            ]
+            ],
+            style: {
+                borderLeftDef: { ...defaultBorder },
+                borderRightDef: { ...defaultBorder },
+                borderTopDef: { ...defaultBorder },
+                borderBottomDef: { ...defaultBorder },
+                padding: '4px 6px',
+            }
         };
     }
 
@@ -597,6 +601,15 @@ export class TableEditor {
      */
     async insertTable(rows = 3, cols = 3) {
         logger.info(`➕ Inserting table (${rows}x${cols})...`);
+
+        // ✅ 현재 편집 중인 내용을 먼저 저장 (텍스트 유실 방지)
+        if (this.viewer.inlineEditor && this.viewer.inlineEditor.isEditing()) {
+            this.viewer.inlineEditor.saveChanges(true);
+        }
+        // DOM → document 동기화
+        if (this.viewer._syncDocumentFromDOM) {
+            this.viewer._syncDocumentFromDOM();
+        }
 
         const document = this.viewer.getDocument();
         if (!document || !document.sections || document.sections.length === 0) {

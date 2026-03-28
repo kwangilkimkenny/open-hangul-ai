@@ -102,7 +102,7 @@ th[data-editable="true"]:hover:not(.editing),
 body.global-edit-mode .hwp-paragraph:not(.hwp-table .hwp-paragraph),
 body.global-edit-mode td,
 body.global-edit-mode th {
-    outline: 1px dashed rgba(102, 126, 234, 0.3);
+    outline: none;
     outline-offset: 2px;
     transition: all 0.2s ease;
 }

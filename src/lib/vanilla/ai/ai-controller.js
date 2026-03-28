@@ -68,6 +68,11 @@ export class AIDocumentController {
     // 변경 이력
     this.history = [];
 
+    // 보안/검증 모듈 (lazy loading - OFF 시 번들 영향 zero)
+    this.securityGateway = null;
+    this.truthAnchorClient = null;
+    this._initSecurityModules();
+
     // 프록시 모드 또는 환경변수 API 키로 자동 초기화
     try {
       if (typeof AIConfig.isProxyMode === 'function' && AIConfig.isProxyMode()) {
@@ -85,6 +90,85 @@ export class AIDocumentController {
     }
 
     logger.info('🤖 AIDocumentController initialized');
+  }
+
+  /**
+   * 보안/검증 모듈 초기화 (활성화된 경우에만 동적 import)
+   * @private
+   */
+  async _initSecurityModules() {
+    try {
+      if (AIConfig.security?.aegis?.isEnabled()) {
+        const m = await import('./security-gateway.js');
+        this.securityGateway = new m.SecurityGateway();
+        await this.securityGateway.ensureReady();
+        logger.info('AEGIS SecurityGateway loaded');
+      }
+    } catch (e) {
+      logger.warn('AEGIS load failed:', e.message);
+      this.securityGateway = null;
+    }
+
+    try {
+      if (AIConfig.security?.truthAnchor?.isEnabled()) {
+        const m = await import('./truthanchor-client.js');
+        this.truthAnchorClient = new m.TruthAnchorClient();
+        await this.truthAnchorClient.checkHealth();
+        logger.info('TruthAnchor client loaded');
+      }
+    } catch (e) {
+      logger.warn('TruthAnchor load failed:', e.message);
+      this.truthAnchorClient = null;
+    }
+  }
+
+  /**
+   * AEGIS 보안 토글
+   * @param {boolean} enabled
+   */
+  async toggleAegis(enabled) {
+    AIConfig.security.aegis.setEnabled(enabled);
+    if (enabled && !this.securityGateway) {
+      try {
+        const m = await import('./security-gateway.js');
+        this.securityGateway = new m.SecurityGateway();
+        await this.securityGateway.ensureReady();
+        logger.info('AEGIS enabled');
+      } catch (e) {
+        logger.error('AEGIS toggle failed:', e);
+        this.securityGateway = null;
+      }
+    } else if (!enabled) {
+      this.securityGateway = null;
+      logger.info('AEGIS disabled');
+    }
+  }
+
+  /**
+   * TruthAnchor 할루시네이션 검증 토글
+   * @param {boolean} enabled
+   * @returns {Promise<{ available: boolean }>}
+   */
+  async toggleTruthAnchor(enabled) {
+    AIConfig.security.truthAnchor.setEnabled(enabled);
+    if (enabled && !this.truthAnchorClient) {
+      try {
+        const m = await import('./truthanchor-client.js');
+        this.truthAnchorClient = new m.TruthAnchorClient();
+        const health = await this.truthAnchorClient.checkHealth();
+        logger.info('TruthAnchor enabled, server available:', health.available);
+        return health;
+      } catch (e) {
+        logger.error('TruthAnchor toggle failed:', e);
+        this.truthAnchorClient = null;
+        return { available: false };
+      }
+    } else if (!enabled) {
+      this.truthAnchorClient = null;
+      logger.info('TruthAnchor disabled');
+      return { available: false };
+    }
+    return { available: true };
   }
 
   /**
@@ -150,7 +234,33 @@ export class AIDocumentController {
     this.state.currentRequest = userMessage;
     this.state.error = null;
 
+    // AEGIS Pre-LLM: PII 가명화 세션 ID
+    let piiSessionId = null;
+
     try {
+      // 0. AEGIS Pre-LLM: 입력 보안 스캔
+      if (this.securityGateway?.isEnabled()) {
+        await this.securityGateway.ensureReady();
+        pipelineLogger.log('security', 'start', 'AEGIS input scan');
+        const scanResult = this.securityGateway.scanInput(userMessage);
+        if (!scanResult.allowed) {
+          pipelineLogger.log('security', 'blocked', scanResult.reason);
+          throw new HWPXError(
+            ErrorType.VALIDATION_ERROR,
+            AIConfig.prompts.errorMessages.aegisBlocked.replace('{REASON}', scanResult.reason)
+          );
+        }
+        pipelineLogger.log('security', 'passed', `Score: ${scanResult.score}`);
+
+        // PII 가명화 (사용자 메시지만, 문서 내용은 제외)
+        const piiResult = this.securityGateway.pseudonymize(userMessage);
+        if (piiResult.changed) {
+          piiSessionId = piiResult.sessionId;
+          userMessage = piiResult.pseudonymized;
+          pipelineLogger.log('security', 'info', 'PII pseudonymized');
+        }
+      }
+
       // 1. 현재 문서 가져오기 (DOM 동기화 포함)
       pipelineLogger.log('extract', 'start', 'Syncing document from DOM');
       if (this.viewer._syncDocumentFromDOM) {
@@ -215,10 +325,28 @@ export class AIDocumentController {
       pipelineLogger.log('generate', 'start', `Generating for ${pairsToGenerate.length} pairs`);
       pipelineLogger.timeStart('gpt_generation');
 
-      const { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
+      let { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
         pairsToGenerate,
         userMessage
       );
+
+      // AEGIS Post-LLM: 출력 필터링 + PII 복원
+      if (this.securityGateway?.isEnabled()) {
+        const outputCheck = this.securityGateway.filterOutput(JSON.stringify(generatedJSON));
+        if (!outputCheck.safe) {
+          pipelineLogger.log('security', 'warning', `Output detections: ${outputCheck.detections.join(', ')}`);
+          try { generatedJSON = JSON.parse(outputCheck.filtered); } catch (_) { /* 필터링 실패 시 원본 유지 */ }
+        }
+        // PII 복원: LLM은 가명화된 입력을 받았으므로 출력에도 가명이 포함됨 → 원본으로 복원
+        if (piiSessionId) {
+          for (const key of Object.keys(generatedJSON)) {
+            if (typeof generatedJSON[key] === 'string') {
+              generatedJSON[key] = this.securityGateway.restore(generatedJSON[key], piiSessionId);
+            }
+          }
+          pipelineLogger.log('security', 'info', 'PII restored in output');
+        }
+      }
 
       const genDuration = pipelineLogger.timeEnd('gpt_generation', 'generate');
       const generatedKeys = Object.keys(generatedJSON);
@@ -280,10 +408,26 @@ export class AIDocumentController {
         });
       }
 
+      // TruthAnchor: 할루시네이션 검증 (비차단 - 결과만 반환)
+      let validationResult = null;
+      if (this.truthAnchorClient?.isEnabled()) {
+        pipelineLogger.log('validation', 'start', 'TruthAnchor validation');
+        const sourceText = headerContentPairs.map(p => `${p.header}: ${p.content}`).join('\n');
+        const llmOutput = Object.entries(generatedJSON).map(([k, v]) => `${k}: ${v}`).join('\n');
+        validationResult = await this.truthAnchorClient.validate(sourceText, llmOutput);
+        if (validationResult.available) {
+          pipelineLogger.log('validation', 'complete',
+            `Score: ${validationResult.overallScore}, Claims: ${validationResult.totalClaims}, Contradicted: ${validationResult.contradictedClaims}`);
+        } else {
+          pipelineLogger.log('validation', 'warning', 'TruthAnchor unavailable: ' + (validationResult.error || ''));
+        }
+      }
+
       // 결과 객체
       const result = {
         success: true,
         updatedDocument: updatedDocument,
+        validation: validationResult,
         metadata: {
           request: userMessage,
           itemsUpdated: actualUpdatedCount,
@@ -489,6 +633,14 @@ export class AIDocumentController {
       ? promptBuilderFn(promptBuilder, headerContentPairs, userRequest)
       : promptBuilder.buildStructuredPrompt(headerContentPairs, userRequest);
 
+    // 대형 문서: 항목 수에 비례하여 max_tokens 자동 증가
+    const pairCount = headerContentPairs?.length || 0;
+    if (pairCount > 50) {
+      const dynamicTokens = Math.min(Math.max(pairCount * 30, 4000), 16000);
+      this.generator.options.maxTokens = dynamicTokens;
+      logger.info(`Large document (${pairCount} pairs): max_tokens → ${dynamicTokens}`);
+    }
+
     // GPT API 호출 (재시도 포함)
     const response = await this.generator.callAPIWithRetry(messages);
 
@@ -513,7 +665,14 @@ export class AIDocumentController {
 
       // JSON 블록 추출 (```json ... ``` 제거)
       const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/) || jsonText.match(/{[\s\S]*}/);
-      const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : jsonText;
+      let jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : jsonText;
+
+      // finish_reason: "length"인 경우 JSON이 잘렸을 수 있음 — 자동 복구 시도
+      const finishReason = response.choices?.[0]?.finish_reason;
+      if (finishReason === 'length') {
+        logger.warn('GPT 응답이 토큰 한도로 잘렸습니다. 불완전 JSON 복구 시도...');
+        jsonStr = this._repairTruncatedJSON(jsonStr);
+      }
 
       const generatedJSON = JSON.parse(jsonStr);
 
@@ -541,6 +700,30 @@ export class AIDocumentController {
   }
 
   /**
+   * 잘린 JSON 문자열을 복구 (finish_reason: "length" 대응)
+   * 마지막 완성된 키-값 쌍까지만 유지하고 JSON을 닫음
+   * @param {string} jsonStr - 잘린 JSON
+   * @returns {string} 복구된 JSON
+   * @private
+   */
+  _repairTruncatedJSON(jsonStr) {
+    // 마지막 완성된 "key": "value" 쌍을 찾음
+    const lastCompleteEntry = jsonStr.lastIndexOf('",');
+    if (lastCompleteEntry > 0) {
+      // 마지막 완성된 엔트리까지 자르고 } 로 닫음
+      const repaired = jsonStr.substring(0, lastCompleteEntry + 1) + '\n}';
+      logger.info(`JSON 복구: ${jsonStr.length}자 → ${repaired.length}자 (잘린 끝부분 제거)`);
+      return repaired;
+    }
+    // ", 를 찾지 못한 경우: 마지막 " 뒤에 } 추가
+    const lastQuote = jsonStr.lastIndexOf('"');
+    if (lastQuote > 0) {
+      return jsonStr.substring(0, lastQuote + 1) + '\n}';
+    }
+    return jsonStr;
+  }
+
+  /**
    * 구조화된 콘텐츠 병합 (헤더-내용 쌍 기반)
    * @param {Object} document - 원본 문서
    * @param {Object} generatedJSON - 생성된 JSON 객체
@@ -549,8 +732,23 @@ export class AIDocumentController {
    * @private
    */
   mergeStructuredContent(document, generatedJSON, headerContentPairs) {
-    // 문서 딥 복사
+    // 문서 딥 복사 (Map, Blob URL 등 non-serializable 속성 보존)
     const updatedDocument = JSON.parse(JSON.stringify(document));
+
+    // 🔥 Map 타입 복원: JSON.parse(JSON.stringify())는 Map을 {}로 변환하므로 원본 참조를 복원
+    if (document.images instanceof Map) {
+      updatedDocument.images = document.images;
+    }
+    // borderFills, charProperties 등 기타 Map 속성 복원
+    if (document.borderFills instanceof Map) {
+      updatedDocument.borderFills = document.borderFills;
+    }
+    if (document.charProperties instanceof Map) {
+      updatedDocument.charProperties = document.charProperties;
+    }
+    if (document.paraProperties instanceof Map) {
+      updatedDocument.paraProperties = document.paraProperties;
+    }
 
     let updatedCount = 0;
 

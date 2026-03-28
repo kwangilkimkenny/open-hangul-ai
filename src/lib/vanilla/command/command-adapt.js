@@ -882,6 +882,14 @@ export class CommandAdapt {
             return;
         }
 
+        // ✅ 현재 편집 중인 내용을 먼저 저장 (텍스트 유실 방지)
+        if (this.viewer.inlineEditor && this.viewer.inlineEditor.isEditing()) {
+            this.viewer.inlineEditor.saveChanges(true);
+        }
+        if (this.viewer._syncDocumentFromDOM) {
+            this.viewer._syncDocumentFromDOM();
+        }
+
         // 현재 문서 상태 저장
         const oldDocument = JSON.parse(JSON.stringify(this.viewer.getDocument()));
 

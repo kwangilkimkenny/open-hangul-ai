@@ -1,0 +1,175 @@
+/* ===== Security / Validation Toggle & Status ===== */
+
+.security-toggle-row {
+    display: flex;
+    gap: 12px;
+    padding: 6px 12px;
+    flex-wrap: wrap;
+}
+
+.security-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #555;
+    user-select: none;
+}
+
+.security-toggle-input {
+    display: none;
+}
+
+.security-toggle-switch {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    background: #ccc;
+    border-radius: 9px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.security-toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.security-toggle-input:checked + .security-toggle-switch {
+    background: #4a90d9;
+}
+
+.security-toggle-input:checked + .security-toggle-switch::after {
+    transform: translateX(14px);
+}
+
+/* Security Status Badge */
+.security-status {
+    display: none;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: #4a90d9;
+    background: rgba(74, 144, 217, 0.08);
+    border-radius: 4px;
+    margin: 4px 12px;
+    text-align: center;
+}
+
+.security-status-active {
+    display: block;
+}
+
+/* ===== TruthAnchor Validation Results ===== */
+
+.validation-results {
+    padding: 8px 12px;
+    margin: 4px 12px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.validation-header {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #333;
+}
+
+.validation-summary {
+    margin-bottom: 8px;
+    color: #555;
+}
+
+.validation-claims {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.claim-item {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.claim-item.claim-supported {
+    background: rgba(76, 175, 80, 0.08);
+    border-left: 3px solid #4caf50;
+}
+
+.claim-item.claim-contradicted {
+    background: rgba(244, 67, 54, 0.08);
+    border-left: 3px solid #f44336;
+}
+
+.claim-item.claim-neutral {
+    background: rgba(255, 193, 7, 0.08);
+    border-left: 3px solid #ffc107;
+}
+
+.claim-verdict {
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.claim-supported .claim-verdict { color: #4caf50; }
+.claim-contradicted .claim-verdict { color: #f44336; }
+.claim-neutral .claim-verdict { color: #f57c00; }
+
+.claim-correction {
+    margin-top: 2px;
+    padding: 3px 6px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 3px;
+    color: #1976d2;
+    font-style: italic;
+}
+
+/* Inline claim highlighting in chat messages */
+span.claim-supported { color: #4caf50; }
+span.claim-contradicted { color: #f44336; font-weight: 600; }
+span.claim-neutral { color: #f57c00; }
+
+/* ===== Mode Badge ===== */
+
+.validation-mode-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.validation-mode-online {
+    background: rgba(33, 150, 243, 0.12);
+    color: #1565c0;
+    border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.validation-mode-offline {
+    background: rgba(255, 152, 0, 0.12);
+    color: #e65100;
+    border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.validation-mode-info {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 6px;
+    padding: 3px 6px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 3px;
+}

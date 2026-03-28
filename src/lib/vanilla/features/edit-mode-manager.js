@@ -18,6 +18,9 @@ export class EditModeManager {
         this.inlineEditor = inlineEditor;
         this.isGlobalEditMode = true;  // ✅ 기본값을 true로 변경: 편집 모드를 기본으로 활성화
 
+        // ✅ body에 global-edit-mode 클래스 즉시 추가 (CSS user-select: none 방지)
+        document.body.classList.add('global-edit-mode');
+
         this._init();
         logger.info('📝 EditModeManager initialized (편집 모드 기본 활성화)');
     }

@@ -331,6 +331,16 @@ export class HWPXViewer {
     // ✅ Viewer를 전역으로 노출 (디버깅 및 수동 조작용)
     if (typeof window !== 'undefined') {
       window.viewer = this;
+      // ✅ 테이블 삽입/리사이즈 후 편집 기능 재등록용 글로벌 함수
+      // updateDocument 내부의 100ms setTimeout 이후에 실행되어야 하므로 300ms 사용
+      window.reinitializeEditing = () => {
+        if (this.inlineEditor) {
+          setTimeout(() => {
+            this._enableEditingFeatures();
+            logger.info('✅ reinitializeEditing: editing features re-enabled');
+          }, 300);
+        }
+      };
       logger.info('✅ Viewer exposed globally as window.viewer');
     }
 
@@ -702,21 +712,23 @@ export class HWPXViewer {
       this.editModeManager.toggleGlobalEditMode();
     }
 
-    // 편집 바인딩 완료를 확실히 기다린 후 자동 포커스
-    // updateDocument 내부의 _enableEditingFeatures가 100ms setTimeout을 사용하므로
-    // 충분한 시간 후 재시도하며, DOM 준비 상태도 확인
-    const tryAutoFocus = (attempt = 0) => {
+    // MutationObserver로 DOM 준비를 확실히 감지한 후 자동 포커스
+    const observer = new MutationObserver(() => {
       const firstPara = this.container.querySelector('.hwp-paragraph.editable-paragraph');
-      if (firstPara && firstPara._paraData && this.inlineEditor) {
-        this.inlineEditor.enableEditMode(firstPara, firstPara._paraData);
+      if (firstPara && this.inlineEditor) {
+        observer.disconnect();
+        // contentEditable이 이미 설정되어 있으므로 바로 포커스
         firstPara.focus();
-        logger.info('✅ Auto-focused first paragraph');
-      } else if (attempt < 5) {
-        // DOM 준비 안 됐으면 100ms 후 재시도 (최대 5회)
-        setTimeout(() => tryAutoFocus(attempt + 1), 150);
+        // 이벤트 리스너 등록을 위해 enableEditMode 호출
+        if (firstPara._paraData) {
+          this.inlineEditor.enableEditMode(firstPara, firstPara._paraData);
+        }
+        logger.info('✅ Auto-focused first paragraph (MutationObserver)');
       }
-    };
-    setTimeout(() => tryAutoFocus(0), 300);
+    });
+    observer.observe(this.container, { childList: true, subtree: true });
+    // 안전 타임아웃: 3초 후 observer 해제
+    setTimeout(() => observer.disconnect(), 3000);
 
     logger.info('✅ New document created');
   }
@@ -849,8 +861,16 @@ export class HWPXViewer {
       );
 
       if (editableParagraphs.length > 0) {
-        // editable-paragraph 클래스 추가
+        // _paraData 없는 단락에 기본 데이터 연결 (새 문서 등)
         editableParagraphs.forEach(para => {
+          if (!para._paraData) {
+            para._paraData = {
+              type: 'paragraph',
+              runs: [{ text: para.textContent || '', style: {} }],
+              text: para.textContent || '',
+              style: {}
+            };
+          }
           para.classList.add('editable-paragraph');
         });
         this.inlineEditor.enableParagraphEditing(editableParagraphs);
@@ -936,11 +956,19 @@ export class HWPXViewer {
 
         // 페이지 빈 영역 클릭 → 마지막 편집 가능 단락에 포커스
         const editableParagraphs = page.querySelectorAll('.hwp-paragraph.editable-paragraph');
-        if (editableParagraphs.length > 0 && this.inlineEditor) {
+        if (editableParagraphs.length > 0) {
           const lastPara = editableParagraphs[editableParagraphs.length - 1];
-          if (lastPara._paraData) {
+          lastPara.focus();
+          // 커서를 텍스트 끝으로 배치
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(lastPara);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          // 이벤트 리스너 등록
+          if (lastPara._paraData && this.inlineEditor) {
             this.inlineEditor.enableEditMode(lastPara, lastPara._paraData);
-            logger.debug('📍 Page click fallback: focused last paragraph');
           }
         }
       });

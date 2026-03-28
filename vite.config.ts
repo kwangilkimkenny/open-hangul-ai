@@ -14,12 +14,22 @@ export default defineConfig(({ mode }) => {
     alias: {
       'hwplib-js': path.resolve(__dirname, 'hwpTohwpx/hpw2hwpx_converter/hwplib-js/dist/index.esm.js'),
       '@hwp2hwpx': path.resolve(__dirname, 'hwpTohwpx/hpw2hwpx_converter/hwp2hwpx-js/src'),
+      '@aegis-sdk': path.resolve(__dirname, 'packages-aegis/aegis-sdk/src/index.ts'),
     },
   },
   server: {
     port: 5090,        // 고정 포트
     strictPort: true,  // 포트 사용 중이면 에러 발생 (자동 변경 안 함)
     proxy: {
+      // TruthAnchor (HalluGuard) 프록시 - 할루시네이션 검증 서버
+      '/api/v2': {
+        target: 'http://localhost:8200',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:8200',
+        changeOrigin: true,
+      },
       // OpenAI API 프록시 - CORS 우회 + API 키 서버사이드 관리
       '/api/ai/chat': {
         target: 'https://api.openai.com',
@@ -62,6 +72,16 @@ export default defineConfig(({ mode }) => {
             }
             // 기타 node_modules는 vendor로
             return 'vendor';
+          }
+
+          // AEGIS 보안 SDK (별도 청크)
+          if (id.includes('packages-aegis')) {
+            return 'lib-aegis';
+          }
+
+          // AI 보안 모듈 (별도 청크)
+          if (id.includes('/lib/vanilla/ai/security-gateway') || id.includes('/lib/vanilla/ai/truthanchor-client')) {
+            return 'feature-security';
           }
 
           // AI 기능 (선택적 기능)

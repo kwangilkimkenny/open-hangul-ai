@@ -57,10 +57,10 @@ export class InlineEditor {
       return;
     }
 
-    // 기존 편집 중인 요소가 있으면 자동 저장 (편집 모드는 유지)
+    // 기존 편집 중인 요소가 있으면 저장 후 이벤트 리스너 제거
     if (this.editingCell && this.editingCell !== cellElement) {
       logger.debug('📝 Auto-saving previous element...');
-      this.saveChanges(false); // false = 편집 모드 종료하지 않음
+      this.saveChanges(true); // 이벤트 리스너 완전 제거 (중복 방지)
     }
 
     logger.debug('✏️ Enabling edit mode for element');
@@ -75,38 +75,13 @@ export class InlineEditor {
     this.cellDataMap.set(cellData, cellElement);
     logger.debug('  ✓ Registered cellData → element mapping in WeakMap');
 
-    // 편집 모드 표시
+    // 편집 모드 표시 (Word/한글 스타일: 시각적 구분 최소화)
     cellElement.classList.add('editing');
     cellElement.contentEditable = true;
     cellElement.spellcheck = true;
-    cellElement.style.outline = '2px solid #667eea';
-    cellElement.style.outlineOffset = '2px';
-    cellElement.style.backgroundColor = 'rgba(102, 126, 234, 0.05)';
 
-    // 포커스
-    cellElement.focus();
-
-    // ✅ 개선: 텍스트 끝으로 커서 이동 (전체 선택하지 않음)
-    const range = document.createRange();
-    const selection = window.getSelection();
-
-    // 텍스트 끝으로 커서 이동
-    if (cellElement.childNodes.length > 0) {
-      const lastNode = this._getLastTextNode(cellElement);
-      if (lastNode) {
-        range.setStart(lastNode, lastNode.length || 0);
-        range.collapse(true);
-      } else {
-        range.selectNodeContents(cellElement);
-        range.collapse(false);
-      }
-    } else {
-      range.selectNodeContents(cellElement);
-      range.collapse(false);
-    }
-
-    selection.removeAllRanges();
-    selection.addRange(range);
+    // 브라우저가 클릭 위치에 커서를 이미 배치했으므로 focus()를 호출하지 않음
+    // focus()를 호출하면 커서 위치가 리셋되어 사용자가 원하는 위치에 커서를 놓을 수 없음
 
     // 이벤트 리스너 추가
     this._attachEventListeners(cellElement);
@@ -249,29 +224,13 @@ export class InlineEditor {
       return;
     }
 
-    // Enter: 단락에서는 줄바꿈, 테이블 셀에서는 다음으로 이동
+    // Enter: 항상 줄바꿈 (Word/한글 스타일)
+    // Tab: 테이블 셀 간 이동
     if (e.key === 'Enter') {
-      const isInParagraph = this.editingCell && this.editingCell.classList.contains('editable-paragraph');
-      if (isInParagraph) {
-        // 단락 편집: Enter = 줄바꿈, Shift+Enter도 줄바꿈
-        e.preventDefault();
-        e.stopPropagation();
-        this._insertNewlineAtCursor();
-        return;
-      } else if (e.shiftKey) {
-        // 테이블 셀: Shift+Enter = 줄바꿈
-        e.preventDefault();
-        e.stopPropagation();
-        this._insertNewlineAtCursor();
-        return;
-      } else {
-        // 테이블 셀: Enter = 저장 후 다음 셀로 이동
-        e.preventDefault();
-        e.stopPropagation();
-        this.saveChanges(false);
-        this._navigateToNext('next');
-        return;
-      }
+      e.preventDefault();
+      e.stopPropagation();
+      this._insertNewlineAtCursor();
+      return;
     }
 
     // Escape: 편집 모드 완전 종료
@@ -389,13 +348,18 @@ export class InlineEditor {
     setTimeout(() => {
       if (!this.editingCell || this.editingCell !== e.target) return;
 
-      // 현재 포커스된 요소가 툴바/리본이면 편집 모드 유지
+      // 현재 포커스된 요소가 툴바/리본/패널이면 편집 모드 유지
       const activeEl = document.activeElement;
       const isToolbarClick = activeEl && (
         activeEl.closest('.hwp-ribbon-panel') ||
         activeEl.closest('.hwp-menubar') ||
         activeEl.closest('.hwp-ribbon-tabs') ||
-        activeEl.closest('.hwp-toolbar')
+        activeEl.closest('.hwp-toolbar') ||
+        activeEl.closest('.ai-chat-panel') ||
+        activeEl.closest('.color-picker') ||
+        activeEl.closest('[role="dialog"]') ||
+        activeEl.closest('select') ||
+        activeEl.closest('button')
       );
       if (isToolbarClick) {
         // blur 리스너를 다시 등록 (once이므로)
@@ -509,7 +473,17 @@ export class InlineEditor {
   }
 
   _handleInput(e) {
-    this._sanitizeContent();
+    // IME 조합 중에는 sanitize 하지 않음 (한글 입력 시 <div>가 <br>로 변환되어 줄바꿈 발생 방지)
+    if (this.isComposing) return;
+
+    // sanitize를 debounce로 지연 (빠른 타이핑 시 매 글자마다 실행 방지)
+    if (this._sanitizeTimer) clearTimeout(this._sanitizeTimer);
+    this._sanitizeTimer = setTimeout(() => {
+      if (!this.isComposing) {
+        this._sanitizeContent();
+      }
+    }, 300);
+
     this._checkPageOverflow();
     this._checkPageMerge();
   }
@@ -684,10 +658,9 @@ export class InlineEditor {
     const newPara = document.createElement('div');
     newPara.className = editingEl.className;
     newPara.style.cssText = editingEl.style.cssText;
-    // contentEditable은 설정하지 않음 (클릭 시 활성화)
-    newPara.style.outline = '';
-    newPara.style.outlineOffset = '';
-    newPara.style.backgroundColor = '';
+    // Word/한글 스타일: 즉시 편집 가능
+    newPara.contentEditable = true;
+    newPara.spellcheck = true;
 
     // _paraData 복제
     if (editingEl._paraData) {
@@ -725,8 +698,7 @@ export class InlineEditor {
       newPara.style.cursor = 'text';
       newPara.addEventListener('click', (e) => {
         if (window.editModeManager && !window.editModeManager.isGlobalEditMode) return;
-        e.preventDefault();
-        e.stopPropagation();
+        if (this.editingCell === newPara) return;
         this.enableEditMode(newPara, newPara._paraData);
       });
     }
@@ -1052,10 +1024,7 @@ export class InlineEditor {
     }
 
     this.editingCell.classList.remove('editing');
-    this.editingCell.contentEditable = false;
-    this.editingCell.style.outline = '';
-    this.editingCell.style.outlineOffset = '';
-    this.editingCell.style.backgroundColor = '';
+    // contentEditable은 유지 (Word/한글처럼 항상 편집 가능)
 
     this.editingCell = null;
     this.originalContent = null;
@@ -1646,31 +1615,22 @@ export class InlineEditor {
       // ✅ Phase 2 P1: WeakMap에 cellData → element 매핑 등록
       this.cellDataMap.set(cellData, cell);
 
-      // ✅ v2.1.0: 싱글클릭 이벤트 (글로벌 편집 모드 체크 포함)
-      const clickHandler = e => {
-        // ✅ 편집 모드가 OFF면 클릭 무시
-        if (window.editModeManager && !window.editModeManager.isGlobalEditMode) {
-          logger.debug('⚠️ Edit mode is OFF - cell click ignored');
-          return;
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-        this.enableEditMode(cell, cellData);
-      };
-
-      // 기존 리스너 제거 (중복 방지)
-      cell.removeEventListener('click', clickHandler);
-      cell.addEventListener('click', clickHandler);
-
-      // ✅ cursor 우선순위: text가 항상 우선 (TableResizer보다 우선)
+      // ✅ Word/한글 스타일: 셀 내부 paragraph에 contentEditable 설정
+      // <td> 자체에 설정하면 브라우저가 <div>를 자동 생성하여 줄바꿈 발생
+      const cellPara = cell.querySelector('.hwp-paragraph') || cell;
+      cellPara.contentEditable = true;
+      cellPara.spellcheck = true;
       cell.style.setProperty('cursor', 'text', 'important');
-
-      // ✅ 기존 title 속성 명시적으로 제거 (툴팁 제거)
       cell.removeAttribute('title');
-
-      // 편집 가능 표시 (data attribute)
       cell.setAttribute('data-editable', 'true');
+
+      // 클릭 시: 편집 대상을 paragraph로 설정
+      cell.addEventListener('click', e => {
+        if (window.editModeManager && !window.editModeManager.isGlobalEditMode) return;
+        const editTarget = cell.querySelector('.hwp-paragraph') || cell;
+        if (this.editingCell === editTarget) return;
+        this.enableEditMode(editTarget, cellData);
+      });
 
       enabledCount++;
     });
@@ -1711,26 +1671,19 @@ export class InlineEditor {
         return;
       }
 
-      // ✅ v2.1.0: 더블클릭 → 싱글클릭 (글로벌 편집 모드 체크 포함)
-      paraElement.addEventListener('click', e => {
-        // ✅ 편집 모드가 OFF면 클릭 무시
-        if (window.editModeManager && !window.editModeManager.isGlobalEditMode) {
-          logger.debug('⚠️ Edit mode is OFF - paragraph click ignored');
-          return;
-        }
+      // ✅ Word/한글 스타일: 처음부터 contentEditable=true
+      paraElement.contentEditable = true;
+      paraElement.spellcheck = true;
+      paraElement.style.cursor = 'text';
+      paraElement.removeAttribute('title');
+      paraElement.classList.add('editable-paragraph');
 
-        e.preventDefault();
-        e.stopPropagation();
+      // 클릭 시: 편집 데이터 등록 (시각적 변화 없음, 커서는 브라우저 기본 동작)
+      paraElement.addEventListener('click', e => {
+        if (window.editModeManager && !window.editModeManager.isGlobalEditMode) return;
+        if (this.editingCell === paraElement) return;
         this.enableEditMode(paraElement, paraData);
       });
-
-      // 편집 가능 힌트
-      paraElement.style.cursor = 'text';
-
-      // ✅ 기존 title 속성 명시적으로 제거 (툴팁 제거)
-      paraElement.removeAttribute('title');
-
-      paraElement.classList.add('editable-paragraph');
 
       editableCount++;
     });

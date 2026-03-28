@@ -67,31 +67,58 @@ th[data-editable="true"],
     cursor: text !important;
 }
 
-/* 호버 시 편집 가능 표시 */
+/* 호버 시 편집 가능 표시 (Word/한글 스타일: 최소화) */
 td[data-editable="true"]:hover:not(.editing),
 th[data-editable="true"]:hover:not(.editing),
 .hwp-paragraph.editable-paragraph:hover:not(.editing) {
-    background: rgba(102, 126, 234, 0.05) !important;
-    outline: 1px dashed rgba(102, 126, 234, 0.3);
-    outline-offset: 2px;
+    cursor: text;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * 3. 편집 중인 요소 스타일
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-.editing {
-    animation: pulse-edit 2s ease-in-out infinite;
-    cursor: text !important;
+/* contentEditable 요소의 브라우저 기본 포커스 테두리/배경 완전 제거 (Word/한글 스타일) */
+[contenteditable="true"] {
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-focus-ring-color: transparent;
+    caret-color: #000;
 }
 
-@keyframes pulse-edit {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4);
-    }
-    50% {
-        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-    }
+[contenteditable="true"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    background-color: inherit !important;
+}
+
+[contenteditable="true"]:focus-visible {
+    outline: none !important;
+}
+
+/* 페이지 컨테이너, 렌더 영역 등 모든 포커스 가능한 요소의 브라우저 기본 테두리 제거 */
+.hwp-page-container,
+.hwp-page-container *,
+#render-container,
+#render-container *,
+.hwp-paragraph,
+.hwp-table,
+.hwp-table td,
+.hwp-table th {
+    outline: none !important;
+}
+
+.hwp-page-container:focus,
+.hwp-page-container:focus-visible,
+#render-container:focus,
+#render-container:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.editing {
+    cursor: text !important;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -102,7 +129,7 @@ th[data-editable="true"]:hover:not(.editing),
 body.global-edit-mode .hwp-paragraph:not(.hwp-table .hwp-paragraph),
 body.global-edit-mode td,
 body.global-edit-mode th {
-    outline: 1px dashed rgba(102, 126, 234, 0.3);
+    outline: none;
     outline-offset: 2px;
     transition: all 0.2s ease;
 }
@@ -110,8 +137,7 @@ body.global-edit-mode th {
 body.global-edit-mode .hwp-paragraph:hover:not(.hwp-table .hwp-paragraph),
 body.global-edit-mode td:hover,
 body.global-edit-mode th:hover {
-    outline: 2px solid rgba(102, 126, 234, 0.6);
-    background: rgba(102, 126, 234, 0.02) !important;
+    cursor: text;
 }
 
 /* ✅ v2.1.0: 편집 모드 OFF 상태 - 편집 불가 시각적 표시 */
@@ -187,14 +213,11 @@ body:not(.global-edit-mode) .editable-paragraph:hover {
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 .edit-mode-highlight {
-    outline: 1px dashed rgba(102, 126, 234, 0.4) !important;
-    outline-offset: 2px;
-    transition: all 0.2s ease;
+    cursor: text;
 }
 
 .edit-mode-highlight:hover {
-    outline: 2px solid rgba(102, 126, 234, 0.7) !important;
-    background: rgba(102, 126, 234, 0.03) !important;
+    cursor: text;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -28,6 +28,20 @@ export class HwpxSafeExporter {
     }
 
     /**
+     * XMLSerializer 결과에 XML 선언을 복원
+     * XMLSerializer는 <?xml ...?> 선언을 제거하므로 수동으로 추가
+     * @param {string} xmlString - XML 문자열
+     * @returns {string} XML 선언이 포함된 XML 문자열
+     * @private
+     */
+    _ensureXmlDeclaration(xmlString) {
+        if (!xmlString.startsWith('<?xml')) {
+            return '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>' + xmlString;
+        }
+        return xmlString;
+    }
+
+    /**
      * 원본 HWPX 파일과 수정된 문서를 받아 새 HWPX 파일 생성
      * @param {File|Blob} originalHwpxFile - 원본 HWPX 파일
      * @param {Object} modifiedDocument - 수정된 문서 객체
@@ -97,7 +111,28 @@ export class HwpxSafeExporter {
             
             logger.info(`  ✅ ${sections.length}개 section XML 업데이트 완료`);
 
-            // 3. 새 HWPX ZIP 생성
+            // 3. mimetype은 반드시 비압축(STORE)으로 유지해야 함
+            originalZip.file('mimetype', 'application/hwp+zip', { compression: 'STORE' });
+
+            // 3.5. JSZip이 자동 생성한 빈 디렉토리 엔트리 제거
+            Object.keys(originalZip.files).forEach(name => {
+                if (originalZip.files[name].dir) {
+                    delete originalZip.files[name];
+                }
+            });
+
+            // 3.6. 원본에서 STORE로 저장된 파일들의 압축 방식 보존
+            // generateAsync의 전역 DEFLATE가 이들을 덮어쓰지 않도록
+            // version.xml과 바이너리 미리보기 이미지 등을 STORE로 재설정
+            for (const [name, file] of Object.entries(originalZip.files)) {
+                if (name === 'version.xml' ||
+                    (name.startsWith('Preview/') && /\.(png|jpg|jpeg|gif|bmp)$/i.test(name))) {
+                    const content = await file.async('uint8array');
+                    originalZip.file(name, content, { compression: 'STORE' });
+                }
+            }
+
+            // 새 HWPX ZIP 생성
             const blob = await originalZip.generateAsync({
                 type: 'blob',
                 compression: 'DEFLATE',
@@ -344,10 +379,10 @@ export class HwpxSafeExporter {
             
             logger.info(`    ✅ ${replacedCount}/${pairs.length}개 섹션 교체 완료`);
             
-            // 5. XML 직렬화
+            // 5. XML 직렬화 (XML 선언 복원 필수)
             const serializer = new XMLSerializer();
-            const modifiedXml = serializer.serializeToString(xmlDoc);
-            
+            const modifiedXml = this._ensureXmlDeclaration(serializer.serializeToString(xmlDoc));
+
             logger.info('    ✅ 헤더 기반 섹션 교체 완료!');
             return modifiedXml;
             
@@ -533,10 +568,10 @@ export class HwpxSafeExporter {
                 return null;
             }
             
-            // 6. XML 직렬화
+            // 6. XML 직렬화 (XML 선언 복원 필수)
             const serializer = new XMLSerializer();
-            let modifiedXml = serializer.serializeToString(xmlDoc);
-            
+            let modifiedXml = this._ensureXmlDeclaration(serializer.serializeToString(xmlDoc));
+
             // 7. xml:space="preserve" 검증 및 보정
             const beforeCount = (modifiedXml.match(/<hp:t xml:space="preserve"/g) || []).length;
             const allTCount = (modifiedXml.match(/<hp:t[\s>]/g) || []).length;
@@ -775,9 +810,9 @@ export class HwpxSafeExporter {
                 logger.error('    ❌ 빈 run 태그 처리 실패:', e.message);
             }
             
-            // XML을 문자열로 변환 (<hp:t> 추가된 상태)
+            // XML을 문자열로 변환 (<hp:t> 추가된 상태, XML 선언 복원)
             const serializer = new XMLSerializer();
-            const xmlStringWithT = serializer.serializeToString(xmlDoc);
+            const xmlStringWithT = this._ensureXmlDeclaration(serializer.serializeToString(xmlDoc));
             
             // ============================================================
             // 2단계: 수정된 XML로 텍스트 수집
@@ -1080,9 +1115,9 @@ export class HwpxSafeExporter {
             
             logger.info(`    ✅ ${textIndex}개 텍스트 노드 업데이트 완료 (전체: ${textNodeArray.length}개)`);
             
-            // XML을 문자열로 변환 (serializer 재사용)
-            let modifiedXml = serializer.serializeToString(xmlDoc);
-            
+            // XML을 문자열로 변환 (serializer 재사용, XML 선언 복원)
+            let modifiedXml = this._ensureXmlDeclaration(serializer.serializeToString(xmlDoc));
+
             // ⚠️ XMLSerializer가 xml:space="preserve"를 제대로 serialize하지 못하는 경우가 있음
             // 해결: 모든 <hp:t> 태그에 xml:space="preserve" 속성을 직접 추가
             const beforeCount = (modifiedXml.match(/<hp:t xml:space="preserve"/g) || []).length;
@@ -1713,10 +1748,10 @@ export class HwpxSafeExporter {
             
             logger.info(`  ✅ 자동 줄바꿈 속성 추가 완료: subList ${modifiedSubListCount}개, paragraph ${modifiedParagraphCount}개, linesegarray ${removedLinesegCount}개 제거`);
             
-            // 수정된 XML 반환
+            // 수정된 XML 반환 (XML 선언 복원)
             const serializer = new XMLSerializer();
-            return serializer.serializeToString(sectionDoc);
-            
+            return this._ensureXmlDeclaration(serializer.serializeToString(sectionDoc));
+
         } catch (error) {
             logger.error('  ❌ 자동 줄바꿈 속성 추가 실패:', error);
             return sectionXml; // 실패 시 원본 반환
@@ -1831,10 +1866,10 @@ export class HwpxSafeExporter {
             }
             
             if (modifiedCount > 0) {
-                // 수정된 header.xml을 문자열로 변환
+                // 수정된 header.xml을 문자열로 변환 (XML 선언 복원 필수)
                 const serializer = new XMLSerializer();
-                const modifiedHeaderXml = serializer.serializeToString(headerDoc);
-                
+                const modifiedHeaderXml = this._ensureXmlDeclaration(serializer.serializeToString(headerDoc));
+
                 // ZIP에 업데이트
                 zip.file('Contents/header.xml', modifiedHeaderXml);
                 logger.info(`  ✅ header.xml 수정 완료: ${modifiedCount}개 paraPr 업데이트`);
@@ -1945,10 +1980,10 @@ export class HwpxSafeExporter {
                 }
                 
                 if (modifiedSubListCount > 0 || modifiedParagraphCount > 0 || removedLinesegCount > 0) {
-                    // 수정된 section XML을 문자열로 변환
+                    // 수정된 section XML을 문자열로 변환 (XML 선언 복원)
                     const serializer = new XMLSerializer();
-                    const modifiedSectionXml = serializer.serializeToString(sectionDoc);
-                    
+                    const modifiedSectionXml = this._ensureXmlDeclaration(serializer.serializeToString(sectionDoc));
+
                     // ZIP에 업데이트
                     zip.file(path, modifiedSectionXml);
                     logger.info(`  ✅ ${path} 수정 완료: subList ${modifiedSubListCount}개, 단락 ${modifiedParagraphCount}개, linesegarray ${removedLinesegCount}개 제거`);

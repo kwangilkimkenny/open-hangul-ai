@@ -127,7 +127,11 @@ export function renderTable(table, images) {
                         td.rowSpan = cell.rowSpan;
                     }
 
-                    // Apply cell styles
+                    // Apply cell styles (style 없으면 기본 테두리 적용)
+                    if (!cell.style) {
+                        td.style.border = '1px solid #000';
+                        td.style.padding = '4px 6px';
+                    }
                     if (cell.style) {
                         // Background (priority: image > gradient > solid color)
                         if (cell.style.backgroundImage && images) {
