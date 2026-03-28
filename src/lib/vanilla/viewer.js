@@ -702,6 +702,22 @@ export class HWPXViewer {
       this.editModeManager.toggleGlobalEditMode();
     }
 
+    // 편집 바인딩 완료를 확실히 기다린 후 자동 포커스
+    // updateDocument 내부의 _enableEditingFeatures가 100ms setTimeout을 사용하므로
+    // 충분한 시간 후 재시도하며, DOM 준비 상태도 확인
+    const tryAutoFocus = (attempt = 0) => {
+      const firstPara = this.container.querySelector('.hwp-paragraph.editable-paragraph');
+      if (firstPara && firstPara._paraData && this.inlineEditor) {
+        this.inlineEditor.enableEditMode(firstPara, firstPara._paraData);
+        firstPara.focus();
+        logger.info('✅ Auto-focused first paragraph');
+      } else if (attempt < 5) {
+        // DOM 준비 안 됐으면 100ms 후 재시도 (최대 5회)
+        setTimeout(() => tryAutoFocus(attempt + 1), 150);
+      }
+    };
+    setTimeout(() => tryAutoFocus(0), 300);
+
     logger.info('✅ New document created');
   }
 
@@ -840,6 +856,9 @@ export class HWPXViewer {
         this.inlineEditor.enableParagraphEditing(editableParagraphs);
       }
 
+      // 페이지 빈 영역 클릭 시 마지막 단락에 포커스
+      this._setupPageClickFallback();
+
       logger.info('✅ Editing features enabled');
     } catch (error) {
       logger.error('❌ Failed to enable editing features:', error);
@@ -893,6 +912,39 @@ export class HWPXViewer {
     });
 
     logger.info('✅ Click-to-position enabled (Ctrl+Shift+Click to debug)');
+  }
+
+  /**
+   * 페이지 빈 영역 클릭 시 가장 가까운 단락에 포커스
+   * @private
+   */
+  _setupPageClickFallback() {
+    const pages = this.container.querySelectorAll('.hwp-page-container, .hwp-page');
+    pages.forEach(page => {
+      // 이미 바인딩 되었으면 스킵
+      if (page._pageClickBound) return;
+      page._pageClickBound = true;
+
+      page.addEventListener('click', (e) => {
+        // 단락이나 테이블을 직접 클릭한 경우는 무시 (이미 자체 핸들러 있음)
+        const target = e.target;
+        if (target.closest('.hwp-paragraph.editable-paragraph') ||
+            target.closest('.hwp-table td') ||
+            target.closest('.hwp-table th')) {
+          return;
+        }
+
+        // 페이지 빈 영역 클릭 → 마지막 편집 가능 단락에 포커스
+        const editableParagraphs = page.querySelectorAll('.hwp-paragraph.editable-paragraph');
+        if (editableParagraphs.length > 0 && this.inlineEditor) {
+          const lastPara = editableParagraphs[editableParagraphs.length - 1];
+          if (lastPara._paraData) {
+            this.inlineEditor.enableEditMode(lastPara, lastPara._paraData);
+            logger.debug('📍 Page click fallback: focused last paragraph');
+          }
+        }
+      });
+    });
   }
 
   /**
@@ -1475,99 +1527,208 @@ export class HWPXViewer {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
 
-      const doc = this.getDocument();
+      let doc = this.getDocument();
+
+      // state.document가 null이지만 렌더링된 DOM이 있는 경우 → DOM에서 문서 재구성
+      if ((!doc || !doc.sections || doc.sections.length === 0) && this.container) {
+        logger.info('⚠️ state.document is null but DOM exists, rebuilding from DOM...');
+        doc = this._rebuildDocumentFromDOM();
+        if (doc) {
+          this.state.document = doc;
+          logger.info(`✅ Rebuilt document: ${doc.sections?.length || 0} sections`);
+        }
+      }
+
       if (!doc || !doc.sections || doc.sections.length === 0) {
         throw new Error('저장할 문서 내용이 없습니다.');
       }
 
-      // HWPX 기본 구조 생성
-      // mimetype
-      zip.file('mimetype', 'application/hwp+zip');
+      const sectionCount = doc.sections.length;
+      const now = new Date().toISOString();
 
-      // META-INF/container.xml
-      zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
-<container>
-  <rootfiles>
-    <rootfile full-path="Contents/content.hpf" media-type="application/hwp+xml"/>
-  </rootfiles>
-</container>`);
+      // ===== HWPX 표준 구조 생성 =====
 
-      // Contents/content.hpf
-      const sectionRefs = doc.sections.map((_, i) =>
-        `    <hpf:item href="section${i}.xml" media-type="application/xml"/>`
-      ).join('\n');
-      zip.file('Contents/content.hpf', `<?xml version="1.0" encoding="UTF-8"?>
-<hpf:package xmlns:hpf="urn:hancom:office:packages:2017">
-  <hpf:manifest>
-${sectionRefs}
-  </hpf:manifest>
-</hpf:package>`);
+      // 1. mimetype (반드시 비압축, ZIP 내 첫 번째 파일)
+      zip.file('mimetype', 'application/hwp+zip', { compression: 'STORE' });
 
-      // Contents/header.xml (기본 헤더)
-      zip.file('Contents/header.xml', `<?xml version="1.0" encoding="UTF-8"?>
-<ha:head xmlns:ha="urn:hancom:office:hwpml:2011" xmlns:hp="urn:hancom:office:hwpml:2011">
-  <ha:beginNum page="1" footnote="1" endnote="1"/>
-  <ha:refList>
-    <ha:fontfaces>
-      <ha:fontface lang="HANGUL">
-        <ha:font id="0" face="함초롬돋움" type="TTF"/>
-      </ha:fontface>
-      <ha:fontface lang="LATIN">
-        <ha:font id="0" face="함초롬돋움" type="TTF"/>
-      </ha:fontface>
-    </ha:fontfaces>
-    <ha:charProperties>
-      <ha:charPr id="0" height="1000" color="0">
-        <ha:fontRef hangul="0" latin="0"/>
-      </ha:charPr>
-    </ha:charProperties>
-    <ha:paraProperties>
-      <ha:paraPr id="0" align="JUSTIFY">
-        <ha:margin left="0" right="0" indent="0"/>
-        <ha:lineSpacing type="PERCENT" value="160"/>
-      </ha:paraPr>
-    </ha:paraProperties>
-  </ha:refList>
-</ha:head>`);
+      // 2. version.xml
+      zip.file('version.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version"
+               tagetApplication="WORDPROCESSOR"
+               major="5" minor="1" micro="1" buildNumber="0"
+               os="1" xmlVersion="1.5"
+               application="OpenHangul AI"
+               appVersion="3.0.0"/>`, { compression: 'DEFLATE' });
 
-      // 이미지 수집: DOM에서 img 태그를 찾아 BinData에 저장
-      const images = this.container.querySelectorAll('img');
-      let imageIndex = 0;
-      for (const img of images) {
-        try {
-          const src = img.src;
-          if (!src) continue;
-          let imageData;
-          if (src.startsWith('data:')) {
-            // data URL → binary
-            const base64 = src.split(',')[1];
-            const binary = atob(base64);
-            imageData = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) imageData[i] = binary.charCodeAt(i);
-          } else if (src.startsWith('blob:')) {
-            // blob URL → fetch
-            const resp = await fetch(src);
-            const ab = await resp.arrayBuffer();
-            imageData = new Uint8Array(ab);
+      // 3. settings.xml
+      zip.file('settings.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<ha:HWPApplicationSetting xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
+                          xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <ha:CaretPosition listIDRef="0" paraIDRef="0" pos="0"/>
+</ha:HWPApplicationSetting>`, { compression: 'DEFLATE' });
+
+      // 4. META-INF/container.xml
+      zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">
+  <ocf:rootfiles>
+    <ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>
+    <ocf:rootfile full-path="Preview/PrvText.txt" media-type="text/plain"/>
+    <ocf:rootfile full-path="META-INF/container.rdf" media-type="application/rdf+xml"/>
+  </ocf:rootfiles>
+</ocf:container>`, { compression: 'DEFLATE' });
+
+      // 5. META-INF/manifest.xml
+      zip.file('META-INF/manifest.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>`, { compression: 'DEFLATE' });
+
+      // 6. META-INF/container.rdf
+      let rdfSections = '';
+      for (let i = 0; i < sectionCount; i++) {
+        rdfSections += `
+  <rdf:Description rdf:about="">
+    <ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section${i}.xml"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="Contents/section${i}.xml">
+    <rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/>
+  </rdf:Description>`;
+      }
+      zip.file('META-INF/container.rdf', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="">
+    <ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="Contents/header.xml">
+    <rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/>
+  </rdf:Description>${rdfSections}
+  <rdf:Description rdf:about="">
+    <rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/>
+  </rdf:Description>
+</rdf:RDF>`, { compression: 'DEFLATE' });
+
+      // 7. Contents/header.xml (표준 네임스페이스)
+      zip.file('Contents/header.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
+         xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
+         xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+         xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+         xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core">
+  <hh:beginNum page="1" footnote="1" endnote="1"/>
+  <hh:refList>
+    <hh:fontfaces>
+      <hh:fontface lang="HANGUL">
+        <hh:font id="0" face="함초롬돋움" type="TTF"/>
+      </hh:fontface>
+      <hh:fontface lang="LATIN">
+        <hh:font id="0" face="함초롬돋움" type="TTF"/>
+      </hh:fontface>
+      <hh:fontface lang="HANJA">
+        <hh:font id="0" face="함초롬돋움" type="TTF"/>
+      </hh:fontface>
+    </hh:fontfaces>
+    <hh:charProperties>
+      <hh:charPr id="0" height="1000" color="0">
+        <hh:fontRef hangul="0" latin="0" hanja="0"/>
+      </hh:charPr>
+    </hh:charProperties>
+    <hh:paraProperties>
+      <hh:paraPr id="0" align="JUSTIFY">
+        <hh:margin left="0" right="0" indent="0"/>
+        <hh:lineSpacing type="PERCENT" value="160"/>
+      </hh:paraPr>
+    </hh:paraProperties>
+  </hh:refList>
+</hh:head>`, { compression: 'DEFLATE' });
+
+      // 8. 이미지 수집: DOM에서 img 태그를 찾아 BinData에 저장
+      const imageItems = [];
+      if (this.container) {
+        const images = this.container.querySelectorAll('img');
+        let imageIndex = 0;
+        for (const img of images) {
+          try {
+            const src = img.src;
+            if (!src) continue;
+            let imageData;
+            if (src.startsWith('data:')) {
+              const base64 = src.split(',')[1];
+              const binary = atob(base64);
+              imageData = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) imageData[i] = binary.charCodeAt(i);
+            } else if (src.startsWith('blob:')) {
+              const resp = await fetch(src);
+              const ab = await resp.arrayBuffer();
+              imageData = new Uint8Array(ab);
+            }
+            if (imageData) {
+              const ext = src.includes('png') ? 'png' : 'jpg';
+              const imgFilename = `image${imageIndex}.${ext}`;
+              zip.file(`BinData/${imgFilename}`, imageData, { binary: true });
+              imageItems.push({ id: `image${imageIndex}`, href: `BinData/${imgFilename}`, type: `image/${ext}` });
+              imageIndex++;
+            }
+          } catch (imgErr) {
+            logger.warn('⚠️ Failed to save image:', imgErr);
           }
-          if (imageData) {
-            const ext = src.includes('png') ? 'png' : 'jpg';
-            zip.file(`BinData/image${imageIndex}.${ext}`, imageData);
-            imageIndex++;
-          }
-        } catch (imgErr) {
-          logger.warn('⚠️ Failed to save image:', imgErr);
         }
       }
 
-      // Contents/section0.xml (각 섹션)
+      // 9. Contents/content.hpf (표준 opf 형식)
+      const imageManifestItems = imageItems.map(img =>
+        `    <opf:item id="${img.id}" href="${img.href}" media-type="${img.type}" isEmbeded="1"/>`
+      ).join('\n');
+      const sectionManifestItems = doc.sections.map((_, i) =>
+        `    <opf:item id="section${i}" href="Contents/section${i}.xml" media-type="application/xml"/>`
+      ).join('\n');
+      const sectionSpineItems = doc.sections.map((_, i) =>
+        `    <opf:itemref idref="section${i}" linear="yes"/>`
+      ).join('\n');
+
+      zip.file('Contents/content.hpf', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<opf:package xmlns:opf="http://www.idpf.org/2007/opf/"
+             xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf"
+             version="" unique-identifier="" id="">
+  <opf:metadata>
+    <opf:title/>
+    <opf:language>ko</opf:language>
+    <opf:meta name="creator" content="text">OpenHangul AI</opf:meta>
+    <opf:meta name="CreatedDate" content="text">${now}</opf:meta>
+    <opf:meta name="ModifiedDate" content="text">${now}</opf:meta>
+  </opf:metadata>
+  <opf:manifest>
+${imageManifestItems}
+    <opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>
+${sectionManifestItems}
+    <opf:item id="settings" href="settings.xml" media-type="application/xml"/>
+  </opf:manifest>
+  <opf:spine>
+    <opf:itemref idref="header" linear="yes"/>
+${sectionSpineItems}
+  </opf:spine>
+</opf:package>`, { compression: 'DEFLATE' });
+
+      // 10. Preview/PrvText.txt
+      let previewText = '';
+      doc.sections.forEach(section => {
+        (section.elements || []).forEach(el => {
+          if (el.type === 'paragraph' && el.runs) {
+            previewText += el.runs.map(r => r.text || '').join('') + '\n';
+          }
+        });
+      });
+      zip.file('Preview/PrvText.txt', previewText.substring(0, 500) || 'HWPX Document', { compression: 'DEFLATE' });
+
+      // 11. Contents/section*.xml (표준 네임스페이스)
       doc.sections.forEach((section, sIdx) => {
         const sectionXml = this._generateSectionXml(section);
-        zip.file(`Contents/section${sIdx}.xml`, sectionXml);
+        zip.file(`Contents/section${sIdx}.xml`, sectionXml, { compression: 'DEFLATE' });
       });
 
       // ZIP 생성 및 다운로드
-      const blob = await zip.generateAsync({ type: 'blob' });
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1591,6 +1752,64 @@ ${sectionRefs}
   }
 
   /**
+   * DOM에서 문서 구조를 재구성 (state.document가 null일 때 fallback)
+   * @returns {Object|null} 재구성된 문서 객체
+   * @private
+   */
+  _rebuildDocumentFromDOM() {
+    try {
+      const pages = this.container.querySelectorAll('.hwp-page-container');
+      if (pages.length === 0) return null;
+
+      const sections = [];
+      pages.forEach(page => {
+        const elements = [];
+
+        // 테이블 추출
+        page.querySelectorAll('.hwp-table').forEach(tableEl => {
+          if (tableEl._tableData) {
+            elements.push(tableEl._tableData);
+            return;
+          }
+        });
+
+        // 단락 추출 (테이블 외부)
+        page.querySelectorAll('.hwp-paragraph.editable-paragraph').forEach(paraEl => {
+          if (paraEl.closest('.hwp-table')) return;
+          if (paraEl._paraData) {
+            elements.push(paraEl._paraData);
+          } else {
+            elements.push({
+              type: 'paragraph',
+              runs: [{ text: paraEl.textContent || '', style: {} }],
+            });
+          }
+        });
+
+        sections.push({
+          elements,
+          pageSettings: {
+            width: '794px', height: '1123px',
+            marginLeft: '85px', marginRight: '85px',
+            marginTop: '71px', marginBottom: '57px',
+          },
+        });
+      });
+
+      if (sections.length === 0 || sections.every(s => s.elements.length === 0)) return null;
+
+      return {
+        sections,
+        images: new Map(),
+        metadata: { rebuiltFromDOM: true, parsedAt: new Date().toISOString() },
+      };
+    } catch (error) {
+      logger.error('❌ Failed to rebuild document from DOM:', error);
+      return null;
+    }
+  }
+
+  /**
    * 섹션 데이터를 HWPX XML로 변환
    * @param {Object} section - 섹션 데이터
    * @returns {string} XML 문자열
@@ -1598,12 +1817,18 @@ ${sectionRefs}
    */
   _generateSectionXml(section) {
     const pageSettings = section.pageSettings || {};
-    const width = parseInt(pageSettings.width) || 59528;
-    const height = parseInt(pageSettings.height) || 84188;
-    const marginLeft = parseInt(pageSettings.marginLeft) || 6354;
-    const marginRight = parseInt(pageSettings.marginRight) || 6354;
-    const marginTop = parseInt(pageSettings.marginTop) || 5314;
-    const marginBottom = parseInt(pageSettings.marginBottom) || 4252;
+    // px → HWPX 단위(1/7200 인치) 변환: 1px ≈ 75 HWPX units (at 96dpi)
+    const toHwpUnit = (px) => {
+      const val = parseInt(px);
+      if (!val || val < 100) return val * 75 || 0; // 작은 값은 px로 간주하여 변환
+      return val; // 이미 HWPX 단위이면 그대로
+    };
+    const width = toHwpUnit(pageSettings.width) || 59528;
+    const height = toHwpUnit(pageSettings.height) || 84188;
+    const marginLeft = toHwpUnit(pageSettings.marginLeft) || 6354;
+    const marginRight = toHwpUnit(pageSettings.marginRight) || 6354;
+    const marginTop = toHwpUnit(pageSettings.marginTop) || 5314;
+    const marginBottom = toHwpUnit(pageSettings.marginBottom) || 4252;
 
     let bodyContent = '';
     const elements = section.elements || [];
@@ -1625,12 +1850,17 @@ ${sectionRefs}
       </hp:p>`;
     }
 
+    // 첫 번째 단락에 secPr (섹션 속성)을 삽입하는 HWPX 표준 형식
     return `<?xml version="1.0" encoding="UTF-8"?>
-<hs:sec xmlns:hs="urn:hancom:office:hwpml:2011" xmlns:hp="urn:hancom:office:hwpml:2011">
-  <hp:pageProperty>
-    <hp:pageSz width="${width}" height="${height}"/>
-    <hp:pageMar left="${marginLeft}" right="${marginRight}" top="${marginTop}" bottom="${marginBottom}" header="4252" footer="4252" gutter="0"/>
-  </hp:pageProperty>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page">
+  <hp:p paraPrIDRef="0" styleIDRef="0">
+    <hp:run>
+      <hp:secPr>
+        <hp:pageSize width="${width}" height="${height}"/>
+        <hp:pageMar top="${marginTop}" bottom="${marginBottom}" left="${marginLeft}" right="${marginRight}" header="4252" footer="4252"/>
+      </hp:secPr>
+    </hp:run>
+  </hp:p>
 ${bodyContent}
 </hs:sec>`;
   }
