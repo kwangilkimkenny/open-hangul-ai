@@ -605,7 +605,22 @@ export class DocumentStructureExtractor {
                 const isHeader = this.detectHeaderCell(cellText, rowIdx, actualCellIdx, cell.elements?.[0]?.runs?.[0]?.style, cell.style);
 
                 // 헤더 셀 자체는 쌍으로 추가하지 않음
-                if (isHeader) return;
+                // 단, 2열 key-value 테이블에서 왼쪽 셀이 이미 헤더인 경우
+                // 오른쪽 셀은 콘텐츠로 취급 (예: ["Name", "Alice"])
+                if (isHeader) {
+                    // 왼쪽에 이미 헤더 셀이 있으면 이 셀은 콘텐츠로 취급
+                    let hasLeftHeader = false;
+                    for (let i = actualCellIdx - 1; i >= 0; i--) {
+                        const leftCell = cells[i];
+                        if (leftCell.isCovered) continue;
+                        const leftText = this.extractTextFromCell(leftCell).trim();
+                        if (leftText && this.detectHeaderCell(leftText, rowIdx, i, leftCell.elements?.[0]?.runs?.[0]?.style, leftCell.style)) {
+                            hasLeftHeader = true;
+                            break;
+                        }
+                    }
+                    if (!hasLeftHeader) return;
+                }
 
                 // 3. 이 셀의 헤더 찾기 (여러 전략)
                 let headerText = null;
