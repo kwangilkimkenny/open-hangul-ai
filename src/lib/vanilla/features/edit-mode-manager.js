@@ -83,13 +83,7 @@ export class EditModeManager {
             this.toggleGlobalEditMode();
         });
 
-        // 키보드 단축키: Ctrl/Cmd + E
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
-                e.preventDefault();
-                this.toggleGlobalEditMode();
-            }
-        });
+        // 편집 모드는 항상 활성 — Ctrl+E 토글 단축키 제거됨
 
         logger.debug('✅ Event listeners attached');
     }
