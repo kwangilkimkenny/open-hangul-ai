@@ -174,10 +174,10 @@ export class ChatPanel {
             });
         }
 
-        // Enter 키로 전송 (Shift+Enter는 줄바꿈)
+        // Enter 키로 전송 (Shift+Enter는 줄바꿈, 한글 IME 조합 중에는 무시)
         if (this.elements.input) {
             this.elements.input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
                     e.preventDefault();
                     this.handleSendMessage();
                 }
@@ -369,8 +369,112 @@ export class ChatPanel {
                 fileInput.value = '';
             });
         }
+
+        // AEGIS 보안 토글
+        const aegisToggle = document.getElementById('aegis-toggle');
+        if (aegisToggle) {
+            // 저장된 상태 복원
+            aegisToggle.checked = AIConfig.security?.aegis?.isEnabled() || false;
+            aegisToggle.addEventListener('change', async (e) => {
+                await this.aiController.toggleAegis(e.target.checked);
+                this._updateSecurityStatus();
+            });
+        }
+
+        // TruthAnchor 할루시네이션 검증 토글
+        const truthanchorToggle = document.getElementById('truthanchor-toggle');
+        if (truthanchorToggle) {
+            truthanchorToggle.checked = AIConfig.security?.truthAnchor?.isEnabled() || false;
+            truthanchorToggle.addEventListener('change', async (e) => {
+                const result = await this.aiController.toggleTruthAnchor(e.target.checked);
+                this._updateSecurityStatus();
+                if (e.target.checked) {
+                    if (result.available) {
+                        this.addAssistantMessage('할루시네이션 검증이 활성화되었습니다. [온라인 모드]\n서버 연동: 4레이어 전체 파이프라인 (가드레일 + 수치검증 + NLI 의미분석 + LLM 재검증)');
+                    } else {
+                        this.addAssistantMessage('할루시네이션 검증이 활성화되었습니다. [오프라인 모드]\n서버 미연결 — 오프라인 엔진으로 수치 오류, 규제 위반 패턴을 검출합니다.\nTruthAnchor 서버(port 8200) 실행 시 의미적 모순 검증(NLI)이 자동 추가됩니다.');
+                    }
+                }
+            });
+        }
+
+        this._updateSecurityStatus();
     }
-    
+
+    /**
+     * 보안 상태 뱃지 업데이트
+     * @private
+     */
+    _updateSecurityStatus() {
+        const statusEl = document.getElementById('security-status');
+        if (!statusEl) return;
+
+        const aegisOn = AIConfig.security?.aegis?.isEnabled();
+        const taOn = AIConfig.security?.truthAnchor?.isEnabled();
+
+        if (!aegisOn && !taOn) {
+            statusEl.style.display = 'none';
+            return;
+        }
+
+        statusEl.style.display = 'block';
+        const parts = [];
+        if (aegisOn) parts.push('AEGIS');
+        if (taOn) {
+            const mode = this.aiController?.truthAnchorClient?.getMode?.() || 'offline';
+            parts.push(`TruthAnchor [${mode === 'online' ? '온라인' : '오프라인'}]`);
+        }
+        statusEl.textContent = parts.join(' + ') + ' 활성';
+        statusEl.className = 'security-status security-status-active';
+    }
+
+    /**
+     * TruthAnchor 검증 결과를 채팅에 표시
+     * @param {object} validation - 검증 결과 객체
+     */
+    showValidationResults(validation) {
+        if (!validation || !validation.available) return;
+
+        const resultsEl = document.getElementById('validation-results');
+        const mode = validation.mode || 'offline';
+        const modeBadge = mode === 'online'
+            ? '<span class="validation-mode-badge validation-mode-online">온라인 검증</span>'
+            : '<span class="validation-mode-badge validation-mode-offline">오프라인 검증</span>';
+
+        let html = `<div class="validation-header">${modeBadge} 할루시네이션 검증 결과 (점수: ${Math.round(validation.overallScore * 100)}%)</div>`;
+        if (mode === 'offline') {
+            html += '<div class="validation-mode-info">오프라인 모드: 수치 오류, 규제 위반 패턴 검출. 서버 연동 시 NLI 의미분석 추가.</div>';
+        }
+        html += `<div class="validation-summary">총 ${validation.totalClaims}건: `;
+        html += `<span class="claim-supported">${validation.supportedClaims} 지지</span> / `;
+        html += `<span class="claim-contradicted">${validation.contradictedClaims} 모순</span> / `;
+        html += `<span class="claim-neutral">${validation.neutralClaims} 중립</span></div>`;
+
+        if (validation.claims && validation.claims.length > 0) {
+            html += '<div class="validation-claims">';
+            for (const claim of validation.claims) {
+                const verdictClass = `claim-${claim.verdict}`;
+                const verdictLabel = claim.verdict === 'supported' ? '지지' : claim.verdict === 'contradicted' ? '모순' : '중립';
+                html += `<div class="claim-item ${verdictClass}">`;
+                html += `<span class="claim-verdict">[${verdictLabel}]</span> ${claim.text}`;
+                if (claim.correction) {
+                    html += `<div class="claim-correction">교정: ${claim.correction}</div>`;
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+
+        // 채팅 메시지로 추가
+        this.addAssistantMessage(html);
+
+        // 사이드 패널에도 표시
+        if (resultsEl) {
+            resultsEl.innerHTML = html;
+            resultsEl.style.display = 'block';
+        }
+    }
+
     /**
      * 메시지 전송 처리
      * @private
@@ -387,7 +491,16 @@ export class ChatPanel {
             '문서로 변환', '문서로 정리', '문서에 넣', '문서에 반영',
             '에디터에', '편집기에', '본문에 반영', '본문에 적용', '본문에 넣',
             '반영해', '적용해',
+            // 레퍼런스 기반 문서 생성 키워드
+            '보고서 만들', '보고서 작성', '보고서로',
+            '작성해', '만들어', '생성해', '정리해',
+            '토대로', '기반으로', '참고해서', '바탕으로',
         ];
+        // 레퍼런스가 있으면 "작성해줘", "만들어줘" 같은 간단한 요청도 문서 생성으로 처리
+        const hasReference = this._referenceTexts && this._referenceTexts.length > 0;
+        if (hasReference) {
+            return true; // 레퍼런스가 있으면 항상 문서 생성 모드
+        }
         return keywords.some(k => message.includes(k));
     }
 
@@ -455,19 +568,21 @@ export class ChatPanel {
         // 사용자 메시지 표시
         this.addUserMessage(message);
 
-        // "본문에 반영해줘" 같은 요청 → 이전 AI 응답을 문서로 변환
-        if (this._isDocumentCreateRequest(message)) {
-            await this._applyLastResponseToDocument(message);
-            return;
-        }
-
-        // 문서가 로드되지 않은 경우 → 자유 대화 모드
+        // 문서가 로드되지 않은 경우 → 자유 대화 모드 (레퍼런스 기반 문서 생성 포함)
         const currentDoc = this.aiController.viewer.getDocument();
         const hasDocument = currentDoc && currentDoc.sections && currentDoc.sections.length > 0
             && currentDoc.sections.some(s => s.elements && s.elements.length > 0);
+        const hasReference = this._referenceTexts && this._referenceTexts.length > 0;
 
         if (!hasDocument) {
+            // 문서 없음: 자유 대화 → 레퍼런스 있으면 문서 생성으로 자동 처리
             await this._handleFreeChat(message);
+            return;
+        }
+
+        // 문서가 있는 상태에서 "본문에 반영해줘" 같은 요청 → 이전 AI 응답을 문서로 변환
+        if (!hasReference && this._isDocumentCreateRequest(message)) {
+            await this._applyLastResponseToDocument(message);
             return;
         }
 
@@ -557,11 +672,16 @@ export class ChatPanel {
                     );
                     showToast('warning', '경고', '문서에 변경 사항을 반영하지 못했습니다');
                 }
+
+                // TruthAnchor 검증 결과 표시
+                if (result.validation && result.validation.available && result.validation.contradictedClaims > 0) {
+                    this.showValidationResults(result.validation);
+                }
             }
-            
+
         } catch (error) {
-            logger.error('❌ Message handling failed:', error);
-            
+            logger.error('Message handling failed:', error);
+
             // 로딩 메시지 제거
             this.removeMessage(loadingMessageId);
             
@@ -591,16 +711,28 @@ export class ChatPanel {
      * @returns {string} 메시지 ID
      */
     addAssistantMessage(content) {
-        return this.addMessage('assistant', content);
+        return this.addMessage('assistant', this._stripEmoji(content));
     }
-    
+
     /**
      * 시스템 메시지 추가
      * @param {string} content - 메시지 내용
      * @returns {string} 메시지 ID
      */
     addSystemMessage(content) {
-        return this.addMessage('system', content);
+        return this.addMessage('system', this._stripEmoji(content));
+    }
+
+    /**
+     * 사용자에게 보이는 메시지에서 이모지 제거
+     * @param {string} text
+     * @returns {string}
+     * @private
+     */
+    _stripEmoji(text) {
+        if (typeof text !== 'string') return text;
+        // 이모지 유니코드 범위 제거 (Emoji_Presentation + Emoji_Modifier 등)
+        return text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1FA00}-\u{1FA9F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '').replace(/  +/g, ' ').trim();
     }
     
     /**
@@ -822,15 +954,7 @@ export class ChatPanel {
             const isOpen = this.elements.panel.classList.contains('open');
             logger.debug(`💬 Chat panel ${isOpen ? 'opened' : 'closed'}`);
 
-            // 뷰어 컨테이너 조정
-            const viewerContainer = document.querySelector('.viewer-container') || document.querySelector('.hanview-body-container');
-            if (viewerContainer) {
-                if (isOpen) {
-                    viewerContainer.classList.add('ai-panel-open');
-                } else {
-                    viewerContainer.classList.remove('ai-panel-open');
-                }
-            }
+            this._adjustLayout(isOpen);
 
             // 열릴 때 입력창에 포커스
             if (isOpen && this.elements.input) {
@@ -840,19 +964,14 @@ export class ChatPanel {
             }
         }
     }
-    
+
     /**
      * 패널 열기
      */
     open() {
         if (this.elements.panel) {
             this.elements.panel.classList.add('open');
-
-            // 뷰어 컨테이너 조정
-            const viewerContainer = document.querySelector('.viewer-container');
-            if (viewerContainer) {
-                viewerContainer.classList.add('ai-panel-open');
-            }
+            this._adjustLayout(true);
 
             if (this.elements.input) {
                 setTimeout(() => {
@@ -861,20 +980,30 @@ export class ChatPanel {
             }
         }
     }
-    
+
     /**
      * 패널 닫기
      */
     close() {
         if (this.elements.panel) {
             this.elements.panel.classList.remove('open');
-
-            // 뷰어 컨테이너 조정
-            const viewerContainer = document.querySelector('.viewer-container');
-            if (viewerContainer) {
-                viewerContainer.classList.remove('ai-panel-open');
-            }
+            this._adjustLayout(false);
         }
+    }
+
+    /**
+     * AI 패널 열림/닫힘 시 본문 레이아웃 조정
+     * @private
+     */
+    _adjustLayout(isOpen) {
+        // body에 클래스 토글 (CSS에서 본문 조정에 사용)
+        document.body.classList.toggle('ai-panel-open', isOpen);
+
+        // 모든 가능한 컨테이너에 클래스 적용
+        const containers = document.querySelectorAll('.viewer-container, .hanview-body-container');
+        containers.forEach(container => {
+            container.classList.toggle('ai-panel-open', isOpen);
+        });
     }
     
     /**
@@ -1447,9 +1576,13 @@ export class ChatPanel {
 
         try {
             // 대화 히스토리 관리 (컨텍스트 유지)
+            const hasReference = this._referenceTexts && this._referenceTexts.length > 0;
             if (!this._chatHistory) {
+                const systemPrompt = hasReference
+                    ? '당신은 문서 작성 전문가입니다. 사용자가 제공한 참고 자료를 기반으로 체계적이고 전문적인 문서를 작성해주세요. 마크다운 형식으로 제목, 소제목, 표, 목록 등을 적절히 활용하세요. 참고 자료의 핵심 내용을 빠짐없이 포함하되, 읽기 쉽게 재구성해주세요.'
+                    : '당신은 만능 AI 어시스턴트입니다. 한국어로 친절하게 응답해주세요. 사용자가 문서 작성, 기획, 아이디어 등을 요청하면 구체적이고 실용적인 내용을 제공해주세요.';
                 this._chatHistory = [
-                    { role: 'system', content: '당신은 만능 AI 어시스턴트입니다. 한국어로 친절하게 응답해주세요. 사용자가 문서 작성, 기획, 아이디어 등을 요청하면 구체적이고 실용적인 내용을 제공해주세요.' }
+                    { role: 'system', content: systemPrompt }
                 ];
             }
 
@@ -1463,6 +1596,14 @@ export class ChatPanel {
                 this._chatHistory = [this._chatHistory[0], ...this._chatHistory.slice(-20)];
             }
 
+            // 레퍼런스가 있으면 max_tokens 증가 (긴 문서 생성 대응)
+            if (hasReference) {
+                const refLength = this._referenceTexts.reduce((sum, r) => sum + (r?.text?.length || 0), 0);
+                const dynamicTokens = Math.min(Math.max(Math.ceil(refLength / 4), 4000), 16000);
+                this.aiController.generator.options.maxTokens = dynamicTokens;
+                logger.info(`Reference-based generation: max_tokens → ${dynamicTokens} (ref ${refLength} chars)`);
+            }
+
             const apiResponse = await this.aiController.generator.callAPIWithRetry(this._chatHistory);
             const responseText = apiResponse?.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
 
@@ -1471,17 +1612,26 @@ export class ChatPanel {
 
             this.removeMessage(loadingId);
 
-            // 문서화 요청 감지
+            // 문서화 요청 감지 (레퍼런스 있으면 항상 문서 생성)
             if (this._isDocumentCreateRequest(message)) {
                 // AI 응답을 마크다운 문서로 변환하여 에디터에 로드
                 try {
                     const { markdownToDocument } = await import('../utils/markdown-to-document.js');
                     const doc = markdownToDocument(responseText);
                     await this.aiController.viewer.createNewDocument(doc);
-                    this.addAssistantMessage('문서가 에디터에 생성되었습니다. 파일 > 저장으로 HWPX 파일을 저장할 수 있습니다.\n\n' + responseText);
-                    showToast('success', '문서 생성 완료', '에디터에 문서가 로드되었습니다');
+
+                    const refNames = (this._referenceTexts || []).map(r => r.name).join(', ');
+                    this.addAssistantMessage(
+                        `레퍼런스 기반 문서가 생성되었습니다.\n` +
+                        `참고 자료: ${refNames || '없음'}\n\n` +
+                        `파일 > 저장으로 HWPX 파일을 저장할 수 있습니다.`
+                    );
+                    showToast('success', '문서 생성 완료', '레퍼런스 기반 문서가 에디터에 로드되었습니다');
+
+                    // max_tokens 복원
+                    this.aiController.generator.options.maxTokens = AIConfig.openai.maxTokens;
                 } catch (docError) {
-                    logger.error('❌ Document creation failed:', docError);
+                    logger.error('Document creation failed:', docError);
                     const msgId = this.addAssistantMessage(responseText);
                     this._addCopyButton(msgId, responseText);
                     this.addSystemMessage('[알림] 문서 변환에 실패했습니다. 위 내용을 복사하여 사용해주세요.');
@@ -1583,14 +1733,14 @@ export class ChatPanel {
 
         const btn = document.createElement('button');
         btn.className = 'ai-copy-btn';
-        btn.textContent = '📋 복사';
+        btn.textContent = '복사';
         btn.title = '결과를 클립보드에 복사';
         btn.style.cssText = 'margin-top:8px;padding:4px 12px;border:1px solid #d1d5db;border-radius:4px;background:#f9fafb;cursor:pointer;font-size:12px;';
         btn.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(text);
-                btn.textContent = '✅ 복사됨';
-                setTimeout(() => { btn.textContent = '📋 복사'; }, 2000);
+                btn.textContent = '복사됨';
+                setTimeout(() => { btn.textContent = '복사'; }, 2000);
             } catch {
                 // fallback
                 const ta = document.createElement('textarea');
@@ -1599,8 +1749,8 @@ export class ChatPanel {
                 ta.select();
                 document.execCommand('copy');
                 document.body.removeChild(ta);
-                btn.textContent = '✅ 복사됨';
-                setTimeout(() => { btn.textContent = '📋 복사'; }, 2000);
+                btn.textContent = '복사됨';
+                setTimeout(() => { btn.textContent = '복사'; }, 2000);
             }
         });
         msgEl.appendChild(btn);
@@ -2108,11 +2258,11 @@ export class ChatPanel {
             resultText += `• 불필요한 꾸밈/장식 제거\n`;
             resultText += `• 핵심 정보(날짜, 수치, 고유명사) 보존`;
 
-            this.removeLoadingMessage(msgId);
+            this.removeMessage(msgId);
             this.addAssistantMessage(resultText);
             showToast('success', '교정 완료', `${result.metadata.itemsUpdated}개 항목이 교정되었습니다.`);
         } catch (error) {
-            this.removeLoadingMessage(msgId);
+            this.removeMessage(msgId);
             logger.error('❌ AI 교정 실패:', error);
             this.addSystemMessage(`[오류] AI 교정 실패: ${error.message}`);
         }
@@ -2170,17 +2320,16 @@ export class ChatPanel {
                 resultText += `\n**요약:** ${a.summary}`;
             }
 
-            this.removeLoadingMessage(msgId);
+            this.removeMessage(msgId);
             this.addAssistantMessage(resultText);
 
-            const gradeEmoji = a.grade === 'A' ? '🎉' : a.grade === 'B' ? '👍' : '⚠️';
             showToast(
                 a.score >= 70 ? 'success' : 'warning',
                 'AI 품질 검증 완료',
-                `${gradeEmoji} ${a.score}점 (${a.grade}등급)`
+                `${a.score}점 (${a.grade}등급)`
             );
         } catch (error) {
-            this.removeLoadingMessage(msgId);
+            this.removeMessage(msgId);
             logger.error('❌ AI 품질 검증 실패:', error);
             this.addSystemMessage(`[오류] AI 품질 검증 실패: ${error.message}`);
         }

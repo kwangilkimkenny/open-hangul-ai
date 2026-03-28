@@ -812,9 +812,10 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
   // contentEditable 내 selection이 있는지 확인하는 헬퍼
   const getEditableSelection = useCallback((): { sel: Selection; editable: Element } | null => {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) return null;
+    if (!sel || sel.rangeCount === 0) return null;
     const anchor = sel.anchorNode;
     const editable = anchor && (anchor instanceof HTMLElement ? anchor : anchor.parentElement)?.closest('[contenteditable="true"]');
+    // 선택 영역이 없어도 (커서만) contentEditable 내에 있으면 반환 (서식 적용 가능)
     return editable ? { sel, editable } : null;
   }, []);
 

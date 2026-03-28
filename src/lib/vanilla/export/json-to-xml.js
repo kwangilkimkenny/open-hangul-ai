@@ -47,23 +47,20 @@ export class JsonToXmlConverter {
    * @returns {string} version.xml 내용
    */
   generateVersionXml(versionData = {}) {
-    // v2.8 (최신) -> v1.0 (호환성)
-    // Hancom 2018 등 하위 버전 호환성을 위해 1.0으로 조정
-    const version = versionData.version || '1.0';
-    const major = versionData.major || '1';
-    const minor = versionData.minor || '0';
-    const micro = versionData.micro || '0';
+    const major = versionData.major || '5';
+    const minor = versionData.minor || '1';
+    const micro = versionData.micro || '1';
     const build = versionData.build || '0';
-    const application = versionData.application || 'HWPX-Viewer-AI';
+    const application = versionData.application || 'OpenHangul AI';
+    const appVersion = versionData.appVersion || '3.0.0';
 
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<version xmlns="http://www.hancom.co.kr/hwpml/2011/hwpml" 
-         version="${version}" 
-         major="${major}" 
-         minor="${minor}" 
-         micro="${micro}" 
-         build="${build}" 
-         application="${application}"/>`;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version"
+               tagetApplication="WORDPROCESSOR"
+               major="${major}" minor="${minor}" micro="${micro}" buildNumber="${build}"
+               os="1" xmlVersion="1.5"
+               application="${this.escapeXml(application)}"
+               appVersion="${this.escapeXml(appVersion)}"/>`;
   }
 
   /**
@@ -72,27 +69,11 @@ export class JsonToXmlConverter {
    * @returns {string} settings.xml 내용
    */
   generateSettingsXml(settingsData = {}) {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<HWPML xmlns="http://www.hancom.co.kr/hwpml/2011/hwpml">
-  <MAPPINGTABLE>`;
-
-    // 폰트 매핑
-    if (settingsData.fontFaces) {
-      settingsData.fontFaces.forEach((font, idx) => {
-        xml += `
-    <FONTFACE Id="${idx}" Lang="1042" Count="7" FontFaces="${this.escapeXml(font.name || '맑은 고딕')}"/>`;
-      });
-    } else {
-      // 기본 폰트
-      xml += `
-    <FONTFACE Id="0" Lang="1042" Count="7" FontFaces="맑은 고딕"/>`;
-    }
-
-    xml += `
-  </MAPPINGTABLE>
-</HWPML>`;
-
-    return xml;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<ha:HWPApplicationSetting xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
+                          xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <ha:CaretPosition listIDRef="0" paraIDRef="0" pos="0"/>
+</ha:HWPApplicationSetting>`;
   }
 
   /**
@@ -101,85 +82,38 @@ export class JsonToXmlConverter {
    * @returns {string} header.xml 내용
    */
   generateHeaderXml(headerData = {}) {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<HWPML xmlns="http://www.hancom.co.kr/hwpml/2011/hwpml">
-  <HEAD>
-    <MAPPINGTABLE>`;
-
-    // 폰트 매핑
-    const fontFaces = headerData.fontFaces || [{ name: '맑은 고딕' }];
-    fontFaces.forEach((font, idx) => {
-      xml += `
-      <FONTFACE Id="${idx}" Lang="1042" Count="7" FontFaces="${this.escapeXml(font.name || '맑은 고딕')}"/>`;
-    });
-
-    // 테두리 채우기
-    const borderFills = headerData.borderFills || [];
-    borderFills.forEach((fill, idx) => {
-      xml += `
-      <BORDERFILL Id="${idx}">`;
-
-      if (fill.backgroundColor) {
-        xml += `
-        <FILLBRUSH BackColor="${fill.backgroundColor}"/>`;
-      }
-
-      xml += `
-      </BORDERFILL>`;
-    });
-
-    // 문단 속성
-    const paraProps = headerData.paraProps || [];
-    paraProps.forEach((prop, idx) => {
-      xml += `
-      <PARASHAPE Id="${idx}">
-        <ALIGN HorizontalAlign="${prop.align || 'Left'}" VerticalAlign="Top"/>
-        <HEADING Level="0" Type="None"/>
-        <BREAKLATINWORD BreakLatinWord="KeepWord"/>
-        <BREAKNONLATINWORD BreakNonLatinWord="Normal"/>
-        <CONDENSE Condense="0"/>
-        <FONTLINEHEIGHT FontLineHeight="0"/>
-        <SNAPTOTEXT SnapToText="0"/>
-        <SUPPRESSLINENUMBERS SuppressLineNumbers="0"/>
-        <TEXTALIGN TextAlign="Left"/>
-        <WIDOWORPHAN WidowOrphan="0"/>
-        <AUTOSPACEEEASIANENG AutoSpaceEAsianEng="0"/>
-        <AUTOSPACEEASIANNUM AutoSpaceEAsianNum="0"/>
-      </PARASHAPE>`;
-    });
-
-    // 문자 속성
-    const charProps = headerData.charProps || [];
-    charProps.forEach((prop, idx) => {
-      const fontRef = prop.fontRef || 0;
-      const fontSize = prop.fontSize || 1000;
-      const bold = prop.bold ? 1 : 0;
-      const italic = prop.italic ? 1 : 0;
-
-      xml += `
-      <CHARSHAPE Id="${idx}">
-        <FONTID Hangul="${fontRef}" Latin="${fontRef}" Hanja="${fontRef}" Japanese="${fontRef}" Other="${fontRef}" Symbol="${fontRef}" User="${fontRef}"/>
-        <RATIO Hangul="100" Latin="100" Hanja="100" Japanese="100" Other="100" Symbol="100" User="100"/>
-        <CHARSPACING Hangul="0" Latin="0" Hanja="0" Japanese="0" Other="0" Symbol="0" User="0"/>
-        <RELATIVESZ Hangul="100" Latin="100" Hanja="100" Japanese="100" Other="100" Symbol="100" User="100"/>
-        <CHAROFFSET Hangul="0" Latin="0" Hanja="0" Japanese="0" Other="0" Symbol="0" User="0"/>
-        <HEIGHT Hangul="${fontSize}" Latin="${fontSize}" Hanja="${fontSize}" Japanese="${fontSize}" Other="${fontSize}" Symbol="${fontSize}" User="${fontSize}"/>
-        <TEXTCOLOR Red="0" Green="0" Blue="0"/>
-        <UNDERLINECOLOR Red="0" Green="0" Blue="0"/>
-        <SHADECOLOR Red="255" Green="255" Blue="255"/>
-        <SHADOWCOLOR Red="128" Green="128" Blue="128"/>
-        <FONTTYPE Hangul="TTF" Latin="TTF" Hanja="TTF" Japanese="TTF" Other="TTF" Symbol="TTF" User="TTF"/>
-        <FONTTYPE Hangul="${bold}" Latin="${bold}" Hanja="${bold}" Japanese="${bold}" Other="${bold}" Symbol="${bold}" User="${bold}"/>
-        <ITALIC Hangul="${italic}" Latin="${italic}" Hanja="${italic}" Japanese="${italic}" Other="${italic}" Symbol="${italic}" User="${italic}"/>
-      </CHARSHAPE>`;
-    });
-
-    xml += `
-    </MAPPINGTABLE>
-  </HEAD>
-</HWPML>`;
-
-    return xml;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
+         xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
+         xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+         xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+         xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core">
+  <hh:beginNum page="1" footnote="1" endnote="1"/>
+  <hh:refList>
+    <hh:fontfaces>
+      <hh:fontface lang="HANGUL">
+        <hh:font id="0" face="함초롬돋움" type="TTF"/>
+      </hh:fontface>
+      <hh:fontface lang="LATIN">
+        <hh:font id="0" face="함초롬돋움" type="TTF"/>
+      </hh:fontface>
+      <hh:fontface lang="HANJA">
+        <hh:font id="0" face="함초롬돋움" type="TTF"/>
+      </hh:fontface>
+    </hh:fontfaces>
+    <hh:charProperties>
+      <hh:charPr id="0" height="1000" color="0">
+        <hh:fontRef hangul="0" latin="0" hanja="0"/>
+      </hh:charPr>
+    </hh:charProperties>
+    <hh:paraProperties>
+      <hh:paraPr id="0" align="JUSTIFY">
+        <hh:margin left="0" right="0" indent="0"/>
+        <hh:lineSpacing type="PERCENT" value="160"/>
+      </hh:paraPr>
+    </hh:paraProperties>
+  </hh:refList>
+</hh:head>`;
   }
 
   /**
@@ -188,25 +122,47 @@ export class JsonToXmlConverter {
    * @returns {string} section0.xml 내용
    */
   generateSectionXml(sectionData) {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<HWPML xmlns="http://www.hancom.co.kr/hwpml/2011/hwpml">
-  <SECTION>`;
+    const pageSettings = sectionData.pageSettings || {};
+    const width = parseInt(pageSettings.width) || 59528;
+    const height = parseInt(pageSettings.height) || 84188;
+    const marginLeft = parseInt(pageSettings.marginLeft) || 6354;
+    const marginRight = parseInt(pageSettings.marginRight) || 6354;
+    const marginTop = parseInt(pageSettings.marginTop) || 5314;
+    const marginBottom = parseInt(pageSettings.marginBottom) || 4252;
+
+    let bodyXml = '';
 
     // 섹션의 요소들 순회
     const elements = sectionData.elements || [];
     for (const element of elements) {
       if (element.type === 'paragraph') {
-        xml += this._generateParagraphXml(element);
+        bodyXml += this._generateParagraphXml(element);
       } else if (element.type === 'table') {
-        xml += this._generateTableXml(element);
+        bodyXml += this._generateTableXml(element);
       }
     }
 
-    xml += `
-  </SECTION>
-</HWPML>`;
+    // 빈 단락이라도 하나는 포함
+    if (!bodyXml) {
+      bodyXml = `
+    <hp:p paraPrIDRef="0" styleIDRef="0">
+      <hp:run charPrIDRef="0">
+        <hp:t xml:space="preserve"></hp:t>
+      </hp:run>
+    </hp:p>`;
+    }
 
-    return xml;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
+  <hp:p paraPrIDRef="0" styleIDRef="0">
+    <hp:run>
+      <hp:secPr>
+        <hp:pageSize width="${width}" height="${height}"/>
+        <hp:pageMar top="${marginTop}" bottom="${marginBottom}" left="${marginLeft}" right="${marginRight}" header="4252" footer="4252"/>
+      </hp:secPr>
+    </hp:run>
+  </hp:p>${bodyXml}
+</hs:sec>`;
   }
 
   /**
@@ -219,36 +175,44 @@ export class JsonToXmlConverter {
     const paraShapeId = paragraph.paraShapeId || 0;
     const styleId = paragraph.styleId || 0;
 
-    let xml = `
-    <P ParaShape="${paraShapeId}" Style="${styleId}">`;
+    let runXml = '';
 
     // 텍스트 런 생성
     const runs = paragraph.runs || [];
     if (runs.length === 0 && paragraph.text) {
-      // 단순 텍스트인 경우
-      xml += `
-      <TEXT CharShape="0">${this.escapeXml(paragraph.text)}</TEXT>`;
+      runXml = `
+      <hp:run charPrIDRef="0">
+        <hp:t xml:space="preserve">${this.escapeXml(paragraph.text)}</hp:t>
+      </hp:run>`;
     } else {
-      // 런이 있는 경우
       runs.forEach(run => {
         const charShapeId = run.charShapeId || 0;
 
-        // ✅ v1.1.0: linebreak 타입 처리
         if (run.type === 'linebreak') {
-          xml += `
-      <LINEBREAK CharShape="${charShapeId}"/>`;
+          runXml += `
+      <hp:run charPrIDRef="${charShapeId}">
+        <hp:t xml:space="preserve">
+</hp:t>
+      </hp:run>`;
         } else {
-          // 일반 텍스트 런
-          xml += `
-      <TEXT CharShape="${charShapeId}">${this.escapeXml(run.text || '')}</TEXT>`;
+          runXml += `
+      <hp:run charPrIDRef="${charShapeId}">
+        <hp:t xml:space="preserve">${this.escapeXml(run.text || '')}</hp:t>
+      </hp:run>`;
         }
       });
     }
 
-    xml += `
-    </P>`;
+    if (!runXml) {
+      runXml = `
+      <hp:run charPrIDRef="0">
+        <hp:t xml:space="preserve"></hp:t>
+      </hp:run>`;
+    }
 
-    return xml;
+    return `
+    <hp:p paraPrIDRef="${paraShapeId}" styleIDRef="${styleId}">${runXml}
+    </hp:p>`;
   }
 
   /**
@@ -259,69 +223,67 @@ export class JsonToXmlConverter {
   _generateTableXml(table) {
     const rows = table.rows || [];
     const cols = table.cols || (rows[0]?.cells?.length || 1);
-
-    let xml = `
-    <TABLE>
-      <SHAPEOBJECT>
-        <TABLE Id="0" TreatAsChar="0" Lock="0" Width="60000" Height="0" ZOrder="0" NumberingType="1" TextWrap="0" TextFlow="0" InstId="${Math.floor(Math.random() * 100000000)}">
-          <TABLEFORMAT ColCount="${cols}" RowCount="${rows.length}">`;
+    const colWidth = Math.floor(42000 / cols);
 
     // 열 정의
+    let gridColXml = '';
     for (let i = 0; i < cols; i++) {
-      const width = Math.floor(60000 / cols);
-      xml += `
-            <COLDEF Width="${width}"/>`;
+      gridColXml += `
+        <hp:gridCol width="${colWidth}"/>`;
     }
 
     // 행 생성
-    rows.forEach((row, rowIdx) => {
-      xml += `
-            <ROW>`;
-
+    let rowXml = '';
+    rows.forEach((row) => {
+      let cellXml = '';
       const cells = row.cells || [];
-      cells.forEach((cell, cellIdx) => {
-        const colSpan = cell.colSpan || 1;
-        const rowSpan = cell.rowSpan || 1;
-
-        xml += `
-              <CELL ColAddr="${cellIdx}" RowAddr="${rowIdx}" ColSpan="${colSpan}" RowSpan="${rowSpan}">
-                <CELLPROPERTY>
-                  <CELLBORDER Left="1" Right="1" Top="1" Bottom="1"/>
-                </CELLPROPERTY>
-                <SUBLIST>`;
-
-        // 셀 내용 (문단들)
+      cells.forEach((cell) => {
+        let cellContent = '';
         const cellElements = cell.elements || [];
         if (cellElements.length === 0 && cell.text) {
-          // 단순 텍스트인 경우
-          xml += `
-                  <P ParaShape="0" Style="0">
-                    <TEXT CharShape="0">${this.escapeXml(cell.text)}</TEXT>
-                  </P>`;
+          cellContent = `
+              <hp:p paraPrIDRef="0" styleIDRef="0">
+                <hp:run charPrIDRef="0">
+                  <hp:t xml:space="preserve">${this.escapeXml(cell.text)}</hp:t>
+                </hp:run>
+              </hp:p>`;
         } else {
           cellElements.forEach(element => {
             if (element.type === 'paragraph') {
-              xml += this._generateParagraphXml(element);
+              cellContent += this._generateParagraphXml(element);
             }
           });
         }
-
-        xml += `
-                </SUBLIST>
-              </CELL>`;
+        if (!cellContent) {
+          cellContent = `
+              <hp:p paraPrIDRef="0" styleIDRef="0">
+                <hp:run charPrIDRef="0">
+                  <hp:t xml:space="preserve"></hp:t>
+                </hp:run>
+              </hp:p>`;
+        }
+        cellXml += `
+          <hp:tc>
+            <hp:subList>${cellContent}
+            </hp:subList>
+          </hp:tc>`;
       });
-
-      xml += `
-            </ROW>`;
+      rowXml += `
+        <hp:tr>${cellXml}
+        </hp:tr>`;
     });
 
-    xml += `
-          </TABLEFORMAT>
-        </TABLE>
-      </SHAPEOBJECT>
-    </TABLE>`;
-
-    return xml;
+    return `
+    <hp:p paraPrIDRef="0" styleIDRef="0">
+      <hp:run>
+        <hp:ctrl>
+          <hp:tbl colCnt="${cols}" rowCnt="${rows.length}">
+            <hp:gridColList>${gridColXml}
+            </hp:gridColList>${rowXml}
+          </hp:tbl>
+        </hp:ctrl>
+      </hp:run>
+    </hp:p>`;
   }
 }
 

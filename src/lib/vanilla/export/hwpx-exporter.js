@@ -39,10 +39,11 @@ export class HwpxExporter {
             // 1. HWPX 구조 생성
             const hwpxZip = await this.createHwpxZip(document);
 
-            // 2. Blob 생성
+            // 2. Blob 생성 (mimetype은 파일별 STORE 옵션이 유지됨)
             const blob = await hwpxZip.generateAsync({
                 type: 'blob',
-                compression: 'DEFLATE'
+                compression: 'DEFLATE',
+                compressionOptions: { level: 6 }
             });
 
             logger.info(`✅ HWPX 생성 완료: ${blob.size.toLocaleString()} bytes`);
@@ -186,20 +187,34 @@ export class HwpxExporter {
      * @returns {string} content.hpf 내용
      */
     _generateContentHpf(sectionCount) {
-        let contentHpf = `<?xml version="1.0" encoding="UTF-8"?>
-<hpf:HwpPackageFile xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">
-  <hpf:FileData>
-    <hpf:File href="header.xml"/>`;
-
+        let sectionItems = '';
+        let sectionSpine = '';
         for (let i = 0; i < sectionCount; i++) {
-            contentHpf += `\n    <hpf:File href="section${i}.xml"/>`;
+            sectionItems += `\n    <opf:item id="section${i}" href="Contents/section${i}.xml" media-type="application/xml"/>`;
+            sectionSpine += `\n    <opf:itemref idref="section${i}" linear="yes"/>`;
         }
 
-        contentHpf += `
-  </hpf:FileData>
-</hpf:HwpPackageFile>`;
+        const now = new Date().toISOString();
 
-        return contentHpf;
+        return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<opf:package xmlns:opf="http://www.idpf.org/2007/opf/"
+             xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf"
+             version="" unique-identifier="" id="">
+  <opf:metadata>
+    <opf:title/>
+    <opf:language>ko</opf:language>
+    <opf:meta name="creator" content="text">OpenHangul AI</opf:meta>
+    <opf:meta name="CreatedDate" content="text">${now}</opf:meta>
+    <opf:meta name="ModifiedDate" content="text">${now}</opf:meta>
+  </opf:metadata>
+  <opf:manifest>
+    <opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>${sectionItems}
+    <opf:item id="settings" href="settings.xml" media-type="application/xml"/>
+  </opf:manifest>
+  <opf:spine>
+    <opf:itemref idref="header" linear="yes"/>${sectionSpine}
+  </opf:spine>
+</opf:package>`;
     }
 
     /**

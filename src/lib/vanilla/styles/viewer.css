@@ -22,7 +22,7 @@
             margin-right: 0;
         }
 
-        /* AI 패널이 열렸을 때 뷰어 조정 */
+        /* AI 패널이 열렸을 때 뷰어 조정 (패널 너비 450px에 맞춤) */
         .viewer-container.ai-panel-open {
             margin-right: 450px;
         }
@@ -442,6 +442,10 @@
             padding: 20px 20px; /* ✅ 압축: 60px → 20px (상하 여백 67% 감소) */
             position: relative;
             background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            grid-column: 1 / -1; /* ✅ 사이드바 유무와 관계없이 전체 너비 사용 */
         }
 
         /* Page Styling - Dynamic size from HWPX, fallback to A4 */
@@ -455,7 +459,9 @@
             box-sizing: border-box;
             overflow: hidden; /* ✅ 페이지 구분을 정교하게 하기 위해 hidden으로 변경 */
             display: flow-root; /* ✅ BFC 생성으로 자식의 margin이 밖으로 나가는 것 방지 */
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, margin 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0; /* ✅ flex 컨테이너 내에서 축소 방지 */
+            max-width: calc(100% - 40px); /* ✅ 양쪽 20px 여백 보장, 페이지가 컨테이너를 초과하지 않음 */
         }
         
         /* ✅ 첫/마지막 자식의 margin을 제거하여 padding 침범 방지 */
@@ -3229,15 +3235,12 @@
             box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.1);
         }
 
-        /* 편집 중인 셀 */
+        /* 편집 중인 셀 (Word/한글 스타일: 시각적 구분 없음) */
         .hwp-table td.editing,
         .hwp-table th.editing {
-            outline: 2px solid #667eea !important;
-            outline-offset: 2px !important;
-            background-color: rgba(102, 126, 234, 0.05) !important;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
-            z-index: 100;
-            position: relative;
+            outline: none !important;
+            background-color: inherit !important;
+            box-shadow: none;
         }
 
         /* 편집 모드 힌트 - 제거됨 (v2.0) */
@@ -3289,16 +3292,11 @@
             box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.15);
         }
 
-        /* 편집 중인 단락 */
+        /* 편집 중인 단락 (Word/한글 스타일: 시각적 구분 없음) */
         .hwp-paragraph.editing {
-            outline: 2px solid #667eea !important;
-            outline-offset: 4px !important;
-            background-color: rgba(102, 126, 234, 0.08) !important;
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
-            padding: 8px 12px;
-            border-radius: 6px;
-            z-index: 100;
-            position: relative;
+            outline: none !important;
+            background-color: inherit !important;
+            box-shadow: none;
         }
 
         /* 편집 모드 힌트 (단락용) - 제거됨 (v2.0) */

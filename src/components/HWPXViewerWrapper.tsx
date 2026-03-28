@@ -26,6 +26,7 @@ import '../styles/vanilla/ai-text-editor.css';
 import '../styles/vanilla/edit-mode.css';
 import '../styles/vanilla/cell-selector.css';
 import '../styles/vanilla/external-api.css';
+import '../styles/vanilla/ai-security.css';
 
 interface HWPXViewerWrapperProps {
   className?: string;
@@ -890,6 +891,24 @@ export function HWPXViewerWrapper({
                 <button className="ai-assistant-btn" id="ai-ast-readiness" title="문서의 AI 처리 적합도를 5가지 기준으로 평가 (0-100점)">AI 품질 검증</button>
                 <button className="ai-assistant-btn" id="ai-ast-local-check" title="GPT 호출 없이 로컬 규칙으로 빠른 문서 품질 체크">빠른 검사</button>
               </div>
+
+            </div>
+            <div className="ai-assistant-group">
+              <div className="ai-assistant-group-label">보안 / 검증</div>
+              <div className="security-toggle-row">
+                <label className="security-toggle-label" title="AEGIS AI 보안 - 프롬프트 인젝션, PII 보호, 출력 필터링">
+                  <input type="checkbox" id="aegis-toggle" className="security-toggle-input" />
+                  <span className="security-toggle-switch"></span>
+                  <span>AEGIS 보안</span>
+                </label>
+                <label className="security-toggle-label" title="TruthAnchor - AI 생성 텍스트 할루시네이션 검증">
+                  <input type="checkbox" id="truthanchor-toggle" className="security-toggle-input" />
+                  <span className="security-toggle-switch"></span>
+                  <span>할루시네이션 검증</span>
+                </label>
+              </div>
+              <div className="security-status" id="security-status"></div>
+              <div className="validation-results" id="validation-results" style={{ display: 'none' }}></div>
             </div>
 
             {/* 레퍼런스 파일 업로드 영역 */}

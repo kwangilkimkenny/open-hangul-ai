@@ -89,7 +89,7 @@ export const AIConfig = {
          * 환경변수로 오버라이드 가능
          */
         get model() {
-            return import.meta.env.VITE_OPENAI_MODEL || 'gpt-4-turbo-preview';
+            return import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o';
         },
 
         /**
@@ -260,6 +260,59 @@ export const AIConfig = {
     },
     
     /**
+     * 보안/검증 설정
+     * AEGIS (AI 보안) + TruthAnchor (할루시네이션 검증)
+     * @version 4.0.0
+     */
+    security: {
+        aegis: {
+            isEnabled() {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    return localStorage.getItem('aegis_enabled') === 'true';
+                }
+                return false;
+            },
+            setEnabled(enabled) {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    localStorage.setItem('aegis_enabled', enabled.toString());
+                }
+            },
+            getConfig() {
+                const ls = typeof window !== 'undefined' && window.localStorage ? localStorage : null;
+                return {
+                    offline: true,
+                    blockThreshold: Number(ls?.getItem('aegis_block_threshold')) || 60,
+                    sensitivity: Number(ls?.getItem('aegis_sensitivity')) || 1.0,
+                };
+            }
+        },
+        truthAnchor: {
+            isEnabled() {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    return localStorage.getItem('truthanchor_enabled') === 'true';
+                }
+                return false;
+            },
+            setEnabled(enabled) {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    localStorage.setItem('truthanchor_enabled', enabled.toString());
+                }
+            },
+            getDomain() {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    return localStorage.getItem('truthanchor_domain') || 'general';
+                }
+                return 'general';
+            },
+            setDomain(domain) {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    localStorage.setItem('truthanchor_domain', domain);
+                }
+            }
+        }
+    },
+
+    /**
      * 프록시 서버 URL 가져오기
      * .env에 VITE_API_PROXY_URL이 설정되어 있으면 프록시 사용
      * @returns {string|null}
@@ -370,7 +423,11 @@ export const AIConfig = {
             
             timeout: '⏰ 응답 시간이 초과되었습니다 (2분).\n\n해결 방법:\n1. 더 짧고 간단한 요청 사용\n2. 작은 문서로 테스트\n3. 인터넷 연결 확인\n\n예: "첫 문단만 쉽게 바꿔줘" 같은 간단한 요청을 시도해보세요.',
             
-            documentTooLarge: '📄 문서가 너무 크거나 복잡합니다.\n\n해결 방법:\n1. 더 작은 문서 사용 (권장: 10페이지 이하)\n2. 문서를 여러 부분으로 분할\n3. 간단한 구조의 문서로 테스트'
+            documentTooLarge: '📄 문서가 너무 크거나 복잡합니다.\n\n해결 방법:\n1. 더 작은 문서 사용 (권장: 10페이지 이하)\n2. 문서를 여러 부분으로 분할\n3. 간단한 구조의 문서로 테스트',
+
+            aegisBlocked: '보안 검사에 의해 요청이 차단되었습니다.\n\n사유: {REASON}\n\n안전한 요청으로 다시 시도해주세요.',
+
+            truthAnchorUnavailable: 'TruthAnchor 서버에 연결할 수 없습니다.\n\nTruthAnchor 서버가 실행 중인지 확인해주세요.\n(uvicorn api:app --port 8200)'
         }
     },
     
@@ -576,9 +633,10 @@ export function validateConfig() {
         
         // 모델 확인
         const validModels = [
-            'gpt-4-turbo-preview',
+            'gpt-4o',
+            'gpt-4o-mini',
+            'gpt-4-turbo',
             'gpt-4',
-            'gpt-4-32k',
             'gpt-3.5-turbo'
         ];
         if (!validModels.includes(AIConfig.openai.model)) {
