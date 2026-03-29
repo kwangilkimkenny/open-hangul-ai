@@ -44,6 +44,7 @@ type RibbonTab = 'home' | 'insert' | 'format' | 'tools' | 'view' | 'ai';
 
 function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null; onFileSelect?: (file: File) => void }) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -741,7 +742,7 @@ SSE 응답 이벤트:
       }},
       { label: '오픈한글 AI 정보', action: () => {
         setActiveMenu(null);
-        toast('오픈한글 AI React v3.0.0\nAI 기반 한글 문서 편집기\n\n964 Tests Passing | TypeScript + React 19', { duration: 5000 });
+        setShowAboutModal(true);
       }},
     ],
   };
@@ -779,6 +780,100 @@ SSE 응답 이벤트:
           )}
         </div>
       ))}
+
+      {/* 오픈한글 AI 정보 모달 */}
+      {showAboutModal && (
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 10000,
+          }}
+          onClick={() => setShowAboutModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff', borderRadius: 12, width: 520, maxHeight: '80vh',
+              overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              fontFamily: '"Pretendard", "Malgun Gothic", sans-serif',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1a56db, #3b82f6)',
+              padding: '28px 32px', borderRadius: '12px 12px 0 0', color: '#fff',
+            }}>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>오픈한글 AI</h2>
+              <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.85 }}>
+                v3.0.0
+              </p>
+            </div>
+
+            {/* 본문 */}
+            <div style={{ padding: '24px 32px 20px' }}>
+              <p style={{ fontSize: 14, lineHeight: 1.75, color: '#1f2937', margin: '0 0 16px' }}>
+                <strong>오픈한글 AI</strong>는 사람과 AI 모두 읽고 처리할 수 있는
+                구조화된 한글 문서를 만들기 위한 오픈소스 웹 편집기입니다.
+              </p>
+
+              <div style={{
+                backgroundColor: '#eff6ff', borderLeft: '4px solid #3b82f6',
+                padding: '14px 16px', borderRadius: '0 8px 8px 0', marginBottom: 18,
+              }}>
+                <p style={{ fontSize: 13, color: '#1e40af', margin: 0, lineHeight: 1.7 }}>
+                  <strong>📋 개발 배경</strong><br />
+                  행정안전부 「AI시대 행정문서 작성 가이드라인」(2026.3)에 따라,
+                  공문서를 AI가 이해·처리할 수 있는 형태로 작성하는 것이
+                  공공 업무 혁신의 핵심 과제로 대두되었습니다.
+                </p>
+              </div>
+
+              <h4 style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px', fontWeight: 600, letterSpacing: 1 }}>
+                핵심 목표
+              </h4>
+              <ul style={{
+                fontSize: 13, lineHeight: 1.8, color: '#374151',
+                margin: '0 0 18px', paddingLeft: 18,
+              }}>
+                <li><strong>AI 친화 문서 작성</strong> — 주어·서술어가 명확한 서술형 문장, 셀 병합 없는 표 구조 등 AI가 정확히 인식할 수 있는 문서 작성 지원</li>
+                <li><strong>문서 품질 자동 검증</strong> — AI 처리 적합도를 문장 독립성·구조 추출성·논리 연결성·표현 명확성·표 구조 5가지 기준으로 평가</li>
+                <li><strong>HWP/HWPX 네이티브 지원</strong> — 한글 문서를 웹에서 직접 열고 편집·저장 (별도 프로그램 불필요)</li>
+                <li><strong>AI 안전성 연동</strong> — 할루시네이션 검증(TruthAnchor) 및 보안 게이트웨이(AEGIS) 통합으로 신뢰할 수 있는 AI 문서 생성</li>
+              </ul>
+
+              <div style={{
+                backgroundColor: '#f9fafb', borderRadius: 8, padding: '12px 16px',
+                fontSize: 12, color: '#6b7280', lineHeight: 1.6,
+              }}>
+                <strong>비전:</strong> 보고서 꾸미기에 쓰는 시간을 줄이고,
+                AI가 읽고 활용할 수 있는 구조화 문서로 업무 방식을 전환하여
+                공공·민간의 문서 작성 혁신에 기여합니다.
+              </div>
+            </div>
+
+            {/* 푸터 */}
+            <div style={{
+              padding: '14px 32px', borderTop: '1px solid #e5e7eb',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                © 2026 오픈한글 AI Project &nbsp;·&nbsp; Open Source
+              </span>
+              <button
+                onClick={() => setShowAboutModal(false)}
+                style={{
+                  padding: '6px 20px', fontSize: 13, fontWeight: 600,
+                  backgroundColor: '#3b82f6', color: '#fff', border: 'none',
+                  borderRadius: 6, cursor: 'pointer',
+                }}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1146,6 +1241,8 @@ function RibbonInsert({ viewer }: { viewer?: HWPXViewerInstance | null }) {
 // ============================================================================
 
 function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAIPanel?: boolean }) {
+  const [showCompliance, setShowCompliance] = useState(false);
+
   return (
     <div className="hwp-ribbon-panel">
       <div className="hwp-ribbon-group">
@@ -1178,8 +1275,41 @@ function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAI
         </div>
         <div className="hwp-ribbon-group-label">도구</div>
       </div>
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button
+            className="hwp-ribbon-btn-lg"
+            title="AI 컴플라이언스 리포트 (EU AI Act, K-AI Act, NIST, OWASP)"
+            onClick={() => setShowCompliance(true)}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path d="M10 1l2.39 4.84L18 6.76l-4 3.9.94 5.5L10 13.4l-4.94 2.76.94-5.5-4-3.9 5.61-.92z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+              <path d="M6 17v1.5a1 1 0 001 1h6a1 1 0 001-1V17" stroke="currentColor" strokeWidth="1" fill="none"/>
+            </svg>
+            <span>컴플라이언스</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">규제 준수</div>
+      </div>
+      {showCompliance && (
+        <ComplianceDashboardLazy onClose={() => setShowCompliance(false)} />
+      )}
     </div>
   );
+}
+
+// Lazy-loaded ComplianceDashboard to avoid circular deps
+function ComplianceDashboardLazy({ onClose }: { onClose: () => void }) {
+  const [Comp, setComp] = useState<React.ComponentType<{ onClose: () => void }> | null>(null);
+
+  useEffect(() => {
+    import('./compliance/ComplianceDashboard').then((m) => {
+      setComp(() => m.default || m.ComplianceDashboard);
+    });
+  }, []);
+
+  if (!Comp) return null;
+  return <Comp onClose={onClose} />;
 }
 
 // ============================================================================
