@@ -45,7 +45,7 @@ type RibbonTab = 'home' | 'insert' | 'format' | 'tools' | 'view' | 'ai';
 function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null; onFileSelect?: (file: File) => void }) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
-  const [showBenchmark, setShowBenchmark] = useState(false);
+  // showBenchmark removed — 벤치마크는 SecurityTestPanel의 FULL BENCHMARK 탭으로 통합됨
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -737,10 +737,6 @@ SSE 응답 이벤트:
         });
       }},
       { label: '', divider: true },
-      { label: 'AI 성능 진단', action: () => {
-        setActiveMenu(null);
-        setShowBenchmark(true);
-      }},
       { label: '도움말', shortcut: 'F1', action: () => {
         setActiveMenu(null);
         showHelpDialog();
@@ -880,24 +876,8 @@ SSE 응답 이벤트:
         </div>
       )}
 
-      {/* AI 성능 진단 대시보드 */}
-      <BenchmarkDashboardLazy isOpen={showBenchmark} onClose={() => setShowBenchmark(false)} />
     </div>
   );
-}
-
-// AI 벤치마크 대시보드 lazy import
-function BenchmarkDashboardLazy({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [Dashboard, setDashboard] = useState<React.ComponentType<{ isOpen: boolean; onClose: () => void }> | null>(null);
-
-  useEffect(() => {
-    if (isOpen && !Dashboard) {
-      import('./AIBenchmarkDashboard').then(m => setDashboard(() => m.default));
-    }
-  }, [isOpen, Dashboard]);
-
-  if (!isOpen || !Dashboard) return null;
-  return <Dashboard isOpen={isOpen} onClose={onClose} />;
 }
 
 // ============================================================================

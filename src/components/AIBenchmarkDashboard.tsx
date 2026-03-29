@@ -4,7 +4,8 @@
  * Design: Conservative Monotone — 기술문서 스타일
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   FullBenchmarkReport,
   AegisBenchmarkReport,
@@ -13,6 +14,91 @@ import type {
   TruthAnchorTestResult,
 } from '../lib/ai/benchmark/types';
 
+// ── 용어 툴팁 사전 ──
+
+const GLOSSARY: Record<string, string> = {
+  // 메트릭
+  'ACCURACY': '정확도 — 전체 테스트 중 올바르게 판정한 비율 (TP+TN)/전체',
+  'FALSE POS': 'False Positive (오탐) — 정상 입력인데 위협으로 잘못 차단한 건수. 높으면 사용자 불편 증가',
+  'FALSE NEG': 'False Negative (미탐) — 위협 입력인데 정상으로 잘못 통과시킨 건수. 높으면 보안 위험',
+  'AVG LATENCY': '평균 지연시간 — 1건의 검사를 처리하는 데 걸리는 평균 시간 (밀리초)',
+  'AVG CONF': 'Average Confidence (평균 신뢰도) — TruthAnchor가 자신의 판정에 대해 가지는 평균 확신도',
+  'PASS/TOTAL': '통과/전체 — 정답을 맞춘 건수 / 전체 테스트 건수',
+  'FPR': 'False Positive Rate (오탐률) — 정상 입력 중 잘못 차단된 비율. 낮을수록 좋음',
+  'FNR': 'False Negative Rate (미탐률) — 위협 입력 중 놓친 비율. 낮을수록 좋음 (보안에 직결)',
+
+  // 테이블 헤더
+  'Precision': '정밀도 — 차단(또는 판정)했을 때 실제로 맞았을 확률. TP/(TP+FP)',
+  'Recall': '재현율 — 실제 해당 항목 중 잡아낸 비율. TP/(TP+FN)',
+  'F1': 'F1 Score — Precision과 Recall의 조화 평균. 둘 다 높아야 높은 점수',
+  'N': '건수 (Support) — 해당 카테고리/판정의 테스트 케이스 수',
+  'Category': '카테고리 — 테스트 케이스의 공격 유형 분류',
+  'Verdict': '판정 — TruthAnchor의 사실 검증 결과 (지지/모순/중립)',
+
+  // 카테고리
+  'normal': '정상 입력 — 문서 편집/요약 등 안전한 요청. 차단되면 안 됨',
+  'injection': 'Prompt Injection — 시스템 프롬프트를 무시하게 하는 악성 입력',
+  'jailbreak': 'Jailbreak — AI의 안전 제한을 우회하려는 공격',
+  'pii': 'PII (Personally Identifiable Information) — 주민번호, 전화번호 등 개인정보 포함 입력',
+  'code-injection': 'Code Injection — 악성 코드/스크립트 실행을 유도하는 입력',
+  'social': 'Social Engineering — 시스템 정보를 유도하는 사회공학적 공격',
+
+  // Verdict
+  'SUPPORTED': '지지 — AI 생성 텍스트가 원본 근거와 일치함 (사실 확인됨)',
+  'CONTRADICTED': '모순 — AI 생성 텍스트가 원본과 모순됨 (할루시네이션 감지)',
+  'NEUTRAL': '중립 — 원본에 관련 근거가 없어 판단 불가',
+
+  // 상세 결과
+  'PASS': '통과 — 예상 결과와 실제 결과가 일치',
+  'FAIL': '실패 — 예상 결과와 실제 결과가 불일치',
+  'FP': 'False Positive (오탐) — 정상인데 차단됨',
+  'FN': 'False Negative (미탐) — 위협인데 통과됨',
+  'BLOCK': '차단 — AEGIS가 위협으로 판단하여 요청을 거부',
+  'ALLOW': '통과 — AEGIS가 안전으로 판단하여 요청을 허용',
+};
+
+/**
+ * 용어 툴팁 컴포넌트 — position: fixed Portal로 overflow 잘림 방지
+ */
+function Tip({ term, children, style: extraStyle }: { term: string; children?: React.ReactNode; style?: React.CSSProperties }) {
+  const desc = GLOSSARY[term];
+  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  if (!desc) return <span style={extraStyle}>{children || term}</span>;
+
+  const show = () => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    let left = rect.left + rect.width / 2;
+    // 화면 좌우 경계 보정
+    left = Math.max(160, Math.min(left, window.innerWidth - 160));
+    setPos({ top: rect.top - 8, left });
+  };
+  const hide = () => setPos(null);
+
+  return (
+    <span
+      ref={ref}
+      className="bench-tip"
+      style={extraStyle}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+    >
+      {children || term}
+      {pos && createPortal(
+        <div
+          className="bench-tip-portal"
+          style={{ top: pos.top, left: pos.left, transform: 'translate(-50%, -100%)' }}
+        >
+          {desc}
+        </div>,
+        document.body
+      )}
+    </span>
+  );
+}
+
 interface AIBenchmarkDashboardProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,7 +106,10 @@ interface AIBenchmarkDashboardProps {
 
 type TabId = 'summary' | 'aegis' | 'truthanchor';
 
-export default function AIBenchmarkDashboard({ isOpen, onClose }: AIBenchmarkDashboardProps) {
+/**
+ * Embeddable benchmark content (SecurityTestPanel의 FULL BENCHMARK 탭에서 사용)
+ */
+export function BenchmarkContent({ embedded: _ }: { embedded?: boolean }) {
   const [report, setReport] = useState<FullBenchmarkReport | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, phase: '' });
@@ -52,88 +141,96 @@ export default function AIBenchmarkDashboard({ isOpen, onClose }: AIBenchmarkDas
     }
   }, []);
 
+  return (
+    <>
+      {/* 실행 버튼 */}
+      {!running && !report && (
+        <div style={S.startArea}>
+          <p style={S.startDesc}>
+            사전 정의된 테스트 케이스로 AEGIS(보안 필터)와 TruthAnchor(할루시네이션 검증)의
+            정량 성능을 자동으로 측정합니다.
+          </p>
+          <div style={S.chipRow}>
+            <InfoChip label="AEGIS" count="60" />
+            <InfoChip label="TRUTHANCHOR" count="65" />
+            <InfoChip label="DOMAINS" count="6" />
+          </div>
+          <button onClick={runBenchmark} style={S.runBtn}>
+            EXECUTE BENCHMARK
+          </button>
+          {error && <p style={S.errorText}>{error}</p>}
+        </div>
+      )}
+
+      {/* 진행 상태 */}
+      {running && (
+        <div style={S.progressArea}>
+          <div style={S.spinner} />
+          <p style={S.progressPhase}>{progress.phase}</p>
+          <div style={S.progressBar}>
+            <div
+              style={{
+                ...S.progressFill,
+                width: progress.total > 0 ? `${(progress.current / progress.total) * 100}%` : '0%',
+              }}
+            />
+          </div>
+          <p style={S.progressCount}>
+            {progress.current} / {progress.total}
+          </p>
+        </div>
+      )}
+
+      {/* 결과 */}
+      {report && (
+        <>
+          <div style={S.tabs}>
+            {([
+              ['summary', 'SUMMARY'],
+              ['aegis', 'AEGIS'],
+              ['truthanchor', 'TRUTHANCHOR'],
+            ] as [TabId, string][]).map(([id, label]) => (
+              <button
+                key={id}
+                style={{ ...S.tab, ...(activeTab === id ? S.tabActive : {}) }}
+                onClick={() => setActiveTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+            <button onClick={runBenchmark} style={S.rerunBtn} title="다시 실행">
+              RE-RUN
+            </button>
+          </div>
+
+          <div style={S.content}>
+            {activeTab === 'summary' && <SummaryTab report={report} />}
+            {activeTab === 'aegis' && <AegisTab report={report.aegis} />}
+            {activeTab === 'truthanchor' && <TruthAnchorTab report={report.truthAnchor} />}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * Standalone modal (도구 메뉴에서 직접 열 때 — 하위 호환)
+ */
+export default function AIBenchmarkDashboard({ isOpen, onClose }: AIBenchmarkDashboardProps) {
   if (!isOpen) return null;
 
   return (
     <div style={S.overlay} onClick={onClose}>
       <div style={S.modal} onClick={e => e.stopPropagation()}>
-        {/* 헤더 */}
         <div style={S.header}>
           <div>
-            <h2 style={S.title}>AI PERFORMANCE DIAGNOSTIC</h2>
-            <p style={S.subtitle}>AEGIS Security + TruthAnchor Hallucination Verification Benchmark</p>
+            <h2 style={S.title}>FULL BENCHMARK</h2>
+            <p style={S.subtitle}>AEGIS Security + TruthAnchor Hallucination Verification</p>
           </div>
           <button onClick={onClose} style={S.closeBtn}>&times;</button>
         </div>
-
-        {/* 실행 버튼 */}
-        {!running && !report && (
-          <div style={S.startArea}>
-            <p style={S.startDesc}>
-              사전 정의된 테스트 케이스로 AEGIS(보안 필터)와 TruthAnchor(할루시네이션 검증)의
-              성능을 자동으로 진단합니다.
-            </p>
-            <div style={S.chipRow}>
-              <InfoChip label="AEGIS" count="60" />
-              <InfoChip label="TRUTHANCHOR" count="65" />
-              <InfoChip label="DOMAINS" count="6" />
-            </div>
-            <button onClick={runBenchmark} style={S.runBtn}>
-              EXECUTE BENCHMARK
-            </button>
-            {error && <p style={S.errorText}>{error}</p>}
-          </div>
-        )}
-
-        {/* 진행 상태 */}
-        {running && (
-          <div style={S.progressArea}>
-            <div style={S.spinner} />
-            <p style={S.progressPhase}>{progress.phase}</p>
-            <div style={S.progressBar}>
-              <div
-                style={{
-                  ...S.progressFill,
-                  width: progress.total > 0 ? `${(progress.current / progress.total) * 100}%` : '0%',
-                }}
-              />
-            </div>
-            <p style={S.progressCount}>
-              {progress.current} / {progress.total}
-            </p>
-          </div>
-        )}
-
-        {/* 결과 */}
-        {report && (
-          <>
-            {/* 탭 */}
-            <div style={S.tabs}>
-              {([
-                ['summary', 'SUMMARY'],
-                ['aegis', 'AEGIS'],
-                ['truthanchor', 'TRUTHANCHOR'],
-              ] as [TabId, string][]).map(([id, label]) => (
-                <button
-                  key={id}
-                  style={{ ...S.tab, ...(activeTab === id ? S.tabActive : {}) }}
-                  onClick={() => setActiveTab(id)}
-                >
-                  {label}
-                </button>
-              ))}
-              <button onClick={runBenchmark} style={S.rerunBtn} title="다시 실행">
-                RE-RUN
-              </button>
-            </div>
-
-            <div style={S.content}>
-              {activeTab === 'summary' && <SummaryTab report={report} />}
-              {activeTab === 'aegis' && <AegisTab report={report.aegis} />}
-              {activeTab === 'truthanchor' && <TruthAnchorTab report={report.truthAnchor} />}
-            </div>
-          </>
-        )}
+        <BenchmarkContent />
       </div>
     </div>
   );
@@ -164,18 +261,23 @@ function SummaryTab({ report }: { report: FullBenchmarkReport }) {
 
       {/* 카드 그리드 */}
       <div style={S.cardGrid}>
-        <ScoreCard
-          title="AEGIS SECURITY"
-          score={report.aegis.accuracy}
-          detail={`FPR ${r(report.aegis.falsePositiveRate * 100)}%  FNR ${r(report.aegis.falseNegativeRate * 100)}%`}
-          extra={`${report.aegis.passed}/${report.aegis.totalCases} passed  avg ${report.aegis.avgLatencyMs}ms`}
-        />
-        <ScoreCard
-          title="TRUTHANCHOR VERIFY"
-          score={report.truthAnchor.accuracy}
-          detail={`avg confidence ${r(report.truthAnchor.avgConfidence * 100)}%`}
-          extra={`${report.truthAnchor.passed}/${report.truthAnchor.totalCases} passed  avg ${report.truthAnchor.avgLatencyMs}ms`}
-        />
+        <div style={S.scoreCard}>
+          <div style={S.scoreCardTitle}>AEGIS SECURITY</div>
+          <div style={S.scoreCardValue}>{r(report.aegis.accuracy * 100)}%</div>
+          <div style={S.scoreCardDetail}>
+            <Tip term="FPR">FPR</Tip> {r(report.aegis.falsePositiveRate * 100)}%{'  '}
+            <Tip term="FNR">FNR</Tip> {r(report.aegis.falseNegativeRate * 100)}%
+          </div>
+          <div style={S.scoreCardExtra}>{report.aegis.passed}/{report.aegis.totalCases} passed  avg {report.aegis.avgLatencyMs}ms</div>
+        </div>
+        <div style={S.scoreCard}>
+          <div style={S.scoreCardTitle}>TRUTHANCHOR VERIFY</div>
+          <div style={S.scoreCardValue}>{r(report.truthAnchor.accuracy * 100)}%</div>
+          <div style={S.scoreCardDetail}>
+            avg <Tip term="AVG CONF">confidence</Tip> {r(report.truthAnchor.avgConfidence * 100)}%
+          </div>
+          <div style={S.scoreCardExtra}>{report.truthAnchor.passed}/{report.truthAnchor.totalCases} passed  avg {report.truthAnchor.avgLatencyMs}ms</div>
+        </div>
       </div>
 
       {/* 타임스탬프 */}
@@ -211,17 +313,17 @@ function AegisTab({ report }: { report: AegisBenchmarkReport }) {
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={S.th}>Category</th>
-            <th style={S.th}>Precision</th>
-            <th style={S.th}>Recall</th>
-            <th style={S.th}>F1</th>
-            <th style={S.th}>N</th>
+            <th style={S.th}><Tip term="Category">Category</Tip></th>
+            <th style={S.th}><Tip term="Precision">Precision</Tip></th>
+            <th style={S.th}><Tip term="Recall">Recall</Tip></th>
+            <th style={S.th}><Tip term="F1">F1</Tip></th>
+            <th style={S.th}><Tip term="N">N</Tip></th>
           </tr>
         </thead>
         <tbody>
           {Object.entries(report.byCategory).map(([cat, m]) => (
             <tr key={cat}>
-              <td style={S.td}>{cat}</td>
+              <td style={S.td}><Tip term={cat}>{cat}</Tip></td>
               <td style={S.tdNum}>{r(m.precision * 100)}%</td>
               <td style={S.tdNum}>{r(m.recall * 100)}%</td>
               <td style={S.tdNumBold}>{r(m.f1 * 100)}%</td>
@@ -266,11 +368,11 @@ function TruthAnchorTab({ report }: { report: TruthAnchorBenchmarkReport }) {
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={S.th}>Verdict</th>
-            <th style={S.th}>Precision</th>
-            <th style={S.th}>Recall</th>
-            <th style={S.th}>F1</th>
-            <th style={S.th}>N</th>
+            <th style={S.th}><Tip term="Verdict">Verdict</Tip></th>
+            <th style={S.th}><Tip term="Precision">Precision</Tip></th>
+            <th style={S.th}><Tip term="Recall">Recall</Tip></th>
+            <th style={S.th}><Tip term="F1">F1</Tip></th>
+            <th style={S.th}><Tip term="N">N</Tip></th>
           </tr>
         </thead>
         <tbody>
@@ -339,7 +441,7 @@ function ScoreCard({ title, score, detail, extra }: { title: string; score: numb
 function MetricBox({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div style={{ ...S.metricBox, borderColor: warn ? '#888' : '#ddd' }}>
-      <div style={S.metricLabel}>{label}</div>
+      <div style={S.metricLabel}><Tip term={label}>{label}</Tip></div>
       <div style={{ ...S.metricValue, color: warn ? '#444' : '#111' }}>{value}</div>
     </div>
   );
@@ -351,10 +453,9 @@ function VerdictBadge({ verdict }: { verdict: 'supported' | 'contradicted' | 'ne
     contradicted: 'CONTRADICTED',
     neutral: 'NEUTRAL',
   };
+  const label = labels[verdict] || verdict;
   return (
-    <span style={S.verdictBadge}>
-      {labels[verdict] || verdict}
-    </span>
+    <Tip term={label} style={S.verdictBadge}>{label}</Tip>
   );
 }
 
@@ -363,16 +464,20 @@ function DetailRow({ data, type }: { data: AegisTestResult | TruthAnchorTestResu
 
   if (type === 'aegis') {
     const d = data as AegisTestResult;
+    const caseCategory = d.caseId.replace(/-\d+$/, '');
     return (
       <div style={{ ...S.detailRow, borderLeftColor: passed ? '#222' : '#bbb' }}>
         <div style={S.detailRowHeader}>
-          <span style={S.detailId}>{d.caseId}</span>
+          <span style={S.detailId}><Tip term={caseCategory}>{d.caseId}</Tip></span>
           <span style={{ ...S.detailStatus, color: passed ? '#222' : '#999' }}>
-            {passed ? 'PASS' : 'FAIL'}{d.falsePositive ? ' (FP)' : ''}{d.falseNegative ? ' (FN)' : ''}
+            <Tip term={passed ? 'PASS' : 'FAIL'}>{passed ? 'PASS' : 'FAIL'}</Tip>
+            {d.falsePositive ? <> (<Tip term="FP">FP</Tip>)</> : ''}
+            {d.falseNegative ? <> (<Tip term="FN">FN</Tip>)</> : ''}
           </span>
         </div>
         <div style={S.detailMeta}>
-          expected: {d.expected ? 'BLOCK' : 'ALLOW'} / actual: {d.actual ? 'BLOCK' : 'ALLOW'}
+          expected: <Tip term={d.expected ? 'BLOCK' : 'ALLOW'}>{d.expected ? 'BLOCK' : 'ALLOW'}</Tip>
+          {' / actual: '}<Tip term={d.actual ? 'BLOCK' : 'ALLOW'}>{d.actual ? 'BLOCK' : 'ALLOW'}</Tip>
           {d.reason && ` | ${d.reason}`} | {d.latencyMs}ms
         </div>
       </div>
@@ -385,7 +490,7 @@ function DetailRow({ data, type }: { data: AegisTestResult | TruthAnchorTestResu
       <div style={S.detailRowHeader}>
         <span style={S.detailId}>{d.caseId}</span>
         <span style={{ ...S.detailStatus, color: passed ? '#222' : '#999' }}>
-          {passed ? 'PASS' : 'FAIL'}
+          <Tip term={passed ? 'PASS' : 'FAIL'}>{passed ? 'PASS' : 'FAIL'}</Tip>
         </span>
       </div>
       <div style={S.detailMeta}>

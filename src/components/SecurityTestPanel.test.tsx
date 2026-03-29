@@ -22,12 +22,12 @@ describe('SecurityTestPanel', () => {
 
   it('패널 타이틀이 렌더링되어야 한다', () => {
     render(<SecurityTestPanel onClose={mockOnClose} />);
-    expect(screen.getByText('AI 보안 시스템 테스트')).toBeInTheDocument();
+    expect(screen.getByText(/AI Security/i)).toBeInTheDocument();
   });
 
   it('설명 텍스트가 표시되어야 한다', () => {
     render(<SecurityTestPanel onClose={mockOnClose} />);
-    expect(screen.getByText(/AEGIS.*TruthAnchor.*작동하는지/)).toBeInTheDocument();
+    expect(screen.getByText(/AEGIS.*TruthAnchor/)).toBeInTheDocument();
   });
 
   it('AEGIS 시나리오 3개가 표시되어야 한다', () => {
@@ -46,7 +46,7 @@ describe('SecurityTestPanel', () => {
 
   it('전체 테스트 실행 버튼이 있어야 한다', () => {
     render(<SecurityTestPanel onClose={mockOnClose} />);
-    expect(screen.getByText('전체 테스트 실행')).toBeInTheDocument();
+    expect(screen.getByText('RUN ALL')).toBeInTheDocument();
   });
 
   it('각 시나리오에 실행 버튼이 있어야 한다', () => {
@@ -73,7 +73,7 @@ describe('SecurityTestPanel', () => {
 
   it('패널 내부 클릭 시 onClose가 호출되지 않아야 한다', () => {
     render(<SecurityTestPanel onClose={mockOnClose} />);
-    fireEvent.click(screen.getByText('AI 보안 시스템 테스트'));
+    fireEvent.click(screen.getByText(/AI Security/i));
     expect(mockOnClose).not.toHaveBeenCalled();
   });
 
@@ -89,5 +89,18 @@ describe('SecurityTestPanel', () => {
     render(<SecurityTestPanel onClose={mockOnClose} />);
     const badges = screen.getAllByText('비활성');
     expect(badges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('QUICK TEST / FULL BENCHMARK 탭이 표시되어야 한다', () => {
+    render(<SecurityTestPanel onClose={mockOnClose} />);
+    expect(screen.getByText('QUICK TEST')).toBeInTheDocument();
+    expect(screen.getByText('FULL BENCHMARK')).toBeInTheDocument();
+  });
+
+  it('FULL BENCHMARK 탭 클릭 시 시나리오 카드가 사라져야 한다', () => {
+    render(<SecurityTestPanel onClose={mockOnClose} />);
+    fireEvent.click(screen.getByText('FULL BENCHMARK'));
+    // Quick test 시나리오가 더 이상 보이지 않음
+    expect(screen.queryByText('Prompt Injection 차단')).not.toBeInTheDocument();
   });
 });

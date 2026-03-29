@@ -397,10 +397,27 @@ interface SecurityTestPanelProps {
   onClose: () => void;
 }
 
+type PanelTab = 'quick' | 'benchmark';
+
+// Lazy-loaded benchmark content
+function BenchmarkTabContent() {
+  const [Comp, setComp] = useState<React.ComponentType<{ embedded: boolean }> | null>(null);
+
+  useState(() => {
+    import('./AIBenchmarkDashboard').then((m) => {
+      setComp(() => m.BenchmarkContent || m.default);
+    });
+  });
+
+  if (!Comp) return <div className="sectest-section" style={{ padding: '40px 24px', textAlign: 'center', color: '#999', fontSize: 12 }}>LOADING BENCHMARK MODULE...</div>;
+  return <Comp embedded={true} />;
+}
+
 export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: SecurityTestPanelProps) {
   const { status } = useSecurityStatus();
   const [results, setResults] = useState<Record<string, TestResult>>({});
   const [isRunningAll, setIsRunningAll] = useState(false);
+  const [activeTab, setActiveTab] = useState<PanelTab>('quick');
 
   const aegisScenarios = SCENARIOS.filter((s) => s.category === 'aegis');
   const taScenarios = SCENARIOS.filter((s) => s.category === 'truthanchor');
@@ -428,7 +445,6 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
     setIsRunningAll(false);
   }, [runScenario]);
 
-  // 요약 계산
   const completed = Object.values(results).filter((r) => r.status !== 'running');
   const passed = completed.filter((r) => r.status === 'pass').length;
   const failed = completed.filter((r) => r.status === 'fail').length;
@@ -447,8 +463,8 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
         {/* Header */}
         <div className="sectest-panel__header">
           <div>
-            <h2 className="sectest-panel__title">AI 보안 시스템 테스트</h2>
-            <p className="sectest-panel__desc">AEGIS + TruthAnchor가 실제로 작동하는지 확인합니다</p>
+            <h2 className="sectest-panel__title">AI Security &amp; Performance</h2>
+            <p className="sectest-panel__desc">AEGIS + TruthAnchor 작동 확인 및 정량 벤치마크</p>
           </div>
           <button className="sectest-panel__close" onClick={onClose}>&times;</button>
         </div>
@@ -466,42 +482,72 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
             </strong>
             {status.truthAnchor.latencyMs !== null && <span className="sectest-latency-badge">{status.truthAnchor.latencyMs}ms</span>}
           </div>
-          <button className="sectest-run-all-btn" onClick={runAll} disabled={isRunningAll}>
-            {isRunningAll ? '전체 실행 중...' : '전체 테스트 실행'}
-          </button>
         </div>
 
-        {/* Summary */}
-        {completed.length > 0 && (
-          <div className="sectest-summary">
-            <span className="sectest-summary__total">{completed.length}/{SCENARIOS.length} 완료</span>
-            {passed > 0 && <span className="sectest-summary__pass">{passed}</span>}
-            {failed > 0 && <span className="sectest-summary__fail">{failed}</span>}
-            {errors > 0 && <span className="sectest-summary__error">{errors}</span>}
+        {/* Tabs */}
+        <div className="sectest-tabs">
+          <button
+            className={`sectest-tabs__btn ${activeTab === 'quick' ? 'sectest-tabs__btn--active' : ''}`}
+            onClick={() => setActiveTab('quick')}
+          >
+            QUICK TEST
+          </button>
+          <button
+            className={`sectest-tabs__btn ${activeTab === 'benchmark' ? 'sectest-tabs__btn--active' : ''}`}
+            onClick={() => setActiveTab('benchmark')}
+          >
+            FULL BENCHMARK
+          </button>
+          {activeTab === 'quick' && (
+            <button className="sectest-run-all-btn" onClick={runAll} disabled={isRunningAll}>
+              {isRunningAll ? 'RUNNING...' : 'RUN ALL'}
+            </button>
+          )}
+        </div>
+
+        {/* Quick Test Tab */}
+        {activeTab === 'quick' && (
+          <div className="sectest-content">
+            {/* Summary */}
+            {completed.length > 0 && (
+              <div className="sectest-summary">
+                <span className="sectest-summary__total">{completed.length}/{SCENARIOS.length} 완료</span>
+                {passed > 0 && <span className="sectest-summary__pass">{passed}</span>}
+                {failed > 0 && <span className="sectest-summary__fail">{failed}</span>}
+                {errors > 0 && <span className="sectest-summary__error">{errors}</span>}
+              </div>
+            )}
+
+            {/* AEGIS Tests */}
+            <div className="sectest-section">
+              <h3 className="sectest-section__title">
+                <span className="sectest-section__badge sectest-section__badge--aegis">AEGIS</span>
+                프롬프트 보안 / PII 보호
+              </h3>
+              {aegisScenarios.map((s) => (
+                <ScenarioCard key={s.id} scenario={s} result={results[s.id] || null} onRun={() => runScenario(s)} />
+              ))}
+            </div>
+
+            {/* TruthAnchor Tests */}
+            <div className="sectest-section">
+              <h3 className="sectest-section__title">
+                <span className="sectest-section__badge sectest-section__badge--ta">TruthAnchor</span>
+                할루시네이션 검증
+              </h3>
+              {taScenarios.map((s) => (
+                <ScenarioCard key={s.id} scenario={s} result={results[s.id] || null} onRun={() => runScenario(s)} />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* AEGIS Tests */}
-        <div className="sectest-section">
-          <h3 className="sectest-section__title">
-            <span className="sectest-section__badge sectest-section__badge--aegis">AEGIS</span>
-            프롬프트 보안 / PII 보호
-          </h3>
-          {aegisScenarios.map((s) => (
-            <ScenarioCard key={s.id} scenario={s} result={results[s.id] || null} onRun={() => runScenario(s)} />
-          ))}
-        </div>
-
-        {/* TruthAnchor Tests */}
-        <div className="sectest-section">
-          <h3 className="sectest-section__title">
-            <span className="sectest-section__badge sectest-section__badge--ta">TruthAnchor</span>
-            할루시네이션 검증
-          </h3>
-          {taScenarios.map((s) => (
-            <ScenarioCard key={s.id} scenario={s} result={results[s.id] || null} onRun={() => runScenario(s)} />
-          ))}
-        </div>
+        {/* Full Benchmark Tab */}
+        {activeTab === 'benchmark' && (
+          <div className="sectest-content">
+            <BenchmarkTabContent />
+          </div>
+        )}
       </div>
     </div>
   );
