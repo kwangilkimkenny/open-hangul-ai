@@ -4,7 +4,7 @@
  */
 
 import { OLEParser, DirectoryEntry } from './OLEParser';
-import { HWPFile, HWPFileHeader } from '../models/HWPFile';
+import { HWPFile, HWPFileHeader, HWPSection } from '../models/HWPFile';
 import { SummaryInfoParser } from './SummaryInfoParser';
 import { DocInfoParser } from './DocInfoParser';
 import { HWPTextExtractor } from './HWPTextExtractor';
@@ -186,16 +186,14 @@ export class HWPParser {
   /**
    * 섹션 파싱 (HWPTextExtractor 위임)
    */
-  private parseSection(index: number, data: Uint8Array): ReturnType<HWPTextExtractor['extract']> extends Promise<infer T> ? T[number] : never {
-    // 임시 버퍼로 HWPTextExtractor 생성
-    const extractor = new HWPTextExtractor(new ArrayBuffer(0));
-    // parseSection은 private이므로 우회 필요 - 직접 구현하거나 public API 사용
-    // 여기서는 간단한 섹션 객체 반환
+  private parseSection(index: number, _data: Uint8Array): HWPSection {
+    // HWPTextExtractor가 별도로 전체 파싱을 수행하므로
+    // 여기서는 기본 섹션 객체를 반환
     return {
       index,
       text: '',
       paragraphs: []
-    } as ReturnType<HWPTextExtractor['extract']> extends Promise<infer T> ? T[number] : never;
+    };
   }
 
   /**

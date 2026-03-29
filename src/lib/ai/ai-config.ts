@@ -46,7 +46,7 @@ export const AIConfig = {
     /**
      * 모델 설정
      */
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-4o',
     
     /**
      * Temperature (0.0 ~ 2.0)

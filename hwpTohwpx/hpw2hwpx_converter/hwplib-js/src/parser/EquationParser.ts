@@ -79,9 +79,9 @@ export class EquationParser {
         // MathML 변환 (New Logic)
         mathML = EquationHelper.convert(hwpEquation, inline);
 
-        // LaTeX/Text (Placeholder or simple fallback as new parser mostly does MathML)
+        // LaTeX/Text (AST 기반 변환)
         text = hwpEquation;
-        latex = '$' + hwpEquation + '$'; // TODO: LaTeX converter not fully ported yet
+        latex = EquationHelper.convertToLatex(hwpEquation, inline);
 
       } else {
         // 데이터 없음 or 텍스트만 있음 (hwpEquation might be empty)

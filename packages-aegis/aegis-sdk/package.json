@@ -1,0 +1,78 @@
+{
+  "name": "@anthropic-aegis/sdk",
+  "version": "5.2.0",
+  "description": "AEGIS AI Security SDK - Offline/Online defense engine for LLM applications",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client/index.mjs",
+      "require": "./dist/client/index.js",
+      "types": "./dist/client/index.d.ts"
+    },
+    "./defense": {
+      "import": "./dist/defense/index.mjs",
+      "require": "./dist/defense/index.js",
+      "types": "./dist/defense/index.d.ts"
+    },
+    "./privacy": {
+      "import": "./dist/privacy/index.mjs",
+      "require": "./dist/privacy/index.js",
+      "types": "./dist/privacy/index.d.ts"
+    },
+    "./korean": {
+      "import": "./dist/korean/index.mjs",
+      "require": "./dist/korean/index.js",
+      "types": "./dist/korean/index.d.ts"
+    },
+    "./ml": {
+      "import": "./dist/ml/index.mjs",
+      "require": "./dist/ml/index.js",
+      "types": "./dist/ml/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "aegis",
+    "ai-security",
+    "llm-guard",
+    "prompt-injection",
+    "pii",
+    "defense"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.0"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

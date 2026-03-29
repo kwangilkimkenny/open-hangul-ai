@@ -59,7 +59,15 @@ function generateChartDataXml(chart: Chart): string {
     const seriesXmls = chart.data.series.map((series, idx) => {
         const color = series.color || ChartHelper.DEFAULT_COLORS[idx % ChartHelper.DEFAULT_COLORS.length];
         const valuesXml = series.values.map(val => `<hp:val>${val}</hp:val>`).join('');
-        return `<hp:series name="${escapeXml(series.name)}" color="${color}">${valuesXml}</hp:series>`;
+
+        // 시리즈 스타일 속성 추가
+        const style = chart.seriesStyles?.find(s => s.seriesIndex === idx);
+        const lineStyleAttr = style?.lineStyle !== undefined ? ` lineStyle="${style.lineStyle}"` : '';
+        const lineWidthAttr = style?.lineWidth !== undefined ? ` lineWidth="${style.lineWidth}"` : '';
+        const markerAttr = style?.markerType !== undefined ? ` markerType="${style.markerType}"` : '';
+        const markerSizeAttr = style?.markerSize !== undefined ? ` markerSize="${style.markerSize}"` : '';
+
+        return `<hp:series name="${escapeXml(series.name)}" color="${color}"${lineStyleAttr}${lineWidthAttr}${markerAttr}${markerSizeAttr}>${valuesXml}</hp:series>`;
     });
     parts.push(...seriesXmls);
 

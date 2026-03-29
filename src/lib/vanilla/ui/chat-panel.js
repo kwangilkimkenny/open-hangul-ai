@@ -144,7 +144,7 @@ export class ChatPanel {
 
         // 초기 메시지 표시 (최초 1회만)
         if (this.aiController.hasApiKey()) {
-            this.addSystemMessage('AI 어시스턴트에 오신 것을 환영합니다! 자유롭게 대화하거나, 문서를 열어 편집할 수 있습니다. "문서로 만들어줘"라고 하면 대화 내용을 문서로 변환합니다.');
+            this.addSystemMessage('문서를 열거나 레퍼런스를 업로드하고 대화를 시작하세요.');
         } else {
             this.addSystemMessage('AI 기능을 사용하려면 .env 파일에 VITE_OPENAI_API_KEY를 설정하고 서버를 재시작해주세요.');
         }

@@ -21,6 +21,11 @@ export default defineConfig(({ mode }) => {
     port: 5090,        // 고정 포트
     strictPort: true,  // 포트 사용 중이면 에러 발생 (자동 변경 안 함)
     proxy: {
+      // HWPX Generator 프록시 — Python zipfile로 한글 호환 ZIP 생성
+      '/api/generate-hwpx': {
+        target: 'http://localhost:8300',
+        changeOrigin: true,
+      },
       // TruthAnchor (HalluGuard) 프록시 - 할루시네이션 검증 서버
       '/api/v2': {
         target: 'http://localhost:8200',

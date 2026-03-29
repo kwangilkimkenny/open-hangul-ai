@@ -201,7 +201,7 @@ export function createEnvConfig() {
         'VITE_OPENAI_API_ENDPOINT',
         'https://api.openai.com/v1/chat/completions'
       ),
-      model: getEnvString('VITE_OPENAI_MODEL', 'gpt-4-turbo-preview'),
+      model: getEnvString('VITE_OPENAI_MODEL', 'gpt-4o'),
       temperature: getEnvNumber('VITE_OPENAI_TEMPERATURE', 0.7),
       maxTokens: getEnvNumber('VITE_OPENAI_MAX_TOKENS', 4000),
       timeout: getEnvNumber('VITE_OPENAI_TIMEOUT', 120000),

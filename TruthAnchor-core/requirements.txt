@@ -1,0 +1,13 @@
+# HalluGuard Core 의존성
+# ─── 필수 (가드레일 + 수치검증 + 스코어링) ───
+fastapi>=0.115.0
+uvicorn>=0.32.0
+pydantic>=2.10.0
+structlog>=24.4.0
+
+# ─── 권장 (NLI 의미적 검증) ───
+sentence-transformers>=3.3.0
+torch>=2.2.0
+
+# ─── 선택 (LLM 재검증 + 수정문 생성) ───
+litellm>=1.50.0

@@ -222,73 +222,78 @@ export class EquationHelper {
       'left', 'right', 'partial', 'nabla', 'infty', 'forall', 'exists',
       'in', 'notin', 'subset', 'supset', 'cup', 'cap',
       'to', 'rightarrow', 'leftarrow', 'Rightarrow', 'Leftarrow', 'leftrightarrow',
-      'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'sec', 'csc', 'cot'
+      'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'sec', 'csc', 'cot',
+      'left', 'right'
     ];
     return commands.includes(word);
   }
 
   /**
-   * HWML 스크립트를 LaTeX로 변환
+   * HWML 스크립트를 LaTeX로 변환 (AST 기반)
    */
   static convertToLatex(script: string, inline: boolean = true): string {
     if (!script || script.trim() === '') return '';
 
-    // 기본 변환 규칙 적용
-    let latex = script;
+    const tokens = this.tokenize(script);
+    const parser = new HWMLParser(tokens);
+    const root = parser.parse();
+    const latex = root.toLatex();
 
-    // 그리스 문자 변환
-    Object.entries(SYMBOL_MAP).forEach(([key, value]) => {
-      const regex = new RegExp(`\\b${key}\\b`, 'g');
-      latex = latex.replace(regex, `\\${key}`);
-    });
-
-    // 명령어 변환
-    latex = latex.replace(/\bsqrt\s*\{/g, '\\sqrt{');
-    latex = latex.replace(/\bfrac\s*\{/g, '\\frac{');
-    latex = latex.replace(/\bover\b/g, '}{');  // A over B -> {A}{B} for \frac
-    latex = latex.replace(/\bsum\b/g, '\\sum');
-    latex = latex.replace(/\bint\b/g, '\\int');
-    latex = latex.replace(/\bprod\b/g, '\\prod');
-    latex = latex.replace(/\blim\b/g, '\\lim');
-    latex = latex.replace(/\binfty\b/g, '\\infty');
-    latex = latex.replace(/\bpartial\b/g, '\\partial');
-    latex = latex.replace(/\bnabla\b/g, '\\nabla');
-    latex = latex.replace(/\btimes\b/g, '\\times');
-    latex = latex.replace(/\bdiv\b/g, '\\div');
-    latex = latex.replace(/\bcdot\b/g, '\\cdot');
-    latex = latex.replace(/\bpm\b/g, '\\pm');
-    latex = latex.replace(/\bleq\b/g, '\\leq');
-    latex = latex.replace(/\bgeq\b/g, '\\geq');
-    latex = latex.replace(/\bneq\b/g, '\\neq');
-    latex = latex.replace(/\bapprox\b/g, '\\approx');
-    latex = latex.replace(/\brightarrow\b/g, '\\rightarrow');
-    latex = latex.replace(/\bleftarrow\b/g, '\\leftarrow');
-    latex = latex.replace(/\bforall\b/g, '\\forall');
-    latex = latex.replace(/\bexists\b/g, '\\exists');
-    latex = latex.replace(/\bin\b/g, '\\in');
-    latex = latex.replace(/\bnotin\b/g, '\\notin');
-
-    // 삼각함수
-    latex = latex.replace(/\bsin\b/g, '\\sin');
-    latex = latex.replace(/\bcos\b/g, '\\cos');
-    latex = latex.replace(/\btan\b/g, '\\tan');
-    latex = latex.replace(/\blog\b/g, '\\log');
-    latex = latex.replace(/\bln\b/g, '\\ln');
-    latex = latex.replace(/\bexp\b/g, '\\exp');
-
-    // 인라인/디스플레이 모드
-    if (inline) {
-      return `$${latex}$`;
-    } else {
-      return `$$${latex}$$`;
-    }
+    return inline ? `$${latex}$` : `$$${latex}$$`;
   }
 }
 
+// === LaTeX 기호 매핑 ===
+
+const LATEX_SYMBOL_MAP: { [key: string]: string } = {
+  // Greek lowercase
+  alpha: '\\alpha', beta: '\\beta', gamma: '\\gamma', delta: '\\delta', epsilon: '\\epsilon',
+  zeta: '\\zeta', eta: '\\eta', theta: '\\theta', iota: '\\iota', kappa: '\\kappa',
+  lambda: '\\lambda', mu: '\\mu', nu: '\\nu', xi: '\\xi', pi: '\\pi', rho: '\\rho',
+  sigma: '\\sigma', tau: '\\tau', upsilon: '\\upsilon', phi: '\\phi', chi: '\\chi',
+  psi: '\\psi', omega: '\\omega',
+  // Greek uppercase
+  Alpha: 'A', Beta: 'B', Gamma: '\\Gamma', Delta: '\\Delta', Epsilon: 'E', Zeta: 'Z',
+  Eta: 'H', Theta: '\\Theta', Iota: 'I', Kappa: 'K', Lambda: '\\Lambda', Mu: 'M',
+  Nu: 'N', Xi: '\\Xi', Pi: '\\Pi', Rho: 'P', Sigma: '\\Sigma', Tau: 'T',
+  Upsilon: '\\Upsilon', Phi: '\\Phi', Chi: 'X', Psi: '\\Psi', Omega: '\\Omega',
+  // Operators & symbols
+  infty: '\\infty', partial: '\\partial', nabla: '\\nabla', forall: '\\forall',
+  exists: '\\exists', emptyset: '\\emptyset', times: '\\times', div: '\\div',
+  cdot: '\\cdot', pm: '\\pm', mp: '\\mp', leq: '\\leq', geq: '\\geq', neq: '\\neq',
+  approx: '\\approx', equiv: '\\equiv', subset: '\\subset', supset: '\\supset',
+  cup: '\\cup', cap: '\\cap', in: '\\in', notin: '\\notin',
+  rightarrow: '\\rightarrow', leftarrow: '\\leftarrow', Rightarrow: '\\Rightarrow',
+  Leftarrow: '\\Leftarrow', leftrightarrow: '\\leftrightarrow',
+  prime: "'", angle: '\\angle', perp: '\\perp', parallel: '\\parallel',
+  therefore: '\\therefore', because: '\\because', propto: '\\propto',
+  langle: '\\langle', rangle: '\\rangle', lceil: '\\lceil', rceil: '\\rceil',
+  lfloor: '\\lfloor', rfloor: '\\rfloor',
+};
+
+const LATEX_OP_MAP: { [key: string]: string } = {
+  '+': '+', '-': '-', '*': '\\times', '/': '\\div', '=': '=',
+  '<': '<', '>': '>', '(': '(', ')': ')', '[': '[', ']': ']',
+  '|': '|', ',': ',', ';': ';', '!': '!', ':': ':',
+};
+
 // === 내부 Parser 클래스 ===
+
+/** 수식 함수 이름 (MathML에서 <mi mathvariant="normal">로 렌더링) */
+const FUNCTION_NAMES = new Set([
+  'sin', 'cos', 'tan', 'log', 'ln', 'exp', 'lim',
+  'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh',
+  'sec', 'csc', 'cot', 'det', 'gcd', 'lcm', 'min', 'max', 'sup', 'inf'
+]);
+
+/** 대형 연산자 (MathML에서 <mo>로 렌더링) */
+const LARGE_OPERATORS = new Set([
+  'sum', 'int', 'prod', 'oint', 'iint', 'iiint', 'coprod', 'bigcup', 'bigcap'
+]);
 
 abstract class ASTNode {
   abstract toMathML(): string;
+  abstract toLatex(): string;
 }
 
 class BlockNode extends ASTNode {
@@ -299,10 +304,12 @@ class BlockNode extends ASTNode {
   }
 
   toMathML(): string {
-    // 단일 자식이면 그냥 반환, 아니면 mrow로 감쌈
     if (this.children.length === 0) return '';
-    // if (this.children.length === 1) return this.children[0].toMathML();
     return this.children.map(c => c.toMathML()).join('');
+  }
+
+  toLatex(): string {
+    return this.children.map(c => c.toLatex()).join(' ');
   }
 }
 
@@ -311,20 +318,30 @@ class TextNode extends ASTNode {
 
   toMathML(): string {
     if (SYMBOL_MAP[this.text]) {
-      // Greeks and symbols usually <mi> or <mo>. 
-      // Single char Greeks are mi. Sum/Int are mo via OpNode but here they can come as text if not tokenized as command?
-      // Actually my tokenizer handles 'sum' as COMMAND but TextNode handles COMMAND text?
-      // Yes, parseItem returns TextNode for unknown commands.
       return `<mi>${SYMBOL_MAP[this.text]}</mi>`;
+    }
+    // 함수 이름은 upright로 렌더링
+    if (FUNCTION_NAMES.has(this.text)) {
+      return `<mi mathvariant="normal">${this.text}</mi>`;
+    }
+    // 대형 연산자는 <mo>
+    if (LARGE_OPERATORS.has(this.text)) {
+      return `<mo>${SYMBOL_MAP[this.text] || this.text}</mo>`;
     }
     if (this.isIdentifier) {
       return `<mi>${this.text}</mi>`;
     }
-    // 숫자는 mn
     if (/^[0-9.]+$/.test(this.text)) {
       return `<mn>${this.text}</mn>`;
     }
     return `<mi>${this.text}</mi>`;
+  }
+
+  toLatex(): string {
+    if (LATEX_SYMBOL_MAP[this.text]) return LATEX_SYMBOL_MAP[this.text];
+    if (FUNCTION_NAMES.has(this.text)) return `\\${this.text}`;
+    if (LARGE_OPERATORS.has(this.text)) return `\\${this.text}`;
+    return this.text;
   }
 }
 
@@ -332,8 +349,12 @@ class OperatorNode extends ASTNode {
   constructor(public op: string) { super(); }
 
   toMathML(): string {
-    let mapped = opMap[this.op] || this.op;
+    const mapped = opMap[this.op] || this.op;
     return `<mo>${mapped}</mo>`;
+  }
+
+  toLatex(): string {
+    return LATEX_OP_MAP[this.op] || this.op;
   }
 }
 
@@ -343,6 +364,10 @@ class FracNode extends ASTNode {
   toMathML(): string {
     return `<mfrac><mrow>${this.num.toMathML()}</mrow><mrow>${this.den.toMathML()}</mrow></mfrac>`;
   }
+
+  toLatex(): string {
+    return `\\frac{${this.num.toLatex()}}{${this.den.toLatex()}}`;
+  }
 }
 
 class SqrtNode extends ASTNode {
@@ -351,26 +376,31 @@ class SqrtNode extends ASTNode {
   toMathML(): string {
     return `<msqrt>${this.content.toMathML()}</msqrt>`;
   }
+
+  toLatex(): string {
+    return `\\sqrt{${this.content.toLatex()}}`;
+  }
 }
 
 class ScriptNode extends ASTNode {
   constructor(public base: ASTNode, public sub?: ASTNode, public sup?: ASTNode) { super(); }
 
   toMathML(): string {
-    // Special handling for limit operators (sum, int, prod, lim)
-    const limitOps = ['sum', 'int', 'prod', 'lim', 'oint', 'iint', 'iiint', 'coprod', 'bigcup', 'bigcap'];
+    const limitOps = new Set([...LARGE_OPERATORS, 'lim', 'min', 'max', 'sup', 'inf']);
     const baseText = this.base instanceof TextNode ? (this.base as TextNode).text : '';
-    const isLimitOp = this.base instanceof TextNode && limitOps.includes(baseText);
+    const isLimitOp = this.base instanceof TextNode && limitOps.has(baseText);
 
     if (isLimitOp && (this.sub || this.sup)) {
       const symbol = SYMBOL_MAP[baseText] || baseText;
-      // Use munderover for display-style limits
+      const isLargeOp = LARGE_OPERATORS.has(baseText);
+      const tag = isLargeOp ? 'mo' : 'mi mathvariant="normal"';
+      const closeTag = isLargeOp ? 'mo' : 'mi';
       if (this.sub && this.sup) {
-        return `<munderover><mo>${symbol}</mo><mrow>${this.sub.toMathML()}</mrow><mrow>${this.sup.toMathML()}</mrow></munderover>`;
+        return `<munderover><${tag}>${symbol}</${closeTag}><mrow>${this.sub.toMathML()}</mrow><mrow>${this.sup.toMathML()}</mrow></munderover>`;
       } else if (this.sub) {
-        return `<munder><mo>${symbol}</mo><mrow>${this.sub.toMathML()}</mrow></munder>`;
+        return `<munder><${tag}>${symbol}</${closeTag}><mrow>${this.sub.toMathML()}</mrow></munder>`;
       } else if (this.sup) {
-        return `<mover><mo>${symbol}</mo><mrow>${this.sup.toMathML()}</mrow></mover>`;
+        return `<mover><${tag}>${symbol}</${closeTag}><mrow>${this.sup.toMathML()}</mrow></mover>`;
       }
     }
 
@@ -382,6 +412,13 @@ class ScriptNode extends ASTNode {
       return `<msup><mrow>${this.base.toMathML()}</mrow><mrow>${this.sup.toMathML()}</mrow></msup>`;
     }
     return this.base.toMathML();
+  }
+
+  toLatex(): string {
+    let result = this.base.toLatex();
+    if (this.sub) result += `_{${this.sub.toLatex()}}`;
+    if (this.sup) result += `^{${this.sup.toLatex()}}`;
+    return result;
   }
 }
 
@@ -397,6 +434,13 @@ class RootNode extends ASTNode {
     }
     return `<msqrt>${this.radicand.toMathML()}</msqrt>`;
   }
+
+  toLatex(): string {
+    if (this.index) {
+      return `\\sqrt[${this.index.toLatex()}]{${this.radicand.toLatex()}}`;
+    }
+    return `\\sqrt{${this.radicand.toLatex()}}`;
+  }
 }
 
 /**
@@ -405,7 +449,8 @@ class RootNode extends ASTNode {
 class MatrixNode extends ASTNode {
   constructor(
     public rows: ASTNode[][],
-    public delimiters: { left: string; right: string } = { left: '', right: '' }
+    public delimiters: { left: string; right: string } = { left: '', right: '' },
+    public matrixType: string = 'matrix'
   ) { super(); }
 
   toMathML(): string {
@@ -420,6 +465,14 @@ class MatrixNode extends ASTNode {
       return `<mrow><mo>${this.delimiters.left}</mo>${table}<mo>${this.delimiters.right}</mo></mrow>`;
     }
     return table;
+  }
+
+  toLatex(): string {
+    const env = this.matrixType || 'matrix';
+    const content = this.rows.map(row =>
+      row.map(cell => cell.toLatex()).join(' & ')
+    ).join(' \\\\ ');
+    return `\\begin{${env}} ${content} \\end{${env}}`;
   }
 }
 
@@ -448,7 +501,11 @@ class AccentNode extends ASTNode {
     if (this.accentType === 'underline') {
       return `<munder><mrow>${this.content.toMathML()}</mrow><mo>${accent}</mo></munder>`;
     }
-    return `<mover><mrow>${this.content.toMathML()}</mrow><mo>${accent}</mo></mover>`;
+    return `<mover accent="true"><mrow>${this.content.toMathML()}</mrow><mo>${accent}</mo></mover>`;
+  }
+
+  toLatex(): string {
+    return `\\${this.accentType}{${this.content.toLatex()}}`;
   }
 }
 
@@ -464,6 +521,32 @@ class CasesNode extends ASTNode {
     ).join('');
 
     return `<mrow><mo>{</mo><mtable columnalign="left left">${rows}</mtable></mrow>`;
+  }
+
+  toLatex(): string {
+    const content = this.cases.map(c => {
+      const val = c.value.toLatex();
+      const cond = c.condition.toLatex();
+      return cond ? `${val} & \\text{if } ${cond}` : val;
+    }).join(' \\\\ ');
+    return `\\begin{cases} ${content} \\end{cases}`;
+  }
+}
+
+/**
+ * 구분자 노드 (left/right 괄호)
+ */
+class DelimiterNode extends ASTNode {
+  constructor(public content: ASTNode, public leftDelim: string, public rightDelim: string) { super(); }
+
+  toMathML(): string {
+    return `<mrow><mo stretchy="true">${this.leftDelim}</mo>${this.content.toMathML()}<mo stretchy="true">${this.rightDelim}</mo></mrow>`;
+  }
+
+  toLatex(): string {
+    const left = this.leftDelim === '.' ? '.' : this.leftDelim;
+    const right = this.rightDelim === '.' ? '.' : this.rightDelim;
+    return `\\left${left} ${this.content.toLatex()} \\right${right}`;
   }
 }
 
@@ -648,6 +731,11 @@ class HWMLParser {
         return this.parseCases();
       }
 
+      // left/right 구분자 (괄호 크기 자동 조정)
+      if (t.value === 'left') {
+        return this.parseLeftRight();
+      }
+
       // Limit operators (lim, sum, int, etc.) - handled specially for sub/sup
       if (['lim', 'sum', 'int', 'prod', 'oint', 'iint', 'iiint', 'coprod', 'bigcup', 'bigcap', 'min', 'max', 'sup', 'inf'].includes(t.value)) {
         return new TextNode(t.value, true);
@@ -733,7 +821,7 @@ class HWMLParser {
       this.consume();
     }
 
-    return new MatrixNode(rows, delimiters[matrixType] || { left: '', right: '' });
+    return new MatrixNode(rows, delimiters[matrixType] || { left: '', right: '' }, matrixType);
   }
 
   /**
@@ -801,6 +889,75 @@ class HWMLParser {
     }
 
     return new CasesNode(cases);
+  }
+
+  /**
+   * Parse left/right delimiters: left( ... right)
+   */
+  private parseLeftRight(): ASTNode {
+    // 다음 토큰이 구분자 문자
+    let leftDelim = '.';
+    const lt = this.peek();
+    if (lt.type !== HWPEquationTokenType.EOF) {
+      this.consume();
+      leftDelim = lt.value;
+    }
+
+    // 내용 파싱 - 'right' 명령어가 나올 때까지
+    const nodes: ASTNode[] = [];
+    while (this.pos < this.tokens.length) {
+      const t = this.peek();
+      if (t.type === HWPEquationTokenType.EOF) break;
+
+      // 'right' 명령어 만나면 종료
+      if (t.type === HWPEquationTokenType.COMMAND && t.value === 'right') {
+        this.consume();
+        break;
+      }
+
+      if (t.type === HWPEquationTokenType.KEYWORD && t.value === 'over') {
+        this.consume();
+        nodes.push(new OperatorNode('over'));
+        continue;
+      }
+
+      let node = this.parseItem();
+      // sub/sup 처리
+      while (true) {
+        const nx = this.peek();
+        if (nx.type === HWPEquationTokenType.SUPERSCRIPT) {
+          this.consume();
+          const sup = this.parseItem();
+          if (node instanceof ScriptNode && !node.sup) {
+            node.sup = sup;
+          } else {
+            node = new ScriptNode(node, undefined, sup);
+          }
+        } else if (nx.type === HWPEquationTokenType.SUBSCRIPT) {
+          this.consume();
+          const sub = this.parseItem();
+          if (node instanceof ScriptNode && !node.sub) {
+            node.sub = sub;
+          } else {
+            node = new ScriptNode(node, sub, undefined);
+          }
+        } else {
+          break;
+        }
+      }
+      nodes.push(node);
+    }
+
+    // 오른쪽 구분자
+    let rightDelim = '.';
+    const rt = this.peek();
+    if (rt.type !== HWPEquationTokenType.EOF) {
+      this.consume();
+      rightDelim = rt.value;
+    }
+
+    const content = this.processFractions(nodes);
+    return new DelimiterNode(content, leftDelim, rightDelim);
   }
 
   // sub/sup logic moved to parseBlockContent to bind tight to left content

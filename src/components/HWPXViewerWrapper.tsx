@@ -859,56 +859,67 @@ export function HWPXViewerWrapper({
               {/* Messages will be dynamically added here */}
             </div>
 
-            {/* 어시스턴트 패널 */}
+            {/* 어시스턴트 패널 (아코디언) */}
             <div className="ai-assistant-content" id="ai-assistant-content">
-              <div className="ai-assistant-group">
-                <div className="ai-assistant-group-label">문서 분석</div>
-                <button className="ai-assistant-btn" id="ai-ast-summary" title="문서의 핵심 내용 3줄 요약">핵심 요약</button>
-                <button className="ai-assistant-btn" id="ai-ast-keywords" title="주요 키워드/태그 추출">키워드 추출</button>
-                <button className="ai-assistant-btn" id="ai-ast-audience" title="난이도/대상 독자 분석">독자 수준 분석</button>
-              </div>
-              <div className="ai-assistant-group">
-                <div className="ai-assistant-group-label">업무 커뮤니케이션</div>
-                <button className="ai-assistant-btn" id="ai-ast-forward-email" title="문서 전달용 이메일 본문 생성">전달 메일 작성</button>
-                <button className="ai-assistant-btn" id="ai-ast-report-email" title="상사에게 보고할 메일 생성">보고 메일 작성</button>
-                <button className="ai-assistant-btn" id="ai-ast-meeting" title="문서를 회의록 형태로 변환">회의록 변환</button>
-              </div>
-              <div className="ai-assistant-group">
-                <div className="ai-assistant-group-label">검토 / 피드백</div>
-                <button className="ai-assistant-btn" id="ai-ast-review" title="검토자 관점에서 체크리스트 생성">검토 의견</button>
-                <button className="ai-assistant-btn" id="ai-ast-improve" title="문서 품질 개선점 분석">개선 제안</button>
-                <button className="ai-assistant-btn" id="ai-ast-actions" title="후속 조치 사항 추출">액션 아이템</button>
-              </div>
-              <div className="ai-assistant-group">
-                <div className="ai-assistant-group-label">변환 / 재작성</div>
-                <button className="ai-assistant-btn" id="ai-ast-simplify" title="초등학생 수준으로 재작성">쉽게 풀어쓰기</button>
-                <button className="ai-assistant-btn" id="ai-ast-formal" title="격식체 공문서 스타일로 변환">공식 문서화</button>
-                <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">영문 번역</button>
-              </div>
-              <div className="ai-assistant-group">
-                <div className="ai-assistant-group-label">AI 문서 품질</div>
-                <button className="ai-assistant-btn" id="ai-ast-refine" title="정부 AI 친화 문서 표준에 따라 문장 교정 (주어+서술어 보완, 개조식→서술형, 모호표현 제거)">AI 친화 교정</button>
-                <button className="ai-assistant-btn" id="ai-ast-readiness" title="문서의 AI 처리 적합도를 5가지 기준으로 평가 (0-100점)">AI 품질 검증</button>
-                <button className="ai-assistant-btn" id="ai-ast-local-check" title="GPT 호출 없이 로컬 규칙으로 빠른 문서 품질 체크">빠른 검사</button>
-              </div>
-
-            </div>
-            <div className="ai-assistant-group">
-              <div className="ai-assistant-group-label">보안 / 검증</div>
-              <div className="security-toggle-row">
-                <label className="security-toggle-label" title="AEGIS AI 보안 - 프롬프트 인젝션, PII 보호, 출력 필터링">
-                  <input type="checkbox" id="aegis-toggle" className="security-toggle-input" />
-                  <span className="security-toggle-switch"></span>
-                  <span>AEGIS 보안</span>
-                </label>
-                <label className="security-toggle-label" title="TruthAnchor - AI 생성 텍스트 할루시네이션 검증">
-                  <input type="checkbox" id="truthanchor-toggle" className="security-toggle-input" />
-                  <span className="security-toggle-switch"></span>
-                  <span>할루시네이션 검증</span>
-                </label>
-              </div>
-              <div className="security-status" id="security-status"></div>
-              <div className="validation-results" id="validation-results" style={{ display: 'none' }}></div>
+              <details className="ai-accordion">
+                <summary className="ai-accordion-header">문서 분석</summary>
+                <div className="ai-accordion-body">
+                  <button className="ai-assistant-btn" id="ai-ast-summary" title="문서의 핵심 내용 3줄 요약">핵심 요약</button>
+                  <button className="ai-assistant-btn" id="ai-ast-keywords" title="주요 키워드/태그 추출">키워드 추출</button>
+                  <button className="ai-assistant-btn" id="ai-ast-audience" title="난이도/대상 독자 분석">독자 수준 분석</button>
+                </div>
+              </details>
+              <details className="ai-accordion">
+                <summary className="ai-accordion-header">업무 커뮤니케이션</summary>
+                <div className="ai-accordion-body">
+                  <button className="ai-assistant-btn" id="ai-ast-forward-email" title="문서 전달용 이메일 본문 생성">전달 메일 작성</button>
+                  <button className="ai-assistant-btn" id="ai-ast-report-email" title="상사에게 보고할 메일 생성">보고 메일 작성</button>
+                  <button className="ai-assistant-btn" id="ai-ast-meeting" title="문서를 회의록 형태로 변환">회의록 변환</button>
+                </div>
+              </details>
+              <details className="ai-accordion">
+                <summary className="ai-accordion-header">검토 / 피드백</summary>
+                <div className="ai-accordion-body">
+                  <button className="ai-assistant-btn" id="ai-ast-review" title="검토자 관점에서 체크리스트 생성">검토 의견</button>
+                  <button className="ai-assistant-btn" id="ai-ast-improve" title="문서 품질 개선점 분석">개선 제안</button>
+                  <button className="ai-assistant-btn" id="ai-ast-actions" title="후속 조치 사항 추출">액션 아이템</button>
+                </div>
+              </details>
+              <details className="ai-accordion">
+                <summary className="ai-accordion-header">변환 / 재작성</summary>
+                <div className="ai-accordion-body">
+                  <button className="ai-assistant-btn" id="ai-ast-simplify" title="초등학생 수준으로 재작성">쉽게 풀어쓰기</button>
+                  <button className="ai-assistant-btn" id="ai-ast-formal" title="격식체 공문서 스타일로 변환">공식 문서화</button>
+                  <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">영문 번역</button>
+                </div>
+              </details>
+              <details className="ai-accordion">
+                <summary className="ai-accordion-header">AI 문서 품질</summary>
+                <div className="ai-accordion-body">
+                  <button className="ai-assistant-btn" id="ai-ast-refine" title="정부 AI 친화 문서 표준에 따라 문장 교정">AI 친화 교정</button>
+                  <button className="ai-assistant-btn" id="ai-ast-readiness" title="문서의 AI 처리 적합도를 5가지 기준으로 평가">AI 품질 검증</button>
+                  <button className="ai-assistant-btn" id="ai-ast-local-check" title="GPT 호출 없이 로컬 규칙으로 빠른 문서 품질 체크">빠른 검사</button>
+                </div>
+              </details>
+              <details className="ai-accordion" open>
+                <summary className="ai-accordion-header">보안 / 검증</summary>
+                <div className="ai-accordion-body">
+                  <div className="security-toggle-row">
+                    <label className="security-toggle-label" title="AEGIS AI 보안 - 프롬프트 인젝션, PII 보호, 출력 필터링">
+                      <input type="checkbox" id="aegis-toggle" className="security-toggle-input" />
+                      <span className="security-toggle-switch"></span>
+                      <span>AEGIS 보안</span>
+                    </label>
+                    <label className="security-toggle-label" title="TruthAnchor - AI 생성 텍스트 할루시네이션 검증">
+                      <input type="checkbox" id="truthanchor-toggle" className="security-toggle-input" />
+                      <span className="security-toggle-switch"></span>
+                      <span>할루시네이션 검증</span>
+                    </label>
+                  </div>
+                  <div className="security-status" id="security-status"></div>
+                  <div className="validation-results" id="validation-results" style={{ display: 'none' }}></div>
+                </div>
+              </details>
             </div>
 
             {/* 레퍼런스 파일 업로드 영역 */}
@@ -926,17 +937,17 @@ export function HWPXViewerWrapper({
               <textarea
                 className="ai-chat-input"
                 id="ai-chat-input"
-                placeholder="자유롭게 대화하거나, 문서 편집을 요청하세요&#10;(Shift+Enter: 줄바꿈, Enter: 전송)"
+                placeholder="메시지를 입력하세요 (Enter: 전송)"
                 rows={3}
                 aria-label="AI에게 보낼 메시지 입력"
               />
-              <button className="ai-chat-send" id="ai-chat-send">
-                전송
+              <button className="ai-chat-send" id="ai-chat-send" title="전송">
+                &#10148;
               </button>
             </div>
 
             <div className="ai-chat-footer">
-              <button className="ai-action-btn" id="ai-clear-btn">
+              <button className="ai-action-btn ai-clear-btn" id="ai-clear-btn">
                 대화 지우기
               </button>
             </div>

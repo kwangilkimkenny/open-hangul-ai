@@ -1,0 +1,17 @@
+services:
+  halluguard:
+    build: .
+    ports:
+      - "8200:8200"
+    environment:
+      # 편집기와 동일한 OpenAI API 키 사용
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # 또는 다른 LLM 모델 지정
+      # - HALLUGUARD_LLM_MODEL=openai/gpt-4-turbo-preview
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8200/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

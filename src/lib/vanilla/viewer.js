@@ -1550,20 +1550,19 @@ export class HWPXViewer {
    */
   async _saveNewDocument(filename) {
     try {
-      logger.info('📦 Generating new HWPX file from scratch...');
+      logger.info('📦 Generating HWPX from template...');
 
       const JSZip = (await import('jszip')).default;
-      const zip = new JSZip();
 
       let doc = this.getDocument();
 
       // state.document가 null이지만 렌더링된 DOM이 있는 경우 → DOM에서 문서 재구성
       if ((!doc || !doc.sections || doc.sections.length === 0) && this.container) {
-        logger.info('⚠️ state.document is null but DOM exists, rebuilding from DOM...');
+        logger.info('state.document is null but DOM exists, rebuilding from DOM...');
         doc = this._rebuildDocumentFromDOM();
         if (doc) {
           this.state.document = doc;
-          logger.info(`✅ Rebuilt document: ${doc.sections?.length || 0} sections`);
+          logger.info(`Rebuilt document: ${doc.sections?.length || 0} sections`);
         }
       }
 
@@ -1571,192 +1570,56 @@ export class HWPXViewer {
         throw new Error('저장할 문서 내용이 없습니다.');
       }
 
-      const sectionCount = doc.sections.length;
-      const now = new Date().toISOString();
+      // 정상 HWPX 템플릿 로드 (한글에서 정상 열리는 구조)
+      const { HWPX_TEMPLATE_BASE64 } = await import('./export/hwpx-template.js');
+      const templateBuf = Uint8Array.from(atob(HWPX_TEMPLATE_BASE64), c => c.charCodeAt(0));
+      const zip = await JSZip.loadAsync(templateBuf);
 
-      // ===== HWPX 표준 구조 생성 =====
-
-      // 1. mimetype (반드시 비압축, ZIP 내 첫 번째 파일)
+      // mimetype STORE 보장
       zip.file('mimetype', 'application/hwp+zip', { compression: 'STORE' });
 
-      // 2. version.xml
-      zip.file('version.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version"
-               tagetApplication="WORDPROCESSOR"
-               major="5" minor="1" micro="1" buildNumber="0"
-               os="1" xmlVersion="1.5"
-               application="OpenHangul AI"
-               appVersion="3.0.0"/>`, { compression: 'DEFLATE' });
+      // 1. 모든 run에서 고유 스타일 수집
+      const styleMap = this._collectCharStyles(doc);
+      logger.info(`Collected ${styleMap.size} char styles for HWPX save`);
 
-      // 3. settings.xml
-      zip.file('settings.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<ha:HWPApplicationSetting xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
-                          xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
-  <ha:CaretPosition listIDRef="0" paraIDRef="0" pos="0"/>
-</ha:HWPApplicationSetting>`, { compression: 'DEFLATE' });
+      // section XML 생성 (secPr 포함 section header + 텍스트 단락)
+      const { SECTION_HEADER_BASE64 } = await import('./export/hwpx-section-header.js');
+      const binaryStr = atob(SECTION_HEADER_BASE64);
+      const bytesArr = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytesArr[i] = binaryStr.charCodeAt(i);
+      const sectionHeader = new TextDecoder('utf-8').decode(bytesArr);
 
-      // 4. META-INF/container.xml
-      zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">
-  <ocf:rootfiles>
-    <ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>
-    <ocf:rootfile full-path="Preview/PrvText.txt" media-type="text/plain"/>
-    <ocf:rootfile full-path="META-INF/container.rdf" media-type="application/rdf+xml"/>
-  </ocf:rootfiles>
-</ocf:container>`, { compression: 'DEFLATE' });
-
-      // 5. META-INF/manifest.xml
-      zip.file('META-INF/manifest.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>`, { compression: 'DEFLATE' });
-
-      // 6. META-INF/container.rdf
-      let rdfSections = '';
-      for (let i = 0; i < sectionCount; i++) {
-        rdfSections += `
-  <rdf:Description rdf:about="">
-    <ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section${i}.xml"/>
-  </rdf:Description>
-  <rdf:Description rdf:about="Contents/section${i}.xml">
-    <rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/>
-  </rdf:Description>`;
+      let bodyContent = '';
+      const firstSection = doc.sections[0] || { elements: [] };
+      (firstSection.elements || []).forEach(el => {
+        if (el.type === 'paragraph') bodyContent += this._generateParagraphXml(el, styleMap);
+        else if (el.type === 'table') bodyContent += this._generateTableAsTextXml(el, styleMap);
+      });
+      if (!bodyContent) {
+        bodyContent = `<hp:p id="${Math.floor(Math.random()*4e9)}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:t></hp:t></hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="42520" flags="393216"/></hp:linesegarray></hp:p>`;
       }
-      zip.file('META-INF/container.rdf', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about="">
-    <ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/>
-  </rdf:Description>
-  <rdf:Description rdf:about="Contents/header.xml">
-    <rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/>
-  </rdf:Description>${rdfSections}
-  <rdf:Description rdf:about="">
-    <rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/>
-  </rdf:Description>
-</rdf:RDF>`, { compression: 'DEFLATE' });
+      const sectionXml = sectionHeader + bodyContent + '</hs:sec>';
 
-      // 7. Contents/header.xml (표준 네임스페이스)
-      zip.file('Contents/header.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
-         xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
-         xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
-         xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
-         xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core">
-  <hh:beginNum page="1" footnote="1" endnote="1"/>
-  <hh:refList>
-    <hh:fontfaces>
-      <hh:fontface lang="HANGUL">
-        <hh:font id="0" face="함초롬돋움" type="TTF"/>
-      </hh:fontface>
-      <hh:fontface lang="LATIN">
-        <hh:font id="0" face="함초롬돋움" type="TTF"/>
-      </hh:fontface>
-      <hh:fontface lang="HANJA">
-        <hh:font id="0" face="함초롬돋움" type="TTF"/>
-      </hh:fontface>
-    </hh:fontfaces>
-    <hh:charProperties>
-      <hh:charPr id="0" height="1000" color="0">
-        <hh:fontRef hangul="0" latin="0" hanja="0"/>
-      </hh:charPr>
-    </hh:charProperties>
-    <hh:paraProperties>
-      <hh:paraPr id="0" align="JUSTIFY">
-        <hh:margin left="0" right="0" indent="0"/>
-        <hh:lineSpacing type="PERCENT" value="160"/>
-      </hh:paraPr>
-    </hh:paraProperties>
-  </hh:refList>
-</hh:head>`, { compression: 'DEFLATE' });
-
-      // 8. 이미지 수집: DOM에서 img 태그를 찾아 BinData에 저장
-      const imageItems = [];
-      if (this.container) {
-        const images = this.container.querySelectorAll('img');
-        let imageIndex = 0;
-        for (const img of images) {
-          try {
-            const src = img.src;
-            if (!src) continue;
-            let imageData;
-            if (src.startsWith('data:')) {
-              const base64 = src.split(',')[1];
-              const binary = atob(base64);
-              imageData = new Uint8Array(binary.length);
-              for (let i = 0; i < binary.length; i++) imageData[i] = binary.charCodeAt(i);
-            } else if (src.startsWith('blob:')) {
-              const resp = await fetch(src);
-              const ab = await resp.arrayBuffer();
-              imageData = new Uint8Array(ab);
-            }
-            if (imageData) {
-              const ext = src.includes('png') ? 'png' : 'jpg';
-              const imgFilename = `image${imageIndex}.${ext}`;
-              zip.file(`BinData/${imgFilename}`, imageData, { binary: true });
-              imageItems.push({ id: `image${imageIndex}`, href: `BinData/${imgFilename}`, type: `image/${ext}` });
-              imageIndex++;
-            }
-          } catch (imgErr) {
-            logger.warn('⚠️ Failed to save image:', imgErr);
-          }
-        }
-      }
-
-      // 9. Contents/content.hpf (표준 opf 형식)
-      const imageManifestItems = imageItems.map(img =>
-        `    <opf:item id="${img.id}" href="${img.href}" media-type="${img.type}" isEmbeded="1"/>`
-      ).join('\n');
-      const sectionManifestItems = doc.sections.map((_, i) =>
-        `    <opf:item id="section${i}" href="Contents/section${i}.xml" media-type="application/xml"/>`
-      ).join('\n');
-      const sectionSpineItems = doc.sections.map((_, i) =>
-        `    <opf:itemref idref="section${i}" linear="yes"/>`
-      ).join('\n');
-
-      zip.file('Contents/content.hpf', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<opf:package xmlns:opf="http://www.idpf.org/2007/opf/"
-             xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf"
-             version="" unique-identifier="" id="">
-  <opf:metadata>
-    <opf:title/>
-    <opf:language>ko</opf:language>
-    <opf:meta name="creator" content="text">OpenHangul AI</opf:meta>
-    <opf:meta name="CreatedDate" content="text">${now}</opf:meta>
-    <opf:meta name="ModifiedDate" content="text">${now}</opf:meta>
-  </opf:metadata>
-  <opf:manifest>
-${imageManifestItems}
-    <opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>
-${sectionManifestItems}
-    <opf:item id="settings" href="settings.xml" media-type="application/xml"/>
-  </opf:manifest>
-  <opf:spine>
-    <opf:itemref idref="header" linear="yes"/>
-${sectionSpineItems}
-  </opf:spine>
-</opf:package>`, { compression: 'DEFLATE' });
-
-      // 10. Preview/PrvText.txt
-      let previewText = '';
-      doc.sections.forEach(section => {
-        (section.elements || []).forEach(el => {
-          if (el.type === 'paragraph' && el.runs) {
-            previewText += el.runs.map(r => r.text || '').join('') + '\n';
-          }
+      // Python 서버로 HWPX 생성 (한글 호환 ZIP 보장) — 없으면 JSZip fallback
+      let blob;
+      try {
+        const resp = await fetch('/api/generate-hwpx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sectionXml }),
+          signal: AbortSignal.timeout(10000),
         });
-      });
-      zip.file('Preview/PrvText.txt', previewText.substring(0, 500) || 'HWPX Document', { compression: 'DEFLATE' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        blob = await resp.blob();
+        logger.info('HWPX generated via Python server');
+      } catch (e) {
+        logger.warn('Python server unavailable, using JSZip fallback:', e.message);
+        zip.file('Contents/section0.xml', sectionXml);
+        zip.file('mimetype', 'application/hwp+zip', { compression: 'STORE' });
+        Object.keys(zip.files).forEach(n => { if (zip.files[n].dir) delete zip.files[n]; });
+        blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      }
 
-      // 11. Contents/section*.xml (표준 네임스페이스)
-      doc.sections.forEach((section, sIdx) => {
-        const sectionXml = this._generateSectionXml(section);
-        zip.file(`Contents/section${sIdx}.xml`, sectionXml, { compression: 'DEFLATE' });
-      });
-
-      // ZIP 생성 및 다운로드
-      const blob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1843,13 +1706,15 @@ ${sectionSpineItems}
    * @returns {string} XML 문자열
    * @private
    */
-  _generateSectionXml(section) {
+  _generateSectionXml(section, styleMap) {
     const pageSettings = section.pageSettings || {};
-    // px → HWPX 단위(1/7200 인치) 변환: 1px ≈ 75 HWPX units (at 96dpi)
-    const toHwpUnit = (px) => {
-      const val = parseInt(px);
-      if (!val || val < 100) return val * 75 || 0; // 작은 값은 px로 간주하여 변환
-      return val; // 이미 HWPX 단위이면 그대로
+    // px → HWPX 단위 변환: HWPX 단위는 1/7200인치, A4 width=59528, height=84188
+    // px 값(~794)과 HWPX 값(~59528)을 구분: 5000 미만이면 px로 판단
+    const toHwpUnit = (val) => {
+      const num = parseInt(val);
+      if (!num) return 0;
+      if (num < 5000) return Math.round(num * 75); // px → HWPX (1px ≈ 75 HWP units at 96dpi)
+      return num; // 이미 HWPX 단위
     };
     const width = toHwpUnit(pageSettings.width) || 59528;
     const height = toHwpUnit(pageSettings.height) || 84188;
@@ -1863,30 +1728,24 @@ ${sectionSpineItems}
 
     elements.forEach(element => {
       if (element.type === 'paragraph') {
-        bodyContent += this._generateParagraphXml(element);
+        bodyContent += this._generateParagraphXml(element, styleMap);
       } else if (element.type === 'table') {
-        bodyContent += this._generateTableXml(element);
+        // 테이블을 텍스트 단락으로 변환 (한글 호환성 보장)
+        bodyContent += this._generateTableAsTextXml(element, styleMap);
       }
     });
 
     // 최소 빈 단락 하나는 포함
     if (!bodyContent) {
-      bodyContent = `      <hp:p paraPrIDRef="0" styleIDRef="0">
-        <hp:run charPrIDRef="0">
-          <hp:t></hp:t>
-        </hp:run>
-      </hp:p>`;
+      const emptyId = Math.floor(Math.random() * 4294967295);
+      bodyContent = `<hp:p id="${emptyId}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:t></hp:t></hp:run></hp:p>`;
     }
 
     // 첫 번째 단락에 secPr (섹션 속성)을 삽입하는 HWPX 표준 형식
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page">
-  <hp:p paraPrIDRef="0" styleIDRef="0">
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page">
+  <hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
     <hp:run>
-      <hp:secPr>
-        <hp:pageSize width="${width}" height="${height}"/>
-        <hp:pageMar top="${marginTop}" bottom="${marginBottom}" left="${marginLeft}" right="${marginRight}" header="4252" footer="4252"/>
-      </hp:secPr>
+      <hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/><hp:pagePr landscape="WIDELY" width="${width}" height="${height}" gutterType="LEFT_ONLY"><hp:margin header="4252" footer="4252" gutter="0" left="${marginLeft}" right="${marginRight}" top="${marginTop}" bottom="${marginBottom}"/></hp:pagePr><hp:footNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="EACH_COLUMN" beneathText="0"/></hp:footNotePr><hp:endNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="END_OF_DOCUMENT" beneathText="0"/></hp:endNotePr><hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill></hp:secPr>
     </hp:run>
   </hp:p>
 ${bodyContent}
@@ -1897,91 +1756,278 @@ ${bodyContent}
    * 단락 데이터를 XML로 변환
    * @private
    */
-  _generateParagraphXml(para) {
+  /**
+   * 문서의 모든 run에서 고유 스타일 조합을 수집
+   * @returns {Map<string, {id, bold, italic, underline, height, color, fontFamily}>}
+   */
+  _collectCharStyles(doc) {
+    const styleMap = new Map();
+    // id=0: 기본 스타일 (항상 존재)
+    const defaultKey = 'default';
+    styleMap.set(defaultKey, { id: 0, bold: false, italic: false, underline: false, height: 1000, color: '#000000', fontFamily: '' });
+
+    const getStyleKey = (style) => {
+      const s = style || {};
+      const bold = !!(s.bold || s.fontWeight === 'bold' || (parseInt(s.fontWeight) >= 700));
+      const italic = !!(s.italic || s.fontStyle === 'italic');
+      const underline = !!(s.underline || (s.textDecoration && s.textDecoration.includes('underline')));
+      const fontSize = parseFloat(s.fontSize) || 0;
+      const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000; // pt → HWPX (1pt = 100)
+      const color = s.color || '#000000';
+      return `${bold}|${italic}|${underline}|${height}|${color}`;
+    };
+
+    const processRuns = (runs) => {
+      if (!runs) return;
+      for (const run of runs) {
+        if (run.type === 'linebreak') continue;
+        const style = run.inlineStyle || run.style || {};
+        const key = getStyleKey(style);
+        if (key === 'false|false|false|1000|#000000') continue; // 기본 스타일
+        if (!styleMap.has(key)) {
+          const s = style;
+          const bold = !!(s.bold || s.fontWeight === 'bold' || (parseInt(s.fontWeight) >= 700));
+          const italic = !!(s.italic || s.fontStyle === 'italic');
+          const underline = !!(s.underline || (s.textDecoration && s.textDecoration.includes('underline')));
+          const fontSize = parseFloat(s.fontSize) || 0;
+          const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000;
+          const color = s.color || '#000000';
+          styleMap.set(key, { id: styleMap.size, bold, italic, underline, height, color, fontFamily: s.fontFamily || '' });
+        }
+      }
+    };
+
+    for (const section of (doc.sections || [])) {
+      for (const el of (section.elements || [])) {
+        if (el.type === 'paragraph') processRuns(el.runs);
+        if (el.type === 'table' && el.rows) {
+          for (const row of el.rows) {
+            for (const cell of (row.cells || [])) {
+              for (const ce of (cell.elements || [])) {
+                if (ce.runs) processRuns(ce.runs);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    logger.info(`Collected ${styleMap.size} unique char styles`);
+    return styleMap;
+  }
+
+  /**
+   * 기존 header.xml에 charPr 정의를 주입 (원본 구조 보존)
+   * @param {string} headerXml - 원본 header XML
+   * @param {Map} styleMap - 스타일 맵
+   * @returns {string} 업데이트된 header XML
+   */
+  _injectCharPrIntoHeader(headerXml, styleMap) {
+    // 기존 charPr 중 가장 큰 id와 기본 fontRef를 찾기
+    const existingIds = [...headerXml.matchAll(/<hh:charPr id="(\d+)"/g)].map(m => parseInt(m[1]));
+    const maxExistingId = existingIds.length > 0 ? Math.max(...existingIds) : -1;
+
+    // template charPr id=0의 fontRef를 복사해서 새 charPr에 사용
+    const fontRefMatch = headerXml.match(/<hh:charPr id="0"[^>]*>.*?<hh:fontRef([^/]*)\/>/) ;
+    const fontRefAttrs = fontRefMatch ? fontRefMatch[1] : ' hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"';
+
+    // 기존 charPr id=0의 borderFillIDRef 가져오기
+    const bfMatch = headerXml.match(/<hh:charPr id="0"[^>]*borderFillIDRef="(\d+)"/);
+    const borderFillRef = bfMatch ? bfMatch[1] : '0';
+
+    // 스타일 맵의 id를 기존 max + 1부터 재배정 (id=0은 template 기존 것 유지)
+    let nextId = maxExistingId + 1;
+    const idRemap = new Map(); // old id → new id
+    idRemap.set(0, 0); // 기본 스타일은 template의 id=0 사용
+
+    let newCharPrXml = '';
+    for (const [key, style] of styleMap) {
+      if (style.id === 0) {
+        // 기본 스타일 → template의 charPr id=0 그대로 사용
+        continue;
+      }
+
+      const newId = nextId++;
+      idRemap.set(style.id, newId);
+
+      const boldAttr = style.bold ? ' bold="1"' : '';
+      const italicAttr = style.italic ? ' italic="1"' : '';
+      const underType = style.underline ? 'BOTTOM' : 'NONE';
+      const color = style.color.startsWith('#') ? style.color : `#${style.color}`;
+
+      newCharPrXml += `<hh:charPr id="${newId}" height="${style.height}" textColor="${color}" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="${borderFillRef}"${boldAttr}${italicAttr}><hh:fontRef${fontRefAttrs}/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="${underType}" shape="SOLID" color="${color}"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`;
+    }
+
+    // id 리맵 정보를 styleMap에 반영
+    for (const [key, style] of styleMap) {
+      if (idRemap.has(style.id)) {
+        style.id = idRemap.get(style.id);
+      }
+    }
+
+    if (!newCharPrXml) {
+      return headerXml; // 추가할 스타일 없으면 원본 유지
+    }
+
+    // </hh:charProperties> 직전에 새 charPr 삽입 + itemCnt 업데이트
+    const totalCount = existingIds.length + (nextId - maxExistingId - 1);
+    let result = headerXml.replace(
+      /<hh:charProperties itemCnt="\d+"/,
+      `<hh:charProperties itemCnt="${totalCount}"`
+    );
+    result = result.replace('</hh:charProperties>', newCharPrXml + '</hh:charProperties>');
+
+    logger.info(`Injected ${nextId - maxExistingId - 1} new charPr defs (ids ${maxExistingId + 1}-${nextId - 1})`);
+    return result;
+  }
+
+  /**
+   * (레거시) 스타일 맵을 기반으로 header.xml 전체 생성
+   */
+  _generateHeaderWithStyles(styleMap) {
+    let charPrXml = '';
+    for (const [key, style] of styleMap) {
+      const boldAttr = style.bold ? ' bold="1"' : '';
+      const italicAttr = style.italic ? ' italic="1"' : '';
+      const underType = style.underline ? 'BOTTOM' : 'NONE';
+      const color = style.color.startsWith('#') ? style.color : `#${style.color}`;
+
+      charPrXml += `<hh:charPr id="${style.id}" height="${style.height}" textColor="${color}" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="0"${boldAttr}${italicAttr}><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="${underType}" shape="SOLID" color="${color}"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`;
+    }
+
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"><hh:beginNum page="1" footnote="1" endnote="1"/><hh:refList><hh:fontfaces><hh:fontface lang="HANGUL"><hh:font id="0" face="함초롬돋움" type="TTF"/></hh:fontface><hh:fontface lang="LATIN"><hh:font id="0" face="함초롬돋움" type="TTF"/></hh:fontface><hh:fontface lang="HANJA"><hh:font id="0" face="함초롬돋움" type="TTF"/></hh:fontface></hh:fontfaces><hh:charProperties itemCnt="${styleMap.size}">${charPrXml}</hh:charProperties><hh:paraProperties><hh:paraPr id="0" align="JUSTIFY"><hh:margin left="0" right="0" indent="0"/><hh:lineSpacing type="PERCENT" value="160"/></hh:paraPr></hh:paraProperties></hh:refList></hh:head>`;
+  }
+
+  /**
+   * run의 스타일 키를 생성
+   * @private
+   */
+  _getRunStyleKey(run) {
+    const s = run.inlineStyle || run.style || {};
+    const bold = !!(s.bold || s.fontWeight === 'bold' || (parseInt(s.fontWeight) >= 700));
+    const italic = !!(s.italic || s.fontStyle === 'italic');
+    const underline = !!(s.underline || (s.textDecoration && s.textDecoration.includes('underline')));
+    const fontSize = parseFloat(s.fontSize) || 0;
+    const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000;
+    const color = s.color || '#000000';
+    return `${bold}|${italic}|${underline}|${height}|${color}`;
+  }
+
+  /**
+   * run의 charPrIDRef를 styleMap에서 찾기
+   * @private
+   */
+  _getCharPrId(run, styleMap) {
+    if (!run || run.type === 'linebreak') return 0;
+    const key = this._getRunStyleKey(run);
+    if (key === 'false|false|false|1000|#000000') return 0;
+    const entry = styleMap?.get(key);
+    return entry ? entry.id : 0;
+  }
+
+  _generateParagraphXml(para, styleMap) {
     const runs = para.runs || [];
     let runContent = '';
+    let totalText = '';
 
-    runs.forEach((run, idx) => {
+    runs.forEach((run) => {
       if (run.type === 'linebreak') {
-        runContent += `        <hp:run charPrIDRef="0"><hp:t>\n</hp:t></hp:run>\n`;
+        runContent += `<hp:run charPrIDRef="0"><hp:t>\n</hp:t></hp:run>`;
+        totalText += '\n';
       } else {
-        const text = (run.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const style = run.inlineStyle || run.style || {};
-
-        // 인라인 스타일 → charPr 속성 변환
-        const charPrAttrs = [];
-        if (style.bold) charPrAttrs.push('bold="true"');
-        if (style.italic) charPrAttrs.push('italic="true"');
-        if (style.underline) charPrAttrs.push('underline="true"');
-        if (style.strikethrough) charPrAttrs.push('strikeout="true"');
-        if (style.fontSize) {
-          const pt = parseFloat(style.fontSize);
-          if (pt) charPrAttrs.push(`height="${Math.round(pt * 100)}"`);
-        }
-        if (style.color) charPrAttrs.push(`color="${style.color.replace('#', '')}"`);
-        if (style.fontFamily) charPrAttrs.push(`fontFace="${style.fontFamily}"`);
-
-        if (charPrAttrs.length > 0) {
-          runContent += `        <hp:run>\n`;
-          runContent += `          <hp:charPr ${charPrAttrs.join(' ')}/>\n`;
-          runContent += `          <hp:t>${text}</hp:t>\n`;
-          runContent += `        </hp:run>\n`;
-        } else {
-          runContent += `        <hp:run charPrIDRef="0"><hp:t>${text}</hp:t></hp:run>\n`;
-        }
+        const text = (run.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '  ');
+        const charId = this._getCharPrId(run, styleMap);
+        runContent += `<hp:run charPrIDRef="${charId}"><hp:t>${text}</hp:t></hp:run>`;
+        totalText += run.text || '';
       }
     });
 
     if (!runContent) {
-      runContent = `        <hp:run charPrIDRef="0"><hp:t></hp:t></hp:run>\n`;
+      runContent = `<hp:run charPrIDRef="0"><hp:t></hp:t></hp:run>`;
     }
 
-    return `      <hp:p paraPrIDRef="0" styleIDRef="0">\n${runContent}      </hp:p>\n`;
+    // linesegarray: 한글 프로그램이 텍스트 렌더링에 필요한 줄 레이아웃 정보
+    const height = 1000;
+    const baseline = 800;
+    const spacing = 300;
+    const lineseg = `<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="${height}" textheight="${height}" baseline="${baseline}" spacing="${spacing}" horzpos="0" horzsize="42520" flags="393216"/></hp:linesegarray>`;
+
+    const paraId = Math.floor(Math.random() * 4294967295);
+    return `<hp:p id="${paraId}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${runContent}${lineseg}</hp:p>`;
   }
 
   /**
    * 테이블 데이터를 XML로 변환
    * @private
    */
-  _generateTableXml(table) {
+  /**
+   * 테이블을 텍스트 단락으로 변환 (한글 호환성 보장)
+   * 각 행을 탭 구분 텍스트 단락으로 출력
+   */
+  _generateTableAsTextXml(table, styleMap) {
     const rows = table.rows || [];
     if (rows.length === 0) return '';
 
+    let result = '';
+    rows.forEach(row => {
+      const cellTexts = (row.cells || []).map(cell => {
+        const texts = [];
+        (cell.elements || []).forEach(el => {
+          if (el.runs) {
+            el.runs.forEach(r => { if (r.text) texts.push(r.text); });
+          }
+        });
+        return texts.join(' ');
+      });
+      const lineText = cellTexts.join(' | ');
+      result += this._generateParagraphXml({ runs: [{ text: lineText }] }, styleMap);
+    });
+    return result;
+  }
+
+  /**
+   * 테이블을 HWPX XML로 변환 (향후 사용)
+   */
+  _generateTableXml(table, styleMap) {
+    const rows = table.rows || [];
+    if (rows.length === 0) return '';
+
+    const rowCount = rows.length;
     const colCount = rows[0]?.cells?.length || 1;
-    const colWidth = Math.floor(42000 / colCount);
+    const tableWidth = 42520;
+    const colWidth = Math.floor(tableWidth / colCount);
+    const rowHeight = 1800;
+    const totalHeight = rowHeight * rowCount;
 
     let colDefs = '';
     for (let i = 0; i < colCount; i++) {
-      colDefs += `        <hp:gridCol width="${colWidth}"/>\n`;
+      colDefs += `<hp:gridCol width="${colWidth}"/>`;
     }
 
-    let rowContent = '';
-    rows.forEach(row => {
-      let cellContent = '';
-      (row.cells || []).forEach(cell => {
+    let rowXml = '';
+    rows.forEach((row, rIdx) => {
+      let cellXml = '';
+      (row.cells || []).forEach((cell, cIdx) => {
         const cellElements = cell.elements || [];
-        let cellParagraphs = '';
+        let cellParas = '';
         cellElements.forEach(el => {
           if (el.type === 'paragraph' || el.runs) {
-            cellParagraphs += this._generateParagraphXml(el);
+            cellParas += this._generateParagraphXml(el, styleMap);
           }
         });
-        if (!cellParagraphs) {
-          cellParagraphs = this._generateParagraphXml({ runs: [{ text: '' }] });
+        if (!cellParas) {
+          cellParas = this._generateParagraphXml({ runs: [{ text: '' }] }, styleMap);
         }
-        cellContent += `          <hp:tc>
-            <hp:cellBody>
-${cellParagraphs}            </hp:cellBody>
-          </hp:tc>\n`;
+        cellXml += `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="1"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${cellParas}</hp:subList></hp:tc>`;
       });
-      rowContent += `        <hp:tr>
-${cellContent}        </hp:tr>\n`;
+      rowXml += `<hp:tr>${cellXml}</hp:tr>`;
     });
 
-    return `      <hp:tbl>
-      <hp:gridColList>
-${colDefs}      </hp:gridColList>
-${rowContent}      </hp:tbl>\n`;
+    const tblId = Math.floor(Math.random() * 4294967295);
+    const paraId = Math.floor(Math.random() * 4294967295);
+    const lineseg = `<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="${totalHeight}" textheight="${totalHeight}" baseline="0" spacing="0" horzpos="0" horzsize="${tableWidth}" flags="393216"/></hp:linesegarray>`;
+
+    return `<hp:p id="${paraId}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:tbl id="${tblId}" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rowCount}" colCnt="${colCount}" cellSpacing="0" borderFillIDRef="1" noAdjust="0"><hp:sz width="${tableWidth}" widthRelTo="ABSOLUTE" height="${totalHeight}" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:inMargin left="510" right="510" top="141" bottom="141"/><hp:gridColList>${colDefs}</hp:gridColList>${rowXml}</hp:tbl></hp:run>${lineseg}</hp:p>`;
   }
 
   /**
