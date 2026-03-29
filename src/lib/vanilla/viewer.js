@@ -1730,8 +1730,7 @@ export class HWPXViewer {
       if (element.type === 'paragraph') {
         bodyContent += this._generateParagraphXml(element, styleMap);
       } else if (element.type === 'table') {
-        // 테이블을 텍스트 단락으로 변환 (한글 호환성 보장)
-        bodyContent += this._generateTableAsTextXml(element, styleMap);
+        bodyContent += this._generateTableXmlNative(element, styleMap);
       }
     });
 
@@ -1964,6 +1963,59 @@ ${bodyContent}
    * 테이블을 텍스트 단락으로 변환 (한글 호환성 보장)
    * 각 행을 탭 구분 텍스트 단락으로 출력
    */
+  /**
+   * 테이블을 네이티브 HWPX XML로 변환 (한글 호환)
+   */
+  _generateTableXmlNative(table, styleMap) {
+    const rows = table.rows || [];
+    if (rows.length === 0) return '';
+
+    const rowCount = rows.length;
+    const colCount = rows[0]?.cells?.length || 1;
+    const tblWidth = 42520;
+    const colWidth = Math.floor(tblWidth / colCount);
+    const rowHeight = 1200;
+    const totalHeight = rowHeight * rowCount;
+    const tblId = Math.floor(Math.random() * 4294967295);
+
+    // 셀 내부 단락 생성 (lineseg horzsize를 셀 폭에 맞춤)
+    const cellPara = (text, pid) => {
+      const t = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '  ');
+      return `<hp:p id="${pid}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:t>${t}</hp:t></hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="${colWidth}" flags="393216"/></hp:linesegarray></hp:p>`;
+    };
+
+    // 셀 생성
+    const makeCell = (text, col, row, pid) => {
+      return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="1"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${cellPara(text, pid)}</hp:subList><hp:cellAddr colAddr="${col}" rowAddr="${row}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${colWidth}" height="${rowHeight}"/><hp:cellMargin left="510" right="510" top="141" bottom="141"/></hp:tc>`;
+    };
+
+    // 테이블 XML 조립
+    let tblXml = `<hp:tbl id="${tblId}" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rowCount}" colCnt="${colCount}" cellSpacing="0" borderFillIDRef="1" noAdjust="0"><hp:sz width="${tblWidth}" widthRelTo="ABSOLUTE" height="${totalHeight}" heightRelTo="ABSOLUTE" protect="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:inMargin left="510" right="510" top="141" bottom="141"/>`;
+
+    let pid = Math.floor(Math.random() * 1000000);
+    rows.forEach((row, rIdx) => {
+      tblXml += '<hp:tr>';
+      (row.cells || []).forEach((cell, cIdx) => {
+        // 셀 텍스트 추출
+        const texts = [];
+        (cell.elements || []).forEach(el => {
+          if (el.runs) el.runs.forEach(r => { if (r.text) texts.push(r.text); });
+        });
+        const cellText = texts.join(' ');
+        pid++;
+        tblXml += makeCell(cellText, cIdx, rIdx, pid);
+      });
+      tblXml += '</hp:tr>';
+    });
+    tblXml += '</hp:tbl>';
+
+    // 래핑 단락
+    const paraId = Math.floor(Math.random() * 4294967295);
+    const tblLineseg = `<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="${totalHeight}" textheight="${totalHeight}" baseline="0" spacing="0" horzpos="0" horzsize="${tblWidth}" flags="393216"/></hp:linesegarray>`;
+
+    return `<hp:p id="${paraId}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${tblXml}</hp:run>${tblLineseg}</hp:p>`;
+  }
+
   _generateTableAsTextXml(table, styleMap) {
     const rows = table.rows || [];
     if (rows.length === 0) return '';
