@@ -1766,6 +1766,16 @@ ${bodyContent}
    * 문서의 모든 run에서 고유 스타일 조합을 수집
    * @returns {Map<string, {id, bold, italic, underline, height, color, fontFamily}>}
    */
+  /**
+   * CSS fontFamily 문자열에서 첫 번째 폰트 이름만 추출
+   * "'Courier New', monospace" → "Courier New"
+   */
+  _normalizeFontFamily(fontFamily) {
+    if (!fontFamily) return '';
+    const first = fontFamily.split(',')[0].trim();
+    return first.replace(/^['"]|['"]$/g, '');
+  }
+
   _collectCharStyles(doc) {
     const styleMap = new Map();
     // id=0: 기본 스타일 (항상 존재)
@@ -1780,7 +1790,8 @@ ${bodyContent}
       const fontSize = parseFloat(s.fontSize) || 0;
       const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000; // pt → HWPX (1pt = 100)
       const color = s.color || '#000000';
-      return `${bold}|${italic}|${underline}|${height}|${color}`;
+      const fontFamily = this._normalizeFontFamily(s.fontFamily);
+      return `${bold}|${italic}|${underline}|${height}|${color}|${fontFamily}`;
     };
 
     const processRuns = (runs) => {
@@ -1789,7 +1800,7 @@ ${bodyContent}
         if (run.type === 'linebreak') continue;
         const style = run.inlineStyle || run.style || {};
         const key = getStyleKey(style);
-        if (key === 'false|false|false|1000|#000000') continue; // 기본 스타일
+        if (key === 'false|false|false|1000|#000000|') continue; // 기본 스타일
         if (!styleMap.has(key)) {
           const s = style;
           const bold = !!(s.bold || s.fontWeight === 'bold' || (parseInt(s.fontWeight) >= 700));
@@ -1798,7 +1809,8 @@ ${bodyContent}
           const fontSize = parseFloat(s.fontSize) || 0;
           const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000;
           const color = s.color || '#000000';
-          styleMap.set(key, { id: styleMap.size, bold, italic, underline, height, color, fontFamily: s.fontFamily || '' });
+          const fontFamily = this._normalizeFontFamily(s.fontFamily);
+          styleMap.set(key, { id: styleMap.size, bold, italic, underline, height, color, fontFamily });
         }
       }
     };
@@ -1833,25 +1845,76 @@ ${bodyContent}
     const existingIds = [...headerXml.matchAll(/<hh:charPr id="(\d+)"/g)].map(m => parseInt(m[1]));
     const maxExistingId = existingIds.length > 0 ? Math.max(...existingIds) : -1;
 
-    // template charPr id=0의 fontRef를 복사해서 새 charPr에 사용
+    // template charPr id=0의 fontRef를 복사해서 새 charPr에 사용 (기본 폰트 참조)
     const fontRefMatch = headerXml.match(/<hh:charPr id="0"[^>]*>.*?<hh:fontRef([^/]*)\/>/) ;
-    const fontRefAttrs = fontRefMatch ? fontRefMatch[1] : ' hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"';
+    const defaultFontRefAttrs = fontRefMatch ? fontRefMatch[1] : ' hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"';
 
     // 기존 charPr id=0의 borderFillIDRef 가져오기
     const bfMatch = headerXml.match(/<hh:charPr id="0"[^>]*borderFillIDRef="(\d+)"/);
     const borderFillRef = bfMatch ? bfMatch[1] : '0';
 
-    // 스타일 맵의 id를 기존 max + 1부터 재배정 (id=0은 template 기존 것 유지)
+    // --- fontFamily 지원: 새 폰트를 fontfaces에 등록 ---
+    // 기존 폰트 목록 파싱 (각 언어 그룹의 최대 font id)
+    const langGroups = ['HANGUL', 'LATIN', 'HANJA', 'JAPANESE', 'OTHER', 'SYMBOL', 'USER'];
+    const existingFontIds = {};
+    for (const lang of langGroups) {
+      const re = new RegExp(`<hh:fontface lang="${lang}"[^>]*>([\\s\\S]*?)</hh:fontface>`);
+      const m = headerXml.match(re);
+      if (m) {
+        const ids = [...m[1].matchAll(/<hh:font id="(\d+)"/g)].map(x => parseInt(x[1]));
+        existingFontIds[lang] = ids.length > 0 ? Math.max(...ids) : -1;
+      } else {
+        existingFontIds[lang] = -1;
+      }
+    }
+
+    // 새로운 fontFamily 수집
+    const newFonts = new Map(); // fontFamily → assigned font id
+    for (const [key, style] of styleMap) {
+      if (style.fontFamily && !newFonts.has(style.fontFamily)) {
+        // 기존 폰트에 이미 있는지 확인
+        const escaped = style.fontFamily.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const existsMatch = headerXml.match(new RegExp(`<hh:font id="(\\d+)" face="${escaped}"`));
+        if (existsMatch) {
+          newFonts.set(style.fontFamily, parseInt(existsMatch[1]));
+        } else {
+          const nextFontId = existingFontIds['HANGUL'] + 1 + newFonts.size;
+          newFonts.set(style.fontFamily, nextFontId);
+        }
+      }
+    }
+
+    // fontfaces에 새 폰트 엔트리 추가
+    let result = headerXml;
+    const addedFonts = [...newFonts.entries()].filter(([name, id]) => {
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return !headerXml.match(new RegExp(`face="${escaped}"`));
+    });
+
+    if (addedFonts.length > 0) {
+      for (const lang of langGroups) {
+        const re = new RegExp(`(<hh:fontface lang="${lang}"[^>]*fontCnt=")(\\d+)(".*?)(</hh:fontface>)`, 's');
+        result = result.replace(re, (match, pre, cnt, mid, close) => {
+          const newCnt = parseInt(cnt) + addedFonts.length;
+          let fontEntries = '';
+          for (const [fontName, fontId] of addedFonts) {
+            fontEntries += `<hh:font id="${fontId}" face="${fontName}" type="TTF" isEmbedded="0"/>`;
+          }
+          return `${pre}${newCnt}${mid}${fontEntries}${close}`;
+        });
+      }
+      // itemCnt 업데이트 (fontfaces의 언어 그룹 수는 변경 없음)
+      logger.info(`Added ${addedFonts.length} new font(s) to fontfaces: ${addedFonts.map(f => f[0]).join(', ')}`);
+    }
+
+    // --- charPr 생성 ---
     let nextId = maxExistingId + 1;
     const idRemap = new Map(); // old id → new id
     idRemap.set(0, 0); // 기본 스타일은 template의 id=0 사용
 
     let newCharPrXml = '';
     for (const [key, style] of styleMap) {
-      if (style.id === 0) {
-        // 기본 스타일 → template의 charPr id=0 그대로 사용
-        continue;
-      }
+      if (style.id === 0) continue;
 
       const newId = nextId++;
       idRemap.set(style.id, newId);
@@ -1860,6 +1923,13 @@ ${bodyContent}
       const italicAttr = style.italic ? ' italic="1"' : '';
       const underType = style.underline ? 'BOTTOM' : 'NONE';
       const color = style.color.startsWith('#') ? style.color : `#${style.color}`;
+
+      // fontRef: 커스텀 fontFamily가 있으면 해당 font id 사용, 아니면 기본
+      let fontRefAttrs = defaultFontRefAttrs;
+      if (style.fontFamily && newFonts.has(style.fontFamily)) {
+        const fid = newFonts.get(style.fontFamily);
+        fontRefAttrs = ` hangul="${fid}" latin="${fid}" hanja="${fid}" japanese="${fid}" other="${fid}" symbol="${fid}" user="${fid}"`;
+      }
 
       newCharPrXml += `<hh:charPr id="${newId}" height="${style.height}" textColor="${color}" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="${borderFillRef}"${boldAttr}${italicAttr}><hh:fontRef${fontRefAttrs}/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="${underType}" shape="SOLID" color="${color}"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`;
     }
@@ -1872,12 +1942,12 @@ ${bodyContent}
     }
 
     if (!newCharPrXml) {
-      return headerXml; // 추가할 스타일 없으면 원본 유지
+      return result; // 추가할 스타일 없으면 폰트만 추가된 결과 반환
     }
 
     // </hh:charProperties> 직전에 새 charPr 삽입 + itemCnt 업데이트
     const totalCount = existingIds.length + (nextId - maxExistingId - 1);
-    let result = headerXml.replace(
+    result = result.replace(
       /<hh:charProperties itemCnt="\d+"/,
       `<hh:charProperties itemCnt="${totalCount}"`
     );
@@ -1891,17 +1961,37 @@ ${bodyContent}
    * (레거시) 스타일 맵을 기반으로 header.xml 전체 생성
    */
   _generateHeaderWithStyles(styleMap) {
+    // 커스텀 폰트 수집
+    const customFonts = new Map(); // fontFamily → id
+    let nextFontId = 1;
+    for (const [key, style] of styleMap) {
+      if (style.fontFamily && !customFonts.has(style.fontFamily)) {
+        customFonts.set(style.fontFamily, nextFontId++);
+      }
+    }
+
+    // fontfaces 생성
+    const langs = ['HANGUL', 'LATIN', 'HANJA'];
+    const fontfacesXml = langs.map(lang => {
+      let fonts = `<hh:font id="0" face="함초롬돋움" type="TTF"/>`;
+      for (const [name, id] of customFonts) {
+        fonts += `<hh:font id="${id}" face="${name}" type="TTF"/>`;
+      }
+      return `<hh:fontface lang="${lang}" fontCnt="${1 + customFonts.size}">${fonts}</hh:fontface>`;
+    }).join('');
+
     let charPrXml = '';
     for (const [key, style] of styleMap) {
       const boldAttr = style.bold ? ' bold="1"' : '';
       const italicAttr = style.italic ? ' italic="1"' : '';
       const underType = style.underline ? 'BOTTOM' : 'NONE';
       const color = style.color.startsWith('#') ? style.color : `#${style.color}`;
+      const fid = (style.fontFamily && customFonts.has(style.fontFamily)) ? customFonts.get(style.fontFamily) : 0;
 
-      charPrXml += `<hh:charPr id="${style.id}" height="${style.height}" textColor="${color}" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="0"${boldAttr}${italicAttr}><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="${underType}" shape="SOLID" color="${color}"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`;
+      charPrXml += `<hh:charPr id="${style.id}" height="${style.height}" textColor="${color}" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="0"${boldAttr}${italicAttr}><hh:fontRef hangul="${fid}" latin="${fid}" hanja="${fid}" japanese="${fid}" other="${fid}" symbol="${fid}" user="${fid}"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="${underType}" shape="SOLID" color="${color}"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`;
     }
 
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"><hh:beginNum page="1" footnote="1" endnote="1"/><hh:refList><hh:fontfaces><hh:fontface lang="HANGUL"><hh:font id="0" face="함초롬돋움" type="TTF"/></hh:fontface><hh:fontface lang="LATIN"><hh:font id="0" face="함초롬돋움" type="TTF"/></hh:fontface><hh:fontface lang="HANJA"><hh:font id="0" face="함초롬돋움" type="TTF"/></hh:fontface></hh:fontfaces><hh:charProperties itemCnt="${styleMap.size}">${charPrXml}</hh:charProperties><hh:paraProperties><hh:paraPr id="0" align="JUSTIFY"><hh:margin left="0" right="0" indent="0"/><hh:lineSpacing type="PERCENT" value="160"/></hh:paraPr></hh:paraProperties></hh:refList></hh:head>`;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"><hh:beginNum page="1" footnote="1" endnote="1"/><hh:refList><hh:fontfaces>${fontfacesXml}</hh:fontfaces><hh:charProperties itemCnt="${styleMap.size}">${charPrXml}</hh:charProperties><hh:paraProperties><hh:paraPr id="0" align="JUSTIFY"><hh:margin left="0" right="0" indent="0"/><hh:lineSpacing type="PERCENT" value="160"/></hh:paraPr></hh:paraProperties></hh:refList></hh:head>`;
   }
 
   /**
@@ -1916,7 +2006,8 @@ ${bodyContent}
     const fontSize = parseFloat(s.fontSize) || 0;
     const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000;
     const color = s.color || '#000000';
-    return `${bold}|${italic}|${underline}|${height}|${color}`;
+    const fontFamily = this._normalizeFontFamily(s.fontFamily);
+    return `${bold}|${italic}|${underline}|${height}|${color}|${fontFamily}`;
   }
 
   /**
@@ -1926,7 +2017,7 @@ ${bodyContent}
   _getCharPrId(run, styleMap) {
     if (!run || run.type === 'linebreak') return 0;
     const key = this._getRunStyleKey(run);
-    if (key === 'false|false|false|1000|#000000') return 0;
+    if (key === 'false|false|false|1000|#000000|') return 0;
     const entry = styleMap?.get(key);
     return entry ? entry.id : 0;
   }
@@ -1998,9 +2089,17 @@ ${bodyContent}
       return `<hp:p id="${pid}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${runXml}<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="${colWidth}" flags="393216"/></hp:linesegarray></hp:p>`;
     };
 
-    // 셀 생성 (runs 배열 전달)
-    const makeCell = (runs, col, row, pid) => {
-      return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="1"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${cellParaFromRuns(runs, pid)}</hp:subList><hp:cellAddr colAddr="${col}" rowAddr="${row}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${colWidth}" height="${rowHeight}"/><hp:cellMargin left="510" right="510" top="141" bottom="141"/></hp:tc>`;
+    // 셀 생성 (elements 배열 전달 — 각 element가 별도의 <hp:p>가 됨)
+    const makeCell = (elements, col, row, pid) => {
+      let parasXml = '';
+      if (elements && elements.length > 0) {
+        elements.forEach((el, idx) => {
+          parasXml += cellParaFromRuns(el.runs || [], pid + idx);
+        });
+      } else {
+        parasXml = cellParaFromRuns([], pid);
+      }
+      return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="1"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${parasXml}</hp:subList><hp:cellAddr colAddr="${col}" rowAddr="${row}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${colWidth}" height="${rowHeight}"/><hp:cellMargin left="510" right="510" top="141" bottom="141"/></hp:tc>`;
     };
 
     // 테이블 XML 조립
@@ -2010,14 +2109,13 @@ ${bodyContent}
     rows.forEach((row, rIdx) => {
       tblXml += '<hp:tr>';
       (row.cells || []).forEach((cell, cIdx) => {
-        // 셀의 runs 추출 (첫 번째 paragraph의 runs)
-        let cellRuns = [];
-        (cell.elements || []).forEach(el => {
-          if (el.runs) cellRuns = cellRuns.concat(el.runs);
-        });
-        if (cellRuns.length === 0) cellRuns = [{ text: '', style: {} }];
-        pid++;
-        tblXml += makeCell(cellRuns, cIdx, rIdx, pid);
+        // 셀의 elements(paragraph 배열)를 그대로 전달 — 각 paragraph가 별도의 <hp:p>가 됨
+        const cellElements = cell.elements || [];
+        if (cellElements.length === 0) {
+          cellElements.push({ type: 'paragraph', runs: [{ text: '', style: {} }] });
+        }
+        pid += cellElements.length;
+        tblXml += makeCell(cellElements, cIdx, rIdx, pid - cellElements.length + 1);
       });
       tblXml += '</hp:tr>';
     });
