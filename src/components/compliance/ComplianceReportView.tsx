@@ -27,7 +27,7 @@ const CHECK_ICONS: Record<CheckResult, string> = {
 };
 
 function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' | 'lg' }) {
-  const color = score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
+  const color = score >= 80 ? '#222' : score >= 50 ? '#777' : '#aaa';
   const radius = size === 'lg' ? 54 : size === 'md' ? 40 : 28;
   const stroke = size === 'lg' ? 8 : size === 'md' ? 6 : 4;
   const circumference = 2 * Math.PI * radius;
@@ -64,7 +64,7 @@ function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' 
 }
 
 function CategorySection({ category }: { category: ComplianceCategory }) {
-  const statusColor = category.score >= 80 ? '#22c55e' : category.score >= 50 ? '#f59e0b' : '#ef4444';
+  const statusColor = category.score >= 80 ? '#222' : category.score >= 50 ? '#777' : '#aaa';
 
   return (
     <div className="report-category">

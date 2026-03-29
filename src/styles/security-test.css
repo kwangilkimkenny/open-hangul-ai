@@ -1,0 +1,387 @@
+/* ============================================
+   Security Test Panel — Conservative Monotone
+   보안 테스트 전문 UI: 절제된 모노톤 + 최소 색상
+   ============================================ */
+
+.sectest-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+
+.sectest-panel {
+  background: #fafafa;
+  border-radius: 4px;
+  width: 92vw;
+  max-width: 720px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
+  border: 1px solid #d4d4d4;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+}
+
+/* ---- Header ---- */
+.sectest-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px 14px;
+  background: #fff;
+  border-bottom: 2px solid #222;
+}
+
+.sectest-panel__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 3px;
+  letter-spacing: -0.3px;
+  text-transform: uppercase;
+}
+
+.sectest-panel__desc {
+  font-size: 11.5px;
+  color: #777;
+  margin: 0;
+}
+
+.sectest-panel__close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.sectest-panel__close:hover { color: #333; }
+
+/* ---- Status Bar ---- */
+.sectest-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 24px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: #555;
+}
+
+.sectest-status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sectest-status-item strong {
+  color: #222;
+  font-weight: 600;
+}
+
+.sectest-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sectest-latency-badge {
+  font-size: 10px;
+  color: #888;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.sectest-run-all-btn {
+  margin-left: auto;
+  padding: 6px 18px;
+  background: #222;
+  color: #fff;
+  border: none;
+  border-radius: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: background 0.15s;
+}
+
+.sectest-run-all-btn:hover:not(:disabled) {
+  background: #000;
+}
+
+.sectest-run-all-btn:disabled {
+  background: #888;
+  cursor: wait;
+}
+
+/* ---- Summary ---- */
+.sectest-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 24px;
+  font-size: 11.5px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.sectest-summary__total { color: #333; font-weight: 600; }
+.sectest-summary__pass { color: #333; font-weight: 600; }
+.sectest-summary__pass::before { content: 'PASS '; font-weight: 700; }
+.sectest-summary__fail { color: #333; font-weight: 600; }
+.sectest-summary__fail::before { content: 'FAIL '; font-weight: 700; }
+.sectest-summary__error { color: #333; font-weight: 600; }
+.sectest-summary__error::before { content: 'ERR '; font-weight: 700; }
+
+/* ---- Section ---- */
+.sectest-section {
+  padding: 16px 24px 8px;
+}
+
+.sectest-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.sectest-section__badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid #bbb;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #444;
+  background: transparent;
+}
+
+.sectest-section__badge--aegis {
+  border-color: #888;
+  color: #333;
+}
+
+.sectest-section__badge--ta {
+  border-color: #888;
+  color: #333;
+}
+
+/* ---- Scenario Card ---- */
+.sectest-card {
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  margin-bottom: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* 좌측 상태 바 — 모노톤 */
+.sectest-card--pass    { border-left: 3px solid #222; }
+.sectest-card--fail    { border-left: 3px solid #888; }
+.sectest-card--error   { border-left: 3px solid #bbb; }
+.sectest-card--running { border-left: 3px solid #555; }
+.sectest-card--pending { border-left: 3px solid #e0e0e0; }
+
+.sectest-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.sectest-card__icon {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  flex-shrink: 0;
+  width: 34px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  letter-spacing: 0.3px;
+  color: #888;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+}
+
+.sectest-card--pass .sectest-card__icon {
+  color: #222;
+  background: #e8e8e8;
+  border-color: #222;
+}
+
+.sectest-card--fail .sectest-card__icon {
+  color: #666;
+  background: #f0f0f0;
+  border-color: #888;
+}
+
+.sectest-card--running .sectest-card__icon {
+  color: #555;
+  background: #f5f5f5;
+  border-color: #999;
+}
+
+.sectest-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sectest-card__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #222;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sectest-card__badge {
+  padding: 1px 6px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #555;
+  background: #f5f5f5;
+}
+
+.sectest-card__badge--aegis,
+.sectest-card__badge--truthanchor {
+  color: #555;
+  border-color: #ccc;
+  background: #f5f5f5;
+}
+
+.sectest-card__desc {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.sectest-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sectest-card__latency {
+  font-size: 10px;
+  color: #999;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.sectest-card__run-btn {
+  padding: 4px 14px;
+  background: transparent;
+  border: 1px solid #bbb;
+  border-radius: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  transition: all 0.12s;
+}
+
+.sectest-card__run-btn:hover:not(:disabled) {
+  background: #222;
+  color: #fff;
+  border-color: #222;
+}
+
+.sectest-card__run-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* Toggle */
+.sectest-card__toggle {
+  display: block;
+  width: 100%;
+  padding: 5px 14px;
+  background: #fafafa;
+  border: none;
+  border-top: 1px solid #eee;
+  font-size: 10.5px;
+  color: #888;
+  cursor: pointer;
+  text-align: left;
+  letter-spacing: 0.2px;
+  transition: background 0.12s;
+}
+
+.sectest-card__toggle:hover {
+  background: #f0f0f0;
+  color: #555;
+}
+
+/* Detail */
+.sectest-card__detail {
+  padding: 10px 14px;
+  background: #fafafa;
+  border-top: 1px solid #eee;
+}
+
+.sectest-card__detail-section {
+  margin-bottom: 8px;
+}
+
+.sectest-card__detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.sectest-card__detail-section strong {
+  display: block;
+  font-size: 10px;
+  color: #888;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sectest-card__pre {
+  font-family: 'SF Mono', 'Consolas', 'Noto Sans Mono', monospace;
+  font-size: 11px;
+  color: #333;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  padding: 8px 10px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Scrollbar */
+.sectest-panel::-webkit-scrollbar { width: 4px; }
+.sectest-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+.sectest-panel::-webkit-scrollbar-track { background: transparent; }
+
+.sectest-card__pre::-webkit-scrollbar { width: 3px; }
+.sectest-card__pre::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
