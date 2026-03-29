@@ -1578,9 +1578,16 @@ export class HWPXViewer {
       // mimetype STORE 보장
       zip.file('mimetype', 'application/hwp+zip', { compression: 'STORE' });
 
-      // 1. 모든 run에서 고유 스타일 수집
+      // 1. 모든 run에서 고유 스타일 수집 + header.xml에 charPr 주입
       const styleMap = this._collectCharStyles(doc);
       logger.info(`Collected ${styleMap.size} char styles for HWPX save`);
+
+      if (styleMap.size > 1) {
+        const origHeader = await zip.file('Contents/header.xml').async('string');
+        const updatedHeader = this._injectCharPrIntoHeader(origHeader, styleMap);
+        zip.file('Contents/header.xml', updatedHeader);
+        logger.info('charPr styles injected into header.xml');
+      }
 
       // section XML 생성 (secPr 포함 section header + 텍스트 단락)
       const { SECTION_HEADER_BASE64 } = await import('./export/hwpx-section-header.js');
@@ -1593,7 +1600,7 @@ export class HWPXViewer {
       const firstSection = doc.sections[0] || { elements: [] };
       (firstSection.elements || []).forEach(el => {
         if (el.type === 'paragraph') bodyContent += this._generateParagraphXml(el, styleMap);
-        else if (el.type === 'table') bodyContent += this._generateTableAsTextXml(el, styleMap);
+        else if (el.type === 'table') bodyContent += this._generateTableXmlNative(el, styleMap);
       });
       if (!bodyContent) {
         bodyContent = `<hp:p id="${Math.floor(Math.random()*4e9)}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:t></hp:t></hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="42520" flags="393216"/></hp:linesegarray></hp:p>`;
@@ -1978,15 +1985,22 @@ ${bodyContent}
     const totalHeight = rowHeight * rowCount;
     const tblId = Math.floor(Math.random() * 4294967295);
 
-    // 셀 내부 단락 생성 (lineseg horzsize를 셀 폭에 맞춤)
-    const cellPara = (text, pid) => {
-      const t = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '  ');
-      return `<hp:p id="${pid}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:t>${t}</hp:t></hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="${colWidth}" flags="393216"/></hp:linesegarray></hp:p>`;
+    // 셀 내부 단락 생성 (스타일 매핑 포함)
+    const cellParaFromRuns = (runs, pid) => {
+      let runXml = '';
+      (runs || []).forEach(run => {
+        if (run.type === 'linebreak') return;
+        const t = (run.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '  ');
+        const charId = this._getCharPrId(run, styleMap);
+        runXml += `<hp:run charPrIDRef="${charId}"><hp:t>${t}</hp:t></hp:run>`;
+      });
+      if (!runXml) runXml = `<hp:run charPrIDRef="0"><hp:t></hp:t></hp:run>`;
+      return `<hp:p id="${pid}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${runXml}<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="${colWidth}" flags="393216"/></hp:linesegarray></hp:p>`;
     };
 
-    // 셀 생성
-    const makeCell = (text, col, row, pid) => {
-      return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="1"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${cellPara(text, pid)}</hp:subList><hp:cellAddr colAddr="${col}" rowAddr="${row}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${colWidth}" height="${rowHeight}"/><hp:cellMargin left="510" right="510" top="141" bottom="141"/></hp:tc>`;
+    // 셀 생성 (runs 배열 전달)
+    const makeCell = (runs, col, row, pid) => {
+      return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="1"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${cellParaFromRuns(runs, pid)}</hp:subList><hp:cellAddr colAddr="${col}" rowAddr="${row}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${colWidth}" height="${rowHeight}"/><hp:cellMargin left="510" right="510" top="141" bottom="141"/></hp:tc>`;
     };
 
     // 테이블 XML 조립
@@ -1996,14 +2010,14 @@ ${bodyContent}
     rows.forEach((row, rIdx) => {
       tblXml += '<hp:tr>';
       (row.cells || []).forEach((cell, cIdx) => {
-        // 셀 텍스트 추출
-        const texts = [];
+        // 셀의 runs 추출 (첫 번째 paragraph의 runs)
+        let cellRuns = [];
         (cell.elements || []).forEach(el => {
-          if (el.runs) el.runs.forEach(r => { if (r.text) texts.push(r.text); });
+          if (el.runs) cellRuns = cellRuns.concat(el.runs);
         });
-        const cellText = texts.join(' ');
+        if (cellRuns.length === 0) cellRuns = [{ text: '', style: {} }];
         pid++;
-        tblXml += makeCell(cellText, cIdx, rIdx, pid);
+        tblXml += makeCell(cellRuns, cIdx, rIdx, pid);
       });
       tblXml += '</hp:tr>';
     });
