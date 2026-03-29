@@ -45,6 +45,7 @@ type RibbonTab = 'home' | 'insert' | 'format' | 'tools' | 'view' | 'ai';
 function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null; onFileSelect?: (file: File) => void }) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showBenchmark, setShowBenchmark] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -736,6 +737,10 @@ SSE 응답 이벤트:
         });
       }},
       { label: '', divider: true },
+      { label: 'AI 성능 진단', action: () => {
+        setActiveMenu(null);
+        setShowBenchmark(true);
+      }},
       { label: '도움말', shortcut: 'F1', action: () => {
         setActiveMenu(null);
         showHelpDialog();
@@ -874,8 +879,25 @@ SSE 응답 이벤트:
           </div>
         </div>
       )}
+
+      {/* AI 성능 진단 대시보드 */}
+      <BenchmarkDashboardLazy isOpen={showBenchmark} onClose={() => setShowBenchmark(false)} />
     </div>
   );
+}
+
+// AI 벤치마크 대시보드 lazy import
+function BenchmarkDashboardLazy({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [Dashboard, setDashboard] = useState<React.ComponentType<{ isOpen: boolean; onClose: () => void }> | null>(null);
+
+  useEffect(() => {
+    if (isOpen && !Dashboard) {
+      import('./AIBenchmarkDashboard').then(m => setDashboard(() => m.default));
+    }
+  }, [isOpen, Dashboard]);
+
+  if (!isOpen || !Dashboard) return null;
+  return <Dashboard isOpen={isOpen} onClose={onClose} />;
 }
 
 // ============================================================================
@@ -1242,6 +1264,7 @@ function RibbonInsert({ viewer }: { viewer?: HWPXViewerInstance | null }) {
 
 function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAIPanel?: boolean }) {
   const [showCompliance, setShowCompliance] = useState(false);
+  const [showSecurityTest, setShowSecurityTest] = useState(false);
 
   return (
     <div className="hwp-ribbon-panel">
@@ -1291,8 +1314,27 @@ function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAI
         </div>
         <div className="hwp-ribbon-group-label">규제 준수</div>
       </div>
+      <div className="hwp-ribbon-group">
+        <div className="hwp-ribbon-row">
+          <button
+            className="hwp-ribbon-btn-lg"
+            title="AEGIS + TruthAnchor 보안 시스템 테스트"
+            onClick={() => setShowSecurityTest(true)}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path d="M10 1L3 4v5c0 4.5 3 8.5 7 9.5 4-1 7-5 7-9.5V4z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+              <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            </svg>
+            <span>보안 테스트</span>
+          </button>
+        </div>
+        <div className="hwp-ribbon-group-label">보안 검증</div>
+      </div>
       {showCompliance && (
         <ComplianceDashboardLazy onClose={() => setShowCompliance(false)} />
+      )}
+      {showSecurityTest && (
+        <SecurityTestPanelLazy onClose={() => setShowSecurityTest(false)} />
       )}
     </div>
   );
@@ -1305,6 +1347,20 @@ function ComplianceDashboardLazy({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     import('./compliance/ComplianceDashboard').then((m) => {
       setComp(() => m.default || m.ComplianceDashboard);
+    });
+  }, []);
+
+  if (!Comp) return null;
+  return <Comp onClose={onClose} />;
+}
+
+// Lazy-loaded SecurityTestPanel
+function SecurityTestPanelLazy({ onClose }: { onClose: () => void }) {
+  const [Comp, setComp] = useState<React.ComponentType<{ onClose: () => void }> | null>(null);
+
+  useEffect(() => {
+    import('./SecurityTestPanel').then((m) => {
+      setComp(() => m.default || m.SecurityTestPanel);
     });
   }, []);
 

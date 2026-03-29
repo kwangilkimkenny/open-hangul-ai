@@ -21,6 +21,7 @@ export class TruthAnchorClient {
         this._available = null; // null = 미확인, true/false = 확인됨
         this._healthCheckPromise = null;
         this._offlineEngine = null; // lazy loaded
+        this._lastHealthCheck = 0; // 마지막 헬스체크 시각 (ms)
     }
 
     isEnabled() {
@@ -31,7 +32,7 @@ export class TruthAnchorClient {
         AIConfig.security.truthAnchor.setEnabled(enabled);
         if (enabled) {
             this._available = null;
-            this.checkHealth();
+            this.checkHealth(true);
         }
     }
 
@@ -47,8 +48,16 @@ export class TruthAnchorClient {
     /**
      * 서버 상태 확인
      */
-    async checkHealth() {
+    async checkHealth(force = false) {
         if (this._healthCheckPromise) return this._healthCheckPromise;
+
+        // 이미 오프라인 판별 후 60초 이내면 재시도 안 함 (500 에러 감소)
+        if (!force && this._available === false) {
+            const elapsed = Date.now() - this._lastHealthCheck;
+            if (elapsed < 60_000) {
+                return { available: false, mode: 'offline' };
+            }
+        }
 
         this._healthCheckPromise = (async () => {
             try {
@@ -57,6 +66,7 @@ export class TruthAnchorClient {
                     signal: AbortSignal.timeout(5000)
                 });
 
+                this._lastHealthCheck = Date.now();
                 if (response.ok) {
                     const data = await response.json();
                     this._available = true;
@@ -68,6 +78,7 @@ export class TruthAnchorClient {
                 return { available: false, mode: 'offline' };
             } catch (error) {
                 this._available = false;
+                this._lastHealthCheck = Date.now();
                 logger.info('TruthAnchor offline mode (server unreachable)');
                 return { available: false, mode: 'offline' };
             } finally {

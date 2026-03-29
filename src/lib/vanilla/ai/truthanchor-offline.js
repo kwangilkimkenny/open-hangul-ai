@@ -105,17 +105,30 @@ const STOPWORDS = new Set([
     'for', 'on', 'at', 'by', 'with', 'from', 'that', 'this', 'it', 'be',
 ]);
 
-const MIN_RELEVANCE = 0.25;
+const MIN_RELEVANCE = 0.2;
 
 function keywordOverlap(claim, chunk) {
     const claimWords = new Set(claim.split(/\s+/));
     const chunkWords = new Set(chunk.split(/\s+/));
     if (claimWords.size === 0) return 0;
 
-    const meaningfulClaim = new Set([...claimWords].filter(w => !STOPWORDS.has(w)));
+    const meaningfulClaim = new Set([...claimWords].filter(w => w.length >= 2 && !STOPWORDS.has(w)));
     if (meaningfulClaim.size === 0) return 0;
-    const overlap = [...meaningfulClaim].filter(w => chunkWords.has(w));
-    return overlap.length / meaningfulClaim.size;
+
+    let matchCount = 0;
+    for (const word of meaningfulClaim) {
+        // 정확한 매칭
+        if (chunkWords.has(word)) { matchCount++; continue; }
+        // 한글 부분 매칭: claim 단어가 chunk 어딘가에 포함 (조사 제거 효과)
+        if (word.length >= 2 && chunk.includes(word)) { matchCount += 0.8; continue; }
+        // chunk 단어가 claim 단어를 포함하는 경우
+        for (const cw of chunkWords) {
+            if (cw.length >= 2 && (cw.includes(word) || word.includes(cw))) {
+                matchCount += 0.6; break;
+            }
+        }
+    }
+    return matchCount / meaningfulClaim.size;
 }
 
 function ngramOverlap(text1, text2, n = 2) {
@@ -162,9 +175,9 @@ export function matchEvidence(claim, chunks, topK = 3) {
     for (const chunk of chunks) {
         const chunkLower = chunk.text.toLowerCase();
         const kwScore = keywordOverlap(claimLower, chunkLower);
-        const ngScore = ngramOverlap(claimLower, chunkLower, 2);
+        const ngScore = ngramOverlap(claimLower, chunkLower, 3);
         const seqScore = sequenceRatio(claimLower, chunkLower);
-        const score = 0.5 * kwScore + 0.3 * ngScore + 0.2 * seqScore;
+        const score = 0.55 * kwScore + 0.25 * ngScore + 0.2 * seqScore;
         scored.push({ ...chunk, relevanceScore: Math.round(score * 10000) / 10000 });
     }
 
@@ -185,9 +198,9 @@ const COMMON_GUARDRAILS = [
     { id: 'CG-004', pattern: /(금리|이율|이자율)\s*(?:은|는|이|가)?\s*\d/i, severity: 'HIGH', message: '금리 정확성 검증 필요' },
     { id: 'CG-005', pattern: /(과거\s*수익|과거\s*실적).*(?:미래|향후|앞으로)/i, severity: 'HIGH', message: '과거 실적은 미래를 보장하지 않음' },
     { id: 'CG-006', pattern: /(\d{6}[-]\d{7}|\d{3}[-]\d{2}[-]\d{5})/i, severity: 'CRITICAL', message: '개인정보(주민번호 등) 포함 금지' },
-    { id: 'CG-007', pattern: /(모든|항상|절대|전부|누구나)\s*(가능|해당|적용|보장)/i, severity: 'MEDIUM', message: '근거 없는 일반화 주의' },
+    { id: 'CG-007', pattern: /(모든|항상|절대|전부|누구나)\s*(?:\S{0,15})?\s*(가능|해당|적용|보장)/i, severity: 'MEDIUM', message: '근거 없는 일반화 주의' },
     { id: 'CG-008', pattern: /(최고|최저|가장\s*좋|가장\s*나쁜|1위|꼴찌).*(?:상품|서비스|은행|보험)/i, severity: 'HIGH', message: '상품 비교 시 공정성 필요' },
-    { id: 'CG-009', pattern: /(반드시|확실히|분명히)\s*(오를|하락|상승|증가|감소)\s*(것|겁니다|예정)/i, severity: 'CRITICAL', message: '미래 예측 단정 금지' },
+    { id: 'CG-009', pattern: /(반드시|확실히|분명히)\s*(?:\S{0,5})?\s*(오를|하락|상승|증가|감소)\s*(?:\S{0,5})?\s*(것|겁니다|예정|입니다|합니다)/i, severity: 'CRITICAL', message: '미래 예측 단정 금지' },
     { id: 'CG-010', pattern: /(보다|대비|비해)\s*(높|낮|좋|나쁘|우수|열등)/i, severity: 'MEDIUM', message: '비교 시 조건 명시 필요' },
     // ── 영어 ──
     { id: 'CG-E01', pattern: /(?:you\s+)?should\s+(?:definitely\s+)?(?:invest|buy|purchase|subscribe)/i, severity: 'CRITICAL', message: 'Investment solicitation prohibited' },
@@ -234,12 +247,12 @@ const MEDICAL_GUARDRAILS = [
 // ── 교육 도메인 가드레일 ──
 const EDUCATION_GUARDRAILS = [
     { id: 'EG-001', pattern: /(졸업|수료|이수)\s*(?:조건|요건|자격).*(?:없|불필요|면제)/i, severity: 'HIGH', message: '졸업·이수 요건 왜곡 주의' },
-    { id: 'EG-002', pattern: /(합격|불합격|탈락)\s*(?:은|는)?\s*(?:확실|보장|무조건)/i, severity: 'CRITICAL', message: '합격 결과 보장 금지' },
+    { id: 'EG-002', pattern: /(합격|불합격|탈락)\s*(?:은|는|이|을)?\s*(?:확실|보장|무조건)/i, severity: 'CRITICAL', message: '합격 결과 보장 금지' },
     { id: 'EG-003', pattern: /(학점|성적|평점)\s*(?:은|는)?\s*\d/i, severity: 'HIGH', message: '학점·성적 수치 정확성 검증 필요' },
     { id: 'EG-004', pattern: /(모든|항상|누구나)\s*(학생|학교|교육기관).*(?:가능|해당|지원)/i, severity: 'MEDIUM', message: '교육 대상 일반화 주의' },
     { id: 'EG-005', pattern: /(교육과정|커리큘럼|교과)\s*(?:은|는)?\s*(?:항상|반드시|무조건)/i, severity: 'MEDIUM', message: '교육과정 일반화 주의' },
-    { id: 'EG-006', pattern: /(장학금|등록금|학비)\s*(?:은|는)?\s*(?:무료|전액|면제|누구나|모두|항상)/i, severity: 'HIGH', message: '장학금·학비 지원 조건 왜곡 주의' },
-    { id: 'EG-007', pattern: /(자격증|면허|인증)\s*(?:은|는)?\s*(?:누구나|쉽게|간단히)\s*(?:취득|획득|발급)/i, severity: 'HIGH', message: '자격 취득 난이도 왜곡 주의' },
+    { id: 'EG-006', pattern: /(장학금|등록금|학비)\s*(?:은|는|을|이)?\s*(?:무료|전액|면제|누구나|모두|항상)|(?:누구나|모두)\s*(?:전액)?\s*(?:면제|무료)/i, severity: 'HIGH', message: '장학금·학비 지원 조건 왜곡 주의' },
+    { id: 'EG-007', pattern: /(?:누구나|쉽게|간단히)\s*(?:\S{0,10})?\s*(?:자격증|면허|인증)\s*(?:을|를)?\s*(?:취득|획득|발급)|(?:자격증|면허|인증)\s*(?:은|는|을)?\s*(?:누구나|쉽게|간단히)\s*(?:취득|획득|발급)/i, severity: 'HIGH', message: '자격 취득 난이도 왜곡 주의' },
     { id: 'EG-008', pattern: /(정원|모집\s*인원|선발\s*인원)\s*(?:은|는)?\s*\d/i, severity: 'HIGH', message: '모집 인원 수치 정확성 검증 필요' },
     // 영어
     { id: 'EG-E01', pattern: /(?:guaranteed?|assured)\s+(?:admission|acceptance|pass)/i, severity: 'CRITICAL', message: 'Admission guarantee prohibited' },
@@ -254,8 +267,8 @@ const DEFENSE_GUARDRAILS = [
     { id: 'DG-004', pattern: /(작전|전투|전쟁)\s*(?:계획|일정|시기).*(?:확실|분명|예정)/i, severity: 'CRITICAL', message: '작전 계획 확정 표현 금지' },
     { id: 'DG-005', pattern: /(국방비|군사\s*예산|방위비)\s*(?:은|는)?\s*\d/i, severity: 'HIGH', message: '국방 예산 수치 정확성 검증 필요' },
     { id: 'DG-006', pattern: /(전사|사상|피해)\s*(?:자|자수|인원|규모)\s*(?:은|는)?\s*\d/i, severity: 'HIGH', message: '인명 피해 수치 정확성 검증 필요' },
-    { id: 'DG-007', pattern: /(동맹|조약|협정)\s*(?:은|는)?\s*(?:무조건|항상|반드시)\s*(?:보장|적용|이행)/i, severity: 'HIGH', message: '군사 동맹·조약 이행 보장 왜곡 주의' },
-    { id: 'DG-008', pattern: /(군사\s*위치|진지|기지)\s*(?:위치|좌표|소재)/i, severity: 'CRITICAL', message: '군사 시설 위치 정보 노출 금지' },
+    { id: 'DG-007', pattern: /(동맹|조약|협정)\s*(?:은|는)?\s*(?:\S{0,20})?\s*(?:무조건|항상|반드시)\s*(?:\S{0,10})?\s*(?:보장|적용|이행|지원)/i, severity: 'HIGH', message: '군사 동맹·조약 이행 보장 왜곡 주의' },
+    { id: 'DG-008', pattern: /(군사\s*(?:\S{0,5})?\s*(?:위치|기지|시설)|기지\s*(?:의\s*)?(?:\S{0,10})?\s*위치|진지\s*(?:의\s*)?위치)\s*(?:\S{0,10})?\s*(?:위치|좌표|소재|서울|부산|대전|대구|인천|광주|용산)/i, severity: 'CRITICAL', message: '군사 시설 위치 정보 노출 금지' },
     // 영어
     { id: 'DG-E01', pattern: /(?:classified|secret|top\s*secret)\s+(?:information|data|intel)/i, severity: 'CRITICAL', message: 'Classified information exposure prohibited' },
     { id: 'DG-E02', pattern: /(?:military|base|installation)\s+(?:location|coordinates|position)/i, severity: 'CRITICAL', message: 'Military facility location exposure prohibited' },
@@ -266,7 +279,7 @@ const DEFENSE_GUARDRAILS = [
 const ADMIN_GUARDRAILS = [
     { id: 'AG-001', pattern: /(법률|법령|조례|시행령)\s*제?\s*\d+\s*조/i, severity: 'HIGH', message: '법령·조항 번호 정확성 검증 필요' },
     { id: 'AG-002', pattern: /(예산|세출|세입|재정)\s*(?:은|는)?\s*\d/i, severity: 'HIGH', message: '행정 예산 수치 정확성 검증 필요' },
-    { id: 'AG-003', pattern: /(민원|신청|접수)\s*(?:은|는)?\s*(?:항상|무조건|반드시)\s*(?:승인|허가|처리)/i, severity: 'HIGH', message: '민원 처리 결과 보장 왜곡 주의' },
+    { id: 'AG-003', pattern: /(민원|신청|접수)\s*(?:은|는)?\s*(?:\S{0,10})?\s*(?:항상|무조건|반드시|모든)\s*(?:\S{0,5})?\s*(?:승인|허가|처리|보장)/i, severity: 'HIGH', message: '민원 처리 결과 보장 왜곡 주의' },
     { id: 'AG-004', pattern: /(공무원|공직자|관계자)\s*(?:은|는)?\s*(?:모두|항상|반드시)/i, severity: 'MEDIUM', message: '공무원 행위 일반화 주의' },
     { id: 'AG-005', pattern: /(주민등록|여권|운전면허|비자)\s*(?:번호|정보)/i, severity: 'CRITICAL', message: '개인 행정정보 노출 금지' },
     { id: 'AG-006', pattern: /(인구|세대|가구)\s*(?:수|현황)?\s*(?:은|는)?\s*\d/i, severity: 'HIGH', message: '인구·세대 통계 정확성 검증 필요' },
@@ -716,6 +729,30 @@ function chunkText(text) {
 }
 
 // ============================================================
+// 5.5. 범위 불일치 감지 (전칭 vs 부분)
+// ============================================================
+
+const UNIVERSAL_QUANTIFIERS = /(?:모든|항상|전부|누구나|완전히|100%|all|every|always|entire|completely)/i;
+const PARTIAL_QUANTIFIERS = /(?:일부|시범|부분|대부분|일부분|몇몇|약간|제한적|some|partial|pilot|limited|few|certain)/i;
+const CERTAINTY_WORDS = /(?:완전히|확실히|반드시|분명히|definitely|certainly|fully|completely|absolutely)/i;
+const UNCERTAINTY_WORDS = /(?:시범|검토|운영|예정|계획|추진|준비|진행|pilot|planned|reviewing|preparing|considering)/i;
+
+function checkScopeMismatch(claim, evidenceText) {
+    const claimHasUniversal = UNIVERSAL_QUANTIFIERS.test(claim);
+    const evidenceHasPartial = PARTIAL_QUANTIFIERS.test(evidenceText);
+    const claimHasCertainty = CERTAINTY_WORDS.test(claim);
+    const evidenceHasUncertainty = UNCERTAINTY_WORDS.test(evidenceText);
+
+    if (claimHasUniversal && evidenceHasPartial) {
+        return `claim '${claim.match(UNIVERSAL_QUANTIFIERS)?.[0]}' vs evidence '${evidenceText.match(PARTIAL_QUANTIFIERS)?.[0]}'`;
+    }
+    if (claimHasCertainty && evidenceHasUncertainty) {
+        return `claim 확정 표현 vs evidence 불확정 표현`;
+    }
+    return null;
+}
+
+// ============================================================
 // 6. 최상위: 오프라인 검증 파이프라인
 // ============================================================
 
@@ -796,17 +833,27 @@ export function validateOffline(sourceText, llmOutput, domain = 'general') {
         }
 
         // 3e. 근거 매칭 점수 기반 판별
-        if (matched.length > 0 && matched[0].relevanceScore >= 0.5) {
-            verdict = 'supported';
-            confidence = Math.min(0.85, matched[0].relevanceScore);
-            evidence = matched[0].text.substring(0, 200);
-            supported++;
-        } else {
-            // MEDIUM 가드레일
-            if (guardrailHit) {
+        if (matched.length > 0 && matched[0].relevanceScore >= 0.38) {
+            // 범위 불일치 검사: claim이 전칭(모든/항상)이고 evidence가 부분(일부/시범)이면 neutral
+            const scopeMismatch = checkScopeMismatch(claim, matched[0].text);
+            if (scopeMismatch) {
                 verdict = 'neutral';
-                evidence = `[주의 ${guardrailHit.ruleId}] ${guardrailHit.message}`;
+                confidence = 0.5;
+                evidence = `[범위 불일치] ${scopeMismatch}: ${matched[0].text.substring(0, 150)}`;
+                neutral++;
+            } else {
+                verdict = 'supported';
+                confidence = Math.min(0.85, matched[0].relevanceScore + 0.1);
+                evidence = matched[0].text.substring(0, 200);
+                supported++;
             }
+        } else if (guardrailHit && guardrailHit.severity === 'MEDIUM') {
+            // MEDIUM 가드레일 → contradicted (neutral 과잉 방지)
+            verdict = 'contradicted';
+            confidence = guardrailHit.confidence;
+            evidence = `[가드레일 ${guardrailHit.ruleId}] ${guardrailHit.message}`;
+            contradicted++;
+        } else {
             neutral++;
         }
 
