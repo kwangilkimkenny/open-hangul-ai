@@ -1,25 +1,19 @@
 /**
  * Compliance Report PDF Printer
- * 인쇄 전용 윈도우를 열어 브라우저의 "PDF로 저장" / 프린터 인쇄를 지원
+ * 인쇄 전용 윈도우 — Conservative Monotone 기술문서 스타일
  *
  * @module lib/ai/compliance-pdf
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 import type { ComplianceReport, ComplianceCategory, ComplianceCheck, FrameworkMeta } from '../../types/compliance';
 
 const CHECK_SYMBOLS: Record<string, string> = {
-  pass: '\u2705',
-  warn: '\u26A0\uFE0F',
-  fail: '\u274C',
-  'n/a': '\u2796',
+  pass: 'PASS',
+  warn: 'WARN',
+  fail: 'FAIL',
+  'n/a': 'N/A',
 };
-
-function scoreColor(score: number): string {
-  if (score >= 80) return '#16a34a';
-  if (score >= 50) return '#d97706';
-  return '#dc2626';
-}
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
@@ -30,45 +24,41 @@ function statusLabel(status: string): string {
   return map[status] ?? status;
 }
 
-function statusBadgeStyle(status: string): string {
-  const styles: Record<string, string> = {
-    compliant: 'background:#dcfce7;color:#16a34a;',
-    partial: 'background:#fef3c7;color:#d97706;',
-    'non-compliant': 'background:#fee2e2;color:#dc2626;',
-  };
-  return styles[status] ?? '';
-}
-
 function buildCheckRow(check: ComplianceCheck): string {
   const icon = CHECK_SYMBOLS[check.result] || '';
-  const failClass = check.result === 'fail' ? 'color:#991b1b;' : '';
+  const iconStyle = check.result === 'pass'
+    ? 'color:#222;font-weight:700;'
+    : check.result === 'fail'
+      ? 'color:#999;font-weight:700;'
+      : 'color:#aaa;font-weight:700;';
+  const descStyle = check.result === 'fail' ? 'color:#555;' : 'color:#333;';
   const articleTag = check.article
-    ? `<span style="font-size:10px;padding:1px 6px;background:#eff6ff;color:#3b82f6;border-radius:3px;margin-left:6px;">${check.article}</span>`
+    ? `<span style="font-size:9px;padding:1px 5px;border:1px solid #ccc;border-radius:2px;margin-left:6px;color:#555;font-family:'SF Mono','Consolas',monospace;">${check.article}</span>`
     : '';
   const remediation = check.remediation
-    ? `<div style="font-size:11px;color:#d97706;margin-top:3px;padding:3px 6px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:3px;">${check.remediation}</div>`
+    ? `<div style="font-size:10px;color:#555;margin-top:3px;padding:3px 6px;border-left:2px solid #bbb;background:#f9f9f9;">${check.remediation}</div>`
     : '';
 
   return `
     <tr>
-      <td style="width:28px;text-align:center;vertical-align:top;padding:6px 4px;font-size:13px;">${icon}</td>
+      <td style="width:36px;text-align:center;vertical-align:top;padding:6px 4px;font-size:9px;font-family:'SF Mono','Consolas',monospace;letter-spacing:0.3px;${iconStyle}">${icon}</td>
       <td style="padding:6px 8px;vertical-align:top;">
-        <div style="font-size:12px;${failClass}line-height:1.5;">${check.description}${articleTag}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">${check.evidence}</div>
+        <div style="font-size:11.5px;${descStyle}line-height:1.5;">${check.description}${articleTag}</div>
+        <div style="font-size:10px;color:#888;margin-top:2px;">${check.evidence}</div>
         ${remediation}
       </td>
     </tr>`;
 }
 
 function buildCategorySection(category: ComplianceCategory): string {
-  const color = scoreColor(category.score);
+  const scoreColor = category.score >= 80 ? '#222' : category.score >= 50 ? '#777' : '#aaa';
   const rows = category.checks.map(buildCheckRow).join('');
 
   return `
-    <div style="margin-bottom:16px;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;break-inside:avoid;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#f1f5f9;border-bottom:1px solid #d1d5db;">
-        <strong style="font-size:13px;color:#1e293b;">${category.name}</strong>
-        <span style="font-size:13px;font-weight:600;color:${color};">${category.score}%</span>
+    <div style="margin-bottom:12px;border:1px solid #ddd;overflow:hidden;break-inside:avoid;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 14px;background:#f5f5f5;border-bottom:1px solid #ddd;">
+        <strong style="font-size:11px;color:#222;text-transform:uppercase;letter-spacing:0.5px;">${category.name}</strong>
+        <span style="font-size:11px;font-weight:700;color:${scoreColor};font-family:'SF Mono','Consolas',monospace;">${category.score}%</span>
       </div>
       <table style="width:100%;border-collapse:collapse;">
         ${rows}
@@ -77,9 +67,9 @@ function buildCategorySection(category: ComplianceCategory): string {
 }
 
 function buildScoreRing(score: number): string {
-  const color = scoreColor(score);
-  const r = 40;
-  const stroke = 6;
+  const color = score >= 80 ? '#222' : score >= 50 ? '#777' : '#aaa';
+  const r = 36;
+  const stroke = 4;
   const circ = 2 * Math.PI * r;
   const offset = circ - (score / 100) * circ;
   const size = (r + stroke) * 2;
@@ -87,12 +77,12 @@ function buildScoreRing(score: number): string {
 
   return `
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="vertical-align:middle;">
-      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#e5e7eb" stroke-width="${stroke}"/>
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#e0e0e0" stroke-width="${stroke}"/>
       <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}"
-        stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"
+        stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="butt"
         transform="rotate(-90 ${c} ${c})"/>
       <text x="${c}" y="${c}" text-anchor="middle" dominant-baseline="central"
-        font-size="22" font-weight="800" fill="${color}">${score}</text>
+        font-size="20" font-weight="800" fill="${color}" font-family="'SF Mono','Consolas',monospace">${score}</text>
     </svg>`;
 }
 
@@ -107,7 +97,7 @@ export function printComplianceReport(report: ComplianceReport, framework: Frame
   const recommendations = report.recommendations
     .map(
       (r) =>
-        `<li style="padding:6px 10px;margin-bottom:4px;background:#fffbeb;border-radius:6px;font-size:12px;color:#92400e;border-left:3px solid #f59e0b;line-height:1.5;">${r}</li>`
+        `<li style="padding:5px 10px;margin-bottom:3px;border-left:2px solid #bbb;font-size:11px;color:#555;line-height:1.5;background:#f9f9f9;">${r}</li>`
     )
     .join('');
 
@@ -126,7 +116,7 @@ export function printComplianceReport(report: ComplianceReport, framework: Frame
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
-      color: #1e293b;
+      color: #222;
       background: white;
       padding: 0;
       -webkit-print-color-adjust: exact;
@@ -140,9 +130,8 @@ export function printComplianceReport(report: ComplianceReport, framework: Frame
     }
 
     @media print {
-      .page { padding: 16mm 18mm; max-width: none; }
+      .page { padding: 14mm 16mm; max-width: none; }
       .no-print { display: none !important; }
-      .category-section { break-inside: avoid; }
     }
 
     @page {
@@ -150,119 +139,151 @@ export function printComplianceReport(report: ComplianceReport, framework: Frame
       margin: 12mm 14mm;
     }
 
+    /* ---- Print bar ---- */
     .print-bar {
       position: fixed;
       top: 0; left: 0; right: 0;
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
-      color: white;
-      padding: 12px 24px;
+      background: #222;
+      color: #e5e5e5;
+      padding: 10px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       z-index: 100;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
     }
 
     .print-bar button {
-      padding: 8px 24px;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 600;
+      padding: 6px 20px;
+      border: 1px solid #666;
+      font-size: 11.5px;
+      font-weight: 700;
       cursor: pointer;
-      transition: background 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      transition: all 0.12s;
+      font-family: inherit;
     }
 
     .print-bar .btn-print {
-      background: white;
-      color: #2563eb;
+      background: #fff;
+      color: #222;
+      border-color: #fff;
     }
-    .print-bar .btn-print:hover { background: #f0f4ff; }
+    .print-bar .btn-print:hover { background: #e0e0e0; }
 
     .print-bar .btn-close {
-      background: rgba(255,255,255,0.2);
-      color: white;
+      background: transparent;
+      color: #aaa;
+      border-color: #555;
     }
-    .print-bar .btn-close:hover { background: rgba(255,255,255,0.3); }
+    .print-bar .btn-close:hover { color: #fff; border-color: #999; }
 
-    .spacer { height: 56px; }
+    .spacer { height: 48px; }
 
-    /* Header */
-    .report-title { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
-    .report-meta { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+    /* ---- Header ---- */
+    .report-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #111;
+    }
+    .report-meta { font-size: 11px; color: #888; margin-bottom: 18px; }
 
-    /* Score area */
+    /* ---- Score area ---- */
     .score-area {
       display: flex;
       align-items: center;
-      gap: 20px;
-      margin-bottom: 20px;
-      padding: 16px 20px;
-      background: #f8fafc;
-      border-radius: 10px;
-      border: 1px solid #e2e8f0;
+      gap: 18px;
+      margin-bottom: 18px;
+      padding: 14px 18px;
+      background: #fafafa;
+      border: 1px solid #ddd;
     }
     .status-badge {
       display: inline-block;
-      padding: 3px 12px;
-      border-radius: 20px;
-      font-size: 12px;
+      padding: 2px 10px;
+      border: 1px solid #bbb;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #333;
     }
-    .summary-text { font-size: 13px; color: #475569; margin-top: 6px; }
+    .summary-text { font-size: 12px; color: #555; margin-top: 6px; }
+    .summary-text strong { color: #111; }
 
-    /* AI Summary grid */
+    /* ---- AI Summary grid ---- */
     .ai-summary {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      padding: 14px 18px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      margin-bottom: 24px;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      margin-bottom: 20px;
     }
     .ai-summary-title {
       grid-column: 1 / -1;
-      font-size: 13px;
-      font-weight: 600;
-      color: #475569;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #888;
       margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
     }
-    .ai-item-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-    .ai-item-value { font-size: 14px; font-weight: 600; color: #1e293b; }
+    .ai-item-label {
+      font-size: 9px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ai-item-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #222;
+      font-family: 'SF Mono', 'Consolas', monospace;
+    }
 
-    /* Recommendations */
-    .rec-title { font-size: 14px; font-weight: 600; margin: 20px 0 10px; }
+    /* ---- Recommendations ---- */
+    .rec-title {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #888;
+      margin: 18px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
     .rec-list { list-style: none; padding: 0; }
 
-    /* Footer */
+    /* ---- Footer ---- */
     .footer {
-      margin-top: 28px;
-      padding-top: 12px;
-      border-top: 1px solid #e2e8f0;
-      font-size: 10px;
-      color: #94a3b8;
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+      font-size: 9px;
+      color: #aaa;
       text-align: center;
+      letter-spacing: 0.3px;
     }
   </style>
 </head>
 <body>
-  <!-- Print action bar (hidden on print) -->
+  <!-- Print action bar -->
   <div class="print-bar no-print">
-    <span style="font-size:14px;font-weight:600;">
-      ${framework.name} Compliance Report
-    </span>
+    <span>${framework.name} Compliance Report</span>
     <div style="display:flex;gap:8px;">
-      <button class="btn-print" onclick="window.print()">PDF 저장 / 인쇄</button>
-      <button class="btn-close" onclick="window.close()">닫기</button>
+      <button class="btn-print" onclick="window.print()">PDF / PRINT</button>
+      <button class="btn-close" onclick="window.close()">CLOSE</button>
     </div>
   </div>
   <div class="spacer no-print"></div>
 
   <div class="page">
-    <!-- Title -->
     <h1 class="report-title">${framework.name} Compliance Report</h1>
     <p class="report-meta">${framework.subtitle} &middot; ${dateStr}</p>
 
@@ -270,21 +291,21 @@ export function printComplianceReport(report: ComplianceReport, framework: Frame
     <div class="score-area">
       ${scoreRing}
       <div>
-        <span class="status-badge" style="${statusBadgeStyle(report.overallStatus)}">
+        <span class="status-badge">
           ${statusLabel(report.overallStatus)}
         </span>
         <p class="summary-text">
           ${report.summary.totalChecks}개 항목 중
           <strong>${report.summary.passed}</strong>개 통과,
-          <span style="color:#d97706;">${report.summary.warned}</span>개 경고,
-          <span style="color:#dc2626;">${report.summary.failed}</span>개 미충족
+          ${report.summary.warned}개 경고,
+          ${report.summary.failed}개 미충족
         </p>
       </div>
     </div>
 
     <!-- AI Usage Summary -->
     <div class="ai-summary">
-      <div class="ai-summary-title">AI 사용 요약</div>
+      <div class="ai-summary-title">AI Usage Summary</div>
       <div>
         <div class="ai-item-label">AI 활동</div>
         <div class="ai-item-value">${aiSummary.totalActions}건</div>
@@ -317,7 +338,7 @@ export function printComplianceReport(report: ComplianceReport, framework: Frame
     <!-- Recommendations -->
     ${
       report.recommendations.length > 0
-        ? `<h4 class="rec-title">개선 권고사항</h4>
+        ? `<h4 class="rec-title">Recommendations</h4>
            <ul class="rec-list">${recommendations}</ul>`
         : ''
     }
@@ -327,10 +348,6 @@ export function printComplianceReport(report: ComplianceReport, framework: Frame
       Generated by OpenHangul AI &middot; ${framework.version} &middot; ${dateStr}
     </div>
   </div>
-
-  <script>
-    // 자동 인쇄 대화상자는 띄우지 않음 - 사용자가 상단 버튼으로 직접 제어
-  </script>
 </body>
 </html>`;
 
