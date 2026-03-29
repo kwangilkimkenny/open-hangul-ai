@@ -21,30 +21,40 @@ export interface HWPFileHeader {
   mobileOptimized: boolean;
 }
 
-export interface HWPDocInfo {
-  idMappings: Map<number, any>;
-  binData: Map<number, Uint8Array>;
-  faceNames: Map<number, string>;
-  borderFills: any[];
-  charShapes: any[];
-  tabDefs: any[];
-  numberings: any[];
-  bullets: any[];
-  paraShapes: any[];
-  styles: any[];
-  memo: any;
-}
+import type { DocInfo } from './DocInfo';
+import type { Table } from './Table';
+import type { Picture } from './Picture';
+import type { Shape } from './Shape';
+import type { Equation } from './Equation';
+import type { Chart } from './Chart';
+
+/** DocInfo는 DocInfoParser의 출력 타입을 그대로 사용 */
+export type HWPDocInfo = DocInfo;
 
 export interface HWPSection {
   index: number;
+  text: string;
   paragraphs: HWPParagraph[];
+  pageDef?: any;
+  columnDefs?: any[];
+  headerFooters?: any[];
+  tables?: Table[];
+  pageBorderFillID?: number;
+  pictures?: Picture[];
+  shapes?: Shape[];
+  equations?: Equation[];
+  charts?: Chart[];
 }
 
 export interface HWPParagraph {
   text: string;
-  charShape: number;
-  paraShape: number;
-  controls: any[];
+  charShapeID?: number;
+  paraShapeID?: number;
+  styleID?: number;
+  pageBreak?: boolean;
+  columnBreak?: boolean;
+  controls?: any[];
+  runs?: any[];
 }
 
 export interface SummaryInfo {
@@ -87,17 +97,14 @@ export class HWPFile {
   };
 
   docInfo: HWPDocInfo = {
-    idMappings: new Map(),
-    binData: new Map(), // Map<number, Uint8Array>로 초기화
     faceNames: new Map(),
-    borderFills: [],
-    charShapes: [],
-    paraShapes: [],
-    styles: [],
-    tabDefs: [],
-    numberings: [],
-    bullets: [],
-    memo: null
+    borderFills: new Map(),
+    charShapes: new Map(),
+    paraShapes: new Map(),
+    styles: new Map(),
+    tabDefs: new Map(),
+    numberings: new Map(),
+    binDataList: new Map()
   };
 
   sections: HWPSection[] = [];

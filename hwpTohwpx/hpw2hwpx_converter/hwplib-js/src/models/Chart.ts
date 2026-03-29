@@ -331,18 +331,31 @@ export class ChartHelper {
    */
   static getChartTypeName(type: ChartType): string {
     const names: { [key: number]: string } = {
-      0: 'line',
-      1: 'bar',
-      2: 'column',
-      3: 'pie',
-      4: 'doughnut',
-      5: 'area',
-      6: 'scatter',
-      7: 'bubble',
-      8: 'radar',
-      9: 'stock',
-      10: 'surface',
-      11: 'combination',
+      [ChartType.LINE]: 'line',
+      [ChartType.BAR]: 'bar',
+      [ChartType.COLUMN]: 'column',
+      [ChartType.PIE]: 'pie',
+      [ChartType.DOUGHNUT]: 'doughnut',
+      [ChartType.AREA]: 'area',
+      [ChartType.SCATTER]: 'scatter',
+      [ChartType.BUBBLE]: 'bubble',
+      [ChartType.RADAR]: 'radar',
+      [ChartType.STOCK]: 'stock',
+      [ChartType.SURFACE]: 'surface',
+      [ChartType.COMBINATION]: 'combination',
+      [ChartType.LINE_3D]: 'line3d',
+      [ChartType.BAR_3D]: 'bar3d',
+      [ChartType.COLUMN_3D]: 'column3d',
+      [ChartType.PIE_3D]: 'pie3d',
+      [ChartType.AREA_3D]: 'area3d',
+      [ChartType.SURFACE_3D]: 'surface3d',
+      [ChartType.WATERFALL]: 'waterfall',
+      [ChartType.TREEMAP]: 'treemap',
+      [ChartType.SUNBURST]: 'sunburst',
+      [ChartType.HISTOGRAM]: 'histogram',
+      [ChartType.BOX_WHISKER]: 'boxWhisker',
+      [ChartType.FUNNEL]: 'funnel',
+      [ChartType.MAP]: 'map',
     };
     return names[type] || 'line';
   }
@@ -428,6 +441,190 @@ export class ChartHelper {
     }
 
     return csv;
+  }
+
+  /**
+   * 차트를 SVG로 렌더링 (폴백 이미지 생성용)
+   */
+  static chartToSvg(chart: Chart, width: number = 600, height: number = 400): string {
+    const padding = { top: 40, right: 30, bottom: 50, left: 60 };
+    const plotW = width - padding.left - padding.right;
+    const plotH = height - padding.top - padding.bottom;
+
+    const data = chart.data;
+    if (!data || !data.series || data.series.length === 0) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <rect width="${width}" height="${height}" fill="#f9f9f9" stroke="#ccc"/>
+        <text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#999">No Data</text>
+      </svg>`;
+    }
+
+    this.assignDefaultColors(data.series);
+
+    const type = chart.type;
+    const isPie = type === ChartType.PIE || type === ChartType.DOUGHNUT || type === ChartType.PIE_3D;
+
+    if (isPie) {
+      return this.renderPieSvg(chart, data, width, height);
+    }
+
+    return this.renderBarLineSvg(chart, data, width, height, plotW, plotH, padding);
+  }
+
+  private static renderPieSvg(chart: Chart, data: ChartData, width: number, height: number): string {
+    const cx = width / 2;
+    const cy = height / 2 + 10;
+    const radius = Math.min(width, height) / 2 - 40;
+    const isDoughnut = chart.type === ChartType.DOUGHNUT;
+    const innerRadius = isDoughnut ? radius * 0.5 : 0;
+
+    const values = data.series[0]?.values || [];
+    const total = values.reduce((s, v) => s + Math.abs(v), 0);
+    if (total === 0) return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><text x="${cx}" y="${cy}" text-anchor="middle">No Data</text></svg>`;
+
+    const slices: string[] = [];
+    let angle = -Math.PI / 2;
+
+    values.forEach((val, i) => {
+      const sliceAngle = (Math.abs(val) / total) * 2 * Math.PI;
+      const endAngle = angle + sliceAngle;
+      const color = this.DEFAULT_COLORS[i % this.DEFAULT_COLORS.length];
+      const largeArc = sliceAngle > Math.PI ? 1 : 0;
+
+      const x1 = cx + radius * Math.cos(angle);
+      const y1 = cy + radius * Math.sin(angle);
+      const x2 = cx + radius * Math.cos(endAngle);
+      const y2 = cy + radius * Math.sin(endAngle);
+
+      if (isDoughnut) {
+        const ix1 = cx + innerRadius * Math.cos(angle);
+        const iy1 = cy + innerRadius * Math.sin(angle);
+        const ix2 = cx + innerRadius * Math.cos(endAngle);
+        const iy2 = cy + innerRadius * Math.sin(endAngle);
+        slices.push(`<path d="M${x1},${y1} A${radius},${radius} 0 ${largeArc},1 ${x2},${y2} L${ix2},${iy2} A${innerRadius},${innerRadius} 0 ${largeArc},0 ${ix1},${iy1} Z" fill="${color}" stroke="white" stroke-width="1"/>`);
+      } else {
+        slices.push(`<path d="M${cx},${cy} L${x1},${y1} A${radius},${radius} 0 ${largeArc},1 ${x2},${y2} Z" fill="${color}" stroke="white" stroke-width="1"/>`);
+      }
+
+      // Label
+      const midAngle = angle + sliceAngle / 2;
+      const labelR = radius * 0.7;
+      const lx = cx + labelR * Math.cos(midAngle);
+      const ly = cy + labelR * Math.sin(midAngle);
+      const pct = ((val / total) * 100).toFixed(1);
+      if (sliceAngle > 0.3) { // Only show label if slice is big enough
+        slices.push(`<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="white" font-weight="bold">${pct}%</text>`);
+      }
+
+      angle = endAngle;
+    });
+
+    const title = chart.title?.visible ? `<text x="${cx}" y="20" text-anchor="middle" font-size="14" font-weight="bold">${this.escapeXml(chart.title.text || '')}</text>` : '';
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <rect width="${width}" height="${height}" fill="white"/>
+      ${title}
+      ${slices.join('\n      ')}
+    </svg>`;
+  }
+
+  private static renderBarLineSvg(
+    chart: Chart, data: ChartData,
+    width: number, height: number,
+    plotW: number, plotH: number,
+    padding: { top: number; right: number; bottom: number; left: number }
+  ): string {
+    const isBar = chart.type === ChartType.BAR || chart.type === ChartType.COLUMN ||
+                  chart.type === ChartType.BAR_3D || chart.type === ChartType.COLUMN_3D ||
+                  chart.type === ChartType.HISTOGRAM;
+    const isArea = chart.type === ChartType.AREA || chart.type === ChartType.AREA_3D;
+    const categories = data.categories;
+    const allValues = data.series.flatMap(s => s.values);
+    const minVal = Math.min(0, ...allValues);
+    const maxVal = Math.max(...allValues);
+    const range = maxVal - minVal || 1;
+
+    const yScale = (v: number) => padding.top + plotH - ((v - minVal) / range) * plotH;
+    const xStep = plotW / Math.max(categories.length, 1);
+
+    const elements: string[] = [];
+
+    // Grid lines
+    for (let i = 0; i <= 5; i++) {
+      const y = padding.top + (plotH / 5) * i;
+      const val = maxVal - (range / 5) * i;
+      elements.push(`<line x1="${padding.left}" y1="${y}" x2="${padding.left + plotW}" y2="${y}" stroke="#e0e0e0" stroke-width="0.5"/>`);
+      elements.push(`<text x="${padding.left - 5}" y="${y + 4}" text-anchor="end" font-size="10" fill="#666">${val.toFixed(1)}</text>`);
+    }
+
+    // X axis labels
+    categories.forEach((cat, i) => {
+      const x = padding.left + i * xStep + xStep / 2;
+      elements.push(`<text x="${x}" y="${height - 10}" text-anchor="middle" font-size="10" fill="#666">${this.escapeXml(cat)}</text>`);
+    });
+
+    // Data
+    data.series.forEach((series, si) => {
+      const color = series.color || this.DEFAULT_COLORS[si % this.DEFAULT_COLORS.length];
+
+      if (isBar) {
+        const barW = xStep * 0.6 / data.series.length;
+        series.values.forEach((val, i) => {
+          const x = padding.left + i * xStep + xStep * 0.2 + si * barW;
+          const barH = ((val - minVal) / range) * plotH;
+          const y = yScale(val);
+          elements.push(`<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="1"/>`);
+        });
+      } else {
+        // Line / Area
+        const points = series.values.map((val, i) => {
+          const x = padding.left + i * xStep + xStep / 2;
+          const y = yScale(val);
+          return `${x},${y}`;
+        });
+
+        if (isArea) {
+          const baseY = yScale(minVal);
+          const firstX = padding.left + xStep / 2;
+          const lastX = padding.left + (series.values.length - 1) * xStep + xStep / 2;
+          elements.push(`<polygon points="${firstX},${baseY} ${points.join(' ')} ${lastX},${baseY}" fill="${color}" opacity="0.3"/>`);
+        }
+
+        elements.push(`<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`);
+
+        // Markers
+        series.values.forEach((val, i) => {
+          const x = padding.left + i * xStep + xStep / 2;
+          const y = yScale(val);
+          elements.push(`<circle cx="${x}" cy="${y}" r="3" fill="${color}" stroke="white" stroke-width="1"/>`);
+        });
+      }
+    });
+
+    // Axes
+    elements.push(`<line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotH}" stroke="#333" stroke-width="1"/>`);
+    elements.push(`<line x1="${padding.left}" y1="${padding.top + plotH}" x2="${padding.left + plotW}" y2="${padding.top + plotH}" stroke="#333" stroke-width="1"/>`);
+
+    const title = chart.title?.visible ? `<text x="${width / 2}" y="20" text-anchor="middle" font-size="14" font-weight="bold">${this.escapeXml(chart.title.text || '')}</text>` : '';
+
+    // Legend
+    const legendItems = data.series.map((s, i) => {
+      const color = s.color || this.DEFAULT_COLORS[i % this.DEFAULT_COLORS.length];
+      const y = padding.top + i * 18;
+      return `<rect x="${padding.left + plotW + 5}" y="${y}" width="10" height="10" fill="${color}"/>
+        <text x="${padding.left + plotW + 18}" y="${y + 9}" font-size="10" fill="#333">${this.escapeXml(s.name)}</text>`;
+    }).join('\n      ');
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <rect width="${width}" height="${height}" fill="white"/>
+      ${title}
+      ${elements.join('\n      ')}
+      ${legendItems}
+    </svg>`;
+  }
+
+  private static escapeXml(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 }
 

@@ -63,8 +63,8 @@ export class HwpxSafeExporter {
             logger.info(`  📷 원본 ZIP 내 이미지: ${imageFiles.length}개`);
             imageFiles.forEach(path => logger.debug(`    - ${path}`));
             
-            // 1.5. header.xml 수정 (자동 줄바꿈 설정)
-            await this._fixHeaderParaPr(originalZip);
+            // 1.5. header.xml: 원본 구조 보존 (lineWrap/wordWrap 속성 추가하지 않음)
+            // await this._fixHeaderParaPr(originalZip);
             
             // 2. 원본 section XML을 읽어서 TEXT 내용 교체 + 자동 줄바꿈 설정
             const sections = modifiedDocument.sections || [];
@@ -92,12 +92,9 @@ export class HwpxSafeExporter {
                 const originalSectionXml = await originalZip.file(sectionFilename).async('string');
 
                 if (originalSectionXml) {
-                    // ✅ 1단계: 자동 줄바꿈 속성 추가
-                    const sectionXmlWithLineWrap = this._addLineWrapAttributes(originalSectionXml);
-
-                    // ✅ 2단계: 텍스트 내용 교체
+                    // 텍스트 내용만 교체 (원본 XML 구조 보존, lineWrap 등 속성 추가하지 않음)
                     const modifiedSectionXml = this._replaceTextInSectionXml(
-                        sectionXmlWithLineWrap,
+                        originalSectionXml,
                         sections[idx]
                     );
 

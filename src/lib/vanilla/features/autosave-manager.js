@@ -56,16 +56,20 @@ export class AutoSaveManager {
             return;
         }
 
-        try {
-            await this._openDatabase();
-            await this._loadMetadata();
-            this._setupUnloadHandler();
-            this.initialized = true;
-            logger.info('✅ AutoSaveManager ready');
-        } catch (error) {
-            logger.error('❌ Failed to initialize:', error);
-            throw error;
-        }
+        this._initPromise = (async () => {
+            try {
+                await this._openDatabase();
+                await this._loadMetadata();
+                this._setupUnloadHandler();
+                this.initialized = true;
+                logger.info('AutoSaveManager ready');
+            } catch (error) {
+                logger.error('Failed to initialize AutoSaveManager:', error);
+                throw error;
+            }
+        })();
+
+        return this._initPromise;
     }
 
     /**
@@ -161,7 +165,10 @@ export class AutoSaveManager {
      */
     enableAutoSave() {
         if (!this.initialized) {
-            logger.error('AutoSaveManager not initialized');
+            // 초기화 완료 후 자동 재시도 (IndexedDB async 대기)
+            if (this._initPromise) {
+                this._initPromise.then(() => this.enableAutoSave());
+            }
             return;
         }
 

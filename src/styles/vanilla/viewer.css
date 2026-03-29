@@ -22,9 +22,9 @@
             margin-right: 0;
         }
 
-        /* AI 패널이 열렸을 때 뷰어 조정 (패널 너비 400px에 맞춤) */
+        /* AI 패널이 열렸을 때 뷰어 조정 (패널 너비 350px에 맞춤) */
         .viewer-container.ai-panel-open {
-            margin-right: 400px;
+            margin-right: 350px;
         }
 
         /* React HanViewApp용 컨테이너 조정 */
@@ -34,7 +34,7 @@
         }
 
         .hanview-body-container.ai-panel-open {
-            padding-right: 400px;
+            padding-right: 350px;
         }
 
         /* Header */
@@ -456,6 +456,19 @@
             flex-direction: column;
             align-items: center;
             grid-column: 1 / -1; /* ✅ 사이드바 유무와 관계없이 전체 너비 사용 */
+        }
+
+        /* 빈 문서 안내 */
+        .hwp-page-container:empty::after,
+        .hwp-page-container:has(> .hwp-paragraph:only-child:empty)::after {
+            content: '텍스트를 입력하거나 파일을 열어주세요';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #bbb;
+            font-size: 14px;
+            pointer-events: none;
         }
 
         /* Page Styling - Dynamic size from HWPX, fallback to A4 */

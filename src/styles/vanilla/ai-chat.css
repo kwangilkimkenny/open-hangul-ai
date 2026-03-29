@@ -11,9 +11,9 @@
 
 .ai-chat-panel {
     position: fixed;
-    right: -400px;
+    right: -350px;
     top: 0;
-    width: 400px;
+    width: 350px;
     height: 100vh;
     background: #f7f8fa;
     box-shadow: -2px 0 12px rgba(0, 0, 0, 0.12);
@@ -22,8 +22,23 @@
     display: flex;
     flex-direction: column;
     font-family: 'Malgun Gothic', 'Segoe UI', -apple-system, sans-serif;
-    font-size: 13px;
+    font-size: 12px;
     border-left: 1px solid #c8ccd0;
+}
+
+/* 얇은 커스텀 스크롤바 */
+.ai-chat-panel ::-webkit-scrollbar {
+    width: 4px;
+}
+.ai-chat-panel ::-webkit-scrollbar-track {
+    background: transparent;
+}
+.ai-chat-panel ::-webkit-scrollbar-thumb {
+    background: #c0c4cc;
+    border-radius: 4px;
+}
+.ai-chat-panel ::-webkit-scrollbar-thumb:hover {
+    background: #999;
 }
 
 .ai-chat-panel.open {
@@ -37,21 +52,21 @@
 
 body.ai-panel-open .viewer-container,
 body.ai-panel-open .hanview-body-container {
-    margin-right: 400px;
+    margin-right: 350px;
     transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 렌더 컨테이너: 좌측 패딩 최소화하여 문서 폭 확보 */
+/* 렌더 컨테이너: 문서 가운데 유지 */
 body.ai-panel-open #render-container {
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: 15px;
+    padding-right: 15px;
     transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 문서 페이지를 좌측 정렬 (margin auto 해제) */
+/* 문서 페이지: 가운데 정렬 유지 */
 body.ai-panel-open .hwp-page-container {
-    margin-left: 10px !important;
-    margin-right: 10px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
     transition: margin 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -73,19 +88,19 @@ body.ai-panel-open .hwp-page-container {
    ============================================================ */
 
 .ai-chat-header {
-    padding: 12px 16px;
-    background: #2b579a;
-    border-bottom: 1px solid #1e3f73;
+    padding: 10px 14px;
+    background: #ffffff;
+    border-bottom: 1px solid #e0e3e8;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 44px;
+    min-height: 40px;
 }
 
 .ai-chat-header h3 {
     margin: 0;
-    color: #ffffff;
-    font-size: 14px;
+    color: #1a1a1a;
+    font-size: 13px;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -93,12 +108,12 @@ body.ai-panel-open .hwp-page-container {
 }
 
 .ai-chat-toggle {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.06);
     border: none;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 4px;
-    color: white;
+    color: #666;
     cursor: pointer;
     font-size: 14px;
     display: flex;
@@ -441,23 +456,26 @@ body.ai-panel-open .hwp-page-container {
    ============================================================ */
 
 .ai-chat-input-container {
-    padding: 12px;
+    padding: 8px 10px;
     background: #f7f8fa;
     border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
 }
 
 .ai-chat-input {
-    width: 100%;
-    min-height: 54px;
-    max-height: 120px;
-    padding: 10px 12px;
+    flex: 1;
+    min-height: 64px;
+    max-height: 150px;
+    padding: 8px 10px;
     border: 1px solid #c8ccd0;
-    border-radius: 4px;
+    border-radius: 6px;
     background: #ffffff;
     color: #333;
     resize: vertical;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 12px;
     line-height: 1.5;
     transition: border-color 0.15s;
     box-sizing: border-box;
@@ -465,8 +483,8 @@ body.ai-panel-open .hwp-page-container {
 
 .ai-chat-input:focus {
     outline: none;
-    border-color: #2b579a;
-    box-shadow: 0 0 0 2px rgba(43, 87, 154, 0.12);
+    border-color: #4a7fd4;
+    box-shadow: 0 0 0 2px rgba(74, 127, 212, 0.1);
 }
 
 .ai-chat-input:disabled {
@@ -476,23 +494,25 @@ body.ai-panel-open .hwp-page-container {
 }
 
 .ai-chat-input::placeholder {
-    color: #999;
-    font-size: 12px;
+    color: #aaa;
+    font-size: 11px;
 }
 
 .ai-chat-send {
-    width: 100%;
-    margin-top: 8px;
-    padding: 9px 16px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     background: #2b579a;
     color: #ffffff;
     border: none;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 13px;
-    font-family: inherit;
+    border-radius: 6px;
+    font-size: 16px;
     cursor: pointer;
     transition: background 0.15s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .ai-chat-send:hover:not(:disabled) {
@@ -504,7 +524,7 @@ body.ai-panel-open .hwp-page-container {
 }
 
 .ai-chat-send:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
 }
 
@@ -513,11 +533,23 @@ body.ai-panel-open .hwp-page-container {
    ============================================================ */
 
 .ai-chat-footer {
-    padding: 8px 12px;
-    background: #f0f2f5;
-    border-top: 1px solid #e0e0e0;
+    padding: 4px 10px 6px;
+    background: transparent;
     display: flex;
-    gap: 6px;
+    justify-content: center;
+}
+
+.ai-clear-btn {
+    font-size: 11px !important;
+    color: #999 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 4px 8px !important;
+}
+
+.ai-clear-btn:hover {
+    color: #666 !important;
+    text-decoration: underline;
 }
 
 .ai-action-btn {

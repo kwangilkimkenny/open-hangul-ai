@@ -235,9 +235,20 @@ export interface StreamingConverter {
 }
 
 /**
- * 스트리밍 변환기 팩토리 (플레이스홀더)
+ * 스트리밍 변환기 팩토리
+ *
+ * @returns StreamingConverter 구현체
+ * @example
+ * ```typescript
+ * const converter = createStreamingConverter();
+ * await converter.initialize();
+ * await converter.processChunk(chunk1);
+ * await converter.processChunk(chunk2);
+ * const result = await converter.finalize();
+ * ```
  */
-export function createStreamingConverter(): StreamingConverter {
-    // TODO: 향후 스트리밍 변환 구현
-    throw new Error('Streaming conversion is not yet implemented. Use Hwp2Hwpx.convert() for now.');
+export function createStreamingConverter(options?: Record<string, unknown>): StreamingConverter {
+    // 지연 임포트로 순환 의존성 방지
+    const { HwpxStreamingConverter } = require('../core/StreamingHwp2Hwpx');
+    return new HwpxStreamingConverter(options);
 }

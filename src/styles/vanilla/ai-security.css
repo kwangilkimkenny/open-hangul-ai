@@ -1,3 +1,53 @@
+/* ===== AI Assistant Accordion ===== */
+
+.ai-accordion {
+    border-bottom: 1px solid #e8eaed;
+}
+
+.ai-accordion:last-child {
+    border-bottom: none;
+}
+
+.ai-accordion-header {
+    display: block;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #444;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    transition: background 0.1s;
+}
+
+.ai-accordion-header::-webkit-details-marker {
+    display: none;
+}
+
+.ai-accordion-header::before {
+    content: '\25B6';
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 9px;
+    transition: transform 0.15s ease;
+    color: #999;
+}
+
+.ai-accordion[open] > .ai-accordion-header::before {
+    transform: rotate(90deg);
+}
+
+.ai-accordion-header:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.ai-accordion-body {
+    padding: 4px 12px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 /* ===== Security / Validation Toggle & Status ===== */
 
 .security-toggle-row {

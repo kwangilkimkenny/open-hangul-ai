@@ -123,12 +123,14 @@ export class JsonToXmlConverter {
    */
   generateSectionXml(sectionData) {
     const pageSettings = sectionData.pageSettings || {};
-    const width = parseInt(pageSettings.width) || 59528;
-    const height = parseInt(pageSettings.height) || 84188;
-    const marginLeft = parseInt(pageSettings.marginLeft) || 6354;
-    const marginRight = parseInt(pageSettings.marginRight) || 6354;
-    const marginTop = parseInt(pageSettings.marginTop) || 5314;
-    const marginBottom = parseInt(pageSettings.marginBottom) || 4252;
+    // px → HWPX 단위: 5000 미만이면 px, 그 이상이면 HWPX 단위
+    const toHwp = (v) => { const n = parseInt(v); return !n ? 0 : n < 5000 ? Math.round(n * 75) : n; };
+    const width = toHwp(pageSettings.width) || 59528;
+    const height = toHwp(pageSettings.height) || 84188;
+    const marginLeft = toHwp(pageSettings.marginLeft) || 6354;
+    const marginRight = toHwp(pageSettings.marginRight) || 6354;
+    const marginTop = toHwp(pageSettings.marginTop) || 5314;
+    const marginBottom = toHwp(pageSettings.marginBottom) || 4252;
 
     let bodyXml = '';
 
@@ -152,17 +154,7 @@ export class JsonToXmlConverter {
     </hp:p>`;
     }
 
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
-  <hp:p paraPrIDRef="0" styleIDRef="0">
-    <hp:run>
-      <hp:secPr>
-        <hp:pageSize width="${width}" height="${height}"/>
-        <hp:pageMar top="${marginTop}" bottom="${marginBottom}" left="${marginLeft}" right="${marginRight}" header="4252" footer="4252"/>
-      </hp:secPr>
-    </hp:run>
-  </hp:p>${bodyXml}
-</hs:sec>`;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page"><hp:p paraPrIDRef="0" styleIDRef="0"><hp:run><hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/><hp:pagePr landscape="WIDELY" width="${width}" height="${height}" gutterType="LEFT_ONLY"><hp:margin header="4252" footer="4252" gutter="0" left="${marginLeft}" right="${marginRight}" top="${marginTop}" bottom="${marginBottom}"/></hp:pagePr><hp:footNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="EACH_COLUMN" beneathText="0"/></hp:footNotePr><hp:endNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="END_OF_DOCUMENT" beneathText="0"/></hp:endNotePr><hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill></hp:secPr></hp:run></hp:p>${bodyXml}</hs:sec>`;
   }
 
   /**
