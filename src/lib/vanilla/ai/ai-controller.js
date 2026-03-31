@@ -207,7 +207,7 @@ export class AIDocumentController {
    * const result = await controller.handleUserRequest('쉽게 바꿔줘');
    * // Returns: { success: true, updatedDocument, metadata }
    */
-  async handleUserRequest(userMessage) {
+  async handleUserRequest(userMessage, onProgress = null) {
     logger.info('🤖 Handling user request...');
     logger.time('AI Request Processing');
     pipelineLogger.startSession('edit', userMessage);
@@ -327,7 +327,9 @@ export class AIDocumentController {
 
       let { content: generatedJSON, tokensUsed } = await this.generateStructuredContent(
         pairsToGenerate,
-        userMessage
+        userMessage,
+        null,
+        onProgress
       );
 
       // AEGIS Post-LLM: 출력 필터링 + PII 복원
@@ -624,7 +626,7 @@ export class AIDocumentController {
    * @returns {Promise<Object>} 생성된 JSON 객체와 메타데이터 { content: Object, tokensUsed: number }
    * @private
    */
-  async generateStructuredContent(headerContentPairs, userRequest, promptBuilderFn = null) {
+  async generateStructuredContent(headerContentPairs, userRequest, promptBuilderFn = null, onProgress = null) {
     const pairCount = headerContentPairs?.length || 0;
 
     // ═══════════════════════════════════════════════
@@ -633,45 +635,66 @@ export class AIDocumentController {
     const BATCH_THRESHOLD = 15; // 15개 이상이면 분할
 
     if (pairCount > BATCH_THRESHOLD && !promptBuilderFn) {
-      return await this._generateInBatches(headerContentPairs, userRequest);
+      return await this._generateInBatches(headerContentPairs, userRequest, onProgress);
     }
 
     // ═══════════════════════════════════════════════
     // 단일 배치 생성 (기존 로직)
     // ═══════════════════════════════════════════════
-    return await this._generateSingleBatch(headerContentPairs, userRequest, promptBuilderFn);
+    onProgress?.({ phase: 'generating', percent: 0, completed: 0, total: pairCount, message: `${pairCount}개 항목 생성 중...` });
+    const result = await this._generateSingleBatch(headerContentPairs, userRequest, promptBuilderFn);
+    onProgress?.({ phase: 'complete', percent: 100, completed: pairCount, total: pairCount, message: '생성 완료' });
+    return result;
   }
 
   /**
-   * 분할 배치 생성 — 타임아웃 방지 + 중간 저장
+   * 분할 배치 생성 — 타임아웃 방지 + 중간 저장 + 진행률 콜백
+   * @param {Array} headerContentPairs
+   * @param {string} userRequest
+   * @param {Function|null} onProgress - (progress) => void
    * @private
    */
-  async _generateInBatches(headerContentPairs, userRequest) {
-    const BATCH_SIZE = 12; // 배치당 최대 12항목 (타임아웃 방지)
+  async _generateInBatches(headerContentPairs, userRequest, onProgress = null) {
+    const BATCH_SIZE = 12;
     const batches = [];
 
     for (let i = 0; i < headerContentPairs.length; i += BATCH_SIZE) {
       batches.push(headerContentPairs.slice(i, i + BATCH_SIZE));
     }
 
-    logger.info(`📦 분할 생성: ${headerContentPairs.length}항목 → ${batches.length}배치 (배치당 ~${BATCH_SIZE}항목)`);
+    const totalItems = headerContentPairs.length;
+    logger.info(`📦 분할 생성: ${totalItems}항목 → ${batches.length}배치 (배치당 ~${BATCH_SIZE}항목)`);
 
     const mergedJSON = {};
     let totalTokens = 0;
+    let completedItems = 0;
+
+    const report = (message) => {
+      const percent = totalItems > 0 ? Math.round(completedItems / totalItems * 100) : 0;
+      onProgress?.({
+        phase: 'generating',
+        percent,
+        completed: completedItems,
+        total: totalItems,
+        batch: `${Object.keys(mergedJSON).length}/${totalItems}`,
+        message,
+      });
+    };
+
+    report(`${batches.length}개 배치로 분할 생성 시작...`);
 
     for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
       const batch = batches[batchIdx];
       const batchLabel = `[${batchIdx + 1}/${batches.length}]`;
 
+      report(`배치 ${batchLabel} 처리 중... (${batch.length}항목)`);
       logger.info(`  🔄 배치 ${batchLabel}: ${batch.length}항목 처리 중...`);
 
       try {
-        // 이전 배치 결과를 컨텍스트로 제공
         const contextHint = Object.keys(mergedJSON).length > 0
           ? `\n\n(이미 생성된 항목 참고: ${Object.keys(mergedJSON).slice(-3).map(k => `"${k}"`).join(', ')} 등 ${Object.keys(mergedJSON).length}개)`
           : '';
 
-        // 배치별 max_tokens 동적 설정
         const batchMaxTokens = Math.min(Math.max(800, batch.length * 120), 4000);
         const savedMaxTokens = this.generator.options.maxTokens;
         const savedTimeout = this.generator.options.timeout;
@@ -684,39 +707,36 @@ export class AIDocumentController {
           null
         );
 
-        // 설정 복원
         this.generator.options.maxTokens = savedMaxTokens;
         this.generator.options.timeout = savedTimeout;
 
-        // 결과 병합 (중간 저장)
         Object.assign(mergedJSON, batchJSON);
         totalTokens += tokensUsed;
+        completedItems += Object.keys(batchJSON).length;
 
-        const batchKeys = Object.keys(batchJSON).length;
-        logger.info(`  ✅ 배치 ${batchLabel} 완료: ${batchKeys}항목 생성 (${tokensUsed}토큰)`);
-        logger.info(`     누적: ${Object.keys(mergedJSON).length}/${headerContentPairs.length}항목`);
+        logger.info(`  ✅ 배치 ${batchLabel} 완료: ${Object.keys(batchJSON).length}항목 (${tokensUsed}토큰)`);
+        report(`배치 ${batchLabel} 완료 — ${completedItems}/${totalItems}항목`);
 
       } catch (error) {
         logger.error(`  ❌ 배치 ${batchLabel} 실패:`, error.message);
+        report(`배치 ${batchLabel} 실패, 분할 재시도 중...`);
 
-        // 실패한 배치를 더 작게 분할하여 재시도
         if (batch.length > 3) {
-          logger.info(`  🔄 배치 ${batchLabel} 절반 분할 재시도...`);
           const mid = Math.ceil(batch.length / 2);
-          const half1 = batch.slice(0, mid);
-          const half2 = batch.slice(mid);
+          const halves = [batch.slice(0, mid), batch.slice(mid)];
 
-          for (const halfBatch of [half1, half2]) {
+          for (let hi = 0; hi < halves.length; hi++) {
+            const halfBatch = halves[hi];
             try {
+              report(`분할 재시도 ${hi + 1}/2 (${halfBatch.length}항목)...`);
+
               const savedMaxTokens2 = this.generator.options.maxTokens;
               const savedTimeout2 = this.generator.options.timeout;
               this.generator.options.maxTokens = Math.min(Math.max(600, halfBatch.length * 120), 3000);
               this.generator.options.timeout = Math.min(60000 + halfBatch.length * 5000, 120000);
 
               const { content: halfJSON, tokensUsed: halfTokens } = await this._generateSingleBatch(
-                halfBatch,
-                userRequest,
-                null
+                halfBatch, userRequest, null
               );
 
               this.generator.options.maxTokens = savedMaxTokens2;
@@ -724,17 +744,26 @@ export class AIDocumentController {
 
               Object.assign(mergedJSON, halfJSON);
               totalTokens += halfTokens;
-              logger.info(`     ✅ 분할 재시도 성공: ${Object.keys(halfJSON).length}항목`);
+              completedItems += Object.keys(halfJSON).length;
+              report(`분할 재시도 성공 — ${completedItems}/${totalItems}항목`);
             } catch (retryError) {
-              logger.error(`     ❌ 분할 재시도도 실패:`, retryError.message);
-              // 이 배치는 건너뛰고 계속 진행 (부분 결과 보존)
+              logger.error(`     ❌ 분할 재시도 실패:`, retryError.message);
             }
           }
         }
       }
     }
 
-    logger.info(`📦 분할 생성 완료: ${Object.keys(mergedJSON).length}/${headerContentPairs.length}항목, ${totalTokens}토큰`);
+    report(`생성 완료: ${completedItems}/${totalItems}항목`);
+    logger.info(`📦 분할 생성 완료: ${Object.keys(mergedJSON).length}/${totalItems}항목, ${totalTokens}토큰`);
+
+    onProgress?.({
+      phase: 'complete',
+      percent: 100,
+      completed: completedItems,
+      total: totalItems,
+      message: `생성 완료: ${completedItems}개 항목`,
+    });
 
     return { content: mergedJSON, tokensUsed: totalTokens };
   }
