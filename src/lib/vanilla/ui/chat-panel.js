@@ -802,26 +802,35 @@ export class ChatPanel {
                 showToast('success', '다중 페이지 생성 완료', `${successCount}/${result.totalPages} 페이지 생성됨`);
                 
             } else {
-                // 단일 페이지 처리 (기존 방식)
+                // 단일 페이지 처리
                 logger.info('📄 Single-page document - using standard processing');
-                
-                // 🆕 셀 선택 데이터가 있으면 포함
+
+                // 진행률 콜백: 로딩 메시지를 실시간 업데이트
+                const progressCallback = (progress) => {
+                    if (!progress) return;
+                    const { percent, completed, total, message: msg } = progress;
+                    const progressBar = total > 0
+                        ? `[${'█'.repeat(Math.floor(percent / 5))}${'░'.repeat(20 - Math.floor(percent / 5))}] ${percent}%`
+                        : '';
+                    const statusText = `📝 AI 생성 진행 중...\n\n${progressBar}\n${msg || ''}\n(${completed || 0}/${total || '?'} 항목)`;
+                    this.updateMessage(loadingMessageId, statusText);
+                };
+
                 const cellSelectionData = this._lastCellSelectionData || null;
                 if (cellSelectionData) {
                     logger.info('📋 Using cell selection data for AI request');
                     result = await this.aiController.handleUserRequestWithCellSelection(
-                        message, 
+                        message,
                         cellSelectionData
                     );
-                    // 사용 후 초기화
                     this._lastCellSelectionData = null;
                 } else {
-                    result = await this.aiController.handleUserRequest(message);
+                    result = await this.aiController.handleUserRequest(message, progressCallback);
                 }
-                
+
                 // 로딩 메시지 제거
                 this.removeMessage(loadingMessageId);
-                
+
                 // 성공/경고 메시지 표시
                 const updatedCount = result.metadata?.slotsUpdated || result.metadata?.itemsUpdated || 0;
                 const generatedCount = result.metadata?.itemsGenerated || updatedCount;
