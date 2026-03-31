@@ -625,21 +625,130 @@ export class AIDocumentController {
    * @private
    */
   async generateStructuredContent(headerContentPairs, userRequest, promptBuilderFn = null) {
-    // 프롬프트 빌더 생성
+    const pairCount = headerContentPairs?.length || 0;
+
+    // ═══════════════════════════════════════════════
+    // 분할 생성: 항목이 많으면 배치로 나눠서 호출
+    // ═══════════════════════════════════════════════
+    const BATCH_THRESHOLD = 15; // 15개 이상이면 분할
+
+    if (pairCount > BATCH_THRESHOLD && !promptBuilderFn) {
+      return await this._generateInBatches(headerContentPairs, userRequest);
+    }
+
+    // ═══════════════════════════════════════════════
+    // 단일 배치 생성 (기존 로직)
+    // ═══════════════════════════════════════════════
+    return await this._generateSingleBatch(headerContentPairs, userRequest, promptBuilderFn);
+  }
+
+  /**
+   * 분할 배치 생성 — 타임아웃 방지 + 중간 저장
+   * @private
+   */
+  async _generateInBatches(headerContentPairs, userRequest) {
+    const BATCH_SIZE = 12; // 배치당 최대 12항목 (타임아웃 방지)
+    const batches = [];
+
+    for (let i = 0; i < headerContentPairs.length; i += BATCH_SIZE) {
+      batches.push(headerContentPairs.slice(i, i + BATCH_SIZE));
+    }
+
+    logger.info(`📦 분할 생성: ${headerContentPairs.length}항목 → ${batches.length}배치 (배치당 ~${BATCH_SIZE}항목)`);
+
+    const mergedJSON = {};
+    let totalTokens = 0;
+
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx];
+      const batchLabel = `[${batchIdx + 1}/${batches.length}]`;
+
+      logger.info(`  🔄 배치 ${batchLabel}: ${batch.length}항목 처리 중...`);
+
+      try {
+        // 이전 배치 결과를 컨텍스트로 제공
+        const contextHint = Object.keys(mergedJSON).length > 0
+          ? `\n\n(이미 생성된 항목 참고: ${Object.keys(mergedJSON).slice(-3).map(k => `"${k}"`).join(', ')} 등 ${Object.keys(mergedJSON).length}개)`
+          : '';
+
+        // 배치별 max_tokens 동적 설정
+        const batchMaxTokens = Math.min(Math.max(800, batch.length * 120), 4000);
+        const savedMaxTokens = this.generator.options.maxTokens;
+        const savedTimeout = this.generator.options.timeout;
+        this.generator.options.maxTokens = batchMaxTokens;
+        this.generator.options.timeout = Math.min(90000 + batch.length * 5000, 180000);
+
+        const { content: batchJSON, tokensUsed } = await this._generateSingleBatch(
+          batch,
+          userRequest + contextHint,
+          null
+        );
+
+        // 설정 복원
+        this.generator.options.maxTokens = savedMaxTokens;
+        this.generator.options.timeout = savedTimeout;
+
+        // 결과 병합 (중간 저장)
+        Object.assign(mergedJSON, batchJSON);
+        totalTokens += tokensUsed;
+
+        const batchKeys = Object.keys(batchJSON).length;
+        logger.info(`  ✅ 배치 ${batchLabel} 완료: ${batchKeys}항목 생성 (${tokensUsed}토큰)`);
+        logger.info(`     누적: ${Object.keys(mergedJSON).length}/${headerContentPairs.length}항목`);
+
+      } catch (error) {
+        logger.error(`  ❌ 배치 ${batchLabel} 실패:`, error.message);
+
+        // 실패한 배치를 더 작게 분할하여 재시도
+        if (batch.length > 3) {
+          logger.info(`  🔄 배치 ${batchLabel} 절반 분할 재시도...`);
+          const mid = Math.ceil(batch.length / 2);
+          const half1 = batch.slice(0, mid);
+          const half2 = batch.slice(mid);
+
+          for (const halfBatch of [half1, half2]) {
+            try {
+              const savedMaxTokens2 = this.generator.options.maxTokens;
+              const savedTimeout2 = this.generator.options.timeout;
+              this.generator.options.maxTokens = Math.min(Math.max(600, halfBatch.length * 120), 3000);
+              this.generator.options.timeout = Math.min(60000 + halfBatch.length * 5000, 120000);
+
+              const { content: halfJSON, tokensUsed: halfTokens } = await this._generateSingleBatch(
+                halfBatch,
+                userRequest,
+                null
+              );
+
+              this.generator.options.maxTokens = savedMaxTokens2;
+              this.generator.options.timeout = savedTimeout2;
+
+              Object.assign(mergedJSON, halfJSON);
+              totalTokens += halfTokens;
+              logger.info(`     ✅ 분할 재시도 성공: ${Object.keys(halfJSON).length}항목`);
+            } catch (retryError) {
+              logger.error(`     ❌ 분할 재시도도 실패:`, retryError.message);
+              // 이 배치는 건너뛰고 계속 진행 (부분 결과 보존)
+            }
+          }
+        }
+      }
+    }
+
+    logger.info(`📦 분할 생성 완료: ${Object.keys(mergedJSON).length}/${headerContentPairs.length}항목, ${totalTokens}토큰`);
+
+    return { content: mergedJSON, tokensUsed: totalTokens };
+  }
+
+  /**
+   * 단일 배치 API 호출
+   * @private
+   */
+  async _generateSingleBatch(headerContentPairs, userRequest, promptBuilderFn = null) {
     const promptBuilder = new PromptBuilder();
 
-    // 구조화된 프롬프트 빌드 (커스텀 빌더 함수 지원)
     const messages = promptBuilderFn
       ? promptBuilderFn(promptBuilder, headerContentPairs, userRequest)
       : promptBuilder.buildStructuredPrompt(headerContentPairs, userRequest);
-
-    // 대형 문서: 항목 수에 비례하여 max_tokens 자동 증가
-    const pairCount = headerContentPairs?.length || 0;
-    if (pairCount > 50) {
-      const dynamicTokens = Math.min(Math.max(pairCount * 30, 4000), 16000);
-      this.generator.options.maxTokens = dynamicTokens;
-      logger.info(`Large document (${pairCount} pairs): max_tokens → ${dynamicTokens}`);
-    }
 
     // GPT API 호출 (재시도 포함)
     const response = await this.generator.callAPIWithRetry(messages);
@@ -649,13 +758,11 @@ export class AIDocumentController {
 
     // JSON 파싱
     try {
-      // 🔥 OpenAI API 응답 구조: response.choices[0].message.content
       let jsonText = '';
 
       if (response.choices && response.choices[0] && response.choices[0].message) {
         jsonText = response.choices[0].message.content.trim();
       } else if (response.content) {
-        // 대체 구조
         jsonText = response.content.trim();
       } else {
         throw new Error('응답에서 content를 찾을 수 없습니다');
@@ -663,11 +770,10 @@ export class AIDocumentController {
 
       logger.debug('📥 Raw GPT response:', jsonText.substring(0, 200) + '...');
 
-      // JSON 블록 추출 (```json ... ``` 제거)
       const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/) || jsonText.match(/{[\s\S]*}/);
       let jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : jsonText;
 
-      // finish_reason: "length"인 경우 JSON이 잘렸을 수 있음 — 자동 복구 시도
+      // finish_reason: "length"인 경우 잘린 JSON 복구
       const finishReason = response.choices?.[0]?.finish_reason;
       if (finishReason === 'length') {
         logger.warn('GPT 응답이 토큰 한도로 잘렸습니다. 불완전 JSON 복구 시도...');
@@ -680,21 +786,13 @@ export class AIDocumentController {
         `✅ Generated JSON with ${Object.keys(generatedJSON).length} keys (${tokensUsed} tokens used)`
       );
 
-      // 디버그: 생성된 JSON 출력
-      logger.info('📋 Generated content:');
-      Object.keys(generatedJSON).forEach(key => {
-        const value = generatedJSON[key];
-        logger.info(`  "${key}" → "${value ? value.substring(0, 40) + '...' : '(비어있음)'}"`);
-      });
-
       return { content: generatedJSON, tokensUsed };
     } catch (error) {
       logger.error('❌ Failed to parse JSON response:', error);
-      logger.error('Full response:', JSON.stringify(response, null, 2));
       throw new HWPXError(
         ErrorType.VALIDATION_ERROR,
         'GPT 응답을 JSON으로 파싱할 수 없습니다. 응답: ' +
-          (response.choices?.[0]?.message?.content || 'undefined')
+          (response.choices?.[0]?.message?.content?.substring(0, 200) || 'undefined')
       );
     }
   }
