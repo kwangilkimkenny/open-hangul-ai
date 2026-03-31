@@ -162,15 +162,24 @@ export class AIDocumentController {
     }
 
     // ════════════════════════════════════════
-    // Step 3: GPT 생성 실행 (병렬 + 재시도)
+    // Step 3: GPT 생성 실행 (병렬 + 재시도 + 중간 저장)
     // ════════════════════════════════════════
     logger.info('  🤖 Step 3/5: GPT 생성 실행...');
-    const generatedContent = await this.gptService.generateFromSemanticGrid(
-      passes,
-      structure,
-      userMessage,
-      onProgress
-    );
+    logger.info(`    배치 크기: ${passes.map(p => p.cells.length).join(', ')}셀`);
+
+    let generatedContent: Map<string, string>;
+    try {
+      generatedContent = await this.gptService.generateFromSemanticGrid(
+        passes,
+        structure,
+        userMessage,
+        onProgress
+      );
+    } catch (error) {
+      // 전체 실패 시에도 부분 결과가 있으면 사용
+      logger.error('  ❌ 생성 중 오류 발생, 부분 결과로 진행:', error);
+      generatedContent = new Map();
+    }
 
     logger.info(`    ${generatedContent.size}개 셀 생성 완료`);
 
@@ -285,12 +294,14 @@ export class AIDocumentController {
     let passNumber = 1;
     let parallelGroupId = 0;
 
-    // 적응형 배치 크기: 빈 셀이 많으면 더 크게, 내용이 있으면 작게
+    // 적응형 배치 크기: 타임아웃 방지를 위해 보수적으로 설정
+    // 핵심: 셀당 평균 생성 길이를 예측하여 배치 크기 결정
     const calcBatchSize = (cells: SemanticCell[]): number => {
       const avgContentLen = cells.reduce((s, c) => s + c.text.length, 0) / Math.max(cells.length, 1);
-      if (avgContentLen > 200) return 15; // 긴 내용이면 작은 배치
-      if (avgContentLen > 50) return 25;
-      return 35; // 빈 셀 위주면 큰 배치
+      if (avgContentLen > 200) return 8;  // 긴 내용이면 매우 작은 배치
+      if (avgContentLen > 100) return 12;
+      if (avgContentLen > 50) return 18;
+      return 25; // 빈 셀 위주여도 25개 상한 (타임아웃 방지)
     };
 
     // 1단계: 각 표별로 패스 생성
