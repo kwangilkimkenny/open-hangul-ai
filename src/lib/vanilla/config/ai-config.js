@@ -119,11 +119,11 @@ export const AIConfig = {
 
         /**
          * 타임아웃 (밀리초)
-         * 큰 문서 처리를 위해 120초로 증가
+         * 분할 생성으로 배치가 작아졌으므로 90초 기본
          * 환경변수로 오버라이드 가능
          */
         get timeout() {
-            return Number(import.meta.env.VITE_OPENAI_TIMEOUT) || 120000;
+            return Number(import.meta.env.VITE_OPENAI_TIMEOUT) || 90000;
         },
         
         /**
