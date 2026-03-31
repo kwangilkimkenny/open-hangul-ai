@@ -202,7 +202,17 @@ export class GPTService {
         this.stats.piiSessionCount++;
       }
 
-      const response = await this.callAPIWithRetry(piiResult.messages);
+      // 적응형 max_tokens: 항목 수에 비례
+      const pairCount = structure.pairs.length;
+      const adaptiveMaxTokens = Math.min(Math.max(1500, 500 + pairCount * 120), 16000);
+      const adaptiveTimeout = Math.min(
+        AIConfig.openai.timeout + pairCount * ((AIConfig.openai as any).timeoutPerCell || 3000),
+        (AIConfig.openai as any).maxTimeout || 300000
+      );
+
+      const response = await this.callAPIWithRetry(
+        piiResult.messages, undefined, true, adaptiveMaxTokens, adaptiveTimeout
+      );
       const result = this.parseResponse(response);
 
       if (piiResult.sessionId) {
@@ -380,7 +390,7 @@ export class GPTService {
   }
 
   /**
-   * 단일 패스 실제 실행
+   * 단일 패스 실제 실행 — 적응형 타임아웃 + max_tokens
    */
   private async executeSinglePass(
     pass: GenerationPass,
@@ -390,6 +400,22 @@ export class GPTService {
   ): Promise<Map<string, string>> {
     this.stats.totalRequests++;
 
+    const cellCount = pass.cells.length;
+
+    // 적응형 max_tokens: 셀당 ~100토큰 + 오버헤드 500
+    const adaptiveMaxTokens = Math.min(
+      Math.max(1000, 500 + cellCount * 100),
+      16000 // GPT-4o 최대
+    );
+
+    // 적응형 타임아웃: 기본 + 셀당 추가
+    const adaptiveTimeout = Math.min(
+      AIConfig.openai.timeout + cellCount * (AIConfig.openai as any).timeoutPerCell,
+      (AIConfig.openai as any).maxTimeout || 300000
+    );
+
+    logger.info(`   📊 패스 ${pass.passNumber}: ${cellCount}셀, maxTokens=${adaptiveMaxTokens}, timeout=${Math.round(adaptiveTimeout / 1000)}s`);
+
     const messages = this.buildSemanticPrompt(pass, structure, userRequest, previousResults);
     const piiResult = this.pseudonymizeMessages(messages);
     if (piiResult.piiDetected) {
@@ -397,7 +423,9 @@ export class GPTService {
       this.stats.piiSessionCount++;
     }
 
-    const response = await this.callAPIWithRetry(piiResult.messages, undefined, true);
+    const response = await this.callAPIWithRetry(
+      piiResult.messages, undefined, true, adaptiveMaxTokens, adaptiveTimeout
+    );
     const parsed = this.parseSemanticResponse(response, pass.cells);
 
     if (piiResult.sessionId) {
@@ -409,7 +437,7 @@ export class GPTService {
     this.updateStatistics(response);
     this.stats.successfulRequests++;
 
-    logger.info(`   ✅ 패스 ${pass.passNumber} 완료: ${parsed.size}/${pass.cells.length}셀`);
+    logger.info(`   ✅ 패스 ${pass.passNumber} 완료: ${parsed.size}/${cellCount}셀`);
     return parsed;
   }
 
@@ -911,19 +939,27 @@ ${structure.pairs.slice(0, 3).map(p => `  "${p.header}": "생성된 내용"`).jo
   private async callAPIWithRetry(
     messages: Array<{ role: string; content: string }>,
     apiKey?: string,
-    useJsonMode: boolean = true
+    useJsonMode: boolean = true,
+    maxTokens?: number,
+    timeout?: number
   ): Promise<GPTResponse> {
     const { maxAttempts, delayMs, backoffMultiplier } = AIConfig.openai.retry;
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await this.callAPI(messages, apiKey, useJsonMode);
+        return await this.callAPI(messages, apiKey, useJsonMode, maxTokens, timeout);
       } catch (error) {
         lastError = error as Error;
+        const isTimeout = (error as Error).message?.includes('타임아웃') ||
+                          (error as Error).message?.includes('timeout');
+
         if (attempt < maxAttempts) {
-          const delay = delayMs * Math.pow(backoffMultiplier, attempt - 1);
-          logger.warn(`⚠️  시도 ${attempt} 실패, ${delay}ms 후 재시도...`);
+          // 타임아웃이면 더 긴 대기 후 재시도
+          const delay = isTimeout
+            ? delayMs * Math.pow(backoffMultiplier, attempt)
+            : delayMs * Math.pow(backoffMultiplier, attempt - 1);
+          logger.warn(`⚠️  시도 ${attempt} 실패 (${isTimeout ? '타임아웃' : '오류'}), ${delay}ms 후 재시도...`);
           await this.sleep(delay);
         }
       }
@@ -935,16 +971,21 @@ ${structure.pairs.slice(0, 3).map(p => `  "${p.header}": "생성된 내용"`).jo
   private async callAPI(
     messages: Array<{ role: string; content: string }>,
     providedApiKey?: string,
-    useJsonMode: boolean = true
+    useJsonMode: boolean = true,
+    maxTokens?: number,
+    timeout?: number
   ): Promise<GPTResponse> {
     const apiKey = providedApiKey || AIConfig.openai.getApiKey();
     if (!apiKey) throw new Error(AIConfig.prompts.errorMessages.noApiKey);
+
+    const effectiveMaxTokens = maxTokens || AIConfig.openai.maxTokens;
+    const effectiveTimeout = timeout || AIConfig.openai.timeout;
 
     const requestBody: any = {
       model: AIConfig.openai.model,
       messages,
       temperature: AIConfig.openai.temperature,
-      max_tokens: AIConfig.openai.maxTokens,
+      max_tokens: effectiveMaxTokens,
     };
 
     if (useJsonMode) {
@@ -952,7 +993,7 @@ ${structure.pairs.slice(0, 3).map(p => `  "${p.header}": "생성된 내용"`).jo
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), AIConfig.openai.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
     try {
       const response = await fetch(AIConfig.openai.endpoint, {

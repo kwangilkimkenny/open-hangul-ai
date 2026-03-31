@@ -54,19 +54,29 @@ export const AIConfig = {
     temperature: 0.7,
     
     /**
-     * 최대 토큰 수
+     * 최대 토큰 수 (기본값 — 배치 크기에 따라 동적 조정됨)
      */
     maxTokens: 4000,
-    
+
     /**
      * API 엔드포인트
      */
     endpoint: 'https://api.openai.com/v1/chat/completions',
-    
+
     /**
-     * 타임아웃 (밀리초)
+     * 타임아웃 기본값 (밀리초) — 배치 크기에 따라 동적 조정됨
      */
-    timeout: 120000, // 2분
+    timeout: 90000, // 1.5분 (기본)
+
+    /**
+     * 셀당 추가 타임아웃 (밀리초)
+     */
+    timeoutPerCell: 3000, // 셀당 3초 추가
+
+    /**
+     * 최대 타임아웃 (밀리초)
+     */
+    maxTimeout: 300000, // 5분 상한
     
     /**
      * 재시도 설정
