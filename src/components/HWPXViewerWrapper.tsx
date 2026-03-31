@@ -28,6 +28,9 @@ import '../styles/vanilla/cell-selector.css';
 import '../styles/vanilla/external-api.css';
 import '../styles/vanilla/ai-security.css';
 
+// ✅ AI 시맨틱 진단 도구 (window.__runDiagnostic 등록)
+import '../lib/ai/diagnostic';
+
 interface HWPXViewerWrapperProps {
   className?: string;
   file?: File | null;
