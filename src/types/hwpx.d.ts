@@ -176,6 +176,10 @@ export interface HWPXTable extends HWPXBaseElement {
   colWidths?: string[];
   colWidthsPercent?: string[];
   caption?: HWPXTableCaption;
+  // parser runtime properties (set by _buildGridMap)
+  gridMap?: any[][];
+  colCount?: number;
+  rowCount?: number;
 }
 
 export interface HWPXTableCaption {
@@ -212,6 +216,10 @@ export interface HWPXTableCell {
   textAlign?: 'left' | 'center' | 'right' | 'justify';
   padding?: string;
   opacity?: number;
+  // parser runtime properties (set by _buildGridMap)
+  logicalRow?: number;
+  logicalCol?: number;
+  isCovered?: boolean;
 }
 
 export interface HWPXBorder {
