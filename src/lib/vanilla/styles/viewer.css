@@ -824,33 +824,33 @@
             border-collapse: separate;
             border-spacing: 0;
             width: 100%;
-            max-width: 100%; /* ✅ v2.2.7d: 페이지 폭 초과 방지 */
+            max-width: 100%;
             margin: 0;
             background: white;
-            font-size: 0; /* Reset to prevent spacing issues */
-            table-layout: auto; /* ✅ v2.2.7d: fixed → auto (이미지에 맞게 조정) */
+            font-size: inherit; /* ✅ Fix: font-size: 0 제거 — 자식 요소 텍스트 렌더링 보장 */
+            table-layout: fixed; /* ✅ Fix: colgroup 칼럼 너비를 정확히 반영 */
             position: relative;
             box-sizing: border-box;
-            line-height: 1.4; /* Tighter line height for tables */
+            line-height: 1.4;
             font-family: 'Malgun Gothic', '맑은 고딕', Arial, sans-serif;
         }
 
         .hwp-table td,
         .hwp-table th {
             border: none; /* Border is set individually per cell from HWPX data */
-            padding: 0 2px; /* ✅ 추가 압축: 1px 3px → 0 2px */
+            padding: 2px 4px; /* ✅ Fix: 가독성 확보 — 텍스트가 테두리에 붙지 않도록 */
             text-align: left;
             vertical-align: top;
             word-break: keep-all; /* Preserve Korean word boundaries */
             word-wrap: break-word;
-            min-height: 14px; /* Minimum height for content */
-            max-height: none; /* Allow content to determine height */
+            min-height: 14px;
+            max-height: none;
             box-sizing: border-box;
             position: relative;
-            overflow: visible; /* ✅ v2.2.14: Changed from hidden - inline shapes need visible */
-            white-space: pre-wrap; /* Preserve whitespace */
-            font-size: initial; /* Reset font size from table */
-            line-height: 1.1; /* ✅ 추가 압축: 1.15 → 1.1 */
+            overflow: visible;
+            white-space: pre-wrap;
+            font-size: initial;
+            line-height: 1.4; /* ✅ Fix: 한국어 가독성 확보 (1.1 → 1.4) */
         }
 
         .hwp-table th {
@@ -1030,11 +1030,56 @@
             border-bottom: 1px dotted #999;
         }
 
-        /* Text direction support */
+        /* Text direction support — RTL */
         .hwp-table td[style*="direction: rtl"],
         .hwp-table th[style*="direction: rtl"] {
             direction: rtl;
             text-align: right;
+        }
+
+        /* Vertical text direction (세로쓰기) — v3.0 */
+        .hwp-table td.hwp-vertical-text,
+        .hwp-table th.hwp-vertical-text {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            white-space: normal;
+        }
+
+        .hwp-table td.hwp-vertical-text .hwp-paragraph,
+        .hwp-table th.hwp-vertical-text .hwp-paragraph {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+
+        /* Header row styling — v3.0 */
+        .hwp-table thead tr {
+            break-after: auto;
+        }
+
+        .hwp-table td[data-header="true"],
+        .hwp-table th[data-header="true"] {
+            font-weight: 600;
+        }
+
+        /* Protected cell visual indicator — v3.0 */
+        .hwp-table td[data-protect="true"] {
+            cursor: not-allowed;
+        }
+
+        /* Page break support — v3.0 */
+        .hwp-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        @media print {
+            .hwp-table thead {
+                display: table-header-group;
+            }
+            .hwp-table tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
         }
 
         /* Empty table cells */

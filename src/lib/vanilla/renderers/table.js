@@ -1,9 +1,16 @@
 /**
  * Table Renderer
- * HWPX 테이블을 HTML 요소로 렌더링 (v2.0 Professional)
- * 
+ * HWPX 테이블을 HTML 요소로 렌더링 (v3.0 Professional)
+ *
+ * v3.0 Changes:
+ * - Row-level attributes: height, heightType (FIXED/MINIMUM/AUTO), header, hidden, background
+ * - Table-level: cellSpacing, inMargin/outMargin, position (floating tables), pageBreak
+ * - Cell-level: textDirection (vertical writing), lineWrap, protect, header flag
+ * - Floating table CSS positioning
+ * - Page break policy support (break-inside)
+ *
  * @module renderers/table
- * @version 2.0.0
+ * @version 3.0.0
  */
 
 import { renderParagraph } from './paragraph.js';
@@ -21,7 +28,7 @@ const logger = getLogger('TableRenderer');
 export function renderTable(table, images) {
     logger.debug('🔷 Rendering table...');
 
-    // ✅ images가 Map이 아닐 경우 빈 Map으로 대체
+    // images가 Map이 아닐 경우 빈 Map으로 대체
     if (!images || !(images instanceof Map)) {
         logger.warn('⚠️ Images is not a Map, using empty Map');
         images = new Map();
@@ -29,47 +36,93 @@ export function renderTable(table, images) {
 
     const wrapper = document.createElement('div');
     wrapper.className = 'hwp-table-wrapper';
-    wrapper.style.maxWidth = '100%'; // ✅ 페이지 폭 절대 초과 금지
-    wrapper.style.overflowX = 'auto'; // ✅ 스크롤 가능하게 (이미지가 잘리지 않도록)
+    wrapper.style.maxWidth = '100%';
+    wrapper.style.overflowX = 'auto';
+
+    // ================================================================
+    // Table outer margin (outMargin from HWPX)
+    // ================================================================
+    if (table.style?.outMargin) {
+        const om = table.style.outMargin;
+        if (om.top) wrapper.style.marginTop = om.top + 'px';
+        if (om.bottom) wrapper.style.marginBottom = om.bottom + 'px';
+        if (om.left) wrapper.style.marginLeft = om.left + 'px';
+        if (om.right) wrapper.style.marginRight = om.right + 'px';
+    }
+
+    // ================================================================
+    // Floating table positioning
+    // ================================================================
+    if (table.position && !table.position.treatAsChar) {
+        const pos = table.position;
+        // Floating table — not inline with text
+        if (pos.horzOffset || pos.vertOffset) {
+            wrapper.style.position = 'relative';
+            if (pos.vertOffset) wrapper.style.top = pos.vertOffset + 'px';
+            if (pos.horzOffset) wrapper.style.left = pos.horzOffset + 'px';
+        }
+        // Horizontal alignment for floating tables
+        if (pos.horzAlign === 'CENTER') {
+            wrapper.style.marginLeft = 'auto';
+            wrapper.style.marginRight = 'auto';
+        } else if (pos.horzAlign === 'RIGHT') {
+            wrapper.style.marginLeft = 'auto';
+            wrapper.style.marginRight = '0';
+        }
+    }
 
     const tableEl = document.createElement('table');
     tableEl.className = 'hwp-table';
 
-    // ✅ 테이블 데이터 연결 (InlineEditor에서 사용)
+    // 테이블 데이터 연결 (InlineEditor에서 사용)
     tableEl._tableData = table;
 
-    // Apply table-level styles for maximum precision
+    // Apply table-level styles
     tableEl.style.borderCollapse = 'separate';
-    tableEl.style.borderSpacing = '0';
     tableEl.style.tableLayout = 'fixed';
     tableEl.style.boxSizing = 'border-box';
     tableEl.style.position = 'relative';
-    // 🔥 fontSize = '0' 제거 및 기본값 설정: AI 생성 텍스트가 보이지 않는 문제 해결 (v2.2.4)
-    tableEl.style.fontSize = '12px'; // 최소 폰트 크기 명시적 설정
+    tableEl.style.fontSize = '12px';
 
-    // Apply table width
+    // cellSpacing from HWPX
+    if (table.style?.cellSpacing && table.style.cellSpacing > 0) {
+        tableEl.style.borderSpacing = table.style.cellSpacing + 'px';
+    } else {
+        tableEl.style.borderSpacing = '0';
+    }
+
+    // Table width
     if (table.style && table.style.width) {
         tableEl.style.width = '100%';
-        tableEl.style.maxWidth = '100%'; // ✅ wrapper 크기에 맞춤
+        tableEl.style.maxWidth = '100%';
         logger.debug(`  Table width: ${table.style.width}`);
     } else {
         tableEl.style.width = '100%';
     }
 
-    // Apply table height - ✅ v2.2.10: 표 높이 HWPX 정의값으로 제한
+    // Table height — minHeight only, content expands naturally
     if (table.style && table.style.height) {
-        tableEl.style.height = table.style.height;
-        tableEl.style.maxHeight = table.style.height;
-        tableEl.style.overflow = 'hidden'; // 콘텐츠가 정의된 높이를 초과하면 숨김
-        logger.debug(`  Table height constrained: ${table.style.height}`);
+        tableEl.style.minHeight = table.style.height;
+        logger.debug(`  Table minHeight: ${table.style.height}`);
     }
 
+    // Page break policy
+    if (table.style?.pageBreak) {
+        if (table.style.pageBreak === 'TABLE') {
+            // Entire table must be on one page — avoid breaking inside
+            tableEl.style.breakInside = 'avoid';
+            tableEl.style.pageBreakInside = 'avoid';
+        }
+        // CELL = default (allow breaks between rows)
+        // NONE = no special handling
+    }
 
+    // ================================================================
     // Create colgroup for explicit column widths
-    // Use percentage for better responsive behavior (like v1.0)
+    // ================================================================
     if (table.colWidthsPercent && table.colWidthsPercent.length > 0) {
         const colgroup = document.createElement('colgroup');
-        table.colWidthsPercent.forEach((widthPercent, colIndex) => {
+        table.colWidthsPercent.forEach((widthPercent) => {
             const col = document.createElement('col');
             col.style.width = widthPercent;
             colgroup.appendChild(col);
@@ -77,100 +130,103 @@ export function renderTable(table, images) {
         tableEl.appendChild(colgroup);
         logger.debug(`  Created colgroup with ${table.colWidthsPercent.length} columns (percentage)`);
     } else if (table.colWidths && table.colWidths.length > 0) {
-        // Fallback to pixel widths
         const colgroup = document.createElement('colgroup');
-        table.colWidths.forEach((width, colIndex) => {
+        table.colWidths.forEach((width) => {
             const col = document.createElement('col');
-            col.style.width = width; // Already converted to px string
+            col.style.width = width;
             colgroup.appendChild(col);
         });
         tableEl.appendChild(colgroup);
         logger.debug(`  Created colgroup with ${table.colWidths.length} columns (pixels)`);
     }
 
+    // ================================================================
     // Render rows
+    // ================================================================
+    let thead = null;
+    let tbody = document.createElement('tbody');
+
     if (table.rows && table.rows.length > 0) {
         table.rows.forEach((row, rowIndex) => {
+            // Hidden rows — skip rendering
+            if (row.style?.hidden) return;
+
             const tr = document.createElement('tr');
             tr.className = 'hwp-table-row';
 
-            // Calculate row height from cells (maximum cell height with rowSpan=1)
-            if (row.cells && row.cells.length > 0) {
-                let maxHeight = 0;
+            // --------------------------------------------------------
+            // Row height — use explicit row height or calculate from cells
+            // --------------------------------------------------------
+            let rowHeight = 0;
+            const heightType = row.style?.heightType || 'MINIMUM';
+
+            if (row.style?.height && row.style.height > 0) {
+                // Use explicitly parsed row height
+                rowHeight = row.style.height;
+            } else if (row.cells && row.cells.length > 0) {
+                // Fallback: calculate from cells (max height of rowSpan=1 cells)
                 row.cells.forEach(cell => {
-                    const cellRowSpan = cell.rowSpan || 1;
-                    if (cellRowSpan === 1 && cell.style && cell.style.height) {
-                        const heightPx = parseInt(cell.style.height);
-                        if (heightPx > maxHeight) {
-                            maxHeight = heightPx;
+                    if ((cell.rowSpan || 1) === 1 && cell.style?.heightPrecise) {
+                        if (cell.style.heightPrecise > rowHeight) {
+                            rowHeight = cell.style.heightPrecise;
                         }
                     }
                 });
-                if (maxHeight > 0) {
-                    tr.style.minHeight = maxHeight + 'px';
-                    // maxHeight/overflow:hidden 제거 — AI 생성 콘텐츠가 잘리지 않도록
+            }
+
+            if (rowHeight > 0) {
+                if (heightType === 'FIXED') {
+                    // Fixed height — content clips if too large
+                    tr.style.height = rowHeight + 'px';
+                    tr.style.maxHeight = rowHeight + 'px';
+                    tr.style.overflow = 'hidden';
+                } else {
+                    // MINIMUM or AUTO — minimum height with natural expansion
+                    tr.style.minHeight = rowHeight + 'px';
                 }
             }
 
+            // Row background color
+            if (row.style?.backgroundColor) {
+                tr.style.backgroundColor = row.style.backgroundColor;
+            }
+
+            // --------------------------------------------------------
             // Render cells
+            // --------------------------------------------------------
             if (row.cells && row.cells.length > 0) {
-                row.cells.forEach((cell, cellIndex) => {
+                row.cells.forEach((cell) => {
+                    // Skip covered cells (merged region)
+                    if (cell.isCovered) return;
+
                     const td = document.createElement('td');
                     td.className = 'hwp-table-cell';
                     td.setAttribute('lang', 'ko');
 
-                    // Apply colspan/rowspan
-                    if (cell.colSpan) {
-                        td.colSpan = cell.colSpan;
-                    }
-                    if (cell.rowSpan) {
-                        td.rowSpan = cell.rowSpan;
+                    // Header cell — use <th> semantics via attribute
+                    if (cell.isHeader || row.style?.isHeader) {
+                        td.setAttribute('data-header', 'true');
                     }
 
-                    // Apply cell styles (style 없으면 기본 테두리 적용)
+                    // Protected cell
+                    if (cell.protect) {
+                        td.setAttribute('data-protect', 'true');
+                    }
+
+                    // Colspan/rowspan
+                    if (cell.colSpan) td.colSpan = cell.colSpan;
+                    if (cell.rowSpan) td.rowSpan = cell.rowSpan;
+
+                    // Apply cell styles
                     if (!cell.style) {
                         td.style.border = '1px solid #000';
                         td.style.padding = '4px 6px';
                     }
                     if (cell.style) {
+                        // ====================================================
                         // Background (priority: image > gradient > solid color)
-                        if (cell.style.backgroundImage && images) {
-                            // 🆕 Image background
-                            const binaryItemIDRef = cell.style.backgroundImage.binaryItemIDRef;
-                            const mode = cell.style.backgroundImage.mode || 'TILE';
-
-                            // Get image by ID (stored as 'image1', 'image2', etc.)
-                            const imageData = images.get(binaryItemIDRef);
-
-                            if (imageData && imageData.url) {
-                                // Apply as background-image
-                                const backgroundSize = mode === 'TOTAL' ? 'cover' :
-                                    mode === 'TILE' ? 'auto' :
-                                        mode === 'CENTER' ? 'contain' : '100% 100%';
-                                const backgroundRepeat = mode === 'TILE' ? 'repeat' : 'no-repeat';
-                                const backgroundPosition = mode === 'CENTER' ? 'center' : '0 0';
-
-                                td.style.backgroundImage = `url(${imageData.url})`;
-                                td.style.backgroundSize = backgroundSize;
-                                td.style.backgroundRepeat = backgroundRepeat;
-                                td.style.backgroundPosition = backgroundPosition;
-                                td.style.setProperty('background-image', `url(${imageData.url})`, 'important');
-                                td.style.setProperty('background-size', backgroundSize, 'important');
-
-                                logger.debug(`  🖼️ Applied background image: ${binaryItemIDRef} (mode: ${mode})`);
-                            }
-                        } else if (cell.style.backgroundGradient) {
-                            td.style.background = cell.style.backgroundGradient;
-                            td.style.setProperty('background', cell.style.backgroundGradient, 'important');
-                        } else if (cell.style.backgroundColor) {
-                            td.style.backgroundColor = cell.style.backgroundColor;
-                            td.style.setProperty('background-color', cell.style.backgroundColor, 'important');
-
-                            // Apply opacity if available
-                            if (cell.style.opacity !== undefined && cell.style.opacity !== 1.0) {
-                                td.style.opacity = cell.style.opacity;
-                            }
-                        }
+                        // ====================================================
+                        applyBackground(td, cell.style, images);
 
                         // Pattern fill
                         if (cell.style.patternType && cell.style.patternForeground) {
@@ -181,15 +237,15 @@ export function renderTable(table, images) {
                             td.style.setProperty('background-image', `repeating-linear-gradient(45deg, ${patternColor}20, ${patternColor}20 2px, transparent 2px, transparent 10px)`, 'important');
                         }
 
-                        // ✅ v2.2.7g: 정교한 텍스트 정렬 (기본값 제거, 원본 유지)
-                        // Text alignment - HWPX에서 명시된 경우에만 적용
+                        // ====================================================
+                        // Text alignment
+                        // ====================================================
                         if (cell.style.textAlign) {
                             td.style.textAlign = cell.style.textAlign;
                             td.style.setProperty('text-align', cell.style.textAlign, 'important');
                         }
-                        // ❌ 기본값 제거: 원본 정렬 유지
 
-                        // Vertical alignment - HWPX에서 명시된 경우에만 적용
+                        // Vertical alignment
                         if (cell.style.verticalAlign) {
                             td.style.verticalAlign = cell.style.verticalAlign;
                             td.style.setProperty('vertical-align', cell.style.verticalAlign, 'important');
@@ -197,9 +253,38 @@ export function renderTable(table, images) {
                                 td.style.display = 'table-cell';
                             }
                         }
-                        // ❌ 기본값 제거: 원본 정렬 유지
 
-                        // Width (use percentage for precision)
+                        // ====================================================
+                        // Text direction (세로쓰기 지원)
+                        // ====================================================
+                        if (cell.style.textDirection) {
+                            const dir = cell.style.textDirection.toUpperCase();
+                            if (dir === 'VERTICAL' || dir === 'TBRL') {
+                                td.style.writingMode = 'vertical-rl';
+                                td.style.textOrientation = 'mixed';
+                                td.classList.add('hwp-vertical-text');
+                            } else if (dir === 'BTLR') {
+                                td.style.writingMode = 'vertical-lr';
+                                td.style.textOrientation = 'mixed';
+                                td.classList.add('hwp-vertical-text');
+                            }
+                        }
+
+                        // ====================================================
+                        // Line wrap policy
+                        // ====================================================
+                        if (cell.style.lineWrap === 'SQUEEZE') {
+                            td.style.whiteSpace = 'nowrap';
+                            td.style.overflow = 'hidden';
+                            td.style.textOverflow = 'clip';
+                        } else if (cell.style.lineWrap === 'NONE') {
+                            td.style.whiteSpace = 'nowrap';
+                        }
+                        // BREAK = default (normal wrapping)
+
+                        // ====================================================
+                        // Width
+                        // ====================================================
                         if (cell.style.widthPercent) {
                             td.style.width = cell.style.widthPercent;
                         } else if (cell.style.width) {
@@ -210,91 +295,79 @@ export function renderTable(table, images) {
                         td.style.wordBreak = 'break-word';
                         td.style.wordWrap = 'break-word';
 
-                        // Height (only for rowSpan=1 cells)
-                        // ✅ AI 생성 내용 대응: 고정 높이 제거, 자동 확장
+                        // ====================================================
+                        // Height — respecting row heightType
+                        // ====================================================
                         if (cell.style.height) {
                             const cellRowSpan = cell.rowSpan || 1;
                             if (cellRowSpan === 1) {
-                                // td.style.height = cell.style.height; // ❌ 고정 높이 제거
-                                // td.style.maxHeight = cell.style.height; // ❌ 최대 높이 제거
-                                td.style.minHeight = cell.style.height; // ✅ 최소 높이만 유지
-                                td.style.height = 'auto'; // ✅ 내용에 따라 자동 확장
+                                if (heightType === 'FIXED') {
+                                    td.style.height = cell.style.height;
+                                    td.style.maxHeight = cell.style.height;
+                                    td.style.overflow = 'hidden';
+                                } else {
+                                    td.style.minHeight = cell.style.height;
+                                    td.style.height = 'auto';
+                                }
                                 td.style.boxSizing = 'border-box';
                             }
                         }
 
                         // Enhanced cell positioning
                         td.style.position = 'relative';
-                        td.style.fontSize = '13.33px'; // Reset font size from table (default)
-                        td.style.lineHeight = '1.1'; // ✅ 추가 압축: 1.15 → 1.1
+                        td.style.fontSize = '13.33px';
+                        td.style.lineHeight = '1.4';
 
-                        // Individual borders (from borderFillDef)
-                        // Only apply borders if explicitly defined in HWPX
-                        if (cell.style.borderLeftDef) {
-                            const borderCSS = cell.style.borderLeftDef.css;
-                            td.style.borderLeft = borderCSS;
-                            td.style.setProperty('border-left', borderCSS, 'important');
-                        } else {
-                            td.style.borderLeft = 'none';
-                        }
+                        // ====================================================
+                        // Borders (4 sides individually)
+                        // ====================================================
+                        ['Left', 'Right', 'Top', 'Bottom'].forEach(side => {
+                            const defKey = `border${side}Def`;
+                            if (cell.style[defKey]) {
+                                const borderCSS = cell.style[defKey].css;
+                                td.style[`border${side}`] = borderCSS;
+                                td.style.setProperty(`border-${side.toLowerCase()}`, borderCSS, 'important');
+                            } else {
+                                td.style[`border${side}`] = 'none';
+                            }
+                        });
 
-                        if (cell.style.borderRightDef) {
-                            const borderCSS = cell.style.borderRightDef.css;
-                            td.style.borderRight = borderCSS;
-                            td.style.setProperty('border-right', borderCSS, 'important');
-                        } else {
-                            td.style.borderRight = 'none';
-                        }
-
-                        if (cell.style.borderTopDef) {
-                            const borderCSS = cell.style.borderTopDef.css;
-                            td.style.borderTop = borderCSS;
-                            td.style.setProperty('border-top', borderCSS, 'important');
-                        } else {
-                            td.style.borderTop = 'none';
-                        }
-
-                        if (cell.style.borderBottomDef) {
-                            const borderCSS = cell.style.borderBottomDef.css;
-                            td.style.borderBottom = borderCSS;
-                            td.style.setProperty('border-bottom', borderCSS, 'important');
-                        } else {
-                            td.style.borderBottom = 'none';
-                        }
-
+                        // ====================================================
                         // Cell padding (from cellMargin)
+                        // ====================================================
                         if (cell.style.padding) {
                             td.style.padding = cell.style.padding;
                         } else {
-                            // Apply default padding if not specified
-                            td.style.padding = '3px 5px';
+                            td.style.padding = '2px 4px';
                         }
 
+                        // ====================================================
                         // Diagonal lines (slash, backSlash)
-                        // ✅ Only render if visible=true (prevent empty SVG creation)
+                        // ====================================================
                         if ((cell.style.slashDef && cell.style.slashDef.visible) ||
                             (cell.style.backSlashDef && cell.style.backSlashDef.visible)) {
                             renderDiagonalLines(td, cell.style);
                         }
                     }
 
-                    // ✅ 셀 데이터 연결 (InlineEditor에서 사용)
+                    // 셀 데이터 연결 (InlineEditor에서 사용)
                     td._cellData = cell;
 
-                    // Render cell content with enhanced styling
+                    // ====================================================
+                    // Render cell content
+                    // ====================================================
                     if (cell.elements && cell.elements.length > 0) {
                         cell.elements.forEach((element, elementIndex) => {
                             if (element.type === 'paragraph') {
                                 const paraDiv = renderParagraph(element);
 
-                                // ✅ Replace inline table placeholders with actual tables
+                                // Replace inline table placeholders with actual tables
                                 if (paraDiv) {
                                     const placeholders = paraDiv.querySelectorAll('.hwp-inline-table-placeholder');
                                     placeholders.forEach(placeholder => {
                                         const tableData = placeholder._tableData;
                                         if (tableData) {
                                             const inlineTableElem = renderTable(tableData, images);
-                                            // Wrap in span to maintain inline display
                                             const wrapper = document.createElement('span');
                                             wrapper.style.display = 'inline-block';
                                             wrapper.style.verticalAlign = 'top';
@@ -316,7 +389,7 @@ export function renderTable(table, images) {
                         });
                     }
 
-                    // ✅ 긴 내용 셀 추가 압축 (놀이방법(전개), 놀이속배움 등)
+                    // Long content compression (100+ chars)
                     const cellTextLength = cell.elements?.reduce((total, elem) => {
                         if (elem.type === 'paragraph' && elem.runs) {
                             return total + elem.runs.reduce((sum, run) =>
@@ -325,19 +398,17 @@ export function renderTable(table, images) {
                         return total;
                     }, 0) || 0;
 
-                    // 긴 내용(100자 이상)이면 초압축 모드
                     if (cellTextLength > 100) {
-                        td.style.padding = '0'; // 여백 완전 제거
-                        td.style.lineHeight = '1.1'; // 최소 줄간격
+                        td.style.padding = '1px 2px';
+                        td.style.lineHeight = '1.25';
 
-                        // 내부 모든 단락에도 적용
                         const paragraphs = td.querySelectorAll('.hwp-paragraph');
                         paragraphs.forEach((para, idx) => {
-                            para.style.lineHeight = '1.1';
+                            para.style.lineHeight = '1.25';
                             para.style.margin = '0';
                             para.style.padding = '0';
                             if (idx > 0) {
-                                para.style.marginTop = '0'; // 단락 간격도 제거
+                                para.style.marginTop = '0';
                             }
                         });
                     }
@@ -346,18 +417,34 @@ export function renderTable(table, images) {
                 });
             }
 
-            tableEl.appendChild(tr);
+            // Append row to thead or tbody
+            if ((row.style?.isHeader || (table.repeatHeader && rowIndex === 0)) && !thead) {
+                thead = document.createElement('thead');
+                thead.appendChild(tr);
+            } else if (thead && row.style?.isHeader) {
+                thead.appendChild(tr);
+            } else {
+                tbody.appendChild(tr);
+            }
         });
     }
 
-    // ✅ Render table caption (if exists)
+    // Assemble table structure
+    if (thead) tableEl.appendChild(thead);
+    if (tbody.children.length > 0) tableEl.appendChild(tbody);
+
+    // ================================================================
+    // Render table caption
+    // ================================================================
     if (table.caption && table.caption.paragraphs) {
         const captionDiv = document.createElement('div');
         captionDiv.className = 'hwp-table-caption';
         captionDiv.style.textAlign = 'center';
-        captionDiv.style.marginBottom = '8px';
         captionDiv.style.fontSize = '13.33px';
         captionDiv.style.lineHeight = '1.5';
+
+        // Caption gap
+        const gap = table.caption.gap || 8;
 
         // Render each paragraph in caption
         table.caption.paragraphs.forEach(para => {
@@ -365,12 +452,13 @@ export function renderTable(table, images) {
             captionDiv.appendChild(paraDiv);
         });
 
-        // Insert caption based on side (TOP or BOTTOM)
+        // Insert caption based on side
         if (table.caption.side === 'BOTTOM') {
+            captionDiv.style.marginTop = gap + 'px';
             wrapper.appendChild(tableEl);
             wrapper.appendChild(captionDiv);
         } else {
-            // TOP (default)
+            captionDiv.style.marginBottom = gap + 'px';
             wrapper.appendChild(captionDiv);
             wrapper.appendChild(tableEl);
         }
@@ -381,6 +469,48 @@ export function renderTable(table, images) {
     }
 
     return wrapper;
+}
+
+/**
+ * Apply background styles to element (priority: image > gradient > solid)
+ * @param {HTMLElement} el - target element
+ * @param {Object} style - style object
+ * @param {Map} images - images map
+ * @private
+ */
+function applyBackground(el, style, images) {
+    if (style.backgroundImage && images) {
+        const binaryItemIDRef = style.backgroundImage.binaryItemIDRef;
+        const mode = style.backgroundImage.mode || 'TILE';
+        const imageData = images.get(binaryItemIDRef);
+
+        if (imageData && imageData.url) {
+            const backgroundSize = mode === 'TOTAL' ? 'cover' :
+                mode === 'TILE' ? 'auto' :
+                    mode === 'CENTER' ? 'contain' : '100% 100%';
+            const backgroundRepeat = mode === 'TILE' ? 'repeat' : 'no-repeat';
+            const backgroundPosition = mode === 'CENTER' ? 'center' : '0 0';
+
+            el.style.backgroundImage = `url(${imageData.url})`;
+            el.style.backgroundSize = backgroundSize;
+            el.style.backgroundRepeat = backgroundRepeat;
+            el.style.backgroundPosition = backgroundPosition;
+            el.style.setProperty('background-image', `url(${imageData.url})`, 'important');
+            el.style.setProperty('background-size', backgroundSize, 'important');
+
+            logger.debug(`  🖼️ Applied background image: ${binaryItemIDRef} (mode: ${mode})`);
+        }
+    } else if (style.backgroundGradient) {
+        el.style.background = style.backgroundGradient;
+        el.style.setProperty('background', style.backgroundGradient, 'important');
+    } else if (style.backgroundColor) {
+        el.style.backgroundColor = style.backgroundColor;
+        el.style.setProperty('background-color', style.backgroundColor, 'important');
+
+        if (style.opacity !== undefined && style.opacity !== 1.0) {
+            el.style.opacity = style.opacity;
+        }
+    }
 }
 
 /**
@@ -398,22 +528,21 @@ function enhanceParagraphInCell(paraDiv, para, cell, paraIndex) {
 
     // Preserve paragraph's lineHeight, only set default if not specified
     if (!para.style?.lineHeight) {
-        paraDiv.style.lineHeight = '1.1'; // ✅ 추가 압축: 1.15 → 1.1
+        paraDiv.style.lineHeight = '1.4';
     }
 
     // Korean text support
-    paraDiv.style.wordBreak = 'keep-all'; // Korean word boundary preservation
-    paraDiv.style.whiteSpace = 'pre-wrap'; // Preserve whitespace
-    paraDiv.style.overflowWrap = 'break-word'; // Handle overflow
+    paraDiv.style.wordBreak = 'keep-all';
+    paraDiv.style.whiteSpace = 'pre-wrap';
+    paraDiv.style.overflowWrap = 'break-word';
     paraDiv.style.textRendering = 'optimizeLegibility';
-    paraDiv.setAttribute('lang', 'ko'); // Korean language support
+    paraDiv.setAttribute('lang', 'ko');
 
     // Text alignment priority: paragraph > cell > default
     if (para.style?.textAlign) {
         paraDiv.style.textAlign = para.style.textAlign;
         paraDiv.style.setProperty('text-align', para.style.textAlign, 'important');
 
-        // Special handling for justify alignment
         if (para.style.textAlign === 'justify') {
             paraDiv.style.textJustify = 'inter-word';
             paraDiv.style.wordSpacing = 'normal';
@@ -422,21 +551,16 @@ function enhanceParagraphInCell(paraDiv, para, cell, paraIndex) {
         paraDiv.style.textAlign = cell.style.textAlign;
         paraDiv.style.setProperty('text-align', cell.style.textAlign, 'important');
 
-        // Special handling for justify alignment
         if (cell.style.textAlign === 'justify') {
             paraDiv.style.textJustify = 'inter-word';
             paraDiv.style.wordSpacing = 'normal';
         }
     }
 
-    // Apply minimal spacing between paragraphs
-    // ✅ 단락 간격 완전 제거 (긴 내용 대응)
+    // Paragraph spacing — no gap between paragraphs in cells
     if (paraIndex > 0) {
-        paraDiv.style.marginTop = '0'; // ✅ 압축: 1px → 0 (완전 제거)
+        paraDiv.style.marginTop = '0';
     }
-
-    // Note: Images are already rendered by renderParagraph
-    // This function only enhances the paragraph styling for table cells
 }
 
 /**
@@ -446,7 +570,6 @@ function enhanceParagraphInCell(paraDiv, para, cell, paraIndex) {
  * @private
  */
 function renderDiagonalLines(td, style) {
-    // Create SVG for diagonal lines
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.style.position = 'absolute';
     svg.style.top = '0';
@@ -487,4 +610,3 @@ function renderDiagonalLines(td, style) {
 }
 
 export default { renderTable };
-

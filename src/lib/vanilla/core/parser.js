@@ -1645,34 +1645,83 @@ export class SimpleHWPXParser {
             caption: null
         };
 
-        // Parse table size
+        // ================================================================
+        // 1. Table size (hp:sz)
+        // ================================================================
         const szElem = qs(tblElem, 'sz');
         if (szElem) {
             const width = szElem.getAttribute('width');
             const height = szElem.getAttribute('height');
             const widthRelTo = szElem.getAttribute('widthRelTo');
             const heightRelTo = szElem.getAttribute('heightRelTo');
+            const protect = szElem.getAttribute('protect');
 
             if (width) {
                 table.widthHWPU = parseInt(width);
                 const widthPx = HWPXConstants.hwpuToPxUnscaled(table.widthHWPU);
                 table.style.width = widthPx.toFixed(2) + 'px';
                 table.style.widthPrecise = widthPx;
-                table.style.widthRelTo = widthRelTo;
+                table.style.widthRelTo = widthRelTo || 'ABSOLUTE';
             }
             if (height) {
                 table.heightHWPU = parseInt(height);
                 const heightPx = HWPXConstants.hwpuToPxUnscaled(table.heightHWPU);
                 table.style.height = heightPx.toFixed(2) + 'px';
                 table.style.heightPrecise = heightPx;
-                table.style.heightRelTo = heightRelTo;
+                table.style.heightRelTo = heightRelTo || 'ABSOLUTE';
             }
+            if (protect === '1' || protect === 'true') table.style.protect = true;
         }
 
-        // Parse caption
+        // ================================================================
+        // 2. Table position (hp:pos) — floating table support
+        // ================================================================
+        const posElem = qs(tblElem, 'pos');
+        if (posElem) {
+            table.position = {};
+            const treatAsChar = posElem.getAttribute('treatAsChar');
+            table.position.treatAsChar = (treatAsChar === '1' || treatAsChar === 'true');
+            table.position.flowWithText = posElem.getAttribute('flowWithText') === '1';
+            table.position.allowOverlap = posElem.getAttribute('allowOverlap') === '1';
+            table.position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
+            table.position.horzRelTo = posElem.getAttribute('horzRelTo') || 'PARA';
+            table.position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
+            table.position.horzAlign = posElem.getAttribute('horzAlign') || 'LEFT';
+            const vertOffset = posElem.getAttribute('vertOffset');
+            const horzOffset = posElem.getAttribute('horzOffset');
+            if (vertOffset) table.position.vertOffset = HWPXConstants.hwpuToPxUnscaled(parseInt(vertOffset));
+            if (horzOffset) table.position.horzOffset = HWPXConstants.hwpuToPxUnscaled(parseInt(horzOffset));
+        }
+
+        // ================================================================
+        // 3. Table margins (hp:outMargin, hp:inMargin)
+        // ================================================================
+        const outMarginElem = qs(tblElem, 'outMargin');
+        if (outMarginElem) {
+            table.style.outMargin = {};
+            ['left', 'right', 'top', 'bottom'].forEach(side => {
+                const val = outMarginElem.getAttribute(side);
+                if (val) table.style.outMargin[side] = HWPXConstants.hwpuToPxUnscaled(parseInt(val));
+            });
+        }
+
+        const inMarginElem = qs(tblElem, 'inMargin');
+        if (inMarginElem) {
+            table.style.inMargin = {};
+            ['left', 'right', 'top', 'bottom'].forEach(side => {
+                const val = inMarginElem.getAttribute(side);
+                if (val) table.style.inMargin[side] = HWPXConstants.hwpuToPxUnscaled(parseInt(val));
+            });
+        }
+
+        // ================================================================
+        // 4. Caption
+        // ================================================================
         const captionElem = qs(tblElem, 'caption');
         if (captionElem) {
             const side = captionElem.getAttribute('side');
+            const gap = captionElem.getAttribute('gap');
+            const captionWidth = captionElem.getAttribute('width');
             const subListElem = qs(captionElem, 'subList');
             if (subListElem) {
                 const captionParas = [];
@@ -1681,54 +1730,131 @@ export class SimpleHWPXParser {
                     if (para) captionParas.push(para);
                 });
                 if (captionParas.length > 0) {
-                    table.caption = { side: side || 'TOP', paragraphs: captionParas };
+                    table.caption = {
+                        side: side || 'TOP',
+                        paragraphs: captionParas,
+                        gap: gap ? HWPXConstants.hwpuToPxUnscaled(parseInt(gap)) : 0,
+                        width: captionWidth ? HWPXConstants.hwpuToPxUnscaled(parseInt(captionWidth)) : null
+                    };
                 }
             }
         }
 
-        // Border fill reference
+        // ================================================================
+        // 5. Table-level attributes
+        // ================================================================
         const borderFillId = tblElem.getAttribute('borderFillIDRef') || tblElem.getAttribute('hp:borderFillIDRef');
         if (borderFillId) table.style.borderFillId = borderFillId;
 
-        // Row/column counts
         const rowCnt = tblElem.getAttribute('rowCnt') || tblElem.getAttribute('hp:rowCnt');
         const colCnt = tblElem.getAttribute('colCnt') || tblElem.getAttribute('hp:colCnt');
         if (rowCnt) table.rowCount = parseInt(rowCnt);
         if (colCnt) table.colCount = parseInt(colCnt);
 
-        // Repeat header
         const repeatHeader = tblElem.getAttribute('repeatHeader') || tblElem.getAttribute('hp:repeatHeader');
         if (repeatHeader === '1' || repeatHeader === 'true') table.repeatHeader = true;
 
-        // Parse rows
+        // cellSpacing
+        const cellSpacing = tblElem.getAttribute('cellSpacing') || tblElem.getAttribute('hp:cellSpacing');
+        if (cellSpacing) {
+            const spacingVal = parseInt(cellSpacing);
+            if (spacingVal > 0) {
+                table.style.cellSpacing = HWPXConstants.hwpuToPxUnscaled(spacingVal);
+            }
+        }
+
+        // noAdjust — disable auto column adjustment
+        const noAdjust = tblElem.getAttribute('noAdjust') || tblElem.getAttribute('hp:noAdjust');
+        if (noAdjust === '1' || noAdjust === 'true') table.style.noAdjust = true;
+
+        // pageBreak policy
+        const pageBreak = tblElem.getAttribute('pageBreak') || tblElem.getAttribute('hp:pageBreak');
+        if (pageBreak) table.style.pageBreak = pageBreak; // CELL, NONE, TABLE
+
+        // Table alignment from textWrap
+        const textWrap = tblElem.getAttribute('textWrap') || tblElem.getAttribute('hp:textWrap');
+        if (textWrap) table.style.textWrap = textWrap;
+
+        // ================================================================
+        // 6. Parse rows — with full row-level attribute extraction
+        // ================================================================
         const rows = tblElem.querySelectorAll(':scope > tr, :scope > hp\\:tr');
         rows.forEach((trElem, rowIndex) => {
-            const row = { cells: [], style: {}, index: rowIndex };
-
-            const cells = trElem.querySelectorAll(':scope > tc, :scope > hp\\:tc');
-            cells.forEach((tcElem) => {
-                const cell = this._parseTableCell(tcElem, table);
-                row.cells.push(cell);
-            });
-
+            const row = this._parseTableRow(trElem, rowIndex, table);
             table.rows.push(row);
         });
 
-        // Calculate column widths
+        // ================================================================
+        // 7. Calculate column widths & build grid map
+        // ================================================================
         if (table.rows.length > 0) {
             this._calculateColumnWidths(table, tblElem);
         }
-
-        // Build grid map and mark covered cells for rowSpan/colSpan
         this._buildGridMap(table);
 
         return table.rows.length > 0 ? table : null;
     }
 
+    /**
+     * Parse table row with full attribute extraction
+     * @param {Element} trElem - <hp:tr> element
+     * @param {number} rowIndex - row index
+     * @param {Object} table - parent table object
+     * @returns {Object} parsed row object
+     * @private
+     */
+    _parseTableRow(trElem, rowIndex, table) {
+        const row = { cells: [], style: {}, index: rowIndex };
+
+        // Row height (직접 속성)
+        const height = trElem.getAttribute('height') || trElem.getAttribute('hp:height');
+        if (height) {
+            const heightVal = parseInt(height);
+            if (heightVal > 0) {
+                row.style.height = HWPXConstants.hwpuToPxUnscaled(heightVal);
+                row.style.heightHWPU = heightVal;
+            }
+        }
+
+        // Row height type: FIXED (고정), MINIMUM (최소), AUTO (자동)
+        const heightType = trElem.getAttribute('heightType') || trElem.getAttribute('hp:heightType');
+        if (heightType) {
+            row.style.heightType = heightType.toUpperCase(); // FIXED, MINIMUM, AUTO
+        }
+
+        // Row header flag (반복 머리글)
+        const header = trElem.getAttribute('header') || trElem.getAttribute('hp:header');
+        if (header === '1' || header === 'true') row.style.isHeader = true;
+
+        // Row visibility
+        const hidden = trElem.getAttribute('hidden') || trElem.getAttribute('hp:hidden');
+        if (hidden === '1' || hidden === 'true') row.style.hidden = true;
+
+        // Row background from borderFillIDRef
+        const rowBorderFillId = trElem.getAttribute('borderFillIDRef') || trElem.getAttribute('hp:borderFillIDRef');
+        if (rowBorderFillId && this.borderFills.has(rowBorderFillId)) {
+            const borderFillDef = this.borderFills.get(rowBorderFillId);
+            if (borderFillDef.fill.backgroundColor) {
+                row.style.backgroundColor = borderFillDef.fill.backgroundColor;
+            }
+        }
+
+        // Parse cells
+        const cells = trElem.querySelectorAll(':scope > tc, :scope > hp\\:tc');
+        cells.forEach((tcElem) => {
+            const cell = this._parseTableCell(tcElem, table);
+            row.cells.push(cell);
+        });
+
+        return row;
+    }
+
     _parseTableCell(tcElem, table) {
         const cell = { elements: [], style: {} };
 
+        // ================================================================
         // Cell address
+        // ================================================================
         const cellAddrElem = qs(tcElem, 'cellAddr');
         if (cellAddrElem) {
             const colAddr = cellAddrElem.getAttribute('colAddr');
@@ -1737,7 +1863,9 @@ export class SimpleHWPXParser {
             if (rowAddr !== null) cell.rowAddr = parseInt(rowAddr);
         }
 
+        // ================================================================
         // Colspan/rowspan
+        // ================================================================
         const cellSpanElem = qs(tcElem, 'cellSpan');
         if (cellSpanElem) {
             const colSpan = cellSpanElem.getAttribute('colSpan');
@@ -1751,7 +1879,21 @@ export class SimpleHWPXParser {
             if (rowspan && parseInt(rowspan) > 1) cell.rowSpan = parseInt(rowspan);
         }
 
+        // ================================================================
+        // Cell-level attributes (header, protect, editable)
+        // ================================================================
+        const headerAttr = tcElem.getAttribute('header');
+        if (headerAttr === '1' || headerAttr === 'true') cell.isHeader = true;
+
+        const protectAttr = tcElem.getAttribute('protect');
+        if (protectAttr === '1' || protectAttr === 'true') cell.protect = true;
+
+        const editableAttr = tcElem.getAttribute('editable');
+        if (editableAttr === '1' || editableAttr === 'true') cell.editable = true;
+
+        // ================================================================
         // Cell border/fill from borderFillIDRef
+        // ================================================================
         const cellBorderFillId = tcElem.getAttribute('borderFillIDRef') || tcElem.getAttribute('hp:borderFillIDRef');
         if (cellBorderFillId && this.borderFills.has(cellBorderFillId)) {
             cell.style.borderFillId = cellBorderFillId;
@@ -1797,7 +1939,9 @@ export class SimpleHWPXParser {
             }
         }
 
-        // Inline fill (fillBrush)
+        // ================================================================
+        // Inline fill (fillBrush) — overrides borderFillIDRef fill
+        // ================================================================
         const cellFillBrushElem = tcElem.querySelector('fillBrush, hp\\:fillBrush, hc\\:fillBrush');
         if (cellFillBrushElem) {
             const winBrushElem = cellFillBrushElem.querySelector('winBrush, hc\\:winBrush');
@@ -1809,9 +1953,38 @@ export class SimpleHWPXParser {
                     if (alpha) cell.style.opacity = 1.0 - (parseInt(alpha) / 255.0);
                 }
             }
+            // Gradient fill
+            const gradationElem = cellFillBrushElem.querySelector('gradation, hc\\:gradation');
+            if (gradationElem) {
+                const type = gradationElem.getAttribute('type') || 'LINEAR';
+                const angle = parseInt(gradationElem.getAttribute('angle')) || 0;
+                const colors = [];
+                qsa(gradationElem, 'color').forEach(colorElem => {
+                    const val = colorElem.getAttribute('value') || colorElem.textContent;
+                    if (val) colors.push(normalizeColor(val));
+                });
+                if (colors.length >= 2) {
+                    if (type === 'RADIAL') {
+                        cell.style.backgroundGradient = `radial-gradient(circle, ${colors.join(', ')})`;
+                    } else {
+                        cell.style.backgroundGradient = `linear-gradient(${angle}deg, ${colors.join(', ')})`;
+                    }
+                }
+            }
+            // Image fill
+            const imgBrushElem = cellFillBrushElem.querySelector('imgBrush, hc\\:imgBrush');
+            if (imgBrushElem) {
+                const mode = imgBrushElem.getAttribute('mode') || 'TILE';
+                const binaryItemIDRef = imgBrushElem.getAttribute('binaryItemIDRef');
+                if (binaryItemIDRef) {
+                    cell.style.backgroundImage = { binaryItemIDRef, mode };
+                }
+            }
         }
 
+        // ================================================================
         // Cell size
+        // ================================================================
         const cellSzElem = qs(tcElem, 'cellSz');
         if (cellSzElem) {
             const width = cellSzElem.getAttribute('width');
@@ -1831,23 +2004,44 @@ export class SimpleHWPXParser {
             }
         }
 
-        // Cell margin
+        // ================================================================
+        // Cell margin (→ CSS padding)
+        // ================================================================
         const cellMarginElem = qs(tcElem, 'cellMargin');
         if (cellMarginElem) {
-            const margins = ['top', 'right', 'bottom', 'left'].map(side => {
+            const marginValues = {};
+            ['top', 'right', 'bottom', 'left'].forEach(side => {
                 const val = cellMarginElem.getAttribute(side);
-                return val ? HWPXConstants.hwpuToPxUnscaled(parseInt(val)).toFixed(2) + 'px' : '0px';
+                marginValues[side] = val ? parseInt(val) : 0;
             });
-            cell.style.padding = margins.join(' ');
+            cell.style.paddingTop = HWPXConstants.hwpuToPxUnscaled(marginValues.top).toFixed(2) + 'px';
+            cell.style.paddingRight = HWPXConstants.hwpuToPxUnscaled(marginValues.right).toFixed(2) + 'px';
+            cell.style.paddingBottom = HWPXConstants.hwpuToPxUnscaled(marginValues.bottom).toFixed(2) + 'px';
+            cell.style.paddingLeft = HWPXConstants.hwpuToPxUnscaled(marginValues.left).toFixed(2) + 'px';
+            cell.style.padding = `${cell.style.paddingTop} ${cell.style.paddingRight} ${cell.style.paddingBottom} ${cell.style.paddingLeft}`;
         }
 
-        // Alignment
+        // ================================================================
+        // Alignment — from subList and align elements
+        // ================================================================
         const subListElem = qs(tcElem, 'subList');
         if (subListElem) {
             const vertAlign = subListElem.getAttribute('vertAlign');
             if (vertAlign) {
                 const vAlignMap = { 'TOP': 'top', 'CENTER': 'middle', 'MIDDLE': 'middle', 'BOTTOM': 'bottom' };
                 cell.style.verticalAlign = vAlignMap[vertAlign.toUpperCase()] || 'top';
+            }
+
+            // Text direction from subList
+            const textDirection = subListElem.getAttribute('textDirection');
+            if (textDirection && textDirection !== 'HORIZONTAL') {
+                cell.style.textDirection = textDirection; // VERTICAL, TBRL, BTLR
+            }
+
+            // Line wrap from subList
+            const lineWrap = subListElem.getAttribute('lineWrap');
+            if (lineWrap) {
+                cell.style.lineWrap = lineWrap; // BREAK, SQUEEZE, NONE
             }
         }
 
@@ -1865,14 +2059,18 @@ export class SimpleHWPXParser {
             }
         }
 
+        // ================================================================
         // Nested tables
+        // ================================================================
         const nestedTables = tcElem.querySelectorAll(':scope > subList > tbl, :scope > subList > hp\\:tbl, :scope > tbl, :scope > hp\\:tbl');
         nestedTables.forEach(nestedTbl => {
             const nestedTable = this.parseTable(nestedTbl);
             if (nestedTable) cell.elements.push(nestedTable);
         });
 
+        // ================================================================
         // Cell paragraphs
+        // ================================================================
         if (subListElem) {
             const allParas = qsa(subListElem, 'p');
             const parasToProcess = Array.from(allParas).filter(pElem => {
@@ -1898,10 +2096,10 @@ export class SimpleHWPXParser {
         table.colWidths = [];
         table.colWidthsPercent = [];
 
-        const colCnt = parseInt(tblElem.getAttribute('colCnt')) || table.rows[0].cells.length;
+        const colCnt = parseInt(tblElem.getAttribute('colCnt')) || table.colCount || table.rows[0].cells.length;
         const colWidthsHWPU = new Array(colCnt).fill(0);
 
-        // Find reference row without colspan
+        // Strategy 1: Use reference row (no colspan, matches colCount)
         let referenceRow = null;
         for (const row of table.rows) {
             let hasColspan = false;
@@ -1919,6 +2117,7 @@ export class SimpleHWPXParser {
                 colWidthsHWPU[i] = referenceRow.cells[i].widthHWPU || 0;
             }
         } else {
+            // Strategy 2: Distribute colspan widths proportionally
             const firstRow = table.rows[0];
             let colIndex = 0;
             for (const cell of firstRow.cells) {
@@ -1939,6 +2138,9 @@ export class SimpleHWPXParser {
             table.colWidths.push(widthPx.toFixed(2) + 'px');
             table.colWidthsPercent.push(widthPercent.toFixed(4) + '%');
         }
+
+        // Store raw HWPU widths for renderer use
+        table.colWidthsHWPU = colWidthsHWPU;
     }
 
     /**
