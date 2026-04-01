@@ -188,17 +188,32 @@ export function tableToXml(table: TableWithCaption): string {
   // Optimized with StringBuilder for O(n) string building
   const sb = new StringXmlWriter();
 
-  sb.append(`<hp:tbl id="${instId}" zOrder="${table.zOrder || 0}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${finalRowCount}" colCnt="${finalColCount}" cellSpacing="${table.cellSpacing || 0}" borderFillIDRef="${borderFillIDRef}" noAdjust="0">`);
+  // Preserve actual table attributes from HWP binary
+  const repeatHeaderVal = table.repeatHeader ? '1' : '0';
+  const noAdjustVal = table.noAdjust ? '1' : '0';
+  const pageBreakVal = table.pageBreak || 'CELL';
+
+  sb.append(`<hp:tbl id="${instId}" zOrder="${table.zOrder || 0}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="${pageBreakVal}" repeatHeader="${repeatHeaderVal}" rowCnt="${finalRowCount}" colCnt="${finalColCount}" cellSpacing="${table.cellSpacing || 0}" borderFillIDRef="${borderFillIDRef}" noAdjust="${noAdjustVal}">`);
 
   // hp:sz
   sb.append(`<hp:sz width="${tableWidth}" widthRelTo="ABSOLUTE" height="${tableHeight}" heightRelTo="ABSOLUTE" protect="0"/>`);
 
-  // hp:pos (Strict structure: pos -> outMargin -> inMargin)
+  // hp:pos — preserve actual position/flow properties
   const flowWithText = table.flowWithText ? '1' : '0';
   const treatAsChar = table.flowWithText ? '1' : '0';
-  sb.append(`<hp:pos treatAsChar="${treatAsChar}" affectLSpacing="0" flowWithText="${flowWithText}" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>`);
+  const vertRelTo = table.vertRelTo || 'PARA';
+  const horzRelTo = table.horzRelTo || 'PARA';
+  sb.append(`<hp:pos treatAsChar="${treatAsChar}" affectLSpacing="0" flowWithText="${flowWithText}" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="${vertRelTo}" horzRelTo="${horzRelTo}" vertAlign="TOP" horzAlign="LEFT" vertOffset="${table.y || 0}" horzOffset="${table.x || 0}"/>`);
+
+  // hp:outMargin — preserve actual margins (외부 여백)
   sb.append(`<hp:outMargin left="0" right="0" top="0" bottom="0"/>`);
-  sb.append(`<hp:inMargin left="0" right="0" top="0" bottom="0"/>`);
+
+  // hp:inMargin — preserve actual inner margins from HWP binary
+  const inML = table.inMarginLeft ?? 0;
+  const inMR = table.inMarginRight ?? 0;
+  const inMT = table.inMarginTop ?? 0;
+  const inMB = table.inMarginBottom ?? 0;
+  sb.append(`<hp:inMargin left="${inML}" right="${inMR}" top="${inMT}" bottom="${inMB}"/>`);
 
   // hp:caption (if exists)
   if (table.caption) {
@@ -272,11 +287,17 @@ export function tableCellToXml(cell: TableCell, defaultRowIdx: number = 0, defau
   // 텍스트 방향 (파싱된 값 사용, 기본값 HORIZONTAL)
   const textDirection = cell.textDirection || 'HORIZONTAL';
 
+  // 줄바꿈 설정 (파싱된 값 사용, 기본값 BREAK)
+  const lineWrap = cell.lineWrap || 'BREAK';
+
   // 보호 속성 (파싱된 값 사용)
   const protect = cell.protect ? 1 : 0;
 
   // 머리글 속성 (파싱된 값 사용)
   const header = cell.header ? 1 : 0;
+
+  // 편집 가능 속성 (파싱된 값 사용)
+  const editable = cell.editable ? 1 : 0;
 
   // 셀 내 문단의 horzsize는 셀 너비에서 마진을 뺀 값
   const contentWidth = width - marginLeft - marginRight;
@@ -289,5 +310,5 @@ export function tableCellToXml(cell: TableCell, defaultRowIdx: number = 0, defau
 
   // Note: The order of elements in <hp:tc> must be strict for HWPX validation
   // Required order: subList -> cellAddr -> cellSpan -> cellSz -> cellMargin
-  return `\n    <hp:tc name="${cell.name || ''}" header="${header}" hasMargin="${hasMargin ? 1 : 0}" protect="${protect}" editable="0" dirty="0" borderFillIDRef="${borderFillIDRef}"><hp:subList id="" textDirection="${textDirection}" lineWrap="BREAK" vertAlign="${vertAlign}" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${contentXml}</hp:subList><hp:cellAddr colAddr="${colAddr}" rowAddr="${rowAddr}"/><hp:cellSpan colSpan="${colSpan}" rowSpan="${rowSpan}"/><hp:cellSz width="${width}" height="${height}"/><hp:cellMargin left="${marginLeft}" right="${marginRight}" top="${marginTop}" bottom="${marginBottom}"/></hp:tc>`;
+  return `\n    <hp:tc name="${cell.name || ''}" header="${header}" hasMargin="${hasMargin ? 1 : 0}" protect="${protect}" editable="${editable}" dirty="0" borderFillIDRef="${borderFillIDRef}"><hp:subList id="" textDirection="${textDirection}" lineWrap="${lineWrap}" vertAlign="${vertAlign}" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${contentXml}</hp:subList><hp:cellAddr colAddr="${colAddr}" rowAddr="${rowAddr}"/><hp:cellSpan colSpan="${colSpan}" rowSpan="${rowSpan}"/><hp:cellSz width="${width}" height="${height}"/><hp:cellMargin left="${marginLeft}" right="${marginRight}" top="${marginTop}" bottom="${marginBottom}"/></hp:tc>`;
 }
