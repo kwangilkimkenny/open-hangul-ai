@@ -228,8 +228,8 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
     const name = getLocalName(node);
 
     if (name === 'p') {
-      const para = parseParagraph(node, styleMap, images, relsMap);
-      if (para) elements.push(para);
+      const paras = parseParagraph(node, styleMap, images, relsMap);
+      elements.push(...paras);
     } else if (name === 'tbl') {
       const table = parseTable(node, styleMap, images, relsMap);
       if (table) elements.push(table);
@@ -260,6 +260,12 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
       borderFillsCount: 0,
       sourceFormat: 'docx',
       fileName,
+    },
+    cleanup() {
+      for (const [, img] of images) {
+        if (img?.src) URL.revokeObjectURL(img.src);
+      }
+      images.clear();
     },
   };
 }
@@ -340,8 +346,9 @@ function parseParagraph(
   styleMap: Map<string, Record<string, any>>,
   images: Map<string, any>,
   relsMap: Map<string, string>,
-): Element {
+): Element[] {
   const runs: Run[] = [];
+  const resultElements: Element[] = [];
   const paraStyle: Record<string, any> = {};
 
   // 문단 속성
@@ -384,9 +391,9 @@ function parseParagraph(
         // 제목 스타일 감지
         const headingMatch = styleId.match(/^Heading(\d)$/i) || styleId.match(/^(\d)$/);
         if (headingMatch) {
-          const level = parseInt(headingMatch[1], 10);
+          const level = Math.min(Math.max(parseInt(headingMatch[1], 10), 1), 6);
           const sizeMap: Record<number, string> = { 1: '24pt', 2: '20pt', 3: '16pt', 4: '14pt', 5: '12pt', 6: '11pt' };
-          paraStyle._headingSize = sizeMap[level] || '12pt';
+          paraStyle._headingSize = sizeMap[level];
         }
         // 스타일맵에서 기본 run 스타일 가져오기
         if (styleMap.has(styleId)) {
@@ -420,8 +427,17 @@ function parseParagraph(
       if (drawing) {
         const imgEl = parseDrawing(drawing, images, relsMap);
         if (imgEl) {
-          // 이미지가 있으면 별도 요소 대신 플레이스홀더 텍스트
-          runs.push({ text: `[이미지]`, inlineStyle: { italic: true, color: '#2b579a' } });
+          // 현재까지 누적된 runs가 있으면 paragraph로 먼저 push
+          if (runs.length > 0) {
+            resultElements.push({
+              type: 'paragraph',
+              runs: [...runs],
+              style: Object.keys(paraStyle).length > 0 ? { ...paraStyle } : undefined,
+            });
+            runs.length = 0;
+          }
+          // 이미지 요소 push
+          resultElements.push(imgEl);
         }
         continue;
       }
@@ -478,20 +494,23 @@ function parseParagraph(
     }
   }
 
-  // 빈 문단
-  if (runs.length === 0) {
-    runs.push({ text: '' });
-  }
-
   // _headingSize, _baseRunStyle 제거 (내부용)
   delete paraStyle._headingSize;
   delete paraStyle._baseRunStyle;
 
-  return {
-    type: 'paragraph',
-    runs,
-    style: Object.keys(paraStyle).length > 0 ? paraStyle : undefined,
-  };
+  // 남은 runs가 있거나 이미지만 있는 경우에도 paragraph 추가
+  if (runs.length > 0 || resultElements.length === 0) {
+    if (runs.length === 0) {
+      runs.push({ text: '' });
+    }
+    resultElements.push({
+      type: 'paragraph',
+      runs,
+      style: Object.keys(paraStyle).length > 0 ? paraStyle : undefined,
+    });
+  }
+
+  return resultElements;
 }
 
 /**
@@ -636,7 +655,7 @@ function parseTable(
       for (let i = 0; i < tc.children.length; i++) {
         const child = tc.children[i];
         if (getLocalName(child) === 'p') {
-          cellElements.push(parseParagraph(child, styleMap, images, relsMap));
+          cellElements.push(...parseParagraph(child, styleMap, images, relsMap));
         }
       }
 

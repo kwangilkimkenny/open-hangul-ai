@@ -1538,6 +1538,23 @@ export class HWPXViewer {
       }
     }
 
+    // ✅ PDF 내보내기
+    if (filename && filename.toLowerCase().endsWith('.pdf')) {
+      logger.info('📄 Exporting as PDF...');
+      try {
+        const { exportToPDF } = await import('../pdf/exporter');
+        const targetName = filename || '문서.pdf';
+        await exportToPDF(this.container, { fileName: targetName });
+        logger.info('✅ PDF 파일 저장 완료');
+        showToast('success', 'PDF 저장', 'PDF 파일이 저장되었습니다.');
+        return { success: true, filename: targetName };
+      } catch (error) {
+        logger.error('❌ PDF 저장 실패:', error);
+        showToast('error', 'PDF 저장 실패', error.message);
+        throw error;
+      }
+    }
+
     // ✅ 새 문서인 경우: 빈 HWPX 템플릿을 생성하여 저장
     if (!this.state.currentFile || this.state.isNewDocument) {
       logger.info('📄 New document - generating HWPX from scratch...');

@@ -55,7 +55,8 @@ interface DocumentData {
 // Constants
 // =============================================
 
-const MAX_ROWS = 500;
+const MAX_ROWS = 10000;
+const VIRTUAL_SCROLL_THRESHOLD = 200;
 const DEFAULT_COL_WIDTH = 8.43; // Excel default column width in character units
 const PAGE_CONTENT_WIDTH = 624; // A4 content area: 794 - 85 - 85
 
@@ -356,7 +357,7 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
       colWidthsPx.push(excelWidthToPixels(charWidth));
     }
 
-    const totalWidthPx = colWidthsPx.reduce((a, b) => a + b, 0);
+    const totalWidthPx = colWidthsPx.reduce((a, b) => a + b, 0) || 1;
     const colWidthsPercent = colWidthsPx.map(px => `${(px / totalWidthPx * 100).toFixed(2)}%`);
 
     // 병합 셀 맵
@@ -499,6 +500,12 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
         width: '100%',
       };
 
+      // 대량 행 시 렌더러에 최적화 힌트 전달 (display:block + overflow 처리용)
+      if (rows.length > VIRTUAL_SCROLL_THRESHOLD) {
+        tableStyle.maxHeight = '600px';
+        tableStyle.overflow = 'auto';
+      }
+
       elements.push({
         type: 'table',
         rows,
@@ -569,6 +576,14 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
       borderFillsCount: 0,
       sourceFormat: 'excel',
       fileName,
+      truncated: truncatedSheets.length > 0,
+      originalRowCount: truncatedSheets.length > 0
+        ? Object.fromEntries(
+            workbook.worksheets
+              .filter((ws: any) => ws && truncatedSheets.includes(ws.name))
+              .map((ws: any) => [ws.name, ws.rowCount])
+          )
+        : undefined,
       truncatedSheets: truncatedSheets.length > 0 ? truncatedSheets : undefined,
     },
   };
