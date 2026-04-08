@@ -1,284 +1,309 @@
 /**
- * Annotation Manager - 주석 관리
+ * Annotation Manager v2.0
+ * 문서 댓글/리뷰 시스템
+ *
+ * @module features/annotation-manager
+ * @version 2.0.0
  */
 
 import { getLogger } from '../utils/logger.js';
 
 const logger = getLogger();
 
-/**
- * Annotation Manager 클래스
- */
-export class AnnotationManager {
-    constructor(options = {}) {
-        this.options = {
-            storageKey: 'hwpx-annotations',
-            maxAnnotations: 100,
-            defaultColor: '#ffeb3b',
-            ...options
-        };
-        
-        this.annotations = this.load();
-        
-        logger.info('AnnotationManager initialized');
-    }
-    
-    /**
-     * 주석 추가
-     */
-    add(selection, type = 'highlight', data = {}) {
-        if (!selection) {
-            throw new Error('Selection is required');
-        }
-        
-        const annotation = {
-            id: Date.now().toString(),
-            type, // highlight, note, underline
-            text: selection.toString(),
-            color: data.color || this.options.defaultColor,
-            note: data.note || '',
-            pageNumber: this.getCurrentPage(),
-            createdAt: new Date().toISOString(),
-            position: this.getSelectionPosition(selection),
-            ...data
-        };
-        
-        // 최대 개수 체크
-        if (this.annotations.length >= this.options.maxAnnotations) {
-            this.annotations.shift();
-        }
-        
-        this.annotations.push(annotation);
-        this.save();
-        
-        // DOM에 주석 표시
-        this.renderAnnotation(annotation, selection);
-        
-        logger.info(`Annotation added: ${annotation.type}`);
-        
-        return annotation;
-    }
-    
-    /**
-     * 주석 제거
-     */
-    remove(annotationId) {
-        const index = this.annotations.findIndex(a => a.id === annotationId);
-        
-        if (index === -1) {
-            logger.warn(`Annotation not found: ${annotationId}`);
-            return false;
-        }
-        
-        this.annotations.splice(index, 1);
-        this.save();
-        
-        // DOM에서 제거
-        const element = document.querySelector(`[data-annotation-id="${annotationId}"]`);
-        if (element) {
-            const text = document.createTextNode(element.textContent);
-            element.parentNode.replaceChild(text, element);
-        }
-        
-        logger.info(`Annotation removed: ${annotationId}`);
-        
-        return true;
-    }
-    
-    /**
-     * 주석 업데이트
-     */
-    update(annotationId, updates) {
-        const annotation = this.annotations.find(a => a.id === annotationId);
-        
-        if (!annotation) {
-            logger.warn(`Annotation not found: ${annotationId}`);
-            return null;
-        }
-        
-        Object.assign(annotation, updates);
-        this.save();
-        
-        // DOM 업데이트
-        const element = document.querySelector(`[data-annotation-id="${annotationId}"]`);
-        if (element && updates.color) {
-            element.style.backgroundColor = updates.color;
-        }
-        
-        logger.info(`Annotation updated: ${annotationId}`);
-        
-        return annotation;
-    }
-    
-    /**
-     * 모든 주석 가져오기
-     */
-    getAll() {
-        return [...this.annotations];
-    }
-    
-    /**
-     * 특정 페이지의 주석 가져오기
-     */
-    getByPage(pageNumber) {
-        return this.annotations.filter(a => a.pageNumber === pageNumber);
-    }
-    
-    /**
-     * 주석 타입별 가져오기
-     */
-    getByType(type) {
-        return this.annotations.filter(a => a.type === type);
-    }
-    
-    /**
-     * 모든 주석 제거
-     */
-    clear() {
-        // DOM에서 제거
-        document.querySelectorAll('[data-annotation-id]').forEach(el => {
-            const text = document.createTextNode(el.textContent);
-            el.parentNode.replaceChild(text, el);
-        });
-        
-        this.annotations = [];
-        this.save();
-        
-        logger.info('All annotations cleared');
-    }
-    
-    /**
-     * DOM에 주석 렌더링
-     */
-    renderAnnotation(annotation, selection) {
-        const range = selection.getRangeAt(0);
-        const span = document.createElement('span');
-        
-        span.className = `annotation annotation-${annotation.type}`;
-        span.setAttribute('data-annotation-id', annotation.id);
-        span.style.cssText = `
-            background-color: ${annotation.color};
-            padding: 2px 0;
-            cursor: pointer;
-            position: relative;
-        `;
-        
-        // 노트가 있으면 툴팁 추가
-        if (annotation.note) {
-            span.title = annotation.note;
-            span.style.borderBottom = '2px dotted rgba(0,0,0,0.3)';
-        }
-        
-        // 클릭 이벤트
-        span.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.showAnnotationDetails(annotation);
-        });
-        
-        try {
-            range.surroundContents(span);
-        } catch (e) {
-            // 여러 요소에 걸친 선택의 경우 폴백
-            logger.warn('Could not surround contents, using fallback');
-        }
-    }
-    
-    /**
-     * 주석 상세 정보 표시
-     */
-    showAnnotationDetails(annotation) {
-        // 간단한 알림 표시 (실제로는 모달이나 사이드 패널 사용)
-        const message = `
-주석 정보:
-- 텍스트: ${annotation.text.substring(0, 50)}...
-- 타입: ${annotation.type}
-- 노트: ${annotation.note || '없음'}
-- 생성일: ${new Date(annotation.createdAt).toLocaleString()}
-        `.trim();
-        
-        alert(message);
-    }
-    
-    /**
-     * 현재 페이지 번호 가져오기
-     */
-    getCurrentPage() {
-        // 실제로는 스크롤 위치나 다른 방법으로 계산
-        return 1;
-    }
-    
-    /**
-     * 선택 영역의 위치 정보 저장
-     */
-    getSelectionPosition(selection) {
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        
-        return {
-            startOffset: range.startOffset,
-            endOffset: range.endOffset,
-            top: rect.top,
-            left: rect.left
-        };
-    }
-    
-    /**
-     * 로컬 스토리지에 저장
-     */
-    save() {
-        try {
-            localStorage.setItem(
-                this.options.storageKey,
-                JSON.stringify(this.annotations)
-            );
-        } catch (error) {
-            logger.error(`Failed to save annotations: ${error.message}`);
-        }
-    }
-    
-    /**
-     * 로컬 스토리지에서 로드
-     */
-    load() {
-        try {
-            const data = localStorage.getItem(this.options.storageKey);
-            return data ? JSON.parse(data) : [];
-        } catch (error) {
-            logger.error(`Failed to load annotations: ${error.message}`);
-            return [];
-        }
-    }
-    
-    /**
-     * JSON으로 내보내기
-     */
-    export() {
-        return JSON.stringify(this.annotations, null, 2);
-    }
-    
-    /**
-     * JSON에서 가져오기
-     */
-    import(jsonString) {
-        try {
-            const imported = JSON.parse(jsonString);
-            
-            if (!Array.isArray(imported)) {
-                throw new Error('Invalid annotation data');
-            }
-            
-            this.annotations = imported;
-            this.save();
-            
-            logger.info(`Imported ${imported.length} annotations`);
-            
-            return true;
-        } catch (error) {
-            logger.error(`Failed to import annotations: ${error.message}`);
-            return false;
-        }
-    }
+let commentIdCounter = 0;
+function generateCommentId() {
+  return `comment-${Date.now()}-${++commentIdCounter}`;
 }
 
-export default AnnotationManager;
+/**
+ * 댓글 관리자
+ * 문서 모델 앵커 기반 댓글 시스템 (스레딩, resolve/unresolve)
+ */
+export class AnnotationManager {
+  /**
+   * @param {Object} viewer - HWPX Viewer 인스턴스
+   */
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.comments = [];
+    this.onChangeCallback = null;
 
+    logger.info('AnnotationManager v2.0 initialized');
+  }
+
+  /**
+   * 댓글 추가
+   * @param {Object} anchor - 문서 위치 앵커
+   * @param {string} text - 댓글 텍스트
+   * @param {string} author - 작성자
+   * @returns {Object} 생성된 댓글
+   */
+  addComment(anchor, text, author = '사용자') {
+    if (!text?.trim()) throw new Error('댓글 텍스트가 필요합니다');
+
+    const comment = {
+      id: generateCommentId(),
+      author,
+      timestamp: Date.now(),
+      text: text.trim(),
+      anchor: anchor ? { ...anchor } : null,
+      parentId: null,
+      resolved: false,
+      resolvedBy: null,
+      resolvedAt: null,
+    };
+
+    this.comments.push(comment);
+    this._applyHighlight(comment);
+    this._notifyChange('add', comment);
+
+    logger.info(`Comment added: ${comment.id} by ${author}`);
+    return comment;
+  }
+
+  /**
+   * 답글 추가
+   * @param {string} parentId - 부모 댓글 ID
+   * @param {string} text - 답글 텍스트
+   * @param {string} author - 작성자
+   * @returns {Object} 생성된 답글
+   */
+  addReply(parentId, text, author = '사용자') {
+    const parent = this.comments.find(c => c.id === parentId);
+    if (!parent) throw new Error(`부모 댓글을 찾을 수 없습니다: ${parentId}`);
+    if (!text?.trim()) throw new Error('답글 텍스트가 필요합니다');
+
+    const reply = {
+      id: generateCommentId(),
+      author,
+      timestamp: Date.now(),
+      text: text.trim(),
+      anchor: parent.anchor ? { ...parent.anchor } : null,
+      parentId,
+      resolved: false,
+      resolvedBy: null,
+      resolvedAt: null,
+    };
+
+    this.comments.push(reply);
+    this._notifyChange('reply', reply);
+
+    logger.info(`Reply added: ${reply.id} to ${parentId}`);
+    return reply;
+  }
+
+  /**
+   * 댓글 수정
+   */
+  updateComment(commentId, newText) {
+    const comment = this.comments.find(c => c.id === commentId);
+    if (!comment) return null;
+
+    comment.text = newText.trim();
+    comment.editedAt = Date.now();
+    this._notifyChange('update', comment);
+    return comment;
+  }
+
+  /**
+   * 댓글 삭제 (답글도 함께 삭제)
+   */
+  deleteComment(commentId) {
+    const idx = this.comments.findIndex(c => c.id === commentId);
+    if (idx === -1) return false;
+
+    // 답글도 삭제
+    const replyIds = this.comments
+      .filter(c => c.parentId === commentId)
+      .map(c => c.id);
+
+    this._removeHighlight(commentId);
+    this.comments = this.comments.filter(
+      c => c.id !== commentId && c.parentId !== commentId
+    );
+
+    this._notifyChange('delete', { id: commentId, replyIds });
+    logger.info(`Comment deleted: ${commentId} (+${replyIds.length} replies)`);
+    return true;
+  }
+
+  /**
+   * 댓글 해결
+   */
+  resolveComment(commentId, author = '사용자') {
+    const comment = this.comments.find(c => c.id === commentId && !c.parentId);
+    if (!comment) return false;
+
+    comment.resolved = true;
+    comment.resolvedBy = author;
+    comment.resolvedAt = Date.now();
+    this._updateHighlight(commentId, true);
+    this._notifyChange('resolve', comment);
+
+    logger.info(`Comment resolved: ${commentId} by ${author}`);
+    return true;
+  }
+
+  /**
+   * 댓글 해결 취소
+   */
+  unresolveComment(commentId) {
+    const comment = this.comments.find(c => c.id === commentId && !c.parentId);
+    if (!comment) return false;
+
+    comment.resolved = false;
+    comment.resolvedBy = null;
+    comment.resolvedAt = null;
+    this._updateHighlight(commentId, false);
+    this._notifyChange('unresolve', comment);
+
+    logger.info(`Comment unresolved: ${commentId}`);
+    return true;
+  }
+
+  /**
+   * 특정 요소의 댓글 조회
+   */
+  getCommentsByElement(sectionIndex, elementIndex) {
+    return this.comments.filter(c =>
+      c.anchor &&
+      c.anchor.sectionIndex === sectionIndex &&
+      c.anchor.elementIndex === elementIndex &&
+      !c.parentId
+    );
+  }
+
+  /**
+   * 스레드 형태로 모든 댓글 조회 (부모 + 답글 그룹핑)
+   */
+  getThreads() {
+    const topLevel = this.comments.filter(c => !c.parentId);
+    return topLevel.map(parent => ({
+      ...parent,
+      replies: this.comments
+        .filter(c => c.parentId === parent.id)
+        .sort((a, b) => a.timestamp - b.timestamp),
+    }));
+  }
+
+  /**
+   * 모든 댓글 조회
+   */
+  getAllComments() {
+    return [...this.comments];
+  }
+
+  /**
+   * 해결된/미해결 댓글 필터
+   */
+  getByStatus(resolved) {
+    return this.comments.filter(c => !c.parentId && c.resolved === resolved);
+  }
+
+  /**
+   * 댓글 수 통계
+   */
+  getStats() {
+    const topLevel = this.comments.filter(c => !c.parentId);
+    return {
+      total: topLevel.length,
+      resolved: topLevel.filter(c => c.resolved).length,
+      unresolved: topLevel.filter(c => !c.resolved).length,
+      replies: this.comments.filter(c => c.parentId).length,
+    };
+  }
+
+  /**
+   * DOM 하이라이트 적용
+   */
+  _applyHighlight(comment) {
+    if (!comment.anchor || !this.viewer.container) return;
+    const { sectionIndex, elementIndex } = comment.anchor;
+    const pages = this.viewer.container.querySelectorAll('.hwp-page-container, .hwp-page');
+    if (!pages[sectionIndex]) return;
+
+    const elements = pages[sectionIndex].querySelectorAll('.hwp-paragraph, .hwp-table');
+    const el = elements[elementIndex];
+    if (el) {
+      el.classList.add('comment-highlight');
+      el.setAttribute('data-comment-id', comment.id);
+    }
+  }
+
+  /**
+   * DOM 하이라이트 제거
+   */
+  _removeHighlight(commentId) {
+    if (!this.viewer.container) return;
+    const el = this.viewer.container.querySelector(`[data-comment-id="${commentId}"]`);
+    if (el) {
+      el.classList.remove('comment-highlight', 'comment-resolved');
+      el.removeAttribute('data-comment-id');
+    }
+  }
+
+  /**
+   * DOM 하이라이트 상태 업데이트
+   */
+  _updateHighlight(commentId, resolved) {
+    if (!this.viewer.container) return;
+    const el = this.viewer.container.querySelector(`[data-comment-id="${commentId}"]`);
+    if (el) {
+      if (resolved) {
+        el.classList.add('comment-resolved');
+      } else {
+        el.classList.remove('comment-resolved');
+      }
+    }
+  }
+
+  /**
+   * 변경 콜백
+   */
+  onChange(callback) {
+    this.onChangeCallback = callback;
+  }
+
+  _notifyChange(action, data) {
+    if (this.onChangeCallback) {
+      this.onChangeCallback({ action, data });
+    }
+    // 자동저장 트리거
+    if (this.viewer.autoSaveManager) {
+      this.viewer.autoSaveManager.markDirty();
+    }
+  }
+
+  /**
+   * 내보내기 (JSON)
+   */
+  exportComments() {
+    return JSON.stringify(this.comments);
+  }
+
+  /**
+   * 가져오기 (JSON)
+   */
+  importComments(json) {
+    try {
+      const imported = JSON.parse(json);
+      if (Array.isArray(imported)) {
+        this.comments = imported;
+        // 하이라이트 다시 적용
+        this.comments.filter(c => !c.parentId).forEach(c => this._applyHighlight(c));
+        logger.info(`Imported ${imported.length} comments`);
+      }
+    } catch (err) {
+      logger.error('Failed to import comments:', err);
+    }
+  }
+
+  /**
+   * 초기화
+   */
+  clear() {
+    this.comments.forEach(c => this._removeHighlight(c.id));
+    this.comments = [];
+    this._notifyChange('clear', null);
+  }
+}

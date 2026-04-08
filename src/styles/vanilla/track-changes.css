@@ -1,0 +1,52 @@
+/* Track Changes Styles */
+
+/* 삽입 (Insert) */
+.tc-insert {
+  text-decoration: underline;
+  text-decoration-color: #2e7d32;
+  text-underline-offset: 2px;
+  background-color: rgba(46, 125, 50, 0.08);
+  border-left: 2px solid #2e7d32;
+  position: relative;
+}
+
+.tc-insert::after {
+  content: attr(data-tc-author);
+  position: absolute;
+  right: -4px;
+  top: -8px;
+  font-size: 8px;
+  color: #2e7d32;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 삭제 (Delete) */
+.tc-delete {
+  text-decoration: line-through;
+  text-decoration-color: #c62828;
+  color: #c62828 !important;
+  opacity: 0.6;
+  background-color: rgba(198, 40, 40, 0.06);
+  border-left: 2px solid #c62828;
+}
+
+/* 수정 (Modify) */
+.tc-modify {
+  border-bottom: 2px dotted #1565c0;
+  background-color: rgba(21, 101, 192, 0.06);
+  border-left: 2px solid #1565c0;
+}
+
+/* 수락됨 */
+.tc-accepted {
+  text-decoration: none;
+  background: none;
+  border-left: none;
+  opacity: 1;
+}
+
+/* 거부됨 */
+.tc-rejected {
+  display: none;
+}

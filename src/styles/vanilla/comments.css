@@ -1,0 +1,23 @@
+/* Comments System Styles */
+
+.comment-highlight {
+  background-color: rgba(255, 235, 59, 0.2);
+  border-right: 3px solid #fdd835;
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.comment-highlight:hover {
+  background-color: rgba(255, 235, 59, 0.35);
+}
+
+.comment-resolved {
+  background-color: rgba(200, 200, 200, 0.15);
+  border-right-color: #bdbdbd;
+}
+
+.comment-active {
+  background-color: rgba(255, 235, 59, 0.4);
+  box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.5);
+}

@@ -48,7 +48,7 @@ export class HistoryManagerV2 {
      * @param {Function} undo - Undo 함수 (이전 상태로 복원)
      * @param {string} actionName - 액션 이름
      */
-    execute(execute, undo, actionName = 'Edit') {
+    execute(execute, undo, actionName = 'Edit', metadata = null) {
         if (this.isExecuting) {
             logger.warn('⚠️ Already executing a command, skipping history');
             execute();
@@ -66,7 +66,8 @@ export class HistoryManagerV2 {
                 execute,  // ✅ Redo를 위해 저장
                 undo,
                 actionName,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                metadata
             });
 
             // 최대 히스토리 제한
