@@ -396,6 +396,12 @@ export function renderParagraph(para) {
         logger.debug(`[Paragraph Renderer] Background-only paragraph - height set to 0`);
     }
 
+    // 수식 렌더링 (KaTeX) — 비동기로 후처리
+    if (para.runs?.some(r => r.text && (r.text.includes('$') || r.text.includes('\\(') || r.text.includes('\\[')))) {
+        import('../../math/renderer').then(({ renderMathInElement }) => {
+            renderMathInElement(paraDiv).catch(() => {});
+        }).catch(() => {});
+    }
 
     return paraDiv;
 

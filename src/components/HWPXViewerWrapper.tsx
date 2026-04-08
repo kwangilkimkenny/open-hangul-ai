@@ -242,6 +242,84 @@ export function HWPXViewerWrapper({
         return;
       }
 
+      // PDF 파일인 경우 문서 데이터로 직접 변환
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        toast.loading('PDF 로드 중...', { id: 'loading' });
+        try {
+          const buffer = await file.arrayBuffer();
+          const { parsePDF } = await import('../lib/pdf/parser');
+          const pdfDocument = await parsePDF(buffer, file.name);
+          await viewerRef.current.updateDocument(pdfDocument as any);
+          (viewerRef.current as any).state.pdfSource = true;
+          (viewerRef.current as any).state.isNewDocument = true;
+          toast.dismiss('loading');
+          toast.success('PDF 문서 로드 완료');
+          setIsLoading(false);
+          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+            (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
+          }
+          document.body.classList.add('global-edit-mode');
+        } catch (pdfError: any) {
+          toast.dismiss('loading');
+          devError('PDF parse failed:', pdfError);
+          toast.error(`PDF 로드 실패: ${pdfError?.message}`);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // ODF 파일인 경우 (ODT/ODS) 문서 데이터로 직접 변환
+      if (file.name.toLowerCase().match(/\.(odt|ods|odp)$/)) {
+        toast.loading('ODF 로드 중...', { id: 'loading' });
+        try {
+          const buffer = await file.arrayBuffer();
+          const { parseODF } = await import('../lib/odf/parser');
+          const odfDocument = await parseODF(buffer, file.name);
+          await viewerRef.current.updateDocument(odfDocument as any);
+          (viewerRef.current as any).state.odfSource = true;
+          (viewerRef.current as any).state.isNewDocument = true;
+          toast.dismiss('loading');
+          toast.success('ODF 문서 로드 완료');
+          setIsLoading(false);
+          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+            (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
+          }
+          document.body.classList.add('global-edit-mode');
+        } catch (odfError: any) {
+          toast.dismiss('loading');
+          devError('ODF parse failed:', odfError);
+          toast.error(`ODF 로드 실패: ${odfError?.message}`);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // PPTX 파일인 경우 문서 데이터로 직접 변환
+      if (file.name.toLowerCase().match(/\.(pptx|ppt)$/)) {
+        toast.loading('PPTX 로드 중...', { id: 'loading' });
+        try {
+          const buffer = await file.arrayBuffer();
+          const { parsePptx } = await import('../lib/pptx/parser');
+          const pptxDocument = await parsePptx(buffer, file.name);
+          await viewerRef.current.updateDocument(pptxDocument as any);
+          (viewerRef.current as any).state.pptxSource = true;
+          (viewerRef.current as any).state.isNewDocument = true;
+          toast.dismiss('loading');
+          toast.success('PPTX 문서 로드 완료');
+          setIsLoading(false);
+          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+            (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
+          }
+          document.body.classList.add('global-edit-mode');
+        } catch (pptxError: any) {
+          toast.dismiss('loading');
+          devError('PPTX parse failed:', pptxError);
+          toast.error(`PPTX 로드 실패: ${pptxError?.message}`);
+          setIsLoading(false);
+        }
+        return;
+      }
+
       // HWP 파일인 경우 HWPX로 변환
       if (file.name.toLowerCase().endsWith('.hwp')) {
         toast.loading('HWP → HWPX 변환 중...', { id: 'loading' });
@@ -249,10 +327,12 @@ export function HWPXViewerWrapper({
           const arrayBuffer = await file.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
 
-          // 매직바이트 검증 (OLE Compound Document: D0 CF 11 E0 A1 B1 1A E1)
+          // 매직바이트 검증 (OLE Compound Document: D0 CF 11 E0 A1 B1 1A E1 — 8바이트 전체)
           if (uint8Array.length < 8 ||
               uint8Array[0] !== 0xD0 || uint8Array[1] !== 0xCF ||
-              uint8Array[2] !== 0x11 || uint8Array[3] !== 0xE0) {
+              uint8Array[2] !== 0x11 || uint8Array[3] !== 0xE0 ||
+              uint8Array[4] !== 0xA1 || uint8Array[5] !== 0xB1 ||
+              uint8Array[6] !== 0x1A || uint8Array[7] !== 0xE1) {
             toast.dismiss('loading');
             toast.error('유효한 HWP 파일이 아닙니다. 파일이 손상되었거나 지원되지 않는 형식입니다.');
             setIsLoading(false);
@@ -430,7 +510,7 @@ export function HWPXViewerWrapper({
           devLog('⌨️ Ctrl+O: 파일 열기');
           const input = document.createElement('input');
           input.type = 'file';
-          input.accept = '.hwpx,.hwp,.md,.xlsx,.xls,.docx';
+          input.accept = '.hwpx,.hwp,.md,.xlsx,.xls,.docx,.pdf,.odt,.ods,.pptx';
           input.onchange = ev => {
             const file = (ev.target as HTMLInputElement).files?.[0];
             if (file) handleFileOpen(file);
