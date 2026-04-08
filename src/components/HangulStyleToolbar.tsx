@@ -408,8 +408,8 @@ SSE 응답 이벤트:
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.name.toLowerCase().match(/\.(hwpx|hwp|md)$/i)) {
-        toast.error('HWP/HWPX/MD 파일만 지원됩니다');
+      if (!file.name.toLowerCase().match(/\.(hwpx|hwp|md|xlsx|xls|docx)$/i)) {
+        toast.error('HWP/HWPX/MD/Excel/DOCX 파일만 지원됩니다');
         return;
       }
       onFileSelect?.(file);
@@ -536,6 +536,40 @@ SSE 응답 이벤트:
       { label: '다른 이름으로 저장', shortcut: 'Ctrl+Shift+S', action: handleSaveAs },
       { label: '', divider: true },
       { label: 'PDF로 내보내기', action: handleExportPDF },
+      { label: 'Word(DOCX)로 내보내기', action: async () => {
+        setActiveMenu(null);
+        const v = (viewer || (window as any).__hwpxViewer) as any;
+        if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
+        try {
+          const doc = v.getDocument?.();
+          if (!doc) { toast.error('내보낼 문서가 없습니다'); return; }
+          toast.loading('DOCX 내보내기 중...', { id: 'docx-export' });
+          const { downloadDocx } = await import('../lib/docx/parser');
+          await downloadDocx(doc);
+          toast.dismiss('docx-export');
+          toast.success('DOCX 내보내기 완료');
+        } catch (err: any) {
+          toast.dismiss('docx-export');
+          toast.error(`DOCX 내보내기 실패: ${err?.message}`);
+        }
+      }},
+      { label: 'Excel로 내보내기', action: async () => {
+        setActiveMenu(null);
+        const v = (viewer || (window as any).__hwpxViewer) as any;
+        if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
+        try {
+          const doc = v.getDocument?.();
+          if (!doc) { toast.error('내보낼 문서가 없습니다'); return; }
+          toast.loading('Excel 내보내기 중...', { id: 'excel-export' });
+          const { downloadExcel } = await import('../lib/excel/parser');
+          await downloadExcel(doc);
+          toast.dismiss('excel-export');
+          toast.success('Excel 내보내기 완료');
+        } catch (err: any) {
+          toast.dismiss('excel-export');
+          toast.error(`Excel 내보내기 실패: ${err?.message}`);
+        }
+      }},
       { label: 'Markdown으로 내보내기', action: async () => {
         setActiveMenu(null);
         const v = (viewer || (window as any).__hwpxViewer) as any;
@@ -750,7 +784,7 @@ SSE 응답 이벤트:
 
   return (
     <div ref={menuRef} className="hwp-menubar">
-      <input ref={fileInputRef} type="file" accept=".hwpx,.hwp,.md" onChange={handleFileChange} style={{ display: 'none' }} />
+      <input ref={fileInputRef} type="file" accept=".hwpx,.hwp,.md,.xlsx,.xls,.docx" onChange={handleFileChange} style={{ display: 'none' }} />
       {Object.entries(menus).map(([name, items]) => (
         <div key={name} className="hwp-menu-item-wrapper">
           <button

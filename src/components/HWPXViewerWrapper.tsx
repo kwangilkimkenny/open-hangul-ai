@@ -163,6 +163,58 @@ export function HWPXViewerWrapper({
 
       let fileToLoad = file;
 
+      // DOCX 파일인 경우 문서 데이터로 직접 변환
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        toast.loading('DOCX 로드 중...', { id: 'loading' });
+        try {
+          const buffer = await file.arrayBuffer();
+          const { parseDocx } = await import('../lib/docx/parser');
+          const docxDocument = await parseDocx(buffer, file.name);
+          await viewerRef.current.updateDocument(docxDocument as any);
+          (viewerRef.current as any).state.docxSource = true;
+          (viewerRef.current as any).state.isNewDocument = true;
+          toast.dismiss('loading');
+          toast.success('DOCX 문서 로드 완료');
+          setIsLoading(false);
+          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+            (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
+          }
+          document.body.classList.add('global-edit-mode');
+        } catch (docxError: any) {
+          toast.dismiss('loading');
+          devError('DOCX parse failed:', docxError);
+          toast.error(`DOCX 로드 실패: ${docxError?.message}`);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // Excel 파일인 경우 문서 데이터로 직접 변환
+      if (file.name.toLowerCase().match(/\.(xlsx|xls)$/)) {
+        toast.loading('Excel 로드 중...', { id: 'loading' });
+        try {
+          const buffer = await file.arrayBuffer();
+          const { parseExcel } = await import('../lib/excel/parser');
+          const excelDocument = await parseExcel(buffer, file.name);
+          await viewerRef.current.updateDocument(excelDocument as any);
+          (viewerRef.current as any).state.excelSource = true;
+          (viewerRef.current as any).state.isNewDocument = true;
+          toast.dismiss('loading');
+          toast.success('Excel 문서 로드 완료');
+          setIsLoading(false);
+          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+            (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
+          }
+          document.body.classList.add('global-edit-mode');
+        } catch (excelError: any) {
+          toast.dismiss('loading');
+          devError('Excel parse failed:', excelError);
+          toast.error(`Excel 로드 실패: ${excelError?.message}`);
+          setIsLoading(false);
+        }
+        return;
+      }
+
       // Markdown 파일인 경우 문서 데이터로 직접 변환
       if (file.name.toLowerCase().endsWith('.md')) {
         toast.loading('Markdown 로드 중...', { id: 'loading' });
@@ -378,7 +430,7 @@ export function HWPXViewerWrapper({
           devLog('⌨️ Ctrl+O: 파일 열기');
           const input = document.createElement('input');
           input.type = 'file';
-          input.accept = '.hwpx,.hwp,.md';
+          input.accept = '.hwpx,.hwp,.md,.xlsx,.xls,.docx';
           input.onchange = ev => {
             const file = (ev.target as HTMLInputElement).files?.[0];
             if (file) handleFileOpen(file);
@@ -474,8 +526,8 @@ export function HWPXViewerWrapper({
       const droppedFile = files[0];
 
       // HWPX 파일 확인
-      if (!droppedFile.name.toLowerCase().match(/\.(hwpx|hwp|md)$/)) {
-        toast.error('HWP/HWPX/MD 파일만 지원합니다');
+      if (!droppedFile.name.toLowerCase().match(/\.(hwpx|hwp|md|xlsx|xls|docx)$/)) {
+        toast.error('HWP/HWPX/MD/Excel/DOCX 파일만 지원합니다');
         return;
       }
 

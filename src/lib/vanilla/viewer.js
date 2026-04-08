@@ -1504,6 +1504,40 @@ export class HWPXViewer {
       logger.warn(`⚠️ Document is null or has no sections!`);
     }
 
+    // ✅ DOCX 소스 문서인 경우: .docx로 저장
+    if (this.state.docxSource) {
+      logger.info('📝 DOCX source document - saving as .docx...');
+      try {
+        const { downloadDocx } = await import('../docx/parser.ts');
+        const doc = this.getDocument();
+        if (!doc) throw new Error('저장할 문서가 없습니다.');
+        const targetName = filename || '문서.docx';
+        await downloadDocx(doc, targetName.endsWith('.docx') ? targetName : `${targetName}.docx`);
+        logger.info('✅ DOCX 파일 저장 완료');
+        return { success: true, filename: targetName };
+      } catch (error) {
+        logger.error('❌ DOCX 저장 실패:', error);
+        throw error;
+      }
+    }
+
+    // ✅ Excel 소스 문서인 경우: .xlsx로 저장
+    if (this.state.excelSource) {
+      logger.info('📊 Excel source document - saving as .xlsx...');
+      try {
+        const { downloadExcel } = await import('../excel/parser.ts');
+        const doc = this.getDocument();
+        if (!doc) throw new Error('저장할 문서가 없습니다.');
+        const targetName = filename || '문서.xlsx';
+        await downloadExcel(doc, targetName.endsWith('.xlsx') ? targetName : `${targetName}.xlsx`);
+        logger.info('✅ Excel 파일 저장 완료');
+        return { success: true, filename: targetName };
+      } catch (error) {
+        logger.error('❌ Excel 저장 실패:', error);
+        throw error;
+      }
+    }
+
     // ✅ 새 문서인 경우: 빈 HWPX 템플릿을 생성하여 저장
     if (!this.state.currentFile || this.state.isNewDocument) {
       logger.info('📄 New document - generating HWPX from scratch...');

@@ -66,6 +66,10 @@ export default defineConfig(({ mode }) => {
             if (id.includes('jszip')) {
               return 'lib-jszip';
             }
+            // docx/exceljs (문서 변환 라이브러리, lazy loaded)
+            if (id.includes('docx') || id.includes('exceljs')) {
+              return 'lib-docx-excel';
+            }
             if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
               return 'vendor-react';
             }
