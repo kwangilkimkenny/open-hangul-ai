@@ -190,7 +190,7 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
             gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml',
           };
           const objectUrl = URL.createObjectURL(new Blob([imgBlob], { type: mimeMap[ext] || 'image/png' }));
-          images.set(relId, { src: objectUrl, path: target });
+          images.set(relId, { src: objectUrl, path: target, data: imgBlob });
         } catch {
           // 이미지 로드 실패 무시
         }
@@ -835,9 +835,9 @@ function parsePageSettings(sectPr: globalThis.Element | undefined): {
 export async function exportToDocx(doc: DocumentData): Promise<Blob> {
   const docxLib = await import('docx');
   const {
-    Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+    Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell,
     WidthType, AlignmentType, BorderStyle, HeadingLevel,
-    VerticalAlign, ShadingType,
+    VerticalAlign, ShadingType, PageOrientation,
   } = docxLib;
 
   const children: any[] = [];
@@ -852,14 +852,43 @@ export async function exportToDocx(doc: DocumentData): Promise<Blob> {
           WidthType, AlignmentType, BorderStyle, VerticalAlign, ShadingType,
         });
         if (table) children.push(table);
+      } else if (el.type === 'image' && el.src) {
+        const imgPara = await buildDocxImage(el, doc.images, { Paragraph, ImageRun, TextRun });
+        children.push(imgPara);
       }
     }
   }
 
+  // 페이지 설정 추출
+  const firstSection = doc.sections[0];
+  const pageWidth = firstSection?.pageWidth || 794;
+  const pageHeight = firstSection?.pageHeight || 1123;
+  const ps = firstSection?.pageSettings || {};
+
+  const pxToTwip = (px: number) => Math.round(px * 1440 / 96);
+  const parsePx = (s: string | undefined) => parseInt(s || '0', 10);
+
+  const sectionProps: any = {
+    children,
+    properties: {
+      page: {
+        size: {
+          width: pxToTwip(pageWidth),
+          height: pxToTwip(pageHeight),
+          orientation: pageWidth > pageHeight ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
+        },
+        margin: {
+          top: pxToTwip(parsePx(ps.marginTop)),
+          right: pxToTwip(parsePx(ps.marginRight)),
+          bottom: pxToTwip(parsePx(ps.marginBottom)),
+          left: pxToTwip(parsePx(ps.marginLeft)),
+        },
+      },
+    },
+  };
+
   const document = new Document({
-    sections: [{
-      children,
-    }],
+    sections: [sectionProps],
   });
 
   return await Packer.toBlob(document);
@@ -1034,6 +1063,58 @@ function buildDocxTable(el: Element, lib: any): any {
     rows: tableRows,
     width: { size: 100, type: WidthType.PERCENTAGE },
     columnWidths: colWidths.length > 0 ? colWidths : undefined,
+  });
+}
+
+/**
+ * HWPXDocument image → docx ImageRun
+ */
+async function buildDocxImage(el: Element, images: Map<string, any>, lib: any): Promise<any> {
+  const { Paragraph, ImageRun } = lib;
+
+  // 이미지 데이터 찾기
+  let imageData: Uint8Array | null = null;
+
+  // objectURL에서 이미지 데이터 가져오기
+  if (el.src) {
+    // images Map에서 data 필드로 찾기
+    for (const [, img] of images) {
+      if (img.src === el.src && img.data) {
+        const blob = img.data instanceof Blob ? img.data : new Blob([img.data]);
+        const buffer = await blob.arrayBuffer();
+        imageData = new Uint8Array(buffer);
+        break;
+      }
+    }
+
+    // data 필드가 없으면 fetch로 시도
+    if (!imageData && el.src.startsWith('blob:')) {
+      try {
+        const resp = await fetch(el.src);
+        const buffer = await resp.arrayBuffer();
+        imageData = new Uint8Array(buffer);
+      } catch {
+        // fetch 실패 시 이미지 스킵
+      }
+    }
+  }
+
+  if (!imageData) {
+    // 이미지 없으면 플레이스홀더 텍스트 반환
+    return new Paragraph({ children: [new (lib.TextRun)({ text: '[이미지]', italics: true, color: '999999' })] });
+  }
+
+  const width = typeof el.width === 'number' ? el.width : parseInt(String(el.width) || '200', 10);
+  const height = typeof el.height === 'number' ? el.height : parseInt(String(el.height) || '150', 10);
+
+  return new Paragraph({
+    children: [
+      new ImageRun({
+        data: imageData,
+        transformation: { width, height },
+        type: 'png',
+      }),
+    ],
   });
 }
 

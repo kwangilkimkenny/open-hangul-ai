@@ -20,6 +20,7 @@ import { InlineEditor } from './features/inline-editor.js';
 // HistoryManager v1 제거 - v2로 통합 (2026-01-09)
 // import { HistoryManager } from './features/history-manager.js';
 import { HistoryManagerV2 } from './features/history-manager-v2.js';
+import { ChangeTracker } from './features/change-tracker.js';
 import { EditModeManager } from './features/edit-mode-manager.js';
 import { Command } from './command/command.js';
 import { CommandAdapt } from './command/command-adapt.js';
@@ -199,6 +200,10 @@ export class HWPXViewer {
       // HistoryManager V2 (함수 기반)
       this.historyManager = new HistoryManagerV2(this);
       logger.info('✅ HistoryManagerV2 initialized (function-based)');
+
+      // ChangeTracker (변경 추적)
+      this.changeTracker = new ChangeTracker(this);
+      logger.info('✅ ChangeTracker initialized');
 
       // Command 시스템
       this.commandAdapt = new CommandAdapt(this);

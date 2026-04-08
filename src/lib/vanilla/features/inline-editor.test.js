@@ -27,7 +27,7 @@ describe('InlineEditor', () => {
     mockHistoryManager = {
       undo: vi.fn(),
       redo: vi.fn(),
-      execute: vi.fn((execFn, undoFn, name) => execFn()),
+      execute: vi.fn((execFn, undoFn, name, metadata) => execFn()),
     };
 
     mockTextFormatter = {

@@ -945,7 +945,13 @@ export class InlineEditor {
               this.viewer.autoSaveManager.markDirty();
             }
           },
-          '텍스트 편집'
+          '텍스트 편집',
+          {
+            type: 'text_edit',
+            oldText: captureOldText,
+            newText: captureNewText,
+            cellData: targetData,
+          }
         );
       } else {
         // HistoryManager 없을 때
