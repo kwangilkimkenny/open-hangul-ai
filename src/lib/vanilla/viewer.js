@@ -21,6 +21,7 @@ import { InlineEditor } from './features/inline-editor.js';
 // import { HistoryManager } from './features/history-manager.js';
 import { HistoryManagerV2 } from './features/history-manager-v2.js';
 import { ChangeTracker } from './features/change-tracker.js';
+import { AnnotationManager } from './features/annotation-manager.js';
 import { EditModeManager } from './features/edit-mode-manager.js';
 import { Command } from './command/command.js';
 import { CommandAdapt } from './command/command-adapt.js';
@@ -204,6 +205,20 @@ export class HWPXViewer {
       // ChangeTracker (변경 추적)
       this.changeTracker = new ChangeTracker(this);
       logger.info('✅ ChangeTracker initialized');
+
+      // AnnotationManager (댓글/리뷰)
+      this.annotationManager = new AnnotationManager(this);
+      logger.info('✅ AnnotationManager v2.0 initialized');
+
+      // AccessibilityManager (접근성 — 비동기 초기화)
+      this.accessibilityManager = null;
+      import('../a11y/accessibility').then(({ AccessibilityManager }) => {
+        this.accessibilityManager = new AccessibilityManager(this.container);
+        this.accessibilityManager.init();
+        logger.info('✅ AccessibilityManager initialized');
+      }).catch(() => {
+        logger.warn('AccessibilityManager 로드 실패 — 접근성 기능 비활성');
+      });
 
       // Command 시스템
       this.commandAdapt = new CommandAdapt(this);

@@ -11,6 +11,8 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';
 import { devLog, devError, devWarn } from '../utils/logger';
+import { TrackChangesPanel } from './TrackChangesPanel';
+import { CommentsPanel } from './CommentsPanel';
 
 // ✅ 기존 작동하는 vanilla JS 뷰어 import
 import HWPXViewer from '../lib/vanilla/viewer.js';
@@ -60,6 +62,8 @@ export function HWPXViewerWrapper({
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({ count: 0, current: 0 });
+  const [showTrackChanges, setShowTrackChanges] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   // AI panel: use prop if provided, otherwise internal state
   const [showAIPanelInternal, setShowAIPanelInternal] = useState(false);
   const showAIPanel = showAIPanelProp !== undefined ? showAIPanelProp : showAIPanelInternal;
@@ -431,6 +435,18 @@ export function HWPXViewerWrapper({
     }
   }, [isInitialized, handleFileOpen]);
 
+  // ✅ 검토 패널 토글 이벤트 리스너
+  useEffect(() => {
+    const handleToggleTC = () => setShowTrackChanges(prev => !prev);
+    const handleToggleComments = () => setShowComments(prev => !prev);
+    window.addEventListener('toggle-track-changes-panel', handleToggleTC);
+    window.addEventListener('toggle-comments-panel', handleToggleComments);
+    return () => {
+      window.removeEventListener('toggle-track-changes-panel', handleToggleTC);
+      window.removeEventListener('toggle-comments-panel', handleToggleComments);
+    };
+  }, []);
+
   // ✅ 미저장 경고 (beforeunload)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -664,22 +680,35 @@ export function HWPXViewerWrapper({
 
   return (
     <>
-      {/* Viewer Container with Drag & Drop */}
-      <div
-        ref={containerRef}
-        id="hwpx-viewer-root"
-        className={`hwpx-viewer-wrapper ${className} ${isDragging ? 'dragging' : ''}`}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'relative',
-          overflow: 'auto',
-        }}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      />
+      {/* Viewer + Side Panels */}
+      <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+        {/* Viewer Container with Drag & Drop */}
+        <div
+          ref={containerRef}
+          id="hwpx-viewer-root"
+          className={`hwpx-viewer-wrapper ${className} ${isDragging ? 'dragging' : ''}`}
+          style={{
+            flex: 1,
+            height: '100%',
+            position: 'relative',
+            overflow: 'auto',
+          }}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        />
+
+        {/* Track Changes Panel */}
+        {showTrackChanges && viewerRef.current && (
+          <TrackChangesPanel viewer={viewerRef.current} onClose={() => setShowTrackChanges(false)} />
+        )}
+
+        {/* Comments Panel */}
+        {showComments && viewerRef.current && (
+          <CommentsPanel viewer={viewerRef.current} onClose={() => setShowComments(false)} />
+        )}
+      </div>
 
       {/* ✅ 드래그 오버레이 */}
       {isDragging && (
