@@ -66,26 +66,28 @@ function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null;
       return;
     }
 
-    const helpMarkdown = `# 오픈한글 AI v3.0.0 도움말
+    const helpMarkdown = `# 오픈한글 AI v4.0.0 도움말
 
-*AI 기반 한글 문서(HWP/HWPX) 편집기*
+*AI 기반 멀티포맷 문서 편집 플랫폼*
 
 ## 1. 편집기 소개
 
-오픈한글 AI는 웹 브라우저에서 한글 문서를 열고, 편집하고, AI로 업무를 자동화하는 문서 편집기입니다.
+오픈한글 AI는 웹 브라우저에서 다양한 포맷의 문서를 열고, 편집하고, AI로 업무를 자동화하는 차세대 문서 편집기입니다.
 
-- **지원 파일:** HWP (레거시 바이너리) + HWPX (최신 XML)
+- **지원 파일:** HWP, HWPX, DOCX, XLSX/XLS, PDF, PPTX, ODT, ODS, Markdown
 - **AI 엔진:** OpenAI GPT-4 (커스텀 LLM 연동 가능)
 - **기술 스택:** React 19 + TypeScript + Vite
-- **테스트:** 964개 단위 테스트 통과
+- **테스트:** 1,200개 이상 단위 테스트 통과
 
 ## 2. 주요 기능
 
-- **[파일]** 새 문서, 열기(HWP/HWPX), 저장, 다른 이름으로 저장, PDF 내보내기, 인쇄
+- **[파일]** 새 문서, 열기(9개 포맷), 저장, 다른 이름으로 저장, PDF 내보내기, 인쇄
 - **[편집]** 서식(굵게/기울임/밑줄), 글꼴 변경, 정렬, 목록, 들여쓰기, 실행취소/다시실행
 - **[삽입]** 표, 이미지, 특수문자, 머리글/바닥글, 각주, 페이지 나누기
-- **[AI]** 문서 편집, 요약, 메일 작성, 번역, 검토 의견, AI 친화 교정, 품질 검증 등 15개 AI 어시스턴트
-- **[보기]** 줌(25%~400%), 다크 모드
+- **[검토]** 변경추적(Track Changes), 댓글/답글, 수락/거부, 해결/미해결
+- **[AI]** 문서 편집, 요약, 메일 작성, 번역, 검토 의견, AI 친화 교정, 품질 검증, AI 포맷 변환 등
+- **[도구]** 문서 비교(diff), OCR(이미지→텍스트), 수식 렌더링(KaTeX)
+- **[보기]** 줌(25%~400%), 다크 모드, 고대비 모드(접근성)
 
 ## AI 문서 작성 방향
 
@@ -369,17 +371,131 @@ SSE 응답 이벤트:
 - \`429\` — Rate Limit 초과 → retry_after_seconds 후 재시도
 - \`500\` — 서버 오류 → 폴백 메시지 표시, 재시도
 
-## 9. 핵심 코드 위치
+## 9. 멀티포맷 지원
+
+### 9.1 지원 포맷 상세
+
+| 포맷 | 열기 | 저장 | 설명 |
+|---|---|---|---|
+| HWP | O | O (HWPX 변환) | 레거시 바이너리 한글 — 자동 HWPX 변환 |
+| HWPX | O | O (무손실) | 최신 XML 한글 — 원본 구조 완전 보존 |
+| DOCX | O | O | MS Word — 이미지, 표, 페이지 설정 보존 |
+| XLSX/XLS | O | O | Excel — 10,000행 대용량, 셀 스타일, 병합 |
+| PDF | O | O (내보내기) | 텍스트 추출 + 페이지 이미지 렌더링 |
+| PPTX | O | — | PowerPoint 슬라이드 — 텍스트, 이미지, 표 |
+| ODT | O | — | ODF 텍스트 — 스타일, 목록, 이미지 |
+| ODS | O | — | ODF 스프레드시트 — 시트, 셀, 병합 |
+| Markdown | O | O | 인라인 서식, 표, 코드블록 |
+
+### 9.2 DOCX 왕복(Roundtrip) 기능
+
+DOCX 파일을 열고 편집한 후 다시 DOCX로 저장할 때 다음이 보존됩니다:
+
+- 텍스트 서식 (굵게, 기울임, 밑줄, 글꼴, 크기, 색상)
+- 표 구조 (병합, 테두리, 배경색, 열 너비)
+- 이미지 (원본 해상도 유지)
+- 페이지 설정 (크기, 방향, 여백)
+- 제목 레벨 (Heading 1~6)
+
+## 10. 변경추적 & 댓글
+
+### 10.1 변경추적 (Track Changes)
+
+문서 편집 내역을 추적하고 수락/거부할 수 있습니다.
+
+- **추적 시작:** 도구 > 변경추적 패널에서 작성자 이름 입력 후 "추적 시작"
+- **시각 표시:** 삽입(초록 밑줄), 삭제(빨강 취소선), 수정(파랑 점선)
+- **수락/거부:** 개별 변경 또는 전체를 한 번에 수락/거부
+- **내보내기:** 변경 내역을 JSON으로 내보내기/가져오기 가능
+
+### 10.2 댓글 & 리뷰
+
+문서의 특정 위치에 댓글을 달고 협업할 수 있습니다.
+
+- **댓글 추가:** 텍스트를 선택하고 댓글 패널에서 작성
+- **답글:** 기존 댓글에 답글 스레드 생성
+- **해결:** 완료된 댓글을 "해결" 처리 (다시 열기 가능)
+- **삭제:** 댓글 삭제 시 답글도 함께 삭제
+- **표시:** 댓글 영역은 노란색 하이라이트, 해결됨은 회색
+
+## 11. 추가 도구
+
+### 11.1 문서 비교 (Diff)
+
+두 문서의 내용을 비교하여 추가/삭제/수정된 부분을 시각적으로 표시합니다.
+
+- LCS(최장 공통 부분수열) 알고리즘 기반
+- 유사도 자동 계산 (0~100%)
+- 수정된 라인은 Levenshtein 거리로 유사도 판별
+
+### 11.2 OCR (이미지→텍스트)
+
+이미지나 스캔 PDF에서 텍스트를 추출합니다.
+
+- **지원 언어:** 한국어 + 영어 (kor+eng)
+- **신뢰도 표시:** 인식 신뢰도가 낮은 단어는 노란색 배경으로 표시
+- **스캔 PDF:** PDF의 각 페이지를 이미지로 변환 후 OCR 수행
+
+### 11.3 수식 렌더링 (KaTeX)
+
+LaTeX 수식을 문서 내에서 렌더링합니다.
+
+- **인라인 수식:** \`$E=mc^2$\` → 인라인 렌더링
+- **블록 수식:** \`$$\\sum_{i=1}^{n} x_i$$\` → 독립 블록 렌더링
+- **자동 감지:** 문서 로드 시 수식 패턴 자동 감지 및 렌더링
+
+### 11.4 AI 포맷 변환
+
+AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합니다.
+
+- **지원 변환:** HWPX↔DOCX↔Markdown↔HTML
+- **표 보존:** 표 구조와 스타일이 변환 시 유지
+- **제목 감지:** 폰트 크기/굵기 기반 자동 제목 레벨 매핑
+
+## 12. 접근성
+
+### 12.1 ARIA 지원
+
+- 모든 문서 요소에 적절한 ARIA role 자동 적용 (document, table, cell, img)
+- 표의 colspan/rowspan이 aria-colspan/aria-rowspan으로 매핑
+- 스크린리더용 라이브 리전으로 상태 변경 알림
+
+### 12.2 키보드 네비게이션
+
+- Alt+방향키: 문서 요소 간 이동
+- Ctrl+Home/End: 문서 처음/끝으로 이동
+- Tab/Shift+Tab: 포커스 가능 요소 간 순회
+- Escape: 현재 포커스 해제
+
+### 12.3 고대비 모드
+
+시각 접근성을 위한 고대비 테마를 지원합니다.
+
+- 검정 배경 + 흰색 텍스트
+- 링크: 노란색
+- 포커스: 3px 노란색 아웃라인
+- 이미지: 대비 1.5배 강화
+
+## 13. 핵심 코드 위치
 
 | 파일 | 역할 |
 |---|---|
-| server/proxy.js | API 프록시 — AEGIS/TruthAnchor 연동 진입점 (여기만 수정하면 됨) |
-| src/lib/vanilla/ai/gpt-content-generator.js | LLM API 호출 — callAPI() 메서드가 실제 fetch 수행 |
-| src/lib/vanilla/ai/prompt-builder.js | 시스템/사용자 프롬프트 생성 — 보호 대상 프롬프트 |
-| src/lib/vanilla/config/ai-config.js | API 키, 엔드포인트, 프록시 URL 등 설정 관리 |
-| src/lib/vanilla/ai/ai-controller.js | AI 오케스트레이터 — 추출→생성→병합→렌더링 전체 흐름 제어 |
+| server/proxy.js | API 프록시 — AEGIS/TruthAnchor 연동 진입점 |
+| src/lib/vanilla/ai/ai-controller.js | AI 오케스트레이터 — 추출→생성→병합→렌더링 |
+| src/lib/vanilla/features/change-tracker.js | 변경추적 — 편집 메타데이터 캡처, 수락/거부 |
+| src/lib/vanilla/features/annotation-manager.js | 댓글 시스템 — 스레딩, resolve, 앵커 기반 |
+| src/lib/docx/parser.ts | DOCX 파서/익스포터 — 이미지, 표, 페이지 설정 |
+| src/lib/pdf/parser.ts | PDF 파서 — pdfjs-dist 텍스트 추출 |
+| src/lib/pdf/exporter.ts | PDF 내보내기 — html2canvas + jsPDF |
+| src/lib/pptx/parser.ts | PPTX 파서 — 슬라이드, 텍스트, 이미지 |
+| src/lib/odf/parser.ts | ODF 파서 — ODT/ODS 문서 |
+| src/lib/ocr/pipeline.ts | OCR — Tesseract.js 한/영 텍스트 추출 |
+| src/lib/math/renderer.ts | 수식 — KaTeX 기반 LaTeX 렌더링 |
+| src/lib/diff/document-diff.ts | 문서 비교 — LCS diff + 시각화 |
+| src/lib/ai/format-converter.ts | AI 포맷 변환 — MD/HTML/DOCX 간 변환 |
+| src/lib/a11y/accessibility.ts | 접근성 — ARIA, 키보드, 고대비, 스크린리더 |
 
-## 10. 보안 체크리스트
+## 14. 보안 체크리스트
 
 - API Key를 프론트엔드에 노출하지 않는다 (반드시 server/proxy.js 경유)
 - HTTPS만 사용한다
