@@ -203,11 +203,23 @@ export class ChangeTracker {
     const cellData = change.metadata?.cellData;
     if (!cellData) return;
 
-    // cellDataMap (WeakMap)을 통해 DOM 요소 접근
+    // 방법 1: cellDataMap (WeakMap)을 통해 DOM 요소 접근
     const editor = this.viewer.inlineEditor;
-    if (!editor?.cellDataMap) return;
+    let cellEl = editor?.cellDataMap?.get(cellData) || null;
 
-    const cellEl = editor.cellDataMap.get(cellData);
+    // 방법 2: WeakMap 실패 시 현재 편집 중인 셀로 폴백
+    if (!cellEl && editor?.editingCell) {
+      cellEl = editor.editingCell;
+    }
+
+    // 방법 3: 마지막으로 포커스된 editable 요소로 폴백
+    if (!cellEl) {
+      const active = document.activeElement;
+      if (active?.closest?.('[contenteditable="true"]')) {
+        cellEl = active.closest('.hwp-paragraph, td, th');
+      }
+    }
+
     if (!cellEl) return;
 
     // 변경 타입에 따른 CSS 클래스 적용
