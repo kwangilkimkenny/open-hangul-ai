@@ -74,28 +74,46 @@ export default defineConfig(({ mode }) => {
     chunkSizeWarningLimit: 500, // 500KB 경고 threshold
     rollupOptions: {
       output: {
-        // Manual chunks로 번들 분리
+        // Manual chunks로 번들 분리 (v4.0 최적화)
         manualChunks: (id) => {
           // node_modules 의존성 분리
           if (id.includes('node_modules')) {
-            // JSZip 우선 처리 (크기가 크므로 별도 분리)
-            if (id.includes('jszip')) {
-              return 'lib-jszip';
+            // === 무거운 단일 라이브러리 (lazy loaded 권장) ===
+            if (id.includes('jszip')) return 'lib-jszip';
+            if (id.includes('pdfjs-dist')) return 'lib-pdfjs';
+            if (id.includes('tesseract.js')) return 'lib-tesseract';
+            if (id.includes('html2canvas')) return 'lib-html2canvas';
+            if (id.includes('jspdf')) return 'lib-jspdf';
+            if (id.includes('katex')) return 'lib-katex';
+            if (id.includes('@tosspayments')) return 'lib-toss';
+
+            // === 문서 변환 라이브러리 (분리) ===
+            if (id.includes('node_modules/docx/')) return 'lib-docx';
+            if (id.includes('exceljs')) return 'lib-exceljs';
+            if (id.includes('node_modules/xlsx/')) return 'lib-xlsx';
+
+            // === Supabase (lazy loaded — 듀얼 모드) ===
+            if (id.includes('@supabase/supabase-js') || id.includes('@supabase/auth') ||
+                id.includes('@supabase/postgrest') || id.includes('@supabase/storage') ||
+                id.includes('@supabase/realtime') || id.includes('@supabase/functions')) {
+              return 'lib-supabase';
             }
-            // docx/exceljs (문서 변환 라이브러리, lazy loaded)
-            if (id.includes('docx') || id.includes('exceljs')) {
-              return 'lib-docx-excel';
-            }
-            if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
+
+            // === React 코어 ===
+            if (id.includes('node_modules/react/') ||
+                id.includes('node_modules/react-dom/') ||
+                id.includes('scheduler')) {
               return 'vendor-react';
             }
-            if (id.includes('lucide-react')) {
-              return 'vendor-icons';
-            }
-            if (id.includes('react-hot-toast') || id.includes('zustand')) {
-              return 'vendor-ui';
-            }
-            // 기타 node_modules는 vendor로
+
+            // === React Router (별도 분리) ===
+            if (id.includes('react-router')) return 'vendor-router';
+
+            // === UI 라이브러리 ===
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('react-hot-toast') || id.includes('zustand')) return 'vendor-ui';
+
+            // === 기타 ===
             return 'vendor';
           }
 
