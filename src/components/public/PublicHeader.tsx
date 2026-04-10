@@ -23,6 +23,7 @@ export function PublicHeader() {
         <Link to="/" className="public-logo">
           <span className="logo-mark">한</span>
           <span className="logo-text">오픈한글 AI</span>
+          <span className="logo-beta">BETA</span>
         </Link>
 
         <nav className="public-nav">
@@ -89,6 +90,26 @@ export function PublicHeader() {
           justify-content: center;
           font-size: 16px;
           font-weight: 800;
+        }
+        .logo-beta {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 7px;
+          background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+          color: #fff;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 0.8px;
+          border-radius: 4px;
+          margin-left: 2px;
+          line-height: 1.2;
+          text-transform: uppercase;
+          box-shadow: 0 1px 3px rgba(245, 158, 11, 0.3);
+          animation: betaPulse 2.5s ease-in-out infinite;
+        }
+        @keyframes betaPulse {
+          0%, 100% { box-shadow: 0 1px 3px rgba(245, 158, 11, 0.3); }
+          50% { box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5); }
         }
         .public-nav {
           display: flex;
