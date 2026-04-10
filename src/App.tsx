@@ -19,6 +19,7 @@ import EditorPage from './pages/EditorPage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
 import PaymentFailPage from './pages/PaymentFailPage';
 import LegalPage from './pages/LegalPages';
+import AdminDashboard from './pages/AdminDashboard';
 
 // Styles
 import './App.css';
@@ -62,6 +63,7 @@ function App() {
           <Route path="/payment/success" element={<PaymentSuccessPage />} />
           <Route path="/payment/fail" element={<PaymentFailPage />} />
           <Route path="/legal/:type" element={<LegalPage />} />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/editor" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
