@@ -20,6 +20,7 @@
  */
 
 import type { PaymentRequest } from './types';
+import { getSupabase, isSupabaseEnabled } from '../supabase/client';
 
 interface KakaoReadyResponse {
   tid: string;                    // 결제 고유 번호
@@ -54,27 +55,27 @@ interface KakaoApproveResponse {
 export async function readyKakaoPayment(
   req: PaymentRequest,
 ): Promise<KakaoReadyResponse> {
-  // 운영 환경: 실제 백엔드 호출
-  // const response = await fetch('/api/payments/kakao/ready', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({
-  //     cid: 'TC0ONETIME',
-  //     partner_order_id: req.orderId,
-  //     partner_user_id: req.customerEmail,
-  //     item_name: req.orderName,
-  //     quantity: 1,
-  //     total_amount: req.amount,
-  //     tax_free_amount: 0,
-  //     approval_url: req.successUrl,
-  //     fail_url: req.failUrl,
-  //     cancel_url: req.failUrl + '?canceled=true',
-  //   }),
-  // });
-  // if (!response.ok) throw new Error('카카오페이 결제 준비 실패');
-  // return await response.json();
+  // Supabase 모드: Edge Function 호출
+  if (isSupabaseEnabled) {
+    const supabase = getSupabase()!;
+    const { data, error } = await supabase.functions.invoke('kakao-ready', {
+      body: {
+        orderId: req.orderId,
+        orderName: req.orderName,
+        amount: req.amount,
+        planId: req.metadata?.planId,
+        period: req.metadata?.period,
+        successUrl: req.successUrl,
+        failUrl: req.failUrl,
+      },
+    });
 
-  // 데모 모드: 시뮬레이션 응답 생성
+    if (error) throw new Error(error.message || '카카오페이 결제 준비 실패');
+    if (data?.error) throw new Error(data.error);
+    return data as KakaoReadyResponse;
+  }
+
+  // 데모 모드 폴백
   console.info('[KakaoPay] 결제 준비 시뮬레이션:', req);
   await new Promise(resolve => setTimeout(resolve, 600));
 
@@ -108,21 +109,22 @@ export async function approveKakaoPayment(
   pgToken: string,
   partnerOrderId: string,
   partnerUserId: string,
+  meta?: { planId: string; planName: string; period: 'monthly' | 'yearly'; amount: number },
 ): Promise<KakaoApproveResponse> {
-  // 운영 환경: 실제 백엔드 호출
-  // const response = await fetch('/api/payments/kakao/approve', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({
-  //     cid: 'TC0ONETIME',
-  //     tid,
-  //     partner_order_id: partnerOrderId,
-  //     partner_user_id: partnerUserId,
-  //     pg_token: pgToken,
-  //   }),
-  // });
-  // if (!response.ok) throw new Error('카카오페이 결제 승인 실패');
-  // return await response.json();
+  // Supabase 모드: Edge Function 호출
+  if (isSupabaseEnabled) {
+    const supabase = getSupabase()!;
+    const { data, error } = await supabase.functions.invoke('kakao-approve', {
+      body: {
+        tid, pgToken, orderId: partnerOrderId,
+        planId: meta?.planId, planName: meta?.planName,
+        period: meta?.period, amount: meta?.amount,
+      },
+    });
+    if (error) throw new Error(error.message || '카카오페이 승인 실패');
+    if (data?.error) throw new Error(data.error);
+    return data as KakaoApproveResponse;
+  }
 
   // 데모 시뮬레이션
   console.info('[KakaoPay] 결제 승인 시뮬레이션:', { tid, pgToken });

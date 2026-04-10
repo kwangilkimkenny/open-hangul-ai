@@ -45,7 +45,11 @@ export function PaymentSuccessPage() {
         // Toss 결제 승인
         if (paymentKey && orderId && amount) {
           const { confirmTossPayment } = await import('../lib/payments/toss');
-          const result = await confirmTossPayment(paymentKey, orderId, parseInt(amount, 10));
+          const result = await confirmTossPayment(paymentKey, orderId, parseInt(amount, 10), {
+            planId: parsedMeta.planId,
+            planName: parsedMeta.planName,
+            period: parsedMeta.period,
+          });
           if (!result.success) {
             setStatus('failed');
             setErrorMsg(result.message);
@@ -63,7 +67,12 @@ export function PaymentSuccessPage() {
             return;
           }
           const { approveKakaoPayment } = await import('../lib/payments/kakao');
-          await approveKakaoPayment(tid, pgToken, pendingOrder || '', pendingUser || '');
+          await approveKakaoPayment(tid, pgToken, pendingOrder || '', pendingUser || '', {
+            planId: parsedMeta.planId,
+            planName: parsedMeta.planName,
+            period: parsedMeta.period,
+            amount: parsedMeta.amount,
+          });
           sessionStorage.removeItem('kakao_pending_tid');
           sessionStorage.removeItem('kakao_pending_order');
           sessionStorage.removeItem('kakao_pending_user');

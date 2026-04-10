@@ -3,15 +3,15 @@
  * 토스페이먼츠 결제 서비스
  *
  * @module lib/payments/toss
- * @version 1.0.0
+ * @version 2.0.0
  *
- * 참고:
- * - 테스트 클라이언트 키는 공개되어 있으며 실제 결제가 발생하지 않습니다
- * - 운영 환경에서는 백엔드에서 confirm API를 호출해야 결제가 완료됩니다
- *   (POST https://api.tosspayments.com/v1/payments/confirm)
+ * 듀얼 모드:
+ * - Supabase 활성화: Edge Function 'toss-confirm'으로 서버 검증
+ * - Supabase 비활성화: 데모 시뮬레이션
  */
 
 import type { PaymentRequest } from './types';
+import { getSupabase, isSupabaseEnabled } from '../supabase/client';
 
 // 토스페이먼츠 공식 테스트 클라이언트 키
 // 운영 환경: 환경변수 VITE_TOSS_CLIENT_KEY 사용
@@ -102,23 +102,38 @@ export async function confirmTossPayment(
   paymentKey: string,
   orderId: string,
   amount: number,
-): Promise<{ success: boolean; message: string }> {
-  // 데모: 즉시 성공 반환 (실제 결제 발생 X)
-  // 운영: fetch('/api/payments/toss/confirm', { ... }) 호출 필요
+  meta?: { planId: string; planName: string; period: 'monthly' | 'yearly' },
+): Promise<{ success: boolean; message: string; receiptUrl?: string }> {
+  // Supabase 모드: Edge Function으로 서버 검증
+  if (isSupabaseEnabled) {
+    const supabase = getSupabase()!;
+    const { data, error } = await supabase.functions.invoke('toss-confirm', {
+      body: {
+        paymentKey,
+        orderId,
+        amount,
+        planId: meta?.planId,
+        planName: meta?.planName,
+        period: meta?.period,
+      },
+    });
+
+    if (error) {
+      console.error('[Toss] Edge function error:', error);
+      return { success: false, message: error.message || '결제 승인에 실패했습니다' };
+    }
+    if (data?.error) {
+      return { success: false, message: data.error };
+    }
+    return {
+      success: true,
+      message: '결제가 완료되었습니다',
+      receiptUrl: data?.receiptUrl,
+    };
+  }
+
+  // 데모 모드 폴백
   console.info('[Toss] 결제 승인 시뮬레이션:', { paymentKey, orderId, amount });
-
-  // 실제 백엔드 호출 시 활성화
-  // const response = await fetch('/api/payments/toss/confirm', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ paymentKey, orderId, amount }),
-  // });
-  // if (!response.ok) {
-  //   const err = await response.json();
-  //   return { success: false, message: err.message || '결제 승인 실패' };
-  // }
-  // return { success: true, message: '결제가 완료되었습니다' };
-
   await new Promise(resolve => setTimeout(resolve, 800));
   return { success: true, message: '결제가 완료되었습니다 (데모 모드)' };
 }
