@@ -13,7 +13,7 @@
     <meta name="referrer" content="no-referrer-when-downgrade" />
 
     <!-- Content Security Policy (frame-ancestors 제외 — 헤더로만 유효) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://api.openai.com https://cdn.jsdelivr.net http://localhost:* ws://localhost:* wss://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net blob:; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://api.openai.com https://cdn.jsdelivr.net http://localhost:* ws://localhost:* wss://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self';" />
 
     <!-- ✅ JSZip CDN (Vanilla 코드 의존성) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
