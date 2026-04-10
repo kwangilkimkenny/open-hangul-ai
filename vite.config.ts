@@ -20,6 +20,14 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 5090,        // 고정 포트
     strictPort: true,  // 포트 사용 중이면 에러 발생 (자동 변경 안 함)
+    headers: {
+      // HTTP 헤더로만 유효한 보안 헤더 (meta 태그로는 무시됨)
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'X-XSS-Protection': '1; mode=block',
+      'Referrer-Policy': 'no-referrer-when-downgrade',
+      'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
+    },
     proxy: {
       // HWPX Generator 프록시 — Python zipfile로 한글 호환 ZIP 생성
       '/api/generate-hwpx': {
@@ -52,6 +60,14 @@ export default defineConfig(({ mode }) => {
   },
   preview: {
     port: 5090,        // 빌드 미리보기도 동일 포트
+    headers: {
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'X-XSS-Protection': '1; mode=block',
+      'Referrer-Policy': 'no-referrer-when-downgrade',
+      'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://api.openai.com https://cdn.jsdelivr.net; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+    },
   },
   build: {
     // 번들 크기 최적화 설정

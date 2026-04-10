@@ -6,40 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>오픈한글 AI - HWPX Viewer & AI Editor</title>
 
-    <!-- Security Headers -->
+    <!-- Security: meta-compatible directives only -->
+    <!-- X-Frame-Options, X-XSS-Protection, frame-ancestors는 HTTP 헤더로만 유효
+         (Vite dev/preview는 vite.config.ts의 미들웨어, 프로덕션은 웹서버 설정에서 처리) -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
     <meta name="referrer" content="no-referrer-when-downgrade" />
 
-    <!-- Content Security Policy (CSP) -->
-    <!-- Production: Strict policy -->
-    <!-- Development: Relaxed for HMR -->
-    <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com;
-      style-src 'self' 'unsafe-inline';
-      img-src 'self' data: blob:;
-      font-src 'self' data:;
-      connect-src 'self' https://api.openai.com http://localhost:* ws://localhost:* wss://localhost:*;
-      object-src 'none';
-      frame-ancestors 'none';
-      base-uri 'self';
-      form-action 'self';
-      upgrade-insecure-requests;
-    " />
-
-    <!-- Permissions Policy -->
-    <meta http-equiv="Permissions-Policy" content="
-      geolocation=(),
-      microphone=(),
-      camera=(),
-      payment=(),
-      usb=(),
-      magnetometer=(),
-      gyroscope=(),
-      accelerometer=()
-    " />
+    <!-- Content Security Policy (frame-ancestors 제외 — 헤더로만 유효) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://api.openai.com https://cdn.jsdelivr.net http://localhost:* ws://localhost:* wss://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self';" />
 
     <!-- ✅ JSZip CDN (Vanilla 코드 의존성) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
