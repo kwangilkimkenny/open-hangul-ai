@@ -10,8 +10,9 @@ import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { getSupabase, isSupabaseEnabled } from '../lib/supabase/client';
 import PublicHeader from '../components/public/PublicHeader';
+import AdminDocs from '../components/admin/AdminDocs';
 
-type Tab = 'overview' | 'users' | 'payments' | 'subscriptions' | 'audit';
+type Tab = 'overview' | 'users' | 'payments' | 'subscriptions' | 'audit' | 'docs';
 
 interface Stats {
   totalUsers: number;
@@ -199,6 +200,13 @@ export function AdminDashboard() {
               {{ overview: '개요', users: '사용자', payments: '결제', subscriptions: '구독', audit: '감사로그' }[t]}
             </button>
           ))}
+          <div className="tab-divider" />
+          <button
+            className={`tab tab-docs ${tab === 'docs' ? 'active' : ''}`}
+            onClick={() => setTab('docs')}
+          >
+            <span className="ref-icon">⌘</span> Reference &rsaquo; Docs
+          </button>
         </nav>
 
         {/* 개요 */}
@@ -252,6 +260,9 @@ export function AdminDashboard() {
             ])} />
         )}
 
+        {/* Reference > Docs */}
+        {tab === 'docs' && <AdminDocs />}
+
         {/* 감사 로그 */}
         {tab === 'audit' && (
           <Table loading={loading} headers={['시간', '사용자', '액션', '리소스']}
@@ -286,6 +297,25 @@ export function AdminDashboard() {
           font-weight: 600; color: #6b7280; cursor: pointer; border-radius: 6px;
         }
         .tab.active { background: #2b579a; color: #fff; }
+        .tab-divider {
+          width: 1px;
+          background: #e5e7eb;
+          margin: 4px 6px;
+        }
+        .tab-docs {
+          background: #fff7ed !important;
+          color: #c2410c !important;
+        }
+        .tab-docs:hover { background: #fed7aa !important; }
+        .tab-docs.active {
+          background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%) !important;
+          color: #fff !important;
+        }
+        .ref-icon {
+          display: inline-block;
+          margin-right: 4px;
+          font-weight: 700;
+        }
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
         .admin-denied {
           max-width: 480px; margin: 80px auto; padding: 48px;
