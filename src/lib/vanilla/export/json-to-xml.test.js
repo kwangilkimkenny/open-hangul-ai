@@ -204,7 +204,8 @@ describe('JsonToXmlConverter', () => {
 
       const xml = converter.generateSectionXml(section);
 
-      expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+      // XML 선언 (standalone 속성 포함 여부 무관)
+      expect(xml).toMatch(/<\?xml version="1\.0" encoding="UTF-8".*\?>/);
       expect(xml).toContain('<hs:sec');
       expect(xml).toContain('paraPrIDRef="1"');
       expect(xml).toContain('styleIDRef="2"');
