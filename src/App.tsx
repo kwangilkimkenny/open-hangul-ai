@@ -5,7 +5,8 @@
  * @version 4.0.0
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import LandingPage from './pages/LandingPage';
@@ -18,10 +19,25 @@ import EditorPage from './pages/EditorPage';
 import './App.css';
 import './styles/hangul-toolbar.css';
 
+/**
+ * 라우트 변경 시 body 클래스 자동 정리 (안전망)
+ * EditorPage cleanup이 누락되더라도 다른 페이지로 이동하면 editor-mode 해제
+ */
+function RouteCleanup() {
+  const location = useLocation();
+  useEffect(() => {
+    if (location.pathname !== '/editor') {
+      document.body.classList.remove('editor-mode');
+    }
+  }, [location.pathname]);
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <RouteCleanup />
         <Toaster
           position="top-right"
           toastOptions={{
