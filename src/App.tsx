@@ -15,6 +15,8 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PricingPage from './pages/PricingPage';
 import EditorPage from './pages/EditorPage';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
+import PaymentFailPage from './pages/PaymentFailPage';
 
 // Styles
 import './App.css';
@@ -55,6 +57,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          <Route path="/payment/fail" element={<PaymentFailPage />} />
           <Route path="/editor" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

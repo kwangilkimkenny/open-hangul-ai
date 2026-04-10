@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import PublicHeader from '../components/public/PublicHeader';
 import PublicFooter from '../components/public/PublicFooter';
+import PaymentMethodModal from '../components/PaymentMethodModal';
 import toast from 'react-hot-toast';
 
 type Period = 'monthly' | 'yearly';
@@ -104,6 +105,10 @@ export function PricingPage() {
   const [period, setPeriod] = useState<Period>('yearly');
   const navigate = useNavigate();
   const { user, isAuthenticated, updatePlan } = useAuthStore();
+  const [paymentModal, setPaymentModal] = useState<{
+    open: boolean;
+    plan?: Plan;
+  }>({ open: false });
 
   const handleSelectPlan = (plan: Plan) => {
     if (plan.id === 'enterprise') {
@@ -111,16 +116,25 @@ export function PricingPage() {
       return;
     }
     if (!isAuthenticated) {
-      navigate('/signup');
+      navigate('/login', { state: { from: { pathname: '/pricing' } } });
       return;
     }
     if (user?.plan === plan.id) {
       toast('이미 사용 중인 플랜입니다', { icon: 'ℹ️' });
       return;
     }
-    // 데모: 즉시 플랜 변경
-    updatePlan(plan.id);
-    toast.success(`${plan.name} 플랜으로 변경되었습니다`);
+    if (plan.id === 'free') {
+      // Free 플랜은 결제 없이 즉시 변경
+      updatePlan(plan.id);
+      toast.success('Free 플랜으로 변경되었습니다');
+      return;
+    }
+    // 유료 플랜: 결제 모달 표시
+    setPaymentModal({ open: true, plan });
+  };
+
+  const getPlanAmount = (plan: Plan) => {
+    return period === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
   };
 
   const formatPrice = (plan: Plan) => {
@@ -253,6 +267,18 @@ export function PricingPage() {
       </section>
 
       <PublicFooter />
+
+      {/* 결제 수단 선택 모달 */}
+      {paymentModal.open && paymentModal.plan && (
+        <PaymentMethodModal
+          isOpen={paymentModal.open}
+          onClose={() => setPaymentModal({ open: false })}
+          planId={paymentModal.plan.id}
+          planName={paymentModal.plan.name}
+          amount={getPlanAmount(paymentModal.plan)}
+          period={period}
+        />
+      )}
 
       <style>{`
         .pricing-page {
