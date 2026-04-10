@@ -10,6 +10,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
+import CookieConsent from './components/CookieConsent';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -17,6 +18,7 @@ import PricingPage from './pages/PricingPage';
 import EditorPage from './pages/EditorPage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
 import PaymentFailPage from './pages/PaymentFailPage';
+import LegalPage from './pages/LegalPages';
 
 // Styles
 import './App.css';
@@ -59,9 +61,11 @@ function App() {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/payment/success" element={<PaymentSuccessPage />} />
           <Route path="/payment/fail" element={<PaymentFailPage />} />
+          <Route path="/legal/:type" element={<LegalPage />} />
           <Route path="/editor" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <CookieConsent />
       </BrowserRouter>
     </ErrorBoundary>
   );

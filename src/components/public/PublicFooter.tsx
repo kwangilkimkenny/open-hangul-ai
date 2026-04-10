@@ -34,9 +34,9 @@ export function PublicFooter() {
 
           <div>
             <h4>회사</h4>
-            <a href="#about">소개</a>
-            <a href="#privacy">개인정보처리방침</a>
-            <a href="#terms">이용약관</a>
+            <Link to="/legal/terms">이용약관</Link>
+            <Link to="/legal/privacy">개인정보처리방침</Link>
+            <Link to="/legal/refund">환불정책</Link>
           </div>
         </div>
 
