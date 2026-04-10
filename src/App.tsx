@@ -1,54 +1,27 @@
 /**
  * HAN-View React App
- * Hangul-style UI with Ribbon Toolbar
+ * 라우팅 기반 멀티페이지 구조
  *
- * @version 3.0.0
+ * @version 4.0.0
  */
 
-import { useState, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import HangulStyleToolbar from './components/HangulStyleToolbar';
-import HangulStatusBar from './components/HangulStatusBar';
-import HWPXViewerWrapper from './components/HWPXViewerWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
-import type { HWPXViewerInstance } from './types/viewer';
-import { devLog, devError } from './utils/logger';
-import { t } from './lib/i18n';
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import PricingPage from './pages/PricingPage';
+import EditorPage from './pages/EditorPage';
 
 // Styles
 import './App.css';
 import './styles/hangul-toolbar.css';
 
 function App() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [viewerInstance, setViewerInstance] = useState<HWPXViewerInstance | null>(null);
-  const [showAIPanel, setShowAIPanel] = useState(false);
-
-  const handleFileSelect = useCallback((file: File) => {
-    devLog('File selected:', file.name);
-    setSelectedFile(file);
-  }, []);
-
-  const handleViewerReady = useCallback((viewer: HWPXViewerInstance) => {
-    devLog('Viewer instance ready');
-    setViewerInstance(viewer);
-  }, []);
-
-  const handleError = useCallback((error: Error) => {
-    devError('Error in App:', error);
-  }, []);
-
-  const handleToggleAI = useCallback(() => {
-    setShowAIPanel(prev => !prev);
-  }, []);
-
   return (
     <ErrorBoundary>
-      <div className="app-container">
-        {/* Skip to content link (a11y) */}
-        <a href="#hwpx-viewer-root" className="skip-to-content">{t('msg.skipToContent')}</a>
-
-        {/* Toast Notifications */}
+      <BrowserRouter>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -59,28 +32,16 @@ function App() {
           }}
         />
 
-        {/* Hangul-Style Toolbar (Menu Bar + Ribbon) */}
-        <HangulStyleToolbar
-          viewer={viewerInstance}
-          onFileSelect={handleFileSelect}
-          onToggleAI={handleToggleAI}
-          showAIPanel={showAIPanel}
-        />
-
-        {/* HWPX Viewer */}
-        <HWPXViewerWrapper
-          className="main-viewer"
-          file={selectedFile}
-          onDocumentLoad={handleViewerReady}
-          onError={handleError}
-          enableAI={true}
-          showAIPanel={showAIPanel}
-          onToggleAI={handleToggleAI}
-        />
-
-        {/* Hangul-Style Status Bar */}
-        <HangulStatusBar viewer={viewerInstance} />
-      </div>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/features" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/editor" element={<EditorPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 }
