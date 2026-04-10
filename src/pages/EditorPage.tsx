@@ -2,7 +2,7 @@
  * Editor Page
  * 기존 에디터를 라우트로 분리
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import HangulStyleToolbar from '../components/HangulStyleToolbar';
 import HangulStatusBar from '../components/HangulStatusBar';
 import HWPXViewerWrapper from '../components/HWPXViewerWrapper';
@@ -31,6 +31,12 @@ export function EditorPage() {
 
   const handleToggleAI = useCallback(() => {
     setShowAIPanel(prev => !prev);
+  }, []);
+
+  // 에디터 페이지에서만 body에 editor-mode 클래스 추가 (스크롤 잠금)
+  useEffect(() => {
+    document.body.classList.add('editor-mode');
+    return () => { document.body.classList.remove('editor-mode'); };
   }, []);
 
   return (
