@@ -101,6 +101,7 @@ describe('InlineEditor', () => {
   });
 
   // 4. enableEditMode() sets contentEditable=true and editing class
+  // Note: 시각적 스타일은 CSS 클래스 'editing'으로 처리 (Word/한글 스타일 — 인라인 outline 제거)
   it('should set contentEditable and editing class', () => {
     const cell = createCell();
     const cellData = createCellData();
@@ -109,7 +110,7 @@ describe('InlineEditor', () => {
 
     expect(cell.classList.contains('editing')).toBe(true);
     expect(String(cell.contentEditable)).toBe('true');
-    expect(cell.style.outline).toContain('2px solid');
+    expect(cell.spellcheck).toBe(true);
   });
 
   // 5. enableEditMode() when editMode OFF -> returns without editing
@@ -141,6 +142,7 @@ describe('InlineEditor', () => {
   });
 
   // 7. enableEditMode() different cell -> auto-saves previous
+  // Note: 자동저장은 saveChanges(true) 호출하여 이벤트 리스너 완전 제거 (중복 방지)
   it('should auto-save previous cell when enabling edit on different cell', () => {
     const cell1 = createCell('First');
     const cell2 = createCell('Second');
@@ -152,7 +154,7 @@ describe('InlineEditor', () => {
     editor.enableEditMode(cell1, data1);
     editor.enableEditMode(cell2, data2);
 
-    expect(saveSpy).toHaveBeenCalledWith(false);
+    expect(saveSpy).toHaveBeenCalledWith(true);
     expect(editor.editingCell).toBe(cell2);
   });
 
@@ -218,14 +220,15 @@ describe('InlineEditor', () => {
     expect(saveSpy).toHaveBeenCalledWith(true);
   });
 
-  // 12. Enter key -> saves and navigates
-  it('should save and navigate on Enter key', () => {
+  // 12. Enter key -> inserts newline (Word/한글 스타일)
+  // Note: Enter는 줄바꿈 (저장/이동이 아님), 셀 간 이동은 Tab 키
+  it('should insert newline on Enter key (Word/Hangul style)', () => {
     const cell = createCell('Hello');
     const cellData = createCellData();
 
     editor.enableEditMode(cell, cellData);
 
-    const saveSpy = vi.spyOn(editor, 'saveChanges');
+    const insertSpy = vi.spyOn(editor, '_insertNewlineAtCursor');
 
     const event = new KeyboardEvent('keydown', {
       key: 'Enter',
@@ -234,7 +237,7 @@ describe('InlineEditor', () => {
     });
     cell.dispatchEvent(event);
 
-    expect(saveSpy).toHaveBeenCalledWith(false);
+    expect(insertSpy).toHaveBeenCalled();
   });
 
   // 13. Shift+Enter -> inserts newline

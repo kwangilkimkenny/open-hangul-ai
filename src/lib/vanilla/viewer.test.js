@@ -50,10 +50,37 @@ vi.mock('./features/inline-editor.js', () => ({
     onChange = vi.fn();
   }
 }));
-vi.mock('./features/history-manager-v2.js', () => ({ HistoryManagerV2: class { constructor() {} } }));
+vi.mock('./features/history-manager-v2.js', () => ({
+  HistoryManagerV2: class {
+    constructor() { this.execute = vi.fn(); this.undo = vi.fn(); this.redo = vi.fn(); }
+  }
+}));
+vi.mock('./features/change-tracker.js', () => ({
+  ChangeTracker: class {
+    constructor() { this.isTracking = false; this.changes = []; }
+    enable = vi.fn();
+    disable = vi.fn();
+    onChange = vi.fn();
+  }
+}));
+vi.mock('./features/annotation-manager.js', () => ({
+  AnnotationManager: class {
+    constructor() { this.comments = []; }
+    onChange = vi.fn();
+    addComment = vi.fn();
+  }
+}));
 vi.mock('./features/edit-mode-manager.js', () => ({
   EditModeManager: class {
     constructor() { this.isGlobalEditMode = true; }
+  }
+}));
+// 동적 import로 로드되는 accessibility 모듈 mock
+vi.mock('../a11y/accessibility', () => ({
+  AccessibilityManager: class {
+    constructor() {}
+    init = vi.fn();
+    destroy = vi.fn();
   }
 }));
 vi.mock('./features/table-editor.js', () => ({ TableEditor: class { constructor() {} } }));
