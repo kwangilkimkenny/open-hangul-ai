@@ -14,11 +14,14 @@ html,
 body {
   width: 100%;
   min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+  overflow-y: auto;
 }
 
 /* 에디터 페이지에서만 viewport 고정 + 스크롤 잠금 */
