@@ -1694,10 +1694,12 @@ export class ChatPanel {
                     text = await file.text();
                 }
 
-                // 너무 긴 텍스트는 잘라내기
-                const maxLen = 8000;
+                // 너무 긴 텍스트는 잘라내기 (gpt-4o 128k 컨텍스트 활용 — 파일당 60k 문자)
+                const maxLen = 60000;
                 const truncated = text.length > maxLen;
-                const finalText = truncated ? text.substring(0, maxLen) + '\n...(이하 생략)' : text;
+                const finalText = truncated
+                    ? text.substring(0, maxLen) + `\n\n...(이하 ${text.length - maxLen}자 생략)`
+                    : text;
 
                 this._referenceTexts.push({
                     name: file.name,
@@ -1760,16 +1762,41 @@ export class ChatPanel {
             const hasReference = this._referenceTexts && this._referenceTexts.length > 0;
             if (!this._chatHistory) {
                 const systemPrompt = hasReference
-                    ? '당신은 문서 작성 전문가입니다. 사용자가 제공한 참고 자료를 기반으로 체계적이고 전문적인 문서를 작성해주세요. 마크다운 형식으로 제목, 소제목, 표, 목록 등을 적절히 활용하세요. 참고 자료의 핵심 내용을 빠짐없이 포함하되, 읽기 쉽게 재구성해주세요.'
+                    ? `당신은 전문 문서 작성가입니다. 사용자가 제공한 참고 자료를 충실히 활용하여 매우 상세하고 방대한 분량의 전문 문서를 작성합니다.
+
+[작성 원칙]
+1. 분량: 최소 3,000~6,000자(공백 제외) 이상의 본문을 작성합니다. 짧은 요약이나 개조식 정리가 아닌 충실한 본문 문서입니다.
+2. 완결된 서술형 문장: 주어와 서술어가 분명한 완전한 문장으로 작성합니다. 개조식 단어 나열은 표나 목록 안에서만 사용합니다.
+3. 참고 자료 충실 활용: 참고 자료에 등장하는 모든 항목·숫자·날짜·금액·조건·기관명·제도명을 빠짐없이 본문에 통합합니다. 자료에 없는 사실은 임의로 추가하지 않습니다.
+4. 모든 섹션 충분히 전개: 각 제목/소제목 아래에 최소 2~4문단의 상세한 서술을 작성합니다. "내용을 채워주세요" 같은 placeholder나 한 줄짜리 섹션을 절대 만들지 않습니다.
+5. 구체적 정보 명시: 추상적 설명 대신 구체적 절차·기준·일정·자격·금액·예시를 명시합니다.
+6. 표·목록 적극 활용: 비교·대조·항목 정리가 필요한 곳은 마크다운 표(| col |)나 번호 목록을 사용합니다. 단, 표만으로 끝내지 말고 표 앞뒤에 설명 문단을 둡니다.
+7. 마크다운 형식 준수: # 대제목, ## 중제목, ### 소제목, **굵게**, *기울임*, | 표 |, 1. 번호 목록을 활용합니다. 첫 줄은 반드시 # 으로 시작하는 문서 제목입니다.
+
+[금지 사항]
+- 제목만 있고 본문이 없는 빈 섹션
+- "···등이 있습니다", "필요시 참고 바랍니다" 같은 모호한 마무리
+- 한 문단이 한 문장으로 끝나는 짧은 문단 (최소 2~3문장)
+- 참고 자료에 없는 정보의 임의 생성 (사실 충실성 우선)
+- 메타 코멘트("아래는 ~입니다") 없이 곧바로 문서 본문부터 시작합니다.`
                     : '당신은 만능 AI 어시스턴트입니다. 한국어로 친절하게 응답해주세요. 사용자가 문서 작성, 기획, 아이디어 등을 요청하면 구체적이고 실용적인 내용을 제공해주세요.';
                 this._chatHistory = [
                     { role: 'system', content: systemPrompt }
                 ];
             }
 
-            // 레퍼런스 자료가 있으면 메시지에 포함
+            // 레퍼런스 자료가 있으면 메시지에 포함 + 분량/깊이 지시 자동 첨부
             const refContext = this._getReferenceContext();
-            const userContent = refContext ? message + refContext : message;
+            let userContent = message;
+            if (refContext) {
+                const lengthDirective = `\n\n[작성 지시]
+- 위 참고 자료를 빠짐없이 활용하여 매우 상세하고 방대한 분량(최소 3,000자 이상, 가능하면 5,000자 이상)의 전문 문서를 작성합니다.
+- 모든 섹션·소제목 아래에 충실한 본문 문단을 작성하고, 빈 섹션·한 줄 섹션·placeholder를 만들지 않습니다.
+- 참고 자료의 모든 숫자·날짜·금액·조건·기관명·제도명을 본문에 빠짐없이 통합합니다.
+- 표·목록은 적극 활용하되 표 앞뒤에 반드시 설명 문단을 둡니다.
+- 첫 줄은 반드시 # 문서 제목으로 시작합니다.`;
+                userContent = message + lengthDirective + refContext;
+            }
             this._chatHistory.push({ role: 'user', content: userContent });
 
             // 히스토리가 너무 길면 최근 20개만 유지
@@ -1777,19 +1804,47 @@ export class ChatPanel {
                 this._chatHistory = [this._chatHistory[0], ...this._chatHistory.slice(-20)];
             }
 
-            // 레퍼런스가 있으면 max_tokens 증가 (긴 문서 생성 대응)
+            // 레퍼런스가 있으면 max_tokens를 모델 최대치(16,384)로 설정 (방대한 문서 생성)
             if (hasReference) {
                 const refLength = this._referenceTexts.reduce((sum, r) => sum + (r?.text?.length || 0), 0);
-                const dynamicTokens = Math.min(Math.max(Math.ceil(refLength / 4), 4000), 16000);
+                // 출력 토큰: gpt-4o 모델 최대치 16,384에 근접 (안전 마진 384)
+                const dynamicTokens = 16000;
                 this.aiController.generator.options.maxTokens = dynamicTokens;
                 logger.info(`Reference-based generation: max_tokens → ${dynamicTokens} (ref ${refLength} chars)`);
             }
 
             const apiResponse = await this.aiController.generator.callAPIWithRetry(this._chatHistory);
-            const responseText = apiResponse?.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
+            let responseText = apiResponse?.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
 
             // 히스토리에 응답 추가
             this._chatHistory.push({ role: 'assistant', content: responseText });
+
+            // 레퍼런스 기반인데 응답이 너무 짧으면 자동 확장 패스 (≤ 1,800자 → 재요청)
+            if (hasReference && this._isDocumentCreateRequest(message) && responseText.replace(/\s/g, '').length < 1800) {
+                logger.info(`Response too short (${responseText.length} chars) — running auto-expansion pass`);
+                this.updateLoadingMessage?.(loadingId, '문서가 짧아 더 상세히 다시 작성 중...');
+                const expandPrompt = `방금 작성한 문서가 너무 짧고 개조식으로 끝났습니다. 다시 작성해주세요. 이번에는 다음을 반드시 지켜주세요:
+
+1. 모든 섹션 아래에 최소 2~4문단의 충실한 서술형 본문을 작성합니다.
+2. 한 줄짜리 항목 나열을 풀어서 완전한 문장으로 설명합니다.
+3. 참고 자료의 모든 숫자·날짜·금액·조건·기관명을 본문에 통합합니다.
+4. 전체 분량은 최소 4,000자 이상으로 작성합니다.
+5. 문서 본문만 출력합니다. "다시 작성하겠습니다" 같은 메타 코멘트는 쓰지 마세요.
+
+위 원칙을 지켜 동일 주제의 문서를 처음부터 다시 작성해주세요.`;
+                this._chatHistory.push({ role: 'user', content: expandPrompt });
+                try {
+                    const expandResp = await this.aiController.generator.callAPIWithRetry(this._chatHistory);
+                    const expandedText = expandResp?.choices?.[0]?.message?.content;
+                    if (expandedText && expandedText.length > responseText.length) {
+                        responseText = expandedText;
+                        this._chatHistory.push({ role: 'assistant', content: expandedText });
+                        logger.info(`Expanded to ${expandedText.length} chars`);
+                    }
+                } catch (expErr) {
+                    logger.warn('Auto-expansion failed:', expErr.message);
+                }
+            }
 
             this.removeMessage(loadingId);
 
