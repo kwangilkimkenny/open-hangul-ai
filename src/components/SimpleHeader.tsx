@@ -111,27 +111,50 @@ export const SimpleHeader = memo(function SimpleHeader({
   }, [viewer]);
 
   const handleExportMd = useCallback(async () => {
-    if (!viewer) {
+    const v = (viewer || (window as any).__hwpxViewer) as any;
+    if (!v) {
       toast.error('뷰어가 초기화되지 않았습니다');
       return;
     }
+    const defaultName = (v.state?.currentFile?.name || '문서').replace(/\.(hwpx|hwp|docx|md)$/i, '');
+    const inputName = window.prompt('Markdown 파일명을 입력하세요:', defaultName);
+    if (inputName === null) return;
+    const fileName = (inputName.trim() || '문서').endsWith('.md')
+      ? (inputName.trim() || '문서')
+      : `${inputName.trim() || '문서'}.md`;
+    toast.loading('Markdown 내보내기 중...', { id: 'md-export' });
     try {
-      const doc = (viewer as any).getDocument?.();
-      if (!doc) { toast.error('내보낼 문서가 없습니다'); return; }
+      if (typeof v._syncDocumentFromDOM === 'function') v._syncDocumentFromDOM();
+      const doc = v.getDocument?.();
+      if (!doc || !doc.sections || doc.sections.length === 0) {
+        toast.dismiss('md-export');
+        toast.error('내보낼 문서가 없습니다');
+        return;
+      }
       const { exportToMarkdown } = await import('../lib/markdown/parser');
       const md = exportToMarkdown(doc);
+      if (!md || md.trim().length === 0) {
+        toast.dismiss('md-export');
+        toast.error('문서 내용이 비어 있습니다');
+        return;
+      }
       const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = '문서.md';
+      a.download = fileName;
+      a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Markdown 내보내기 완료');
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.dismiss('md-export');
+      toast.success(`${fileName} 저장 완료`);
     } catch (err: any) {
-      toast.error(`Markdown 내보내기 실패: ${err?.message}`);
+      toast.dismiss('md-export');
+      toast.error(`Markdown 내보내기 실패: ${err?.message || err}`);
+      // eslint-disable-next-line no-console
+      console.error('[MD Export] failed:', err);
     }
   }, [viewer]);
 
