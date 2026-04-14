@@ -1749,6 +1749,130 @@ export class ChatPanel {
     }
 
     /**
+     * 마크다운을 ## 헤딩 단위로 분리.
+     * 코드블록 안의 ##은 무시. # (대제목)과 헤딩 이전 내용은 preface로 보존.
+     * @param {string} markdown
+     * @returns {{ preface: string, sections: Array<{heading: string, title: string, lines: string[]}> }}
+     * @private
+     */
+    _parseMarkdownSections(markdown) {
+        const lines = markdown.split('\n');
+        const sections = [];
+        const preface = [];
+        let current = null;
+        let inCodeBlock = false;
+
+        for (const line of lines) {
+            if (line.trim().startsWith('```')) inCodeBlock = !inCodeBlock;
+            if (inCodeBlock) {
+                if (current) current.lines.push(line);
+                else preface.push(line);
+                continue;
+            }
+            const match = line.match(/^##\s+(.+)$/);
+            if (match && !line.startsWith('###')) {
+                if (current) sections.push(current);
+                current = { heading: line, title: match[1].trim(), lines: [] };
+            } else {
+                if (current) current.lines.push(line);
+                else preface.push(line);
+            }
+        }
+        if (current) sections.push(current);
+
+        return { preface: preface.join('\n').trim(), sections };
+    }
+
+    /**
+     * 동시 실행 한도가 있는 병렬 매핑.
+     * @param {Array} items
+     * @param {number} limit - 최대 동시 실행 수
+     * @param {Function} fn - async (item, index) => result
+     * @returns {Promise<Array>} 입력 순서를 보존한 결과 배열
+     * @private
+     */
+    async _runWithConcurrency(items, limit, fn) {
+        const results = new Array(items.length);
+        let cursor = 0;
+        const workerCount = Math.min(limit, items.length);
+        const workers = Array.from({ length: workerCount }, async () => {
+            for (;;) {
+                const i = cursor++;
+                if (i >= items.length) break;
+                try {
+                    results[i] = await fn(items[i], i);
+                } catch (err) {
+                    logger.warn(`[Section ${i}] expansion failed:`, err?.message || err);
+                    results[i] = null;
+                }
+            }
+        });
+        await Promise.all(workers);
+        return results;
+    }
+
+    /**
+     * 1차 응답을 ## 섹션 단위로 분해 후 각 섹션을 A4 1쪽 분량(약 1,200~1,500자)으로 병렬 확장.
+     * 각 호출은 독립적 (이전 섹션의 영향을 받지 않음).
+     * @param {string} initialMd - 1차 생성된 마크다운
+     * @param {string} refContext - 참고 자료 컨텍스트 (이미 [참고 자료] 헤더 포함)
+     * @param {string} originalMessage - 사용자의 원본 요청
+     * @returns {Promise<string>} 확장된 마크다운
+     * @private
+     */
+    async _expandSectionsToA4(initialMd, refContext, originalMessage) {
+        const { preface, sections } = this._parseMarkdownSections(initialMd);
+
+        if (sections.length === 0) {
+            logger.info('No ## sections found, skipping multi-pass expansion');
+            return initialMd;
+        }
+        if (sections.length > 20) {
+            logger.warn(`Too many sections (${sections.length}), limiting to first 20`);
+            sections.length = 20;
+        }
+
+        logger.info(`Multi-pass expansion: ${sections.length} sections, concurrency=3`);
+        const progressId = this.addSystemMessage(
+            `[A4 확장] 각 섹션을 A4 한 페이지 분량으로 확장합니다 (총 ${sections.length}개, 동시 3개 처리).`
+        );
+        const progressEl = document.getElementById(progressId);
+
+        let completed = 0;
+        const expanded = await this._runWithConcurrency(sections, 3, async (section) => {
+            const sectionMd = `${section.heading}\n${section.lines.join('\n')}`.trim();
+            const userPrompt = `다음은 사용자가 요청한 문서("${originalMessage.replace(/[\r\n]+/g, ' ').slice(0, 100)}")의 한 섹션입니다. 이 섹션을 A4 한 페이지 분량(공백 포함 약 1,200~1,500자)의 충실한 본문으로 확장해주세요.
+
+[원본 섹션 (확장 대상)]
+${sectionMd}
+
+[작성 원칙]
+1. 분량: 공백 포함 1,200~1,500자. 너무 짧지(<900자) 너무 길지(>1,800자) 않게.
+2. 완전한 서술형 문장. 짧은 단어 나열·개조식 항목은 표나 번호목록 안에서만 사용.
+3. 참고 자료에서 이 섹션 주제와 관련된 모든 숫자·날짜·금액·조건·자격·기관명·제도명을 본문에 통합.
+4. 섹션 제목("${section.heading.trim()}")은 그대로 유지하고 본문만 풍부하게 확장.
+5. 필요시 ### 소제목, |표|, 1. 번호목록을 활용. 표·목록만으로 채우지 말고 앞뒤에 설명 문단을 둠.
+6. 메타 코멘트("아래는~", "다음과 같이~") 없이 곧바로 섹션 제목부터 출력.
+7. 참고 자료에 없는 사실은 임의로 추가하지 말 것 (사실 충실성).${refContext || ''}`;
+
+            const resp = await this.aiController.generator.callAPIWithRetry([
+                { role: 'system', content: '당신은 전문 문서 작성가입니다. 요청된 분량(1,200~1,500자)과 형식을 정확히 지켜 충실한 본문을 작성합니다. 메타 코멘트 없이 섹션 본문만 출력합니다.' },
+                { role: 'user', content: userPrompt },
+            ]);
+
+            const text = resp?.choices?.[0]?.message?.content?.trim();
+            completed++;
+            if (progressEl) progressEl.textContent = `[A4 확장] ${completed} / ${sections.length} 섹션 완료`;
+            return text || sectionMd;
+        });
+
+        if (progressEl) progressEl.textContent = `[A4 확장] 완료: ${sections.length} / ${sections.length} 섹션`;
+
+        const parts = [preface, ...expanded.filter(s => s && s.trim())].filter(p => p && p.trim());
+        return parts.join('\n\n');
+    }
+
+    /**
      * 자유 대화 모드 (문서 없이 AI와 대화)
      * "문서로 만들어줘" 등의 키워드 감지 시 AI 응답을 문서로 변환
      * @param {string} message - 사용자 메시지
@@ -1819,34 +1943,22 @@ export class ChatPanel {
             // 히스토리에 응답 추가
             this._chatHistory.push({ role: 'assistant', content: responseText });
 
-            // 레퍼런스 기반인데 응답이 너무 짧으면 자동 확장 패스 (≤ 1,800자 → 재요청)
-            if (hasReference && this._isDocumentCreateRequest(message) && responseText.replace(/\s/g, '').length < 1800) {
-                logger.info(`Response too short (${responseText.length} chars) — running auto-expansion pass`);
-                this.updateLoadingMessage?.(loadingId, '문서가 짧아 더 상세히 다시 작성 중...');
-                const expandPrompt = `방금 작성한 문서가 너무 짧고 개조식으로 끝났습니다. 다시 작성해주세요. 이번에는 다음을 반드시 지켜주세요:
+            this.removeMessage(loadingId);
 
-1. 모든 섹션 아래에 최소 2~4문단의 충실한 서술형 본문을 작성합니다.
-2. 한 줄짜리 항목 나열을 풀어서 완전한 문장으로 설명합니다.
-3. 참고 자료의 모든 숫자·날짜·금액·조건·기관명을 본문에 통합합니다.
-4. 전체 분량은 최소 4,000자 이상으로 작성합니다.
-5. 문서 본문만 출력합니다. "다시 작성하겠습니다" 같은 메타 코멘트는 쓰지 마세요.
-
-위 원칙을 지켜 동일 주제의 문서를 처음부터 다시 작성해주세요.`;
-                this._chatHistory.push({ role: 'user', content: expandPrompt });
+            // 레퍼런스 기반 + 문서 생성 요청 → 멀티패스 A4 확장 (각 ## 섹션을 1,200~1,500자로 병렬 확장)
+            if (hasReference && this._isDocumentCreateRequest(message)) {
                 try {
-                    const expandResp = await this.aiController.generator.callAPIWithRetry(this._chatHistory);
-                    const expandedText = expandResp?.choices?.[0]?.message?.content;
-                    if (expandedText && expandedText.length > responseText.length) {
-                        responseText = expandedText;
-                        this._chatHistory.push({ role: 'assistant', content: expandedText });
-                        logger.info(`Expanded to ${expandedText.length} chars`);
+                    const expandedMd = await this._expandSectionsToA4(responseText, refContext, message);
+                    if (expandedMd && expandedMd.length > responseText.length * 1.2) {
+                        logger.info(`A4 expansion: ${responseText.length} → ${expandedMd.length} chars`);
+                        responseText = expandedMd;
+                    } else {
+                        logger.info(`A4 expansion produced no significant gain (${responseText.length} → ${expandedMd?.length || 0}), keeping original`);
                     }
                 } catch (expErr) {
-                    logger.warn('Auto-expansion failed:', expErr.message);
+                    logger.warn('A4 multi-pass expansion failed, using initial response:', expErr?.message || expErr);
                 }
             }
-
-            this.removeMessage(loadingId);
 
             // 문서화 요청 감지 (레퍼런스 있으면 항상 문서 생성)
             if (this._isDocumentCreateRequest(message)) {
