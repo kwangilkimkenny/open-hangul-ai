@@ -120,6 +120,31 @@ function docxColorToHex(color: string | null): string | undefined {
 }
 
 /**
+ * docx 라이브러리는 6자리 hex 만 허용 ('#' 없이).
+ * '#666' → '666666', 'rgb(...)' → undefined 등 정규화.
+ */
+function toDocxHex(color: string | undefined | null): string | undefined {
+  if (!color) return undefined;
+  let v = String(color).trim();
+  if (v.toLowerCase() === 'auto' || v.toLowerCase() === 'transparent') return undefined;
+  if (v.startsWith('#')) v = v.slice(1);
+  // rgb(r,g,b) / rgba(...) 처리
+  const rgbMatch = v.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgbMatch) {
+    const r = Math.min(255, parseInt(rgbMatch[1], 10));
+    const g = Math.min(255, parseInt(rgbMatch[2], 10));
+    const b = Math.min(255, parseInt(rgbMatch[3], 10));
+    v = [r, g, b].map(n => n.toString(16).padStart(2, '0')).join('');
+  }
+  // 3자리 hex → 6자리 확장 (#666 → 666666, #f0a → ff00aa)
+  if (/^[0-9a-fA-F]{3}$/.test(v)) {
+    v = v.split('').map(c => c + c).join('');
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(v)) return v.toUpperCase();
+  return undefined;
+}
+
+/**
  * 포인트의 반(half-point)을 pt로 변환
  * DOCX font size는 half-points (24 = 12pt)
  */
@@ -935,10 +960,12 @@ function buildDocxParagraph(el: Element, lib: any): any {
       }
     }
 
-    if (s.color) opts.color = s.color.replace('#', '');
+    const colorHex = toDocxHex(s.color);
+    if (colorHex) opts.color = colorHex;
     if (s.fontFamily) opts.font = s.fontFamily;
-    if (s.backgroundColor) {
-      opts.shading = { fill: s.backgroundColor.replace('#', ''), type: 'clear' as any };
+    const bgHex = toDocxHex(s.backgroundColor);
+    if (bgHex) {
+      opts.shading = { fill: bgHex, type: 'clear' as any };
     }
 
     textRuns.push(new TextRun(opts));
@@ -1011,9 +1038,10 @@ function buildDocxTable(el: Element, lib: any): any {
         cellOpts.verticalAlign = vMap[cs.verticalAlign] || VerticalAlign.TOP;
       }
 
-      if (cs.backgroundColor) {
+      const cellBgHex = toDocxHex(cs.backgroundColor);
+      if (cellBgHex) {
         cellOpts.shading = {
-          fill: cs.backgroundColor.replace('#', ''),
+          fill: cellBgHex,
           type: ShadingType.CLEAR,
         };
       }
@@ -1031,7 +1059,7 @@ function buildDocxTable(el: Element, lib: any): any {
           const parts = cs[key].css.split(/\s+/);
           const px = parseFloat(parts[0] || '1');
           const styleStr = parts[1] || 'solid';
-          const color = (parts[2] || '#000000').replace('#', '');
+          const color = toDocxHex(parts[2]) || '000000';
 
           let bs = BorderStyle.SINGLE;
           if (styleStr === 'dotted') bs = BorderStyle.DOTTED;

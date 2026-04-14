@@ -595,11 +595,23 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
 
 /**
  * CSS hex 색상을 ExcelJS ARGB로 변환
- * '#2B579A' → 'FF2B579A'
+ * '#2B579A' → 'FF2B579A', '#666' → 'FF666666', 'rgb(...)' → 'FFrrggbb'
  */
 function hexToArgb(hex: string): string {
-  const clean = hex.replace('#', '').toUpperCase();
-  return clean.length === 6 ? `FF${clean}` : clean;
+  if (!hex) return 'FF000000';
+  let v = String(hex).trim();
+  if (v.toLowerCase() === 'auto' || v.toLowerCase() === 'transparent') return 'FF000000';
+  if (v.startsWith('#')) v = v.slice(1);
+  const rgbMatch = v.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgbMatch) {
+    const r = Math.min(255, parseInt(rgbMatch[1], 10));
+    const g = Math.min(255, parseInt(rgbMatch[2], 10));
+    const b = Math.min(255, parseInt(rgbMatch[3], 10));
+    v = [r, g, b].map(n => n.toString(16).padStart(2, '0')).join('');
+  }
+  if (/^[0-9a-fA-F]{3}$/.test(v)) v = v.split('').map(c => c + c).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(v)) return 'FF000000';
+  return `FF${v.toUpperCase()}`;
 }
 
 /**
