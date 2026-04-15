@@ -209,7 +209,7 @@ describe('renderTable', () => {
       const cell = makeCell('Default', {});
       const el = renderTable(makeTable([makeRow([cell])]), new Map());
       const td = el.querySelector('.hwp-table-cell');
-      expect(td.style.padding).toBe('3px 5px');
+      expect(td.style.padding).toBe('2px 4px');
     });
 
     it('should apply verticalAlign', () => {
@@ -352,7 +352,7 @@ describe('renderTable', () => {
       const el = renderTable(table, new Map());
       const tableEl = el.querySelector('.hwp-table');
       expect(tableEl.style.width).toBe('100%');
-      expect(tableEl.style.height).toBe('300px');
+      expect(tableEl.style.minHeight).toBe('300px');
     });
 
     it('should set default fontSize 12px on table element', () => {
