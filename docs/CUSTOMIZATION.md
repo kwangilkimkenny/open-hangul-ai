@@ -571,5 +571,5 @@ function ThemeToggle() {
 
 - 📖 [전체 API 문서](./API.md)
 - 💬 [GitHub Issues](https://github.com/your-org/hanview-react/issues)
-- 📧 [이메일 문의](mailto:support@example.com)
+- 📧 [이메일 문의](mailto:ray.kim@yatavent.com)
 

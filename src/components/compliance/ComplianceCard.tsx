@@ -3,7 +3,7 @@
  * 개별 프레임워크 카드 컴포넌트 (이미지 레퍼런스 기반)
  */
 
-import { memo } from 'react';
+import React, { memo } from 'react';
 import type { FrameworkMeta } from '../../types/compliance';
 
 interface ComplianceCardProps {
@@ -12,7 +12,7 @@ interface ComplianceCardProps {
   isGenerating?: boolean;
 }
 
-const ICON_MAP: Record<string, JSX.Element> = {
+const ICON_MAP: Record<string, React.JSX.Element> = {
   globe: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="12" cy="12" r="10" />

@@ -268,3 +268,290 @@ function escapeHtml(str: string): string {
 }
 
 export default { diffDocuments, renderDiffHTML, extractLines };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Structural / Style-aware Diff (v2)
+// 기존 라인 기반 diff 위에 블록 단위 + 서식 변경 탐지를 추가한 API.
+// 계약서·규정 개정 워크플로우처럼 서식 변경이 의미있는 경우 사용.
+// ─────────────────────────────────────────────────────────────────────────
+
+import type {
+  HWPXDocument,
+  HWPXSection,
+  HWPXParagraph,
+  HWPXTable,
+  HWPXTableCell,
+  HWPXRun,
+  HWPXTextStyle,
+} from '../../types/hwpx';
+
+export type StructuralDiffOp = 'equal' | 'insert' | 'delete' | 'modify';
+
+export interface DiffBlock {
+  id: string;
+  kind: 'paragraph' | 'table-cell';
+  text: string;
+  path: { section: number; element: number; row?: number; cell?: number };
+  style?: HWPXTextStyle;
+  alignment?: string;
+}
+
+export interface TextTokenChange {
+  op: 'insert' | 'delete' | 'equal';
+  text: string;
+}
+
+export interface StyleChange {
+  property: string;
+  from: unknown;
+  to: unknown;
+}
+
+export interface StructuralDiffEntry {
+  op: StructuralDiffOp;
+  left?: DiffBlock;
+  right?: DiffBlock;
+  textChanges?: TextTokenChange[];
+  styleChanges?: StyleChange[];
+}
+
+export interface StructuralDiffResult {
+  entries: StructuralDiffEntry[];
+  summary: {
+    added: number;
+    removed: number;
+    modified: number;
+    unchanged: number;
+    totalLeft: number;
+    totalRight: number;
+  };
+}
+
+export function flattenDocument(doc: HWPXDocument): DiffBlock[] {
+  const blocks: DiffBlock[] = [];
+  doc.sections.forEach((section, sIdx) => flattenSection(section, sIdx, blocks));
+  return blocks;
+}
+
+function flattenSection(section: HWPXSection, sIdx: number, out: DiffBlock[]) {
+  section.elements.forEach((el, eIdx) => {
+    if (el.type === 'paragraph') {
+      out.push(paragraphToBlock(el as HWPXParagraph, sIdx, eIdx));
+    } else if (el.type === 'table') {
+      const table = el as HWPXTable;
+      table.rows?.forEach((row, rIdx) => {
+        row.cells?.forEach((cell, cIdx) => {
+          out.push(cellToBlock(cell, sIdx, eIdx, rIdx, cIdx));
+        });
+      });
+    }
+  });
+}
+
+function paragraphToBlock(para: HWPXParagraph, sIdx: number, eIdx: number): DiffBlock {
+  const text = (para.runs ?? []).map(r => r.text ?? '').join('');
+  const firstRun = (para.runs ?? [])[0];
+  return {
+    id: `s${sIdx}/e${eIdx}`,
+    kind: 'paragraph',
+    text,
+    path: { section: sIdx, element: eIdx },
+    style: firstRun?.style,
+    alignment: para.alignment,
+  };
+}
+
+function cellToBlock(cell: HWPXTableCell, sIdx: number, eIdx: number, rIdx: number, cIdx: number): DiffBlock {
+  const texts: string[] = [];
+  let firstStyle: HWPXTextStyle | undefined;
+  for (const elem of cell.elements ?? []) {
+    if (elem.type === 'paragraph') {
+      const para = elem as HWPXParagraph;
+      const line = (para.runs ?? []).map((r: HWPXRun) => r.text ?? '').join('');
+      if (line) texts.push(line);
+      if (!firstStyle && para.runs?.[0]?.style) firstStyle = para.runs[0].style;
+    }
+  }
+  return {
+    id: `s${sIdx}/e${eIdx}/r${rIdx}/c${cIdx}`,
+    kind: 'table-cell',
+    text: texts.join('\n'),
+    path: { section: sIdx, element: eIdx, row: rIdx, cell: cIdx },
+    style: firstStyle,
+  };
+}
+
+function normalize(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function lcsMatrix(a: string[], b: string[]): number[][] {
+  const n = a.length, m = b.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp;
+}
+
+function tokenize(s: string): string[] {
+  return s.split(/(\s+|[.,!?;:])/).filter(t => t.length > 0);
+}
+
+function pushTokenChange(out: TextTokenChange[], op: TextTokenChange['op'], text: string) {
+  const last = out[out.length - 1];
+  if (last && last.op === op) last.text += text;
+  else out.push({ op, text });
+}
+
+export function diffText(a: string, b: string): TextTokenChange[] {
+  if (a === b) return [{ op: 'equal', text: a }];
+
+  const aTokens = tokenize(a);
+  const bTokens = tokenize(b);
+  const dp = lcsMatrix(aTokens, bTokens);
+
+  const out: TextTokenChange[] = [];
+  let i = aTokens.length, j = bTokens.length;
+
+  while (i > 0 && j > 0) {
+    if (aTokens[i - 1] === bTokens[j - 1]) {
+      pushTokenChange(out, 'equal', aTokens[i - 1]);
+      i--; j--;
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      pushTokenChange(out, 'delete', aTokens[i - 1]);
+      i--;
+    } else {
+      pushTokenChange(out, 'insert', bTokens[j - 1]);
+      j--;
+    }
+  }
+  while (i > 0) pushTokenChange(out, 'delete', aTokens[--i]);
+  while (j > 0) pushTokenChange(out, 'insert', bTokens[--j]);
+
+  return out.reverse();
+}
+
+function diffStyles(a?: HWPXTextStyle, b?: HWPXTextStyle): StyleChange[] {
+  if (!a && !b) return [];
+  const tracked: (keyof HWPXTextStyle)[] = [
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'color',
+    'backgroundColor', 'underline', 'strikethrough', 'bold', 'italic',
+  ];
+  const changes: StyleChange[] = [];
+  for (const prop of tracked) {
+    const av = a?.[prop];
+    const bv = b?.[prop];
+    if (av !== bv) changes.push({ property: prop as string, from: av, to: bv });
+  }
+  return changes;
+}
+
+function samePath(a: DiffBlock['path'], b: DiffBlock['path']): boolean {
+  return a.section === b.section && a.element === b.element && a.row === b.row && a.cell === b.cell;
+}
+
+function compareMatched(l: DiffBlock, r: DiffBlock): StructuralDiffEntry {
+  const styleChanges = diffStyles(l.style, r.style);
+  if (l.alignment !== r.alignment) {
+    styleChanges.push({ property: 'alignment', from: l.alignment, to: r.alignment });
+  }
+  return styleChanges.length === 0
+    ? { op: 'equal', left: l, right: r }
+    : { op: 'modify', left: l, right: r, styleChanges };
+}
+
+function mergeToModify(entries: StructuralDiffEntry[]): StructuralDiffEntry[] {
+  const out: StructuralDiffEntry[] = [];
+  const consumed = new Set<number>();
+
+  for (let k = 0; k < entries.length; k++) {
+    if (consumed.has(k)) continue;
+    const cur = entries[k];
+
+    if (cur.op === 'delete' || cur.op === 'insert') {
+      // 뒤쪽으로 인접 pair 를 찾음 — 중간에 equal 은 건너뜀
+      for (let m = k + 1; m < Math.min(entries.length, k + 4); m++) {
+        if (consumed.has(m)) continue;
+        const other = entries[m];
+        const pair = matchDeleteInsert(cur, other);
+        if (pair) {
+          out.push(pair);
+          consumed.add(k);
+          consumed.add(m);
+          break;
+        }
+        if (other.op === 'equal') continue;
+        break;
+      }
+      if (consumed.has(k)) continue;
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
+function matchDeleteInsert(a: StructuralDiffEntry, b: StructuralDiffEntry): StructuralDiffEntry | null {
+  const del = a.op === 'delete' ? a : b.op === 'delete' ? b : null;
+  const ins = a.op === 'insert' ? a : b.op === 'insert' ? b : null;
+  if (!del || !ins || !del.left || !ins.right) return null;
+  if (del.left.kind !== ins.right.kind) return null;
+  if (!samePath(del.left.path, ins.right.path)) return null;
+
+  return {
+    op: 'modify',
+    left: del.left,
+    right: ins.right,
+    textChanges: diffText(del.left.text, ins.right.text),
+    styleChanges: diffStyles(del.left.style, ins.right.style),
+  };
+}
+
+/**
+ * 구조 인식 diff — 블록(단락·셀) 단위 매칭 + 서식/정렬 변경 탐지
+ */
+export function diffDocumentsStructural(left: HWPXDocument, right: HWPXDocument): StructuralDiffResult {
+  const L = flattenDocument(left);
+  const R = flattenDocument(right);
+
+  const lKeys = L.map(b => normalize(b.text));
+  const rKeys = R.map(b => normalize(b.text));
+  const dp = lcsMatrix(lKeys, rKeys);
+
+  const entries: StructuralDiffEntry[] = [];
+  let i = L.length, j = R.length;
+
+  while (i > 0 && j > 0) {
+    if (lKeys[i - 1] === rKeys[j - 1]) {
+      entries.unshift(compareMatched(L[i - 1], R[j - 1]));
+      i--; j--;
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      entries.unshift({ op: 'delete', left: L[i - 1] });
+      i--;
+    } else {
+      entries.unshift({ op: 'insert', right: R[j - 1] });
+      j--;
+    }
+  }
+  while (i > 0) entries.unshift({ op: 'delete', left: L[--i] });
+  while (j > 0) entries.unshift({ op: 'insert', right: R[--j] });
+
+  const merged = mergeToModify(entries);
+
+  let added = 0, removed = 0, modified = 0, unchanged = 0;
+  for (const e of merged) {
+    if (e.op === 'insert') added++;
+    else if (e.op === 'delete') removed++;
+    else if (e.op === 'modify') modified++;
+    else unchanged++;
+  }
+
+  return {
+    entries: merged,
+    summary: { added, removed, modified, unchanged, totalLeft: L.length, totalRight: R.length },
+  };
+}

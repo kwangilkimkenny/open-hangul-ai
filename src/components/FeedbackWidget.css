@@ -1,0 +1,475 @@
+/* 피드백 위젯 스타일 */
+.feedback-widget-trigger {
+  position: fixed;
+  z-index: 9998;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 24px 24px 0 0;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.feedback-widget-trigger:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 123, 255, 0.4);
+}
+
+.feedback-widget-trigger:active {
+  transform: translateY(0);
+}
+
+.feedback-trigger-text {
+  font-size: 13px;
+  margin-left: 2px;
+}
+
+/* 위치 설정 */
+.feedback-widget-bottom-right {
+  bottom: 0;
+  right: 20px;
+}
+
+.feedback-widget-bottom-left {
+  bottom: 0;
+  left: 20px;
+}
+
+.feedback-widget-top-right {
+  top: 20px;
+  right: 20px;
+}
+
+.feedback-widget-top-left {
+  top: 20px;
+  left: 20px;
+}
+
+/* 피드백 폼 위젯 */
+.feedback-widget {
+  position: fixed;
+  z-index: 9999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  max-width: 400px;
+  width: calc(100vw - 40px);
+}
+
+.feedback-widget-content {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e1e5e9;
+  overflow: hidden;
+  animation: feedbackSlideIn 0.3s ease-out;
+}
+
+@keyframes feedbackSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 헤더 */
+.feedback-header {
+  background: #f8f9fa;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.feedback-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #212529;
+}
+
+.feedback-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.feedback-close:hover {
+  background-color: #e9ecef;
+  color: #495057;
+}
+
+.feedback-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 폼 스타일 */
+.feedback-widget form {
+  padding: 20px;
+}
+
+.feedback-field {
+  margin-bottom: 20px;
+}
+
+.feedback-field:last-of-type {
+  margin-bottom: 0;
+}
+
+.feedback-field label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #495057;
+  margin-bottom: 6px;
+}
+
+.feedback-field select,
+.feedback-field input,
+.feedback-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.feedback-field select:focus,
+.feedback-field input:focus,
+.feedback-field textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.feedback-field select:disabled,
+.feedback-field input:disabled,
+.feedback-field textarea:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.feedback-field-description {
+  display: block;
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.char-count {
+  display: block;
+  text-align: right;
+  font-size: 11px;
+  color: #8e9297;
+  margin-top: 4px;
+}
+
+/* 평점 시스템 */
+.feedback-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.rating-button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+
+.rating-button:hover {
+  transform: scale(1.1);
+  opacity: 0.7;
+}
+
+.rating-button.filled {
+  filter: grayscale(0);
+  opacity: 1;
+}
+
+.rating-button.active {
+  transform: scale(1.15);
+  filter: grayscale(0);
+  opacity: 1;
+}
+
+.rating-button:disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+
+.rating-text {
+  margin-left: 8px;
+  font-size: 14px;
+  color: #495057;
+  font-weight: 500;
+}
+
+/* 액션 버튼 */
+.feedback-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.feedback-submit {
+  flex: 1;
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.feedback-submit:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.feedback-submit:disabled {
+  background: #dee2e6;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.feedback-cancel {
+  background: #f8f9fa;
+  color: #495057;
+  border: 1px solid #dee2e6;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.feedback-cancel:hover:not(:disabled) {
+  background: #e9ecef;
+  border-color: #ced4da;
+}
+
+.feedback-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 푸터 */
+.feedback-footer {
+  padding: 12px 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.feedback-footer small {
+  color: #6c757d;
+  font-size: 12px;
+}
+
+.feedback-footer a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.feedback-footer a:hover {
+  text-decoration: underline;
+}
+
+/* 감사 메시지 */
+.feedback-thank-you {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.thank-you-animation {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: thankYouBounce 0.6s ease;
+}
+
+@keyframes thankYouBounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+.feedback-thank-you h3 {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  color: #28a745;
+  font-weight: 600;
+}
+
+.feedback-thank-you p {
+  margin: 0;
+  color: #6c757d;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 480px) {
+  .feedback-widget {
+    width: calc(100vw - 20px);
+    margin: 0 10px;
+  }
+
+  .feedback-widget-content {
+    border-radius: 8px;
+  }
+
+  .feedback-widget form {
+    padding: 16px;
+  }
+
+  .feedback-header {
+    padding: 12px 16px;
+  }
+
+  .feedback-actions {
+    flex-direction: column;
+  }
+
+  .feedback-submit,
+  .feedback-cancel {
+    width: 100%;
+  }
+}
+
+/* 다크 모드 지원 */
+@media (prefers-color-scheme: dark) {
+  .feedback-widget-content {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+
+  .feedback-header {
+    background: #1a202c;
+    border-color: #4a5568;
+  }
+
+  .feedback-header h3 {
+    color: #e2e8f0;
+  }
+
+  .feedback-field label {
+    color: #cbd5e0;
+  }
+
+  .feedback-field select,
+  .feedback-field input,
+  .feedback-field textarea {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+
+  .feedback-field select:focus,
+  .feedback-field input:focus,
+  .feedback-field textarea:focus {
+    border-color: #63b3ed;
+    box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.1);
+  }
+
+  .feedback-cancel {
+    background: #4a5568;
+    color: #e2e8f0;
+    border-color: #718096;
+  }
+
+  .feedback-cancel:hover:not(:disabled) {
+    background: #718096;
+  }
+
+  .feedback-footer {
+    background: #1a202c;
+    border-color: #4a5568;
+  }
+
+  .feedback-field-description,
+  .char-count {
+    color: #a0aec0;
+  }
+}
+
+/* 높은 대비 모드 지원 */
+@media (prefers-contrast: high) {
+  .feedback-widget-content {
+    border-width: 2px;
+  }
+
+  .feedback-field select,
+  .feedback-field input,
+  .feedback-field textarea {
+    border-width: 2px;
+  }
+
+  .feedback-submit {
+    border: 2px solid #0056b3;
+  }
+
+  .feedback-cancel {
+    border-width: 2px;
+  }
+}
+
+/* 애니메이션 감소 모드 */
+@media (prefers-reduced-motion: reduce) {
+  .feedback-widget-content {
+    animation: none;
+  }
+
+  .thank-you-animation {
+    animation: none;
+  }
+
+  .rating-button:hover,
+  .rating-button.active {
+    transform: none;
+  }
+
+  * {
+    transition: none !important;
+  }
+}

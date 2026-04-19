@@ -148,7 +148,7 @@ export async function parseODT(buffer: ArrayBuffer, fileName: string): Promise<D
       }
       images.clear();
     },
-  };
+  } as any;
 }
 
 /**

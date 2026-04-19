@@ -35,7 +35,8 @@ let _PiiProxyEngineClass: any = null;
 async function loadPiiModules(): Promise<boolean> {
   if (_piiModulesLoaded) return !!_PiiScannerClass;
   try {
-    const sdk = await import('@aegis-sdk');
+    // @ts-ignore - Enterprise-only module, expected to fail in Community Edition
+    const sdk = await import('@hanview/aegis-enterprise');
     _PiiScannerClass = sdk.PiiScanner;
     _PiiProxyEngineClass = sdk.PiiProxyEngine;
     _piiModulesLoaded = true;

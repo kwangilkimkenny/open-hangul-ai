@@ -40,7 +40,13 @@ export async function runAegisBenchmark(
   testCases: AegisTestCase[],
   engine?: AegisEngine | null,
 ): Promise<{ results: AegisTestResult[]; engineMode: 'sdk' | 'fallback' }> {
-  let scan: (text: string) => AegisScanResult;
+  let scan: (text: string) => AegisScanResult = (_text: string) => ({
+    allowed: true,
+    score: 0,
+    reason: 'No AEGIS engine available',
+    categories: [],
+    piiDetected: [],
+  });
   let engineMode: 'sdk' | 'fallback' = 'fallback';
 
   if (engine) {
@@ -49,18 +55,18 @@ export async function runAegisBenchmark(
   } else {
     let loaded = false;
     for (const importFn of [
-      () => import('@aegis-sdk'),
-      () => import('../../../../packages-aegis/aegis-sdk/src/index'),
+      // @ts-ignore - Enterprise-only module, expected to fail in Community Edition
+      () => import('@hanview/aegis-enterprise'),
     ]) {
       if (loaded) break;
       try {
         const sdk = await importFn();
-        const AegisClass = sdk.Aegis || sdk.default?.Aegis;
+        const AegisClass = sdk.Aegis || (sdk as any).default?.Aegis;
         if (!AegisClass) continue;
         const aegis = new AegisClass({
           blockThreshold: 50,     // 기존 60 → 50으로 하향 (간접 공격 감지 향상)
           sensitivity: 1.2,       // 기존 1.0 → 1.2 (민감도 상향)
-          koreanDefense: true,
+          korean: { enabled: true },
         });
         scan = (text: string) => {
           const result = aegis.scan(text);

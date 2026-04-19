@@ -176,7 +176,7 @@ export function HWPXViewerWrapper({
           const buffer = await file.arrayBuffer();
           const { parseDocx } = await import('../lib/docx/parser');
           const docxDocument = await parseDocx(buffer, file.name);
-          await viewerRef.current.updateDocument(docxDocument as any);
+          await viewerRef.current.loadDocument(docxDocument as any);
           (viewerRef.current as any).state.docxSource = true;
           (viewerRef.current as any).state.isNewDocument = true;
           toast.dismiss('loading');
@@ -202,7 +202,7 @@ export function HWPXViewerWrapper({
           const buffer = await file.arrayBuffer();
           const { parseExcel } = await import('../lib/excel/parser');
           const excelDocument = await parseExcel(buffer, file.name);
-          await viewerRef.current.updateDocument(excelDocument as any);
+          await viewerRef.current.loadDocument(excelDocument as any);
           (viewerRef.current as any).state.excelSource = true;
           (viewerRef.current as any).state.isNewDocument = true;
           toast.dismiss('loading');
@@ -228,7 +228,7 @@ export function HWPXViewerWrapper({
           const text = await file.text();
           const { parseMarkdown } = await import('../lib/markdown/parser');
           const mdDocument = parseMarkdown(text);
-          await viewerRef.current.updateDocument(mdDocument as any);
+          await viewerRef.current.loadDocument(mdDocument as any);
           // 원본 파일명 저장 (저장 시 참조)
           (viewerRef.current as any).state.markdownSource = true;
           (viewerRef.current as any).state.isNewDocument = true;
@@ -255,7 +255,7 @@ export function HWPXViewerWrapper({
           const buffer = await file.arrayBuffer();
           const { parsePDF } = await import('../lib/pdf/parser');
           const pdfDocument = await parsePDF(buffer, file.name);
-          await viewerRef.current.updateDocument(pdfDocument as any);
+          await viewerRef.current.loadDocument(pdfDocument as any);
           (viewerRef.current as any).state.pdfSource = true;
           (viewerRef.current as any).state.isNewDocument = true;
           toast.dismiss('loading');
@@ -281,7 +281,7 @@ export function HWPXViewerWrapper({
           const buffer = await file.arrayBuffer();
           const { parseODF } = await import('../lib/odf/parser');
           const odfDocument = await parseODF(buffer, file.name);
-          await viewerRef.current.updateDocument(odfDocument as any);
+          await viewerRef.current.loadDocument(odfDocument as any);
           (viewerRef.current as any).state.odfSource = true;
           (viewerRef.current as any).state.isNewDocument = true;
           toast.dismiss('loading');
@@ -307,7 +307,7 @@ export function HWPXViewerWrapper({
           const buffer = await file.arrayBuffer();
           const { parsePptx } = await import('../lib/pptx/parser');
           const pptxDocument = await parsePptx(buffer, file.name);
-          await viewerRef.current.updateDocument(pptxDocument as any);
+          await viewerRef.current.loadDocument(pptxDocument as any);
           (viewerRef.current as any).state.pptxSource = true;
           (viewerRef.current as any).state.isNewDocument = true;
           toast.dismiss('loading');
@@ -345,17 +345,21 @@ export function HWPXViewerWrapper({
             return;
           }
 
-          const { Hwp2Hwpx } = await import('@hwp2hwpx/core/Hwp2Hwpx');
-          const hwpxBinary = await Hwp2Hwpx.convert(uint8Array, {
-            onProgress: (progress: any) => {
-              devLog(`HWP 변환: ${progress.percent}% - ${progress.stage || ''}`);
-            },
-          });
-          fileToLoad = new File(
-            [hwpxBinary],
-            file.name.replace(/\.hwp$/i, '.hwpx'),
-            { type: 'application/hwp+zip' }
-          );
+          // HWP to HWPX conversion - currently disabled in Community Edition
+          // TODO: Implement HWP conversion when hwp2hwpx package is available
+          // const { Hwp2Hwpx } = await import('@hwp2hwpx/Hwp2Hwpx');
+          // const hwpxBinary = await Hwp2Hwpx.convert(uint8Array, {
+          //   onProgress: (progress: any) => {
+          //     devLog(`HWP 변환: ${progress.percent}% - ${progress.stage || ''}`);
+          //   },
+          // });
+          throw new Error('HWP conversion not available in Community Edition');
+          // fileToLoad = new File(
+          //   [hwpxBinary],
+          //   file.name.replace(/\.hwp$/i, '.hwpx'),
+          //   { type: 'application/hwp+zip' }
+          // );
+          throw new Error('HWP conversion not available - missing hwp2hwpx dependency');
           toast.dismiss('loading');
           toast.success('HWP → HWPX 변환 완료');
         } catch (convertError: any) {

@@ -183,7 +183,7 @@ export async function parsePDF(buffer: ArrayBuffer, fileName: string): Promise<D
       canvas.height = renderViewport.height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+        await page.render({ canvas, canvasContext: ctx, viewport: renderViewport }).promise;
         const blob = await new Promise<Blob | null>(resolve =>
           canvas.toBlob(resolve, 'image/png', 0.85),
         );

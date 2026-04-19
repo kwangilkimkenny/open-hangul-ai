@@ -43,7 +43,7 @@ export function PaymentFailPage() {
           </div>
 
           <div className="help-text">
-            계속 문제가 발생하면 <a href="mailto:support@hanview.ai">support@hanview.ai</a>로 문의해주세요
+            계속 문제가 발생하면 <a href="mailto:ray.kim@yatavent.com">ray.kim@yatavent.com</a>로 문의해주세요
           </div>
         </div>
       </div>

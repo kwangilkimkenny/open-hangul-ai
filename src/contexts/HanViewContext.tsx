@@ -89,7 +89,7 @@ const defaultConfig: HanViewCustomization = {
     tableEdit: true,
     autoSave: {
       enabled: true,
-      interval: 30000,
+      interval: parseInt(import.meta.env.VITE_AUTO_SAVE_INTERVAL || '30000'),
     },
     history: {
       enabled: true,

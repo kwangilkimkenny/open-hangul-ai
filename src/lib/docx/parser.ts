@@ -189,20 +189,20 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
 
   // 2. relationships 로드 (이미지 참조용)
   const relsXml = await zip.file('word/_rels/document.xml.rels')?.async('string');
-  const relsMap = new Map<string, string>();
+  const _relsMap = new Map<string, string>(); // Currently unused
   if (relsXml) {
     const relDoc = parser.parseFromString(relsXml, 'application/xml');
     const rels = relDoc.getElementsByTagName('Relationship');
     for (let i = 0; i < rels.length; i++) {
       const id = rels[i].getAttribute('Id');
       const target = rels[i].getAttribute('Target');
-      if (id && target) relsMap.set(id, target);
+      if (id && target) _relsMap.set(id, target);
     }
   }
 
   // 3. 이미지 추출
   const images = new Map<string, any>();
-  for (const [relId, target] of relsMap) {
+  for (const [relId, target] of _relsMap) {
     if (target.match(/\.(png|jpg|jpeg|gif|bmp|svg|tiff|emf|wmf)$/i)) {
       const imgPath = target.startsWith('/') ? target.substring(1) : `word/${target}`;
       const imgFile = zip.file(imgPath);
@@ -253,10 +253,10 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
     const name = getLocalName(node);
 
     if (name === 'p') {
-      const paras = parseParagraph(node, styleMap, images, relsMap);
+      const paras = parseParagraph(node, styleMap, images, _relsMap);
       elements.push(...paras);
     } else if (name === 'tbl') {
-      const table = parseTable(node, styleMap, images, relsMap);
+      const table = parseTable(node, styleMap, images, _relsMap);
       if (table) elements.push(table);
     } else if (name === 'sectPr') {
       // 섹션 속성 — 페이지 설정용 (마지막에 처리)
@@ -286,13 +286,13 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
       sourceFormat: 'docx',
       fileName,
     },
-    cleanup() {
+    cleanup: () => {
       for (const [, img] of images) {
         if (img?.src) URL.revokeObjectURL(img.src);
       }
       images.clear();
     },
-  };
+  } as any;
 }
 
 /**
@@ -370,7 +370,7 @@ function parseParagraph(
   pNode: globalThis.Element,
   styleMap: Map<string, Record<string, any>>,
   images: Map<string, any>,
-  relsMap: Map<string, string>,
+  _relsMap: Map<string, string>,
 ): Element[] {
   const runs: Run[] = [];
   const resultElements: Element[] = [];
@@ -450,7 +450,7 @@ function parseParagraph(
       // 이미지 확인
       const drawing = getElement(child, 'drawing');
       if (drawing) {
-        const imgEl = parseDrawing(drawing, images, relsMap);
+        const imgEl = parseDrawing(drawing, images, _relsMap);
         if (imgEl) {
           // 현재까지 누적된 runs가 있으면 paragraph로 먼저 push
           if (runs.length > 0) {
@@ -544,7 +544,7 @@ function parseParagraph(
 function parseDrawing(
   drawing: globalThis.Element,
   images: Map<string, any>,
-  relsMap: Map<string, string>,
+  _relsMap: Map<string, string>,
 ): Element | null {
   // inline 또는 anchor 안의 blip 찾기
   const allElements = drawing.getElementsByTagName('*');
@@ -585,7 +585,7 @@ function parseTable(
   tblNode: globalThis.Element,
   styleMap: Map<string, Record<string, any>>,
   images: Map<string, any>,
-  relsMap: Map<string, string>,
+  _relsMap: Map<string, string>,
 ): Element {
   const rows: RowData[] = [];
   const tblRows = getElements(tblNode, 'tr');
@@ -615,7 +615,7 @@ function parseTable(
       // 셀 속성
       const tcPr = getElement(tc, 'tcPr');
       let colSpan = 1;
-      let rowSpan: number | undefined;
+      // let rowSpan: number | undefined; // Currently unused
       let isCovered = false;
 
       if (tcPr) {
@@ -632,7 +632,7 @@ function parseTable(
           const val = getAttr(vMerge, 'val');
           if (val === 'restart') {
             // 병합 시작 — rowSpan은 나중에 계산
-            rowSpan = undefined; // 마크만
+            // rowSpan = undefined; // 마크만 (currently unused)
           } else {
             // 병합 계속 (val 없음 또는 'continue')
             isCovered = true;
@@ -680,7 +680,7 @@ function parseTable(
       for (let i = 0; i < tc.children.length; i++) {
         const child = tc.children[i];
         if (getLocalName(child) === 'p') {
-          cellElements.push(...parseParagraph(child, styleMap, images, relsMap));
+          cellElements.push(...parseParagraph(child, styleMap, images, _relsMap));
         }
       }
 

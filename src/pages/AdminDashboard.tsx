@@ -90,10 +90,10 @@ export function AdminDashboard() {
         .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
     ]);
 
-    const monthRevenue = (paymentsRes.data || [])
-      .filter(p => p.status === 'completed')
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
-    const failed = (paymentsRes.data || []).filter(p => p.status === 'failed').length;
+    const monthRevenue = (paymentsRes.data as any[] || [])
+      .filter((p: any) => p.status === 'completed')
+      .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+    const failed = (paymentsRes.data as any[] || []).filter((p: any) => p.status === 'failed').length;
 
     setStats({
       totalUsers: usersRes.count || 0,

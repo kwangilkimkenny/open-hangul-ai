@@ -10,6 +10,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getSupabase, isSupabaseEnabled } from '../lib/supabase/client';
+import { getLogger } from '../lib/logging/logger';
+
+const logger = getLogger('AuthStore');
 
 export interface User {
   id: string;
@@ -215,13 +218,25 @@ export const useAuthStore = create<AuthState>()(
         if (!current) return;
 
         if (isSupabaseEnabled) {
-          const supabase = getSupabase()!;
-          const { error } = await supabase
-            .from('profiles')
-            .update({ plan })
-            .eq('id', current.id);
-          if (error) {
-            console.error('updatePlan failed:', error);
+          try {
+            const supabase = getSupabase()!;
+            // Workaround for Supabase typing issue - use generic update
+            const { error } = await (supabase as any)
+              .from('profiles')
+              .update({ plan })
+              .eq('id', current.id);
+            if (error) {
+              logger.error('Failed to update user plan', error as Error, {
+                userId: current.id,
+                plan
+              });
+              return;
+            }
+          } catch (error) {
+            logger.error('Error updating user plan', error as Error, {
+              userId: current.id,
+              plan
+            });
             return;
           }
         }

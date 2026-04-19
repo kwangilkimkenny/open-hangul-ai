@@ -1,29 +1,59 @@
 {
-  "name": "openhangul-ai",
-  "private": true,
-  "version": "4.0.0",
-  "license": "SEE LICENSE IN LICENSE",
-  "author": "ISM Team <license@ism-team.com>",
+  "name": "open-hangul-ai",
+  "private": false,
+  "version": "5.0.0",
+  "license": "MIT",
+  "author": "YATAV Team <team@openhangulai.org>",
+  "contributors": [
+    {
+      "name": "Kwang-il Kim (김광일)",
+      "email": "ray.kim@yatavent.com",
+      "alternativeEmail": "cac.kikim@gmail.com",
+      "url": "https://www.linkedin.com/in/kwang-il-kim-a399b3196/",
+      "role": "Lead Developer & Architect"
+    }
+  ],
+  "maintainers": [
+    {
+      "name": "Kwang-il Kim",
+      "email": "cac.kikim@gmail.com",
+      "url": "https://www.linkedin.com/in/kwang-il-kim-a399b3196/"
+    }
+  ],
+  "homepage": "https://github.com/yatav-team/open-hangul-ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yatav-team/open-hangul-ai"
+  },
+  "keywords": ["open-hangul-ai", "document-viewer", "hwpx", "pdf", "docx", "ai", "llm", "editor", "korean-docs", "hangul", "yatav"],
   "type": "module",
-  "main": "./dist/hanview-react.umd.js",
-  "module": "./dist/hanview-react.es.js",
-  "types": "./dist/hanview-react.es.d.ts",
+  "main": "./dist/open-hangul-ai.umd.js",
+  "module": "./dist/open-hangul-ai.es.js",
+  "types": "./dist/open-hangul-ai.es.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/hanview-react.es.d.ts",
-      "import": "./dist/hanview-react.es.js",
-      "require": "./dist/hanview-react.umd.js"
+      "types": "./dist/open-hangul-ai.es.d.ts",
+      "import": "./dist/open-hangul-ai.es.js",
+      "require": "./dist/open-hangul-ai.umd.js"
     },
-    "./dist/hanview-react.css": "./dist/hanview-react.css"
+    "./dist/open-hangul-ai.css": "./dist/open-hangul-ai.css"
   },
   "scripts": {
     "dev": "vite",
     "proxy": "node server/proxy.js",
+    "vertex": "node server/vertex-proxy.js",
     "dev:full": "node server/proxy.js & vite",
+    "dev:vertex": "node server/vertex-proxy.js & vite",
+    "dev:all": "node server/proxy.js & node server/vertex-proxy.js & vite",
     "build": "tsc -b && vite build",
+    "build:community": "vite build",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:lib:watch": "vite build --config vite.config.lib.ts --watch",
+    "build:opensource": "node scripts/build-protected.js opensource",
+    "build:production": "node scripts/build-protected.js production",
+    "build:enterprise": "node scripts/build-protected.js production && npm run package",
     "package": "npm run build:lib && node scripts/prepare-package.js",
+    "package:opensource": "npm run build:opensource && npm run build:lib && node scripts/prepare-package.js opensource",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",

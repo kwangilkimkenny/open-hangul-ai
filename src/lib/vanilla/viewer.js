@@ -676,6 +676,55 @@ export class HWPXViewer {
   }
 
   /**
+   * 이미 파싱된 HWPXDocument 객체를 직접 로드 (AI 초안 생성 흐름용).
+   * 파일 파싱 단계를 건너뛰고 렌더링 + onLoad 콜백만 실행.
+   *
+   * @param {Object} document - HWPXDocument (parser 출력 또는 draftToHwpx 결과)
+   * @param {Object} [meta] - 선택 메타데이터 { sourceName?: string }
+   * @returns {Promise<Object>} 로드된 document
+   */
+  async loadDocument(document, meta = {}) {
+    if (!document || !Array.isArray(document.sections)) {
+      throw new Error('loadDocument: 유효한 HWPXDocument 가 필요합니다 (sections 배열 포함)');
+    }
+
+    this.state.isLoading = true;
+    showLoading(true, '문서 렌더링 중...');
+    updateStatus('렌더링 중...');
+
+    try {
+      this.state.document = document;
+      this.state.currentFile = null;
+
+      if (meta.sourceName) {
+        logger.info(`📝 Direct load: ${meta.sourceName}`);
+      }
+
+      await this.render(document);
+
+      if (this.inlineEditor) {
+        setTimeout(() => { this._enableEditingFeatures(); }, 100);
+      }
+
+      if (this.options.onLoad) {
+        this.options.onLoad(document);
+      }
+
+      showLoading(false);
+      updateStatus('준비됨');
+      return document;
+    } catch (error) {
+      logger.error('Failed to load document object:', error);
+      if (this.options.onError) this.options.onError(error);
+      showLoading(false);
+      updateStatus('오류 발생');
+      throw error;
+    } finally {
+      this.state.isLoading = false;
+    }
+  }
+
+  /**
    * 문서 렌더링 (v2.0 - 완전한 렌더링 파이프라인 사용)
    * @param {Object} document - 파싱된 문서
    * @returns {Promise<void>}

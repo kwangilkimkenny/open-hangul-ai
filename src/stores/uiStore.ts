@@ -146,7 +146,7 @@ export const useUIStore = create<UIState>()(
         
         // Toast
         toasts: [],
-        showToast: (type, title, message, duration = 3000) => {
+        showToast: (type, title, message, duration = parseInt(import.meta.env.VITE_TOAST_DURATION || '3000')) => {
           const id = `toast-${Date.now()}`;
           const toast: ToastMessage = { id, type, title, message, duration };
           

@@ -1,0 +1,11 @@
+
+# Protected modules (not included in open source)
+packages-aegis/
+TruthAnchor-core/
+
+# Binary modules
+lib/*.wasm
+lib/*.node
+*.dll
+*.so
+*.dylib
