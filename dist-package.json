@@ -1,8 +1,8 @@
 {
   "name": "open-hangul-ai",
-  "version": "5.0.0",
+  "version": "5.0.2",
   "description": "오픈한글AI - Professional HWPX Viewer & AI Document Editor for React - Open Source & Enterprise",
-  "author": "YATAV Team <team@openhangulai.org>",
+  "author": "YATAV Team <ray.kim@yatavent.com>",
   "license": "MIT",
   "private": false,
   "keywords": [
@@ -21,32 +21,32 @@
     "yatav",
     "enterprise"
   ],
-  "homepage": "https://openhangulai.org",
+  "homepage": "https://yatavent.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/yatav-team/open-hangul-ai.git"
   },
   "bugs": {
     "url": "https://github.com/yatav-team/open-hangul-ai/issues",
-    "email": "support@openhangulai.org"
+    "email": "ray.kim@yatavent.com"
   },
-  "main": "./hanview-react.umd.js",
-  "module": "./hanview-react.es.js",
-  "types": "./index.d.ts",
+  "main": "./open-hangul-ai.umd.js",
+  "module": "./open-hangul-ai.es.js",
+  "types": "./open-hangul-ai.es.d.ts",
   "exports": {
     ".": {
-      "import": "./hanview-react.es.js",
-      "require": "./hanview-react.umd.js",
-      "types": "./index.d.ts"
+      "import": "./open-hangul-ai.es.js",
+      "require": "./open-hangul-ai.umd.js",
+      "types": "./open-hangul-ai.es.d.ts"
     },
-    "./styles": "./hanview-react.css",
-    "./css": "./hanview-react.css"
+    "./styles": "./open-hangul-ai.css",
+    "./css": "./open-hangul-ai.css"
   },
   "files": [
-    "hanview-react.es.js",
-    "hanview-react.umd.js",
-    "hanview-react.css",
-    "index.d.ts",
+    "open-hangul-ai.es.js",
+    "open-hangul-ai.umd.js",
+    "open-hangul-ai.css",
+    "open-hangul-ai.es.d.ts",
     "*.d.ts"
   ],
   "sideEffects": [

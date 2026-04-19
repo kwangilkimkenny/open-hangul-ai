@@ -1,9 +1,9 @@
 {
   "name": "open-hangul-ai",
   "private": false,
-  "version": "5.0.0",
+  "version": "5.0.2",
   "license": "MIT",
-  "author": "YATAV Team <team@openhangulai.org>",
+  "author": "YATAV Team <ray.kim@yatavent.com>",
   "contributors": [
     {
       "name": "Kwang-il Kim (김광일)",
@@ -20,7 +20,7 @@
       "url": "https://www.linkedin.com/in/kwang-il-kim-a399b3196/"
     }
   ],
-  "homepage": "https://github.com/yatav-team/open-hangul-ai",
+  "homepage": "https://yatavent.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/yatav-team/open-hangul-ai"

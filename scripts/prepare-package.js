@@ -153,13 +153,13 @@ function App() {
 - **기업**: 무제한 프로젝트, 무제한 개발자, 우선 지원
 
 ### 라이센스 구매 문의
-- 📧 Email: license@ism-team.com
-- 🌐 Website: https://ism-team.com
+- 📧 Email: ray.kim@yatavent.com
+- 🌐 Website: https://yatavent.com
 - 📞 전화: 지원 센터 문의
 
 ---
 
-© ${new Date().getFullYear()} ISM Team. All Rights Reserved.
+© ${new Date().getFullYear()} YATAV Team. All Rights Reserved.
 `;
 
 fs.writeFileSync(path.join(packageDir, 'README.md'), readme);
@@ -167,13 +167,13 @@ console.log('  ✓ README.md');
 
 // 6. LICENSE 생성 (상업용 라이센스)
 const commercialLicense = `HAN-View React - 상업용 라이센스
-Copyright (c) ${new Date().getFullYear()} ISM Team
+Copyright (c) ${new Date().getFullYear()} YATAV Team
 All Rights Reserved.
 
 본 소프트웨어는 상업용 라이센스로 제공됩니다.
 
 1. 라이센스 부여
-   본 소프트웨어 및 관련 문서 파일("소프트웨어")는 ISM Team의 독점 재산입니다.
+   본 소프트웨어 및 관련 문서 파일("소프트웨어")는 YATAV의 독점 재산입니다.
    정당한 라이센스를 구매한 개인 또는 조직에게만 사용 권한이 부여됩니다.
 
 2. 사용 권한
@@ -208,7 +208,7 @@ All Rights Reserved.
    묵시적 보증을 포함하되 이에 국한되지 않습니다.
 
 7. 책임의 제한
-   ISM Team은 계약, 불법 행위 또는 기타 어떠한 경우에도 본 소프트웨어의 사용 또는 
+   YATAV는 계약, 불법 행위 또는 기타 어떠한 경우에도 본 소프트웨어의 사용 또는 
    사용 불능으로 인해 발생하는 직접적, 간접적, 우발적, 특수, 징벌적 또는 결과적 
    손해에 대해 책임을 지지 않습니다.
 
@@ -218,8 +218,8 @@ All Rights Reserved.
 
 9. 연락처
    라이센스 구매 및 문의:
-   - 이메일: license@ism-team.com
-   - 웹사이트: https://ism-team.com
+   - 이메일: ray.kim@yatavent.com
+   - 웹사이트: https://yatavent.com
    - 전화: 지원 센터 문의
 
 본 라이센스는 대한민국 법률에 따라 규율되고 해석됩니다.
