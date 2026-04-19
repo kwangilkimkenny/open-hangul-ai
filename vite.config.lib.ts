@@ -31,9 +31,9 @@ export default defineConfig({
     // 라이브러리 모드
     lib: {
       entry: resolve(__dirname, 'src/lib/index.ts'),
-      name: 'HanViewReact',
+      name: 'OpenHangulAI',
       formats: ['es', 'umd'],
-      fileName: (format) => `hanview-react.${format}.js`,
+      fileName: (format) => `open-hangul-ai.${format}.js`,
     },
     
     // 외부 의존성 (번들에 포함하지 않음)
@@ -44,6 +44,10 @@ export default defineConfig({
           return true;
         }
         if (id === 'react-hot-toast') {
+          return true;
+        }
+        // AEGIS 관련 패키지들은 선택적 의존성으로 external 처리
+        if (id === '@aegis-sdk' || id.startsWith('@hanview/aegis')) {
           return true;
         }
         return false;
@@ -60,7 +64,7 @@ export default defineConfig({
         // CSS 별도 파일로 추출
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith('.css')) {
-            return 'hanview-react.css';
+            return 'open-hangul-ai.css';
           }
           return assetInfo.name || 'assets/[name]-[hash][extname]';
         },
