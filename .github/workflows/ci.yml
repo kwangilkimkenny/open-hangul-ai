@@ -1,10 +1,14 @@
-name: CI/CD Pipeline
+name: 🧪 CI (Continuous Integration)
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+env:
+  NODE_VERSION: '18'
 
 jobs:
   # Job 1: Code Quality Checks
