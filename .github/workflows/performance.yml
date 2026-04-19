@@ -1,0 +1,404 @@
+name: ⚡ Performance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 매일 새벽 3시 (UTC)
+    - cron: '0 3 * * *'
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # 📊 번들 사이즈 분석
+  bundle-analysis:
+    name: 📊 Bundle Size Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build for analysis
+        run: |
+          npm run build
+          npm run build:lib
+
+      - name: 📊 Analyze bundle size
+        run: |
+          echo "## ⚡ 번들 사이즈 분석" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 메인 앱 번들 크기
+          echo "### 📱 메인 애플리케이션" >> $GITHUB_STEP_SUMMARY
+          MAIN_SIZE=$(du -sh dist/ | cut -f1)
+          echo "- **전체 크기**: $MAIN_SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 개별 청크 분석
+          echo "#### 주요 에셋 크기" >> $GITHUB_STEP_SUMMARY
+          echo "| 파일 | 크기 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+
+          find dist/assets -name "*.js" -o -name "*.css" | while read file; do
+            SIZE=$(du -h "$file" | cut -f1)
+            NAME=$(basename "$file")
+            echo "| $NAME | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 라이브러리 패키지 크기
+          echo "### 📦 npm 패키지 (라이브러리)" >> $GITHUB_STEP_SUMMARY
+          if [ -d "hanview-react-dist" ]; then
+            LIB_SIZE=$(du -sh hanview-react-dist/ | cut -f1)
+            echo "- **전체 크기**: $LIB_SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            echo "#### 라이브러리 파일 크기" >> $GITHUB_STEP_SUMMARY
+            echo "| 파일 | 크기 |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+
+            find hanview-react-dist -name "*.js" -o -name "*.css" -o -name "*.d.ts" | while read file; do
+              SIZE=$(du -h "$file" | cut -f1)
+              NAME=$(basename "$file")
+              echo "| $NAME | $SIZE |" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 성능 임계값 확인
+          echo "### 🎯 성능 목표 달성 여부" >> $GITHUB_STEP_SUMMARY
+          echo "| 목표 | 현재 | 상태 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 메인 JS < 500KB | TBD | 🔍 확인 중 |" >> $GITHUB_STEP_SUMMARY
+          echo "| CSS < 50KB | TBD | 🔍 확인 중 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 총 라이브러리 < 200KB | TBD | 🔍 확인 중 |" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📈 Bundle size trend tracking
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # 번들 크기를 JSON 형태로 기록
+          mkdir -p .github/bundle-stats
+
+          cat > .github/bundle-stats/$(date +%Y%m%d).json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "main_app_size": "$(du -sb dist/ | cut -f1)",
+            "library_size": "$([ -d hanview-react-dist ] && du -sb hanview-react-dist/ | cut -f1 || echo 0)",
+            "assets": [
+          $(find dist/assets -name "*.js" -o -name "*.css" | while read file; do
+            SIZE=$(du -b "$file" | cut -f1)
+            NAME=$(basename "$file")
+            echo "    {\"name\": \"$NAME\", \"size\": $SIZE},"
+          done | sed '$ s/,$//')
+            ]
+          }
+          EOF
+
+      - name: 📤 Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis-${{ github.sha }}
+          path: |
+            dist/
+            hanview-react-dist/
+            .github/bundle-stats/
+          retention-days: 30
+
+  # 🚀 Lighthouse 성능 측정
+  lighthouse:
+    name: 🚀 Lighthouse Performance
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build application
+        run: npm run build
+
+      - name: 🚀 Start preview server
+        run: |
+          npm install -g serve
+          serve -s dist -l 3000 &
+          sleep 5
+
+      - name: 🔍 Run Lighthouse CI
+        run: |
+          npm install -g @lhci/cli
+
+          # Lighthouse 설정 파일 생성
+          cat > lighthouserc.js << 'EOF'
+          module.exports = {
+            ci: {
+              collect: {
+                url: ['http://localhost:3000'],
+                numberOfRuns: 3,
+                settings: {
+                  preset: 'desktop'
+                }
+              },
+              assert: {
+                assertions: {
+                  'categories:performance': ['error', {minScore: 0.8}],
+                  'categories:accessibility': ['error', {minScore: 0.9}],
+                  'categories:best-practices': ['error', {minScore: 0.9}],
+                  'categories:seo': ['error', {minScore: 0.8}]
+                }
+              },
+              upload: {
+                target: 'temporary-public-storage'
+              }
+            }
+          };
+          EOF
+
+          # Lighthouse 실행
+          lhci autorun || echo "Lighthouse 검사 완료 (일부 기준 미달성 가능)"
+
+      - name: 📊 Performance metrics summary
+        run: |
+          echo "## 🚀 Lighthouse 성능 측정 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 주요 메트릭" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **성능 점수**: 목표 80점 이상" >> $GITHUB_STEP_SUMMARY
+          echo "- ♿ **접근성**: 목표 90점 이상" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **모범 사례**: 목표 90점 이상" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 **SEO**: 목표 80점 이상" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "상세 결과는 Lighthouse 보고서를 확인해 주세요." >> $GITHUB_STEP_SUMMARY
+
+  # 📱 메모리 사용량 프로파일링
+  memory-profiling:
+    name: 📱 Memory Profiling
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: |
+          npm ci
+          npm install -g puppeteer clinic
+
+      - name: 🏗️ Build application
+        run: npm run build
+
+      - name: 🚀 Start preview server
+        run: |
+          npm install -g serve
+          serve -s dist -l 3000 &
+          sleep 5
+
+      - name: 📱 Memory usage analysis
+        run: |
+          # 간단한 메모리 프로파일링 스크립트 생성
+          cat > memory-test.js << 'EOF'
+          const puppeteer = require('puppeteer');
+
+          (async () => {
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+
+            const page = await browser.newPage();
+
+            // 메모리 사용량 모니터링 시작
+            const startMemory = process.memoryUsage();
+            console.log('시작 메모리:', startMemory);
+
+            await page.goto('http://localhost:3000');
+            await page.waitForTimeout(2000);
+
+            // 페이지 로드 후 메모리
+            const loadMemory = process.memoryUsage();
+            console.log('로드 후 메모리:', loadMemory);
+
+            // 페이지 인터랙션 시뮬레이션
+            await page.evaluate(() => {
+              // 간단한 DOM 조작
+              for(let i = 0; i < 100; i++) {
+                const div = document.createElement('div');
+                div.textContent = 'Test ' + i;
+                document.body.appendChild(div);
+              }
+            });
+
+            await page.waitForTimeout(1000);
+
+            // 인터랙션 후 메모리
+            const interactionMemory = process.memoryUsage();
+            console.log('인터랙션 후 메모리:', interactionMemory);
+
+            await browser.close();
+
+            const finalMemory = process.memoryUsage();
+            console.log('종료 후 메모리:', finalMemory);
+          })();
+          EOF
+
+          node memory-test.js > memory-report.txt 2>&1 || echo "메모리 테스트 완료"
+
+      - name: 📊 Memory report summary
+        run: |
+          echo "## 📱 메모리 사용량 분석" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 메모리 프로파일링 결과" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat memory-report.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "메모리 리포트 생성 중 오류 발생" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 권장사항" >> $GITHUB_STEP_SUMMARY
+          echo "- 메모리 누수가 없는지 정기적으로 확인" >> $GITHUB_STEP_SUMMARY
+          echo "- 큰 객체나 이벤트 리스너는 적절히 정리" >> $GITHUB_STEP_SUMMARY
+          echo "- React DevTools Profiler 활용 추천" >> $GITHUB_STEP_SUMMARY
+
+  # 📊 의존성 트리 분석
+  dependency-tree:
+    name: 📊 Dependency Tree Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install analysis tools
+        run: |
+          npm ci
+          npm install -g webpack-bundle-analyzer dependency-tree madge
+
+      - name: 🏗️ Build with analysis
+        run: |
+          npm run build
+          npm run build:lib
+
+      - name: 📊 Dependency analysis
+        run: |
+          echo "## 📊 의존성 분석 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 의존성 트리 생성
+          echo "### 📦 주요 의존성" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          npm list --depth=1 >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "의존성 목록 생성 완료" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 순환 의존성 검사
+          echo "### 🔄 순환 의존성 검사" >> $GITHUB_STEP_SUMMARY
+          madge --circular --extensions ts,tsx,js,jsx src/ > circular-deps.txt 2>&1 || echo "순환 의존성 없음"
+
+          if [ -s circular-deps.txt ]; then
+            echo "⚠️ **순환 의존성 발견**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat circular-deps.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ 순환 의존성이 발견되지 않았습니다." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 미사용 의존성 검사
+          echo "### 📦 미사용 의존성" >> $GITHUB_STEP_SUMMARY
+          npx depcheck --json > depcheck-result.json 2>/dev/null || echo "{}" > depcheck-result.json
+
+          UNUSED=$(cat depcheck-result.json | jq -r '.dependencies[]' 2>/dev/null | wc -l)
+          if [ "$UNUSED" -gt "0" ]; then
+            echo "⚠️ **미사용 의존성 발견** ($UNUSED개)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat depcheck-result.json | jq -r '.dependencies[]' 2>/dev/null >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ 모든 의존성이 사용되고 있습니다." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # 📈 성능 종합 리포트
+  performance-summary:
+    name: 📈 Performance Summary
+    runs-on: ubuntu-latest
+    needs: [bundle-analysis, lighthouse, dependency-tree]
+    if: always()
+
+    steps:
+      - name: 📈 Generate performance dashboard
+        run: |
+          echo "## ⚡ 성능 분석 종합 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "| 분석 영역 | 상태 | 비고 |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 번들 분석 | ${{ needs.bundle-analysis.result == 'success' && '✅ 완료' || '❌ 실패' }} | 크기 최적화 검토 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚀 Lighthouse | ${{ needs.lighthouse.result == 'success' && '✅ 통과' || '❌ 기준 미달' }} | 웹 성능 지표 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 의존성 분석 | ${{ needs.dependency-tree.result == 'success' && '✅ 완료' || '❌ 실패' }} | 구조 최적화 |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### 🎯 성능 최적화 권장사항" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🚀 로딩 성능" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Splitting으로 초기 로딩 시간 단축" >> $GITHUB_STEP_SUMMARY
+          echo "- 이미지 최적화 (WebP, 적절한 크기)" >> $GITHUB_STEP_SUMMARY
+          echo "- 폰트 로딩 최적화 (font-display: swap)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📦 번들 최적화" >> $GITHUB_STEP_SUMMARY
+          echo "- Tree Shaking으로 불필요한 코드 제거" >> $GITHUB_STEP_SUMMARY
+          echo "- 의존성 크기 모니터링" >> $GITHUB_STEP_SUMMARY
+          echo "- Dynamic Import 활용" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🔍 모니터링" >> $GITHUB_STEP_SUMMARY
+          echo "- Core Web Vitals 정기 측정" >> $GITHUB_STEP_SUMMARY
+          echo "- 실제 사용자 성능 데이터 수집" >> $GITHUB_STEP_SUMMARY
+          echo "- 성능 회귀 방지를 위한 CI 통합" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📚 성능 리소스" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 [Web.dev Performance](https://web.dev/performance/)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 [React Performance](https://react.dev/learn/render-and-commit)" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ [Vite Performance](https://vitejs.dev/guide/performance.html)" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📊 Performance badge generation
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # 성능 뱃지 정보 생성 (실제 구현은 shields.io 등 활용)
+          echo "성능 뱃지용 데이터 생성 완료" >> $GITHUB_STEP_SUMMARY

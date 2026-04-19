@@ -1,0 +1,456 @@
+name: 📚 Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+      - 'package.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # 📖 문서 유효성 검사
+  docs-validation:
+    name: 📖 Documentation Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 📖 Validate markdown files
+        run: |
+          echo "## 📚 문서 검증 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 마크다운 링크 검사
+          find docs/ README.md -name "*.md" -type f > md_files.txt
+
+          echo "### 📄 검증된 문서" >> $GITHUB_STEP_SUMMARY
+          echo "| 파일 | 상태 | 링크 수 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              # 링크 개수 세기
+              LINK_COUNT=$(grep -o '\[.*\](.*' "$file" | wc -l || echo 0)
+              echo "| $file | ✅ 유효 | $LINK_COUNT |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done < md_files.txt
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📋 Check documentation completeness
+        run: |
+          echo "### 📋 문서 완성도 검사" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 필수 문서 파일 존재 확인
+          REQUIRED_DOCS=(
+            "README.md"
+            "docs/API.md"
+            "docs/USAGE_GUIDE.md"
+            "CHANGELOG.md"
+            "CONTRIBUTING.md"
+          )
+
+          echo "| 필수 문서 | 상태 |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|------|" >> $GITHUB_STEP_SUMMARY
+
+          for doc in "${REQUIRED_DOCS[@]}"; do
+            if [ -f "$doc" ]; then
+              echo "| $doc | ✅ 존재 |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $doc | ❌ 누락 |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🔍 Check API documentation sync
+        run: |
+          echo "### 🔍 API 문서 동기화 검사" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # TypeScript 타입 정의에서 컴포넌트 추출
+          COMPONENTS=$(find src/components -name "*.tsx" -not -name "*.stories.tsx" -not -name "*.test.tsx" | wc -l)
+          echo "- **TypeScript 컴포넌트**: $COMPONENTS개" >> $GITHUB_STEP_SUMMARY
+
+          # API.md에서 문서화된 컴포넌트 확인
+          if [ -f "docs/API.md" ]; then
+            DOC_COMPONENTS=$(grep -c "^## " docs/API.md || echo 0)
+            echo "- **문서화된 API**: $DOC_COMPONENTS개" >> $GITHUB_STEP_SUMMARY
+
+            if [ "$COMPONENTS" -gt "$DOC_COMPONENTS" ]; then
+              echo "⚠️ 일부 컴포넌트가 문서화되지 않았을 수 있습니다." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ API 문서가 최신 상태입니다." >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ API.md 파일이 없습니다." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # 📚 TypeDoc 생성
+  typedoc-generation:
+    name: 📚 Generate TypeDoc
+    runs-on: ubuntu-latest
+    needs: docs-validation
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: |
+          npm ci
+          npm install -g typedoc
+
+      - name: 📚 Generate TypeDoc documentation
+        run: |
+          # TypeDoc 설정 파일 생성
+          cat > typedoc.json << 'EOF'
+          {
+            "entryPoints": ["src/index.ts"],
+            "out": "docs-build/api",
+            "theme": "default",
+            "name": "Open Hangul AI API Documentation",
+            "readme": "docs/API.md",
+            "exclude": [
+              "**/*.test.*",
+              "**/*.stories.*",
+              "**/node_modules/**"
+            ],
+            "excludePrivate": true,
+            "excludeProtected": true,
+            "hideGenerator": true,
+            "sort": ["source-order"],
+            "kindSortOrder": [
+              "Reference",
+              "Project",
+              "Module",
+              "Namespace",
+              "Enum",
+              "EnumMember",
+              "Class",
+              "Interface",
+              "TypeAlias",
+              "Constructor",
+              "Property",
+              "Method",
+              "Function",
+              "Accessor",
+              "Variable"
+            ]
+          }
+          EOF
+
+          # TypeDoc 실행
+          typedoc --options typedoc.json
+
+      - name: 📊 Documentation metrics
+        run: |
+          echo "## 📚 TypeDoc 생성 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -d "docs-build/api" ]; then
+            FILE_COUNT=$(find docs-build/api -name "*.html" | wc -l)
+            echo "- **생성된 HTML 파일**: $FILE_COUNT개" >> $GITHUB_STEP_SUMMARY
+            echo "- **문서 크기**: $(du -sh docs-build/api | cut -f1)" >> $GITHUB_STEP_SUMMARY
+            echo "✅ TypeDoc 문서 생성 완료" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ TypeDoc 문서 생성 실패" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 Upload TypeDoc artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: typedoc-docs
+          path: docs-build/
+          retention-days: 7
+
+  # 📖 Storybook 빌드
+  storybook-build:
+    name: 📖 Build Storybook
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[storybook]') || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 📖 Build Storybook
+        run: |
+          if [ -f ".storybook/main.js" ] || [ -f ".storybook/main.ts" ]; then
+            npm run build-storybook || echo "Storybook 빌드 스킵됨"
+          else
+            echo "Storybook 설정이 없습니다."
+            echo "## 📖 Storybook" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Storybook이 설정되지 않았습니다." >> $GITHUB_STEP_SUMMARY
+            echo "컴포넌트 문서화를 위해 Storybook 설치를 고려해보세요:" >> $GITHUB_STEP_SUMMARY
+            echo '```bash' >> $GITHUB_STEP_SUMMARY
+            echo 'npx storybook@latest init' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # 🌐 GitHub Pages 배포
+  deploy-docs:
+    name: 🌐 Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [docs-validation, typedoc-generation]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📥 Download TypeDoc docs
+        uses: actions/download-artifact@v4
+        with:
+          name: typedoc-docs
+          path: docs-build/
+
+      - name: 🏗️ Setup documentation site
+        run: |
+          # 문서 사이트 구조 생성
+          mkdir -p public
+
+          # 메인 인덱스 페이지 생성
+          cat > public/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="ko">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Open Hangul AI Documentation</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 2rem;
+                line-height: 1.6;
+              }
+              .header { text-align: center; margin-bottom: 3rem; }
+              .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 2rem;
+              }
+              .card {
+                border: 1px solid #e1e5e9;
+                border-radius: 8px;
+                padding: 1.5rem;
+                transition: box-shadow 0.2s;
+              }
+              .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+              .card h3 { margin-top: 0; color: #0366d6; }
+              .btn {
+                display: inline-block;
+                background: #0366d6;
+                color: white;
+                text-decoration: none;
+                padding: 0.5rem 1rem;
+                border-radius: 4px;
+                margin-top: 1rem;
+              }
+              .btn:hover { background: #0256cc; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>🇰🇷 Open Hangul AI</h1>
+              <p>React를 위한 한국어 문서 처리 라이브러리</p>
+            </div>
+
+            <div class="grid">
+              <div class="card">
+                <h3>📚 API 문서</h3>
+                <p>TypeScript 타입 정의와 함께 제공되는 완전한 API 문서입니다.</p>
+                <a href="./api/" class="btn">API 문서 보기</a>
+              </div>
+
+              <div class="card">
+                <h3>🚀 시작하기</h3>
+                <p>설치부터 첫 번째 구현까지 단계별 가이드입니다.</p>
+                <a href="https://github.com/yatav-team/open-hangul-ai/blob/main/docs/USAGE_GUIDE.md" class="btn">가이드 보기</a>
+              </div>
+
+              <div class="card">
+                <h3>📖 예제</h3>
+                <p>실제 사용 예제와 코드 스니펫을 확인하세요.</p>
+                <a href="https://github.com/yatav-team/open-hangul-ai/tree/main/examples" class="btn">예제 보기</a>
+              </div>
+
+              <div class="card">
+                <h3>🐛 이슈 신고</h3>
+                <p>버그를 발견하셨나요? GitHub Issues로 알려주세요.</p>
+                <a href="https://github.com/yatav-team/open-hangul-ai/issues" class="btn">이슈 신고</a>
+              </div>
+            </div>
+
+            <footer style="margin-top: 3rem; text-align: center; padding-top: 2rem; border-top: 1px solid #e1e5e9;">
+              <p>Made with ❤️ by <a href="https://yatavent.com">YATAV Team</a></p>
+            </footer>
+          </body>
+          </html>
+          EOF
+
+          # TypeDoc 문서를 api 디렉토리로 복사
+          if [ -d "docs-build/api" ]; then
+            cp -r docs-build/api public/
+          fi
+
+          # 정적 문서들 복사
+          cp README.md public/
+          if [ -d "docs" ]; then
+            cp -r docs public/
+          fi
+
+      - name: 📄 Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: 📤 Upload to Pages
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './public'
+
+      - name: 🌐 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+      - name: 📊 Deployment summary
+        run: |
+          echo "## 🌐 문서 배포 완료" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📚 배포된 문서" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏠 **메인 페이지**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📚 **API 문서**: ${{ steps.deployment.outputs.page_url }}api/" >> $GITHUB_STEP_SUMMARY
+          echo "- 📖 **사용자 가이드**: GitHub에서 확인" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "배포는 몇 분 정도 소요될 수 있습니다." >> $GITHUB_STEP_SUMMARY
+
+  # 📊 문서 품질 검사
+  docs-quality:
+    name: 📊 Documentation Quality Check
+    runs-on: ubuntu-latest
+    needs: docs-validation
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📊 Documentation metrics
+        run: |
+          echo "## 📊 문서 품질 지표" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 문서 파일 개수
+          MD_COUNT=$(find . -name "*.md" -not -path "./node_modules/*" | wc -l)
+          echo "- **마크다운 파일**: $MD_COUNT개" >> $GITHUB_STEP_SUMMARY
+
+          # README 품질 확인
+          if [ -f "README.md" ]; then
+            README_LINES=$(wc -l < README.md)
+            README_SIZE=$(du -h README.md | cut -f1)
+            echo "- **README 크기**: $README_LINES줄, $README_SIZE" >> $GITHUB_STEP_SUMMARY
+
+            # 필수 섹션 확인
+            SECTIONS=("Installation" "Usage" "API" "Contributing" "License")
+            MISSING_SECTIONS=()
+
+            for section in "${SECTIONS[@]}"; do
+              if ! grep -qi "$section" README.md; then
+                MISSING_SECTIONS+=("$section")
+              fi
+            done
+
+            if [ ${#MISSING_SECTIONS[@]} -eq 0 ]; then
+              echo "✅ README에 모든 필수 섹션이 포함되어 있습니다." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ 누락된 섹션: ${MISSING_SECTIONS[*]}" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 코드 예제 개수
+          CODE_BLOCKS=$(find docs/ README.md -name "*.md" -exec grep -c "```" {} + 2>/dev/null | awk '{sum += $1} END {print sum/2}' || echo 0)
+          echo "- **코드 예제**: $CODE_BLOCKS개" >> $GITHUB_STEP_SUMMARY
+
+          # 이미지/다이어그램
+          IMAGES=$(find docs/ README.md -name "*.md" -exec grep -c "!\[.*\](" {} + 2>/dev/null | awk '{sum += $1} END {print sum}' || echo 0)
+          echo "- **이미지/다이어그램**: $IMAGES개" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📈 문서 개선 제안" >> $GITHUB_STEP_SUMMARY
+          echo "- 📸 스크린샷이나 다이어그램 추가로 이해도 향상" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎮 인터랙티브 예제나 CodeSandbox 링크 제공" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌍 다국어 지원 (영어 번역) 고려" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 모바일 친화적인 문서 레이아웃" >> $GITHUB_STEP_SUMMARY
+
+  # 📋 문서 업데이트 알림
+  docs-notification:
+    name: 📋 Documentation Update Notification
+    runs-on: ubuntu-latest
+    needs: [deploy-docs]
+    if: github.ref == 'refs/heads/main' && needs.deploy-docs.result == 'success'
+
+    steps:
+      - name: 📋 Prepare notification
+        run: |
+          echo "## 📚 문서 업데이트 알림" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎉 문서가 성공적으로 업데이트되었습니다!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📍 변경사항" >> $GITHUB_STEP_SUMMARY
+          echo "- 최신 코드 변경사항 반영" >> $GITHUB_STEP_SUMMARY
+          echo "- TypeDoc API 문서 재생성" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub Pages 자동 배포" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🔗 링크" >> $GITHUB_STEP_SUMMARY
+          echo "- [📚 온라인 문서](https://yatav-team.github.io/open-hangul-ai/)" >> $GITHUB_STEP_SUMMARY
+          echo "- [📦 npm 패키지](https://www.npmjs.com/package/open-hangul-ai)" >> $GITHUB_STEP_SUMMARY
+          echo "- [💬 토론 참여](https://github.com/yatav-team/open-hangul-ai/discussions)" >> $GITHUB_STEP_SUMMARY

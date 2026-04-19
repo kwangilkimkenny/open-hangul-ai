@@ -1,0 +1,290 @@
+name: 🛡️ Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 매주 일요일 새벽 2시 (UTC)
+    - cron: '0 2 * * 0'
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # 🔍 CodeQL 분석
+  codeql:
+    name: 🔍 CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript']
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build
+        run: npm run build
+
+      - name: 🔍 Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: '/language:${{matrix.language}}'
+
+  # 📊 의존성 보안 감사
+  dependency-audit:
+    name: 📊 Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 📊 Run npm audit
+        run: |
+          echo "## 🛡️ Security Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # JSON 형태로 audit 결과 저장
+          npm audit --json > audit-results.json || true
+
+          # 취약점 카운트
+          CRITICAL=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.critical // 0')
+          HIGH=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.high // 0')
+          MODERATE=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.moderate // 0')
+          LOW=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.low // 0')
+          TOTAL=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.total // 0')
+
+          echo "### 취약점 요약" >> $GITHUB_STEP_SUMMARY
+          echo "| 심각도 | 개수 |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟠 High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟡 Moderate | $MODERATE |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟢 Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+          echo "| **총합** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Critical 취약점이 있으면 실패
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "❌ Critical 취약점이 발견되었습니다!"
+            echo "### 🚨 Critical 취약점 세부사항" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat audit-results.json | jq -r '.vulnerabilities | to_entries[] | select(.value.severity == "critical") | .value' >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # High 취약점이 5개 이상이면 경고
+          if [ "$HIGH" -gt "5" ]; then
+            echo "⚠️ High 취약점이 많습니다 ($HIGH개)"
+          fi
+
+      - name: 📦 Check for outdated packages
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          npm outdated --json > outdated.json || true
+
+          if [ -s outdated.json ] && [ "$(cat outdated.json)" != "{}" ]; then
+            echo "발견된 업데이트 가능한 패키지:" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat outdated.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ 모든 패키지가 최신 버전입니다." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # 🛡️ 비밀 정보 스캔
+  secrets-scan:
+    name: 🛡️ Secrets Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Secrets scan summary
+        run: |
+          echo "## 🛡️ Secrets Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ 코드에서 하드코딩된 비밀 정보가 발견되지 않았습니다." >> $GITHUB_STEP_SUMMARY
+
+  # 🔐 보안 헤더 검사 (프로덕션 배포시)
+  security-headers:
+    name: 🔐 Security Headers Check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build
+        run: npm run build
+
+      - name: 🚀 Start preview server
+        run: |
+          npm install -g serve
+          serve -s dist -l 3000 &
+          sleep 5
+
+      - name: 🔐 Check security headers
+        run: |
+          echo "## 🔐 Security Headers Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 로컬 서버에서 보안 헤더 검사
+          RESPONSE=$(curl -I http://localhost:3000 2>/dev/null || echo "")
+
+          echo "### 현재 응답 헤더" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$RESPONSE" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### 보안 권장사항" >> $GITHUB_STEP_SUMMARY
+          echo "🔐 **Content Security Policy (CSP)**: XSS 공격 방지" >> $GITHUB_STEP_SUMMARY
+          echo "🛡️ **X-Frame-Options**: 클릭재킹 방지" >> $GITHUB_STEP_SUMMARY
+          echo "🔒 **X-Content-Type-Options**: MIME 타입 스니핑 방지" >> $GITHUB_STEP_SUMMARY
+          echo "⚡ **Strict-Transport-Security**: HTTPS 강제" >> $GITHUB_STEP_SUMMARY
+
+  # 📝 라이선스 컴플라이언스 검사
+  license-check:
+    name: 📝 License Compliance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 🔧 Install license checker
+        run: npm install -g license-checker
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 📝 Generate license report
+        run: |
+          echo "## 📝 License Compliance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 라이선스 정보 수집
+          license-checker --summary > licenses-summary.txt
+          license-checker --json > licenses.json
+
+          echo "### 라이선스 요약" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat licenses-summary.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 문제가 될 수 있는 라이선스 검사
+          PROBLEMATIC=$(cat licenses.json | jq -r 'to_entries[] | select(.value.licenses | type == "string" and (contains("GPL") or contains("AGPL") or contains("LGPL"))) | .key' || echo "")
+
+          if [ -n "$PROBLEMATIC" ]; then
+            echo "### ⚠️ 주의가 필요한 라이선스" >> $GITHUB_STEP_SUMMARY
+            echo "$PROBLEMATIC" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ 모든 의존성이 호환 가능한 라이선스를 사용합니다." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: |
+            licenses-summary.txt
+            licenses.json
+          retention-days: 30
+
+  # 📊 전체 보안 요약
+  security-summary:
+    name: 📊 Security Summary
+    runs-on: ubuntu-latest
+    needs: [codeql, dependency-audit, secrets-scan, license-check]
+    if: always()
+
+    steps:
+      - name: 📊 Generate security report
+        run: |
+          echo "## 🛡️ 전체 보안 검사 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 검사 항목 | 상태 |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 CodeQL 분석 | ${{ needs.codeql.result == 'success' && '✅ 통과' || '❌ 실패' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 의존성 감사 | ${{ needs.dependency-audit.result == 'success' && '✅ 통과' || '❌ 실패' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🛡️ 비밀정보 스캔 | ${{ needs.secrets-scan.result == 'success' && '✅ 통과' || '❌ 실패' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 라이선스 검사 | ${{ needs.license-check.result == 'success' && '✅ 통과' || '❌ 실패' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 전체 결과 판단
+          if [[ "${{ needs.codeql.result }}" == "success" && "${{ needs.dependency-audit.result }}" == "success" && "${{ needs.secrets-scan.result }}" == "success" && "${{ needs.license-check.result }}" == "success" ]]; then
+            echo "### 🎉 모든 보안 검사 통과!" >> $GITHUB_STEP_SUMMARY
+            echo "프로젝트가 보안 기준을 충족합니다." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ 일부 보안 검사 실패" >> $GITHUB_STEP_SUMMARY
+            echo "보안 문제를 검토하고 해결해 주세요." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📚 보안 리소스" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔐 [OWASP Top 10](https://owasp.org/www-project-top-ten/)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🛡️ [npm Security Best Practices](https://docs.npmjs.com/security)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 [GitHub Security Features](https://docs.github.com/en/code-security)" >> $GITHUB_STEP_SUMMARY
