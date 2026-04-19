@@ -1,9 +1,89 @@
 # Changelog
 
-All notable changes to the HAN-View React project will be documented in this file.
+오픈한글AI(`open-hangul-ai`) 프로젝트의 모든 주요 변경사항이 이 파일에 문서화됩니다.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+이 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/)를 기반으로 하며, [Semantic Versioning](https://semver.org/spec/v2.0.0.html)을 준수합니다.
+
+## [Unreleased]
+
+### 계획된 기능
+- 실시간 협업 편집 지원
+- 더 많은 AI 프로바이더 통합 (Anthropic Claude, Google Gemini)
+- 플러그인 시스템 개발
+- 모바일 최적화
+- CI/CD 파이프라인 구축
+- 자동화된 테스팅 환경
+
+---
+
+## [5.0.1] - 2026-04-19
+
+### 🎉 첫 번째 npm 패키지 릴리스
+
+이 버전은 오픈한글AI의 첫 번째 공개 npm 패키지입니다.
+
+### Added
+- **React 컴포넌트**: `HanViewApp`, `HWPXViewer`, `HanViewProvider` 추가
+- **TypeScript 지원**: 완전한 타입 정의 제공
+- **문서 뷰어 기능**:
+  - HWPX 파일 뷰어
+  - PDF, DOCX, XLSX, PPTX 지원
+  - 확대/축소, 페이지 네비게이션
+  - 텍스트 선택 및 검색
+- **AI 통합 모듈**:
+  - Vertex AI 클라이언트
+  - 문서 분석 및 요약
+  - AI 문서 생성 (Draft Generator)
+  - 토큰 사용량 관리
+- **React 훅스**:
+  - `useHanView`: 메인 상태 관리
+  - `useHanViewConfig`: 설정 관리
+  - `useHanViewTheme`: 테마 관리
+  - `useHanViewToolbar`: 툴바 제어
+  - `useHanViewAIPanel`: AI 패널 관리
+  - `useHotkeys`: 키보드 단축키
+  - `useDraftStream`: AI 스트리밍
+- **유틸리티 함수**:
+  - 문서 파서 (`SimpleHWPXParser`)
+  - 문서 렌더러 (`DocumentRenderer`)
+  - 로거 시스템
+  - 에러 처리 (`HWPXError`)
+- **보안 기능**:
+  - 디지털 워터마크 (embed/extract)
+  - OCR 서비스 (Tesseract.js)
+  - 문서 비교 (diff)
+- **커스터마이징**:
+  - 테마 시스템 (라이트/다크 모드)
+  - 툴바 커스터마이징
+  - AI 패널 설정
+  - Context 메뉴
+
+### Technical
+- **빌드 시스템**: Vite 기반 라이브러리 빌드
+- **패키지 형식**: ES Module + UMD 지원
+- **CSS**: 94KB 스타일시트 포함
+- **번들 크기**: 1.8MB (압축), 5.8MB (압축해제)
+- **의존성**: React 18+ 필요, 최소한의 외부 의존성
+- **브라우저 지원**: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+
+### Documentation
+- 완전한 README.md (설치법, 사용법, 예제)
+- 상세 사용 가이드 (`docs/USAGE_GUIDE.md`)
+- 완전한 API 문서 (`docs/API.md`)
+- TypeScript 타입 정의 파일
+
+### Infrastructure
+- npm 패키지 등록 및 발행
+- MIT 라이센스 적용
+- GitHub 저장소 설정
+- 자동 빌드 파이프라인
+
+---
+
+## [5.0.0] - 2026-04-19
+
+### Note
+이 버전은 초기 발행 중 문제로 인해 즉시 5.0.1로 업데이트되었습니다.
 
 ---
 

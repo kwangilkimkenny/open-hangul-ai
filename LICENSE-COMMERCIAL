@@ -1,0 +1,42 @@
+HanView Commercial License
+
+Copyright (c) 2026 HanView Team. All rights reserved.
+
+================================================================================
+HANVIEW ENTERPRISE LICENSE AGREEMENT
+================================================================================
+
+This license applies to the AEGIS Security Module and TruthAnchor Verification
+System (collectively "Protected Modules") included with HanView Enterprise.
+
+1. GRANT OF LICENSE
+   Subject to the terms of this agreement and payment of applicable license fees,
+   HanView grants you a non-exclusive, non-transferable license to use the
+   Protected Modules.
+
+2. RESTRICTIONS
+   You may NOT:
+   - Reverse engineer, decompile, or disassemble the Protected Modules
+   - Distribute or redistribute the Protected Modules
+   - Use the Protected Modules in competing products
+   - Remove or modify any copyright notices
+
+3. PROTECTED MODULES INCLUDED
+   - AEGIS Security Module: Content filtering, PII protection, threat detection
+   - TruthAnchor System: AI fact verification, source validation, hallucination detection
+   - Enterprise Analytics: Usage metrics, compliance reporting
+   - Priority Support: SLA-backed technical support
+
+4. WARRANTY DISCLAIMER
+   THE PROTECTED MODULES ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.
+
+5. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL HANVIEW BE LIABLE FOR ANY SPECIAL, INCIDENTAL, OR
+   CONSEQUENTIAL DAMAGES.
+
+6. TERMINATION
+   This license terminates immediately upon breach of any terms or non-payment
+   of license fees.
+
+For licensing inquiries: license@hanview.ai
+For technical support: support@hanview.ai

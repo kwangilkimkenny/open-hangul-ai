@@ -31,9 +31,9 @@ console.log('✅ 배포 폴더 생성: hanview-react-dist/');
 
 // 2. 빌드 파일 복사
 const filesToCopy = [
-    'hanview-react.es.js',
-    'hanview-react.umd.js',
-    'hanview-react.css',
+    'open-hangul-ai.es.js',
+    'open-hangul-ai.umd.js',
+    'open-hangul-ai.css',
 ];
 
 let copiedCount = 0;
