@@ -22,16 +22,8 @@ export function computeAegisMetrics(results: AegisTestResult[]): AegisBenchmarkR
   const fp = results.filter(r => r.falsePositive).length;
   const fn = results.filter(r => r.falseNegative).length;
 
-  // True positives: 위협을 차단함
-  const tp = results.filter(r => r.expected && r.actual).length;
-  // True negatives: 정상을 통과시킴
-  const tn = results.filter(r => !r.expected && !r.actual).length;
-
   const normalCases = results.filter(r => !r.expected).length;
   const threatCases = results.filter(r => r.expected).length;
-
-  // 카테고리별 메트릭
-  const categories = new Set(results.map(r => r.caseId.split('-').slice(0, 2).join('-')));
   const byCategory: Record<string, ClassificationMetrics> = {};
 
   // 간단한 카테고리 추출 (caseId에서)
@@ -44,7 +36,6 @@ export function computeAegisMetrics(results: AegisTestResult[]): AegisBenchmarkR
 
   for (const [cat, catResults] of categoryMap.entries()) {
     const catTotal = catResults.length;
-    const catPassed = catResults.filter(r => r.passed).length;
     const catTP = catResults.filter(r => r.expected && r.actual).length;
     const catFP = catResults.filter(r => r.falsePositive).length;
     const catFN = catResults.filter(r => r.falseNegative).length;

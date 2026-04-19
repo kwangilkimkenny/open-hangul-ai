@@ -426,17 +426,6 @@ function InfoChip({ label, count }: { label: string; count: string }) {
   );
 }
 
-function ScoreCard({ title, score, detail, extra }: { title: string; score: number; detail: string; extra: string }) {
-  const pct = r(score * 100);
-  return (
-    <div style={S.scoreCard}>
-      <div style={S.scoreCardTitle}>{title}</div>
-      <div style={S.scoreCardValue}>{pct}%</div>
-      <div style={S.scoreCardDetail}>{detail}</div>
-      <div style={S.scoreCardExtra}>{extra}</div>
-    </div>
-  );
-}
 
 function MetricBox({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (

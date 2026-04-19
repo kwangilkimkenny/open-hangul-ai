@@ -20,6 +20,11 @@ export interface HWPXViewerInstance {
 
   // Document Management
   loadFile(file: File): Promise<void>;
+  /**
+   * 이미 파싱된 HWPXDocument 를 직접 로드.
+   * AI 초안 생성 · 테스트 · 프로그래밍적 문서 주입 용도.
+   */
+  loadDocument(document: HWPXDocument, meta?: { sourceName?: string }): Promise<HWPXDocument>;
   getDocument(): HWPXDocument | null;
 
   // Save & Export

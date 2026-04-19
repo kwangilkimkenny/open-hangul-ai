@@ -1,0 +1,66 @@
+{
+  "name": "@open-hangul-ai/enterprise",
+  "private": false,
+  "version": "5.0.0",
+  "description": "오픈한글AI Enterprise Edition with AEGIS Security and TruthAnchor Verification",
+  "license": "Commercial",
+  "author": "YATAV Team <enterprise@openhangulai.org>",
+  "homepage": "https://openhangulai.org/enterprise",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yatav-team/open-hangul-ai-enterprise"
+  },
+  "keywords": [
+    "open-hangul-ai", "document-viewer", "enterprise", "security", "aegis", "truthanchor",
+    "fact-checking", "hwpx", "pdf", "docx", "ai", "llm", "editor", "korean-docs", "yatav"
+  ],
+  "main": "./dist/open-hangul-ai-enterprise.umd.js",
+  "module": "./dist/open-hangul-ai-enterprise.es.js",
+  "types": "./dist/open-hangul-ai-enterprise.es.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/open-hangul-ai-enterprise.es.d.ts",
+      "import": "./dist/open-hangul-ai-enterprise.es.js",
+      "require": "./dist/open-hangul-ai-enterprise.umd.js"
+    },
+    "./dist/open-hangul-ai-enterprise.css": "./dist/open-hangul-ai-enterprise.css",
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.es.js",
+      "require": "./dist/react.umd.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "lib/",
+    "README-enterprise.md",
+    "LICENSE-COMMERCIAL"
+  ],
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "dependencies": {
+    "@hanview/aegis-binary": "^1.0.0",
+    "@hanview/truthanchor-binary": "^1.0.0",
+    "hanview-community": "^5.0.0"
+  },
+  "optionalDependencies": {
+    "@hanview/analytics-engine": "^1.0.0",
+    "@hanview/compliance-reporter": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "restricted"
+  },
+  "scripts": {
+    "build": "npm run build:enterprise",
+    "build:enterprise": "vite build --config vite.config.enterprise.ts",
+    "test": "vitest run --config vitest.config.enterprise.ts",
+    "validate-license": "node scripts/validate-enterprise-license.js"
+  }
+}

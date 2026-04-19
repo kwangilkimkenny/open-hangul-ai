@@ -7,16 +7,7 @@ import type { DefenseResult, Risk, Severity, PatternMatch } from '../../core/typ
 import type { DefenseLayer } from '../paladin';
 import {
   ALL_PATTERNS,
-  JAILBREAK_PATTERNS,
-  PROMPT_INJECTION_PATTERNS,
-  CODE_INJECTION_PATTERNS,
-  SOCIAL_ENGINEERING_PATTERNS,
-  INFO_EXTRACTION_PATTERNS,
-  ENCODING_PATTERNS,
-  ROLEPLAY_PATTERNS,
-  ACOUSTIC_PATTERNS,
   checkPatterns,
-  type PatternEntry,
 } from '../patterns';
 
 // ---------------------------------------------------------------------------
@@ -216,14 +207,15 @@ const JAILBREAK_CATEGORIES: Record<string, JailbreakCategory> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function severityToScore(s: Severity): number {
-  switch (s) {
-    case 'critical': return 0.95;
-    case 'high': return 0.8;
-    case 'medium': return 0.6;
-    case 'low': return 0.4;
-  }
-}
+// Unused in Community Edition
+// function severityToScore(s: Severity): number {
+//   switch (s) {
+//     case 'critical': return 0.95;
+//     case 'high': return 0.8;
+//     case 'medium': return 0.6;
+//     case 'low': return 0.4;
+//   }
+// }
 
 // ---------------------------------------------------------------------------
 // Intent Verification Layer
@@ -240,7 +232,6 @@ export class IntentVerificationLayer implements DefenseLayer {
 
   evaluate(content: string, context: Record<string, unknown>): DefenseResult {
     const text = (context['__normalizedContent'] as string | undefined) ?? content;
-    const lower = text.toLowerCase();
     const details: Record<string, unknown> = {};
     const matchedCategories: Array<{ category: string; weight: number; severity: Severity }> = [];
     const patternMatches: PatternMatch[] = [];

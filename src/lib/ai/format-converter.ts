@@ -24,31 +24,6 @@ export interface ConversionResult {
   conversionNotes: string[];
 }
 
-/**
- * 문서 데이터에서 순수 텍스트 추출
- */
-function extractPlainText(doc: any): string {
-  const lines: string[] = [];
-  if (!doc?.sections) return '';
-
-  for (const section of doc.sections) {
-    for (const el of section.elements || []) {
-      if (el.type === 'paragraph' && el.runs) {
-        lines.push(el.runs.map((r: any) => r.text || '').join(''));
-      } else if (el.type === 'table' && el.rows) {
-        for (const row of el.rows) {
-          const cellTexts = (row.cells || []).map((cell: any) =>
-            (cell.elements || [])
-              .flatMap((e: any) => (e.runs || []).map((r: any) => r.text || ''))
-              .join(''),
-          );
-          lines.push('| ' + cellTexts.join(' | ') + ' |');
-        }
-      }
-    }
-  }
-  return lines.join('\n');
-}
 
 /**
  * 문서 데이터를 Markdown으로 변환

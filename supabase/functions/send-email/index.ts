@@ -4,7 +4,7 @@
  *
  * 환경변수:
  *   RESEND_API_KEY  - Resend API 키
- *   EMAIL_FROM      - 발신자 (예: noreply@hanview.ai)
+ *   EMAIL_FROM      - 발신자 (예: noreply@yatavent.com)
  *
  * 지원 템플릿:
  *   - welcome           회원가입 환영
@@ -21,7 +21,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
-const EMAIL_FROM = Deno.env.get('EMAIL_FROM') ?? 'OpenHangul AI <noreply@hanview.ai>';
+const EMAIL_FROM = Deno.env.get('EMAIL_FROM') ?? 'OpenHangul AI <noreply@yatavent.com>';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
@@ -145,7 +145,7 @@ function renderTemplate(name: TemplateName, data: Record<string, any>): { subjec
             <tr><td>결제 일시</td><td><strong>${escapeHtml(data.paidAt || new Date().toLocaleString('ko-KR'))}</strong></td></tr>
           </table>
           ${data.receiptUrl ? `<a href="${escapeHtml(data.receiptUrl)}" class="btn">영수증 보기</a>` : ''}
-          <p style="color:#6b7280;font-size:13px;">환불 문의: <a href="mailto:support@hanview.ai">support@hanview.ai</a></p>
+          <p style="color:#6b7280;font-size:13px;">환불 문의: <a href="mailto:ray.kim@yatavent.com">ray.kim@yatavent.com</a></p>
         `),
       };
 
@@ -216,9 +216,9 @@ function baseTemplate(content: string): string {
     </div>
     ${content}
     <div class="footer">
-      © 2026 OpenHangul AI · <a href="https://hanview.ai">hanview.ai</a><br>
+      © 2026 YATAV · <a href="https://yatavent.com">yatavent.com</a><br>
       이 이메일은 자동 발송되었습니다. 회신하지 마세요.<br>
-      <a href="https://hanview.ai/legal/privacy">개인정보처리방침</a> · <a href="https://hanview.ai/legal/terms">이용약관</a>
+      <a href="https://yatavent.com/legal/privacy">개인정보처리방침</a> · <a href="https://yatavent.com/legal/terms">이용약관</a>
     </div>
   </div>
 </body>

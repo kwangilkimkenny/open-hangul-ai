@@ -3,13 +3,18 @@
 // ============================================================
 
 export class AegisError extends Error {
+  public readonly code: AegisErrorCode;
+  public readonly statusCode: number;
+
   constructor(
-    public readonly code: AegisErrorCode,
+    code: AegisErrorCode,
     message: string,
-    public readonly statusCode: number = 500,
+    statusCode: number = 500,
   ) {
     super(message);
     this.name = 'AegisError';
+    this.code = code;
+    this.statusCode = statusCode;
   }
 
   static config(msg: string) { return new AegisError('CONFIG', msg, 500); }

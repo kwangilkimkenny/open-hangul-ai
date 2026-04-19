@@ -230,7 +230,7 @@ export async function ocrToDocument(
       URL.revokeObjectURL(objectUrl);
       images.clear();
     },
-  };
+  } as any;
 }
 
 /**
@@ -267,7 +267,7 @@ export async function ocrPDF(
     const ctx = canvas.getContext('2d');
     if (!ctx) continue;
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
 
     // 캔버스에서 OCR 수행
     if (options.onProgress) {

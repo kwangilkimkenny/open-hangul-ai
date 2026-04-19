@@ -47,10 +47,16 @@ function App() {
         <Toaster
           position="top-right"
           toastOptions={{
-            duration: 3000,
+            duration: parseInt(import.meta.env.VITE_TOAST_DURATION || '3000'),
             style: { background: '#363636', color: '#fff' },
-            success: { duration: 2000, iconTheme: { primary: '#4ade80', secondary: '#fff' } },
-            error: { duration: 4000, iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+            success: {
+              duration: parseInt(import.meta.env.VITE_TOAST_SUCCESS_DURATION || '2000'),
+              iconTheme: { primary: '#4ade80', secondary: '#fff' }
+            },
+            error: {
+              duration: parseInt(import.meta.env.VITE_TOAST_ERROR_DURATION || '4000'),
+              iconTheme: { primary: '#ef4444', secondary: '#fff' }
+            },
           }}
         />
 

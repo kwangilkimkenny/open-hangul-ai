@@ -58,7 +58,7 @@ interface DocumentData {
 const MAX_ROWS = 10000;
 const VIRTUAL_SCROLL_THRESHOLD = 200;
 const DEFAULT_COL_WIDTH = 8.43; // Excel default column width in character units
-const PAGE_CONTENT_WIDTH = 624; // A4 content area: 794 - 85 - 85
+// const PAGE_CONTENT_WIDTH = 624; // A4 content area: 794 - 85 - 85 (unused in Community Edition)
 
 // Excel theme color defaults (Office standard)
 const THEME_COLORS: Record<number, string> = {
@@ -641,16 +641,17 @@ function cssBorderToExcel(borderDef: any): any | undefined {
 /**
  * 문서의 paragraph runs에서 텍스트 추출
  */
-function extractTextFromElement(el: any): string {
-  if (!el || !el.runs) return '';
-  return el.runs
-    .map((r: any) => {
-      if (r.type === 'linebreak') return '\n';
-      if (r.type === 'tab') return '\t';
-      return r.text || '';
-    })
-    .join('');
-}
+// Currently unused in Community Edition
+// function extractTextFromElement(el: any): string {
+//   if (!el || !el.runs) return '';
+//   return el.runs
+//     .map((r: any) => {
+//       if (r.type === 'linebreak') return '\n';
+//       if (r.type === 'tab') return '\t';
+//       return r.text || '';
+//     })
+//     .join('');
+// }
 
 /**
  * Run의 스타일 정보를 ExcelJS font 객체로 변환
@@ -681,7 +682,7 @@ function runStyleToExcelFont(run: any): any {
 /**
  * HWPXDocument를 Excel(.xlsx) Blob으로 내보내기
  */
-export async function exportToExcel(doc: DocumentData, fileName?: string): Promise<Blob> {
+export async function exportToExcel(doc: DocumentData, _fileName?: string): Promise<Blob> {
   const ExcelJS = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
 

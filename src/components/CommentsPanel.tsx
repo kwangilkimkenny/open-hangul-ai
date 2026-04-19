@@ -25,7 +25,7 @@ export function CommentsPanel({ viewer, onClose }: CommentsPanelProps) {
   const [showResolved, setShowResolved] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [authorName, setAuthorName] = useState('사용자');
+  const [authorName, _setAuthorName] = useState('사용자');
 
   const refresh = useCallback(() => {
     const mgr = viewer?.annotationManager;

@@ -2,9 +2,16 @@
 
 [![npm version](https://img.shields.io/npm/v/open-hangul-ai.svg)](https://www.npmjs.com/package/open-hangul-ai)
 [![npm downloads](https://img.shields.io/npm/dm/open-hangul-ai.svg)](https://www.npmjs.com/package/open-hangul-ai)
+[![npm bundle size](https://img.shields.io/bundlephobia/minzip/open-hangul-ai)](https://bundlephobia.com/package/open-hangul-ai)
+[![GitHub stars](https://img.shields.io/github/stars/yatav-team/open-hangul-ai.svg?style=social&label=Star)](https://github.com/yatav-team/open-hangul-ai)
+[![GitHub issues](https://img.shields.io/github/issues/yatav-team/open-hangul-ai.svg)](https://github.com/yatav-team/open-hangul-ai/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/yatav-team/open-hangul-ai.svg)](https://github.com/yatav-team/open-hangul-ai/commits/main)
+
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
 > **Professional HWPX Viewer & AI Document Editor for React** - 한글 문서 및 다양한 문서 형식을 지원하는 React 컴포넌트 라이브러리
 

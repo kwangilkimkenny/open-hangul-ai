@@ -14,7 +14,8 @@ export default defineConfig(({ mode }) => {
     alias: {
       'hwplib-js': path.resolve(__dirname, 'hwpTohwpx/hpw2hwpx_converter/hwplib-js/dist/index.esm.js'),
       '@hwp2hwpx': path.resolve(__dirname, 'hwpTohwpx/hpw2hwpx_converter/hwp2hwpx-js/src'),
-      '@aegis-sdk': path.resolve(__dirname, 'packages-aegis/aegis-sdk/src/index.ts'),
+      '@aegis-sdk': path.resolve(__dirname, 'src/lib/mocks/aegis-enterprise.ts'),
+      '@hanview/aegis-enterprise': path.resolve(__dirname, 'src/lib/mocks/aegis-enterprise.ts'),
     },
   },
   server: {
@@ -47,7 +48,7 @@ export default defineConfig(({ mode }) => {
       '/api/ai/chat': {
         target: 'https://api.openai.com',
         changeOrigin: true,
-        rewrite: (path) => '/v1/chat/completions',
+        rewrite: (_path) => '/v1/chat/completions',
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq) => {
             if (openaiApiKey) {

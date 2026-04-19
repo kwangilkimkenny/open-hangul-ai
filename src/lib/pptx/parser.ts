@@ -363,7 +363,7 @@ export async function parsePptx(buffer: ArrayBuffer, fileName: string): Promise<
       }
       images.clear();
     },
-  };
+  } as any;
 }
 
 export default { parsePptx };

@@ -1,6 +1,6 @@
 # Contributors
 
-HanView Community Edition에 기여해주신 모든 분들께 감사드립니다.
+오픈한글AI Community Edition에 기여해주신 모든 분들께 감사드립니다.
 
 ## 📋 Core Contributors
 
@@ -11,7 +11,7 @@ HanView Community Edition에 기여해주신 모든 분들께 감사드립니다
 - 📧 **Personal:** cac.kikim@gmail.com
 - 🔗 **LinkedIn:** [kwang-il-kim-a399b3196](https://www.linkedin.com/in/kwang-il-kim-a399b3196/)
 - 👨‍💻 **Role:** Lead Developer & System Architect
-- 📅 **Since:** 2024
+- 📅 **Since:** 2025
 
 **주요 기여 사항:**
 - 🏗️ **모듈화 아키텍처 설계 및 구현**
@@ -38,10 +38,10 @@ HanView Community Edition에 기여해주신 모든 분들께 감사드립니다
 
 ## 🏢 Organization
 
-**HanView Team**
-- 📧 **Contact:** team@hanview.ai
-- 🌐 **Website:** https://hanview.ai
-- 📁 **Repository:** https://github.com/hanview-team/hanview-community
+**YATAV Team**
+- 📧 **Contact:** team@openhangulai.org
+- 🌐 **Website:** https://openhangulai.org
+- 📁 **Repository:** https://github.com/yatav-team/open-hangul-ai
 
 ---
 

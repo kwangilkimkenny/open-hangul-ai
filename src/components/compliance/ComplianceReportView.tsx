@@ -3,7 +3,7 @@
  * 생성된 컴플라이언스 리포트 상세 뷰
  */
 
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback } from 'react';
 import type { ComplianceReport, ComplianceCategory, ComplianceCheck, CheckResult } from '../../types/compliance';
 import { FRAMEWORKS } from '../../lib/ai/compliance-rules';
 import { printComplianceReport } from '../../lib/ai/compliance-pdf';
@@ -106,7 +106,6 @@ export const ComplianceReportView = memo(function ComplianceReportView({
   onClose,
 }: ComplianceReportViewProps) {
   const framework = FRAMEWORKS[report.framework];
-  const reportRef = useRef<HTMLDivElement>(null);
 
   const handlePrintPDF = useCallback(() => {
     printComplianceReport(report, framework);

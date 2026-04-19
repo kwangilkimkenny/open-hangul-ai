@@ -27,6 +27,7 @@ ref/
 # Sample data
 요구자료/
 결과_temp/
+temp/
 
 # Editor directories and files
 .vscode/*

@@ -1,11 +1,12 @@
 {
-  "name": "hanview-react",
-  "version": "2.0.0",
-  "description": "Professional HWPX (Hancom Word Processor XML) Viewer & AI Document Editor for React - Commercial License",
-  "author": "ISM Team <license@ism-team.com>",
-  "license": "SEE LICENSE IN LICENSE",
+  "name": "open-hangul-ai",
+  "version": "5.0.0",
+  "description": "오픈한글AI - Professional HWPX Viewer & AI Document Editor for React - Open Source & Enterprise",
+  "author": "YATAV Team <team@openhangulai.org>",
+  "license": "MIT",
   "private": false,
   "keywords": [
+    "open-hangul-ai",
     "hwpx",
     "hwp",
     "hancom",
@@ -16,17 +17,18 @@
     "ai",
     "document",
     "word-processor",
-    "commercial",
+    "korean-docs",
+    "yatav",
     "enterprise"
   ],
-  "homepage": "https://ism-team.com/hanview-react",
+  "homepage": "https://openhangulai.org",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ism-team/hanview-react.git"
+    "url": "https://github.com/yatav-team/open-hangul-ai.git"
   },
   "bugs": {
-    "url": "https://github.com/ism-team/hanview-react/issues",
-    "email": "support@ism-team.com"
+    "url": "https://github.com/yatav-team/open-hangul-ai/issues",
+    "email": "support@openhangulai.org"
   },
   "main": "./hanview-react.umd.js",
   "module": "./hanview-react.es.js",

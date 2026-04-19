@@ -104,6 +104,128 @@ export type {
   HWPXMetadata
 } from '../types/hwpx';
 
+// ✅ 보안 — Invisible Watermark
+export {
+  embedWatermark,
+  extractWatermark,
+  hasWatermark,
+  stripWatermark,
+  encodePayload,
+  applyWatermarkToDocument,
+  extractWatermarkFromDocument,
+} from './security/watermark';
+export type { WatermarkPayload, WatermarkOptions } from './security/watermark';
+
+// ✅ OCR — tesseract.js 래퍼 (lazy import)
+export {
+  recognize as ocrRecognize,
+  recognizePdf as ocrRecognizePdf,
+  concatResults as ocrConcatResults,
+  terminate as ocrTerminate,
+} from './ocr/ocr-service';
+export type {
+  OCRResult,
+  OCRLanguage,
+  OCROptions,
+  OCRProgressEvent,
+} from './ocr/ocr-service';
+
+// ✅ 문서 Diff — 구조/서식 인식
+export {
+  diffDocuments,
+  diffDocumentsStructural,
+  flattenDocument,
+  diffText as diffTextTokens,
+  renderDiffHTML,
+} from './diff/document-diff';
+export type {
+  DiffResult,
+  DiffChange,
+  StructuralDiffResult,
+  StructuralDiffEntry,
+  DiffBlock,
+  TextTokenChange,
+  StyleChange,
+} from './diff/document-diff';
+
+// ✅ RAG — LLM 입력용 구조화 추출
+export {
+  RAGExtractor,
+  extractForRAG,
+  toNDJSON as ragToNDJSON,
+  toLangChainDocs,
+} from './rag/rag-extractor';
+export type {
+  RAGDocument,
+  RAGChunk,
+  RAGExtractorOptions,
+  LangChainDoc,
+} from './rag/rag-extractor';
+
+// ✅ UI 컴포넌트 — Diff / OCR
+export { default as DiffViewer } from '../components/DiffViewer';
+export { default as OCRDialog } from '../components/OCRDialog';
+
+// ✅ Vertex AI — 장문 컨텍스트 초안 생성 (v5)
+export { VertexClient, parseSSEEvent } from './ai/vertex-client';
+export type { VertexRequest, VertexContent, VertexPart, VertexChunk, StreamOptions } from './ai/vertex-client';
+export {
+  estimateTokens,
+  computeBudget,
+  canConsume,
+  remainingDaily,
+  trimReferencesToFit,
+  MODEL_LIMITS,
+  DEFAULT_FREE_TIER_DAILY,
+} from './ai/ai-quota';
+export {
+  DraftGenerator,
+  createDraftGenerator,
+} from './ai/draft-generator';
+export type { GenerateOptions, GenerateResult } from './ai/draft-generator';
+export {
+  validateDraft,
+  draftToHwpx,
+  HWPX_DRAFT_SCHEMA,
+  SYSTEM_INSTRUCTION,
+  DRAFT_FUNCTION_DECLARATION,
+} from './ai/hwpx-schema';
+export type {
+  DraftOutput,
+  DraftSection,
+  DraftElement,
+  DraftHeading,
+  DraftParagraph,
+  DraftBulletList,
+  DraftTable,
+} from './ai/hwpx-schema';
+
+// ✅ v5 UI — CommandPalette / ReferenceUploader / TokenBudgetBar
+export { default as CommandPalette } from '../components/CommandPalette';
+export type { CommandItem } from '../components/CommandPalette';
+export { default as ReferenceUploader } from '../components/ReferenceUploader';
+export { default as TokenBudgetBar } from '../components/TokenBudgetBar';
+export { default as DraftAIModal } from '../components/DraftAIModal';
+export { default as TemplateGallery } from '../components/TemplateGallery';
+
+// ✅ v5 Templates
+export {
+  DRAFT_TEMPLATES,
+  getTemplate,
+  getTemplatesByCategory,
+  buildPromptFromTemplate,
+} from './ai/templates';
+export type { DraftTemplate } from './ai/templates';
+
+// ✅ v5 Hooks
+export { useHotkeys, parseHotkey, matchHotkey } from '../hooks/useHotkeys';
+export type { HotkeyMap, HotkeyOptions } from '../hooks/useHotkeys';
+export { useDraftStream } from '../hooks/useDraftStream';
+export type { DraftStreamState } from '../hooks/useDraftStream';
+
+// ✅ v5 Store
+export { useDraftStore } from '../stores/draftStore';
+
 // ✅ 버전 정보
 export const VERSION = '2.0.0';
 export const BUILD_DATE = new Date().toISOString().split('T')[0];

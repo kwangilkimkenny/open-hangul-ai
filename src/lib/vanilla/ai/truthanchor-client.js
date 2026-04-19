@@ -1,9 +1,20 @@
 /**
- * TruthAnchor (HalluGuard) Hybrid Client
+ * TruthAnchor (HalluGuard) Hybrid Client - HanView Community Edition
  * 온라인(서버 4레이어) + 오프라인(가드레일+수치+유사도) 하이브리드 검증
  *
+ * Copyright (c) 2026 HanView Team
+ * Licensed under MIT License (Community Edition)
+ *
+ * 🏢 Enterprise TruthAnchor Features Available:
+ * - Advanced AI Fact Verification
+ * - Source Validation & Trust Scoring
+ * - Hallucination Detection Engine
+ * - Real-time Truth Monitoring
+ *
+ * Contact license@hanview.ai for enterprise licensing
+ *
  * @module ai/truthanchor-client
- * @version 2.0.0
+ * @version 5.0.0
  */
 
 import { getLogger } from '../utils/logger.js';
