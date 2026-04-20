@@ -1,6 +1,6 @@
 # Contributors
 
-오픈한글AI Community Edition에 기여해주신 모든 분들께 감사드립니다.
+오픈한글AI 프로젝트에 기여해주신 모든 분들께 감사드립니다.
 
 ## 📋 Core Contributors
 

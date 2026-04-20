@@ -1,14 +1,8 @@
 /**
- * SecurityTestPanel - HanView Community Edition
- * AEGIS + TruthAnchor 데모 검증 패널
+ * SecurityTestPanel
  *
- * Copyright (c) 2026 HanView Team
- * Licensed under MIT License
- *
- * 🏢 Enterprise Features:
- * - Full AEGIS Security Module (Commercial License)
- * - TruthAnchor Verification System (Commercial License)
- * - Contact license@hanview.ai for enterprise licensing
+ * AEGIS + TruthAnchor 데모 검증 패널.
+ * 실제 SDK 가 설치되지 않은 빌드에서는 mock 구현으로 대체됩니다.
  */
 
 import { useState, useCallback, memo } from 'react';
@@ -108,9 +102,7 @@ async function getAegisInstance(): Promise<any> {
   if (_aegisInstance) return _aegisInstance;
 
   try {
-    // 🏢 HanView Community Edition - Mock Security Implementation
-    console.warn('🔒 Using mock security module - Enterprise AEGIS available with commercial license');
-    console.info('📞 Contact license@hanview.ai for full security features');
+    console.warn('🔒 Using mock security module — AEGIS SDK is not installed in this build');
 
     _aegisInstance = {
       _ready: true,
@@ -119,23 +111,26 @@ async function getAegisInstance(): Promise<any> {
       scanInput(text: string) {
         // Mock implementation for demonstration purposes
         const lowercaseText = text.toLowerCase();
-        const hasThreats = lowercaseText.includes('hack') ||
-                          lowercaseText.includes('password') ||
-                          lowercaseText.includes('delete') ||
-                          lowercaseText.includes('drop table') ||
-                          lowercaseText.includes('sql injection') ||
-                          lowercaseText.includes('xss') ||
-                          lowercaseText.includes('csrf');
+        const hasThreats =
+          lowercaseText.includes('hack') ||
+          lowercaseText.includes('password') ||
+          lowercaseText.includes('delete') ||
+          lowercaseText.includes('drop table') ||
+          lowercaseText.includes('sql injection') ||
+          lowercaseText.includes('xss') ||
+          lowercaseText.includes('csrf');
 
         return {
           allowed: !hasThreats,
-          score: hasThreats ? Math.floor(Math.random() * 30) + 70 : Math.floor(Math.random() * 30) + 10,
-          reason: hasThreats ?
-            'Mock threat detected - Upgrade to Enterprise for real AEGIS protection' :
-            'Content appears safe (mock analysis)',
+          score: hasThreats
+            ? Math.floor(Math.random() * 30) + 70
+            : Math.floor(Math.random() * 30) + 10,
+          reason: hasThreats
+            ? 'Mock threat detected - Upgrade to Enterprise for real AEGIS protection'
+            : 'Content appears safe (mock analysis)',
           categories: hasThreats ? ['mock-threat', 'demo-only'] : ['safe', 'demo-only'],
           blocked: hasThreats,
-          _enterprise: 'Contact license@hanview.ai for enterprise features'
+          _enterprise: 'Contact license@hanview.ai for enterprise features',
         };
       },
 
@@ -144,7 +139,7 @@ async function getAegisInstance(): Promise<any> {
         console.info('🏢 PII protection requires Enterprise license - showing mock behavior');
 
         // Simple mock - just replace common PII patterns
-        let mockResult = text
+        const mockResult = text
           .replace(/\b\d{3}-?\d{2}-?\d{4}\b/g, '[SSN-REDACTED]')
           .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[EMAIL-REDACTED]')
           .replace(/\b\d{3}-?\d{3}-?\d{4}\b/g, '[PHONE-REDACTED]');
@@ -153,7 +148,8 @@ async function getAegisInstance(): Promise<any> {
           pseudonymized: mockResult,
           sessionId: `mock_session_${Date.now()}`,
           changed: mockResult !== text,
-          _notice: 'This is mock PII protection. Enterprise AEGIS provides comprehensive PII detection.'
+          _notice:
+            'This is mock PII protection. Enterprise AEGIS provides comprehensive PII detection.',
         };
       },
     };
@@ -293,20 +289,25 @@ async function runTruthAnchorTest(scenario: TestScenario): Promise<TestResult> {
 
     let claimsDetail = '';
     if (result.claims && result.claims.length > 0) {
-      claimsDetail = '\n\n클레임 상세:\n' + result.claims.map((c: any) => {
-        const label = c.verdict === 'supported' ? '지지' : c.verdict === 'contradicted' ? '모순' : '중립';
-        let line = `  [${label}] ${c.text}`;
-        if (c.evidence) line += `\n    근거: ${c.evidence}`;
-        if (c.correction) line += `\n    교정: ${c.correction}`;
-        return line;
-      }).join('\n');
+      claimsDetail =
+        '\n\n클레임 상세:\n' +
+        result.claims
+          .map((c: any) => {
+            const label =
+              c.verdict === 'supported' ? '지지' : c.verdict === 'contradicted' ? '모순' : '중립';
+            let line = `  [${label}] ${c.text}`;
+            if (c.evidence) line += `\n    근거: ${c.evidence}`;
+            if (c.correction) line += `\n    교정: ${c.correction}`;
+            return line;
+          })
+          .join('\n');
     }
 
     if (scenario.id === 'ta-factual-error' || scenario.id === 'ta-numerical-error') {
       const hasContradiction = (result.contradictedClaims || 0) > 0;
       return {
         scenarioId: scenario.id,
-        status: hasContradiction ? 'pass' : (score < 80 ? 'pass' : 'fail'),
+        status: hasContradiction ? 'pass' : score < 80 ? 'pass' : 'fail',
         detail: `${modeBadge} 검증 점수: ${score}점\n총 ${result.totalClaims || 0}건: 지지 ${result.supportedClaims || 0} / 모순 ${result.contradictedClaims || 0} / 중립 ${result.neutralClaims || 0}${claimsDetail}`,
         raw: result,
         elapsedMs: elapsed,
@@ -323,7 +324,13 @@ async function runTruthAnchorTest(scenario: TestScenario): Promise<TestResult> {
       };
     }
 
-    return { scenarioId: scenario.id, status: 'pass', detail: `점수: ${score}`, raw: result, elapsedMs: elapsed };
+    return {
+      scenarioId: scenario.id,
+      status: 'pass',
+      detail: `점수: ${score}`,
+      raw: result,
+      elapsedMs: elapsed,
+    };
   } catch (error: any) {
     return {
       scenarioId: scenario.id,
@@ -437,26 +444,36 @@ function BenchmarkTabContent() {
   const [Comp, setComp] = useState<React.ComponentType<{ embedded: boolean }> | null>(null);
 
   useState(() => {
-    import('./AIBenchmarkDashboard').then((m) => {
+    import('./AIBenchmarkDashboard').then(m => {
       setComp(() => m.BenchmarkContent || m.default);
     });
   });
 
-  if (!Comp) return <div className="sectest-section" style={{ padding: '40px 24px', textAlign: 'center', color: '#999', fontSize: 12 }}>LOADING BENCHMARK MODULE...</div>;
+  if (!Comp)
+    return (
+      <div
+        className="sectest-section"
+        style={{ padding: '40px 24px', textAlign: 'center', color: '#999', fontSize: 12 }}
+      >
+        LOADING BENCHMARK MODULE...
+      </div>
+    );
   return <Comp embedded={true} />;
 }
 
-export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: SecurityTestPanelProps) {
+export const SecurityTestPanel = memo(function SecurityTestPanel({
+  onClose,
+}: SecurityTestPanelProps) {
   const { status } = useSecurityStatus();
   const [results, setResults] = useState<Record<string, TestResult>>({});
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [activeTab, setActiveTab] = useState<PanelTab>('quick');
 
-  const aegisScenarios = SCENARIOS.filter((s) => s.category === 'aegis');
-  const taScenarios = SCENARIOS.filter((s) => s.category === 'truthanchor');
+  const aegisScenarios = SCENARIOS.filter(s => s.category === 'aegis');
+  const taScenarios = SCENARIOS.filter(s => s.category === 'truthanchor');
 
   const runScenario = useCallback(async (scenario: TestScenario) => {
-    setResults((prev) => ({
+    setResults(prev => ({
       ...prev,
       [scenario.id]: { scenarioId: scenario.id, status: 'running', detail: '' },
     }));
@@ -466,7 +483,7 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
         ? await runAegisTest(scenario)
         : await runTruthAnchorTest(scenario);
 
-    setResults((prev) => ({ ...prev, [scenario.id]: result }));
+    setResults(prev => ({ ...prev, [scenario.id]: result }));
     return result;
   }, []);
 
@@ -478,10 +495,10 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
     setIsRunningAll(false);
   }, [runScenario]);
 
-  const completed = Object.values(results).filter((r) => r.status !== 'running');
-  const passed = completed.filter((r) => r.status === 'pass').length;
-  const failed = completed.filter((r) => r.status === 'fail').length;
-  const errors = completed.filter((r) => r.status === 'error').length;
+  const completed = Object.values(results).filter(r => r.status !== 'running');
+  const passed = completed.filter(r => r.status === 'pass').length;
+  const failed = completed.filter(r => r.status === 'fail').length;
+  const errors = completed.filter(r => r.status === 'error').length;
 
   const STATE_DOT: Record<ServiceState, string> = {
     online: '#22c55e',
@@ -492,28 +509,50 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
 
   return (
     <div className="sectest-overlay" onClick={onClose}>
-      <div className="sectest-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="sectest-panel" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="sectest-panel__header">
           <div>
             <h2 className="sectest-panel__title">AI Security &amp; Performance</h2>
             <p className="sectest-panel__desc">AEGIS + TruthAnchor 작동 확인 및 정량 벤치마크</p>
           </div>
-          <button className="sectest-panel__close" onClick={onClose}>&times;</button>
+          <button className="sectest-panel__close" onClick={onClose}>
+            &times;
+          </button>
         </div>
 
         {/* System Status */}
         <div className="sectest-status-bar">
           <div className="sectest-status-item">
-            <span className="sectest-status-dot" style={{ background: STATE_DOT[status.aegis.state] }} />
-            AEGIS: <strong>{status.aegis.state === 'online' ? '준비됨' : status.aegis.state === 'disabled' ? '비활성' : '미로드'}</strong>
+            <span
+              className="sectest-status-dot"
+              style={{ background: STATE_DOT[status.aegis.state] }}
+            />
+            AEGIS:{' '}
+            <strong>
+              {status.aegis.state === 'online'
+                ? '준비됨'
+                : status.aegis.state === 'disabled'
+                  ? '비활성'
+                  : '미로드'}
+            </strong>
           </div>
           <div className="sectest-status-item">
-            <span className="sectest-status-dot" style={{ background: STATE_DOT[status.truthAnchor.state] }} />
-            TruthAnchor: <strong>
-              {status.truthAnchor.state === 'online' ? '온라인' : status.truthAnchor.state === 'offline' ? '오프라인' : '비활성'}
+            <span
+              className="sectest-status-dot"
+              style={{ background: STATE_DOT[status.truthAnchor.state] }}
+            />
+            TruthAnchor:{' '}
+            <strong>
+              {status.truthAnchor.state === 'online'
+                ? '온라인'
+                : status.truthAnchor.state === 'offline'
+                  ? '오프라인'
+                  : '비활성'}
             </strong>
-            {status.truthAnchor.latencyMs !== null && <span className="sectest-latency-badge">{status.truthAnchor.latencyMs}ms</span>}
+            {status.truthAnchor.latencyMs !== null && (
+              <span className="sectest-latency-badge">{status.truthAnchor.latencyMs}ms</span>
+            )}
           </div>
         </div>
 
@@ -544,7 +583,9 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
             {/* Summary */}
             {completed.length > 0 && (
               <div className="sectest-summary">
-                <span className="sectest-summary__total">{completed.length}/{SCENARIOS.length} 완료</span>
+                <span className="sectest-summary__total">
+                  {completed.length}/{SCENARIOS.length} 완료
+                </span>
                 {passed > 0 && <span className="sectest-summary__pass">{passed}</span>}
                 {failed > 0 && <span className="sectest-summary__fail">{failed}</span>}
                 {errors > 0 && <span className="sectest-summary__error">{errors}</span>}
@@ -557,19 +598,31 @@ export const SecurityTestPanel = memo(function SecurityTestPanel({ onClose }: Se
                 <span className="sectest-section__badge sectest-section__badge--aegis">AEGIS</span>
                 프롬프트 보안 / PII 보호
               </h3>
-              {aegisScenarios.map((s) => (
-                <ScenarioCard key={s.id} scenario={s} result={results[s.id] || null} onRun={() => runScenario(s)} />
+              {aegisScenarios.map(s => (
+                <ScenarioCard
+                  key={s.id}
+                  scenario={s}
+                  result={results[s.id] || null}
+                  onRun={() => runScenario(s)}
+                />
               ))}
             </div>
 
             {/* TruthAnchor Tests */}
             <div className="sectest-section">
               <h3 className="sectest-section__title">
-                <span className="sectest-section__badge sectest-section__badge--ta">TruthAnchor</span>
+                <span className="sectest-section__badge sectest-section__badge--ta">
+                  TruthAnchor
+                </span>
                 할루시네이션 검증
               </h3>
-              {taScenarios.map((s) => (
-                <ScenarioCard key={s.id} scenario={s} result={results[s.id] || null} onRun={() => runScenario(s)} />
+              {taScenarios.map(s => (
+                <ScenarioCard
+                  key={s.id}
+                  scenario={s}
+                  result={results[s.id] || null}
+                  onRun={() => runScenario(s)}
+                />
               ))}
             </div>
           </div>
