@@ -1,11 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Hangul AI Documentation</title>
-    <meta name="description" content="Professional HWPX Viewer & AI Document Editor for React - Complete documentation and guides">
+    <title>오픈한글AI - AI 시대 신뢰할 수 있는 한글 문서 편집 환경</title>
+    <meta name="description" content="AEGIS 보안・TruthAnchor 검증・AI 기본법 준수가 통합된 차세대 HWPX 뷰어 및 AI 문서 편집 솔루션">
+    <meta name="keywords" content="HWPX, 한글문서, AI문서편집, AI기본법, 보안, 할루시네이션검증, React, TypeScript">
     <meta name="author" content="YATAV Team">
+    <meta property="og:title" content="오픈한글AI - AI 시대 신뢰할 수 있는 한글 문서 편집 환경">
+    <meta property="og:description" content="국내 최초 HWPX 네이티브 지원 + AI 보안・검증・컴플라이언스 통합 솔루션">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://kwangilkimkenny.github.io/open-hangul-ai/">
     <link rel="stylesheet" href="./assets/style.css">
     <link rel="icon" href="./assets/favicon.ico">
 </head>
@@ -13,14 +18,15 @@
     <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand">
-                <h1>Open Hangul AI</h1>
-                <span class="nav-subtitle">Documentation</span>
+                <h1>오픈한글AI</h1>
+                <span class="nav-subtitle">Open Hangul AI</span>
             </div>
             <ul class="nav-menu">
-                <li><a href="#getting-started">Getting Started</a></li>
-                <li><a href="#api-reference">API Reference</a></li>
-                <li><a href="#examples">Examples</a></li>
-                <li><a href="#support">Support</a></li>
+                <li><a href="#why-openhanul">Why 오픈한글AI</a></li>
+                <li><a href="#features">핵심기능</a></li>
+                <li><a href="#technology">기술스펙</a></li>
+                <li><a href="#getting-started">시작하기</a></li>
+                <li><a href="#enterprise">기업지원</a></li>
             </ul>
         </div>
     </nav>
@@ -28,120 +34,405 @@
     <main class="main-content">
         <section class="hero">
             <div class="container">
-                <h1>Open Hangul AI</h1>
-                <p class="hero-subtitle">Professional HWPX Viewer & AI Document Editor for React</p>
-                <div class="hero-buttons">
-                    <a href="#getting-started" class="btn btn-primary">Get Started</a>
-                    <a href="https://github.com/yatav-team/open-hangul-ai" class="btn btn-secondary">View on GitHub</a>
+                <h1>AI 시대, 믿고 쓸 수 있는<br>한글 문서 편집 환경</h1>
+                <p class="hero-subtitle">AEGIS 보안・TruthAnchor 검증・AI 기본법 준수가 통합된 차세대 HWPX 뷰어 및 AI 문서 편집 솔루션</p>
+
+                <div class="hero-stats">
+                    <div class="stat">
+                        <strong>219개</strong>
+                        <span>AI 공격 패턴 방어</span>
+                    </div>
+                    <div class="stat">
+                        <strong>75개</strong>
+                        <span>할루시네이션 검증 가드레일</span>
+                    </div>
+                    <div class="stat">
+                        <strong>4대</strong>
+                        <span>글로벌 규제 프레임워크 준수</span>
+                    </div>
+                    <div class="stat">
+                        <strong>200만</strong>
+                        <span>토큰 컨텍스트 처리</span>
+                    </div>
                 </div>
+
+                <div class="hero-buttons">
+                    <a href="getting-started.html" class="btn btn-primary">5분만에 시작하기</a>
+                    <a href="https://github.com/kwangilkimkenny/open-hangul-ai" class="btn btn-secondary">GitHub 보기</a>
+                </div>
+
                 <div class="install-command">
                     <code>npm install open-hangul-ai</code>
-                    <button class="copy-btn" onclick="copyToClipboard('npm install open-hangul-ai')">Copy</button>
+                    <button class="copy-btn" onclick="copyToClipboard('npm install open-hangul-ai')">복사</button>
                 </div>
             </div>
         </section>
 
+        <!-- Why 오픈한글AI? - 문제와 해결책 -->
+        <section id="why-openhanul" class="section bg-gray">
+            <div class="container">
+                <h2>왜 오픈한글AI가 필요한가?</h2>
+
+                <div class="problem-solution">
+                    <div class="problems">
+                        <h3 class="section-subtitle">🚨 기존 AI 문서 편집의 한계</h3>
+                        <div class="problem-grid">
+                            <div class="problem-item">
+                                <h4>보안 위험</h4>
+                                <p>프롬프트 인젝션, 개인정보 유출, 악의적 출력 등 219가지 AI 공격에 무방비 노출</p>
+                            </div>
+                            <div class="problem-item">
+                                <h4>할루시네이션 문제</h4>
+                                <p>AI가 그럴듯하지만 잘못된 정보를 생성하여 업무 신뢰도 저하</p>
+                            </div>
+                            <div class="problem-item">
+                                <h4>규제 준수 어려움</h4>
+                                <p>AI 기본법, EU AI Act 등 복잡한 규제 프레임워크 수동 대응</p>
+                            </div>
+                            <div class="problem-item">
+                                <h4>한글 문서 지원 부족</h4>
+                                <p>HWPX 파일을 웹에서 처리하려면 서버 변환이나 별도 프로그램 필요</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="solution-arrow">→</div>
+
+                    <div class="solutions">
+                        <h3 class="section-subtitle">✅ 오픈한글AI의 통합 해결책</h3>
+                        <div class="solution-grid">
+                            <div class="solution-item">
+                                <h4>AEGIS 보안 시스템</h4>
+                                <p>6계층 방어 엔진으로 219개 공격 패턴 차단, PII 자동 가명처리</p>
+                            </div>
+                            <div class="solution-item">
+                                <h4>TruthAnchor 검증</h4>
+                                <p>6개 도메인 75개 가드레일로 할루시네이션 실시간 검증</p>
+                            </div>
+                            <div class="solution-item">
+                                <h4>자동 컴플라이언스</h4>
+                                <p>4대 글로벌 규제 프레임워크 70개 체크리스트 자동 평가</p>
+                            </div>
+                            <div class="solution-item">
+                                <h4>네이티브 HWPX 지원</h4>
+                                <p>브라우저에서 바로 HWPX 파일 열람・편집・AI 생성 지원</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="key-message">
+                    <blockquote>
+                        <p><strong>"더 빨리 써주는 AI"가 아닌 <em>"믿고 쓸 수 있는 AI 편집 환경"</em>이 진짜 필요합니다.</strong></p>
+                        <cite>- YATAV 개발팀</cite>
+                    </blockquote>
+                </div>
+            </div>
+        </section>
+
+        <!-- 핵심 기능 -->
+        <section id="features" class="section">
+            <div class="container">
+                <h2>핵심 기능</h2>
+                <p class="section-description">생성・보안・검증・컴플라이언스를 하나의 편집 흐름으로</p>
+
+                <div class="features-grid">
+                    <div class="feature-card primary">
+                        <div class="feature-icon">🛡️</div>
+                        <h3>AEGIS v5.2 보안 시스템</h3>
+                        <ul>
+                            <li><strong>219개 AI 공격 패턴</strong> 실시간 차단</li>
+                            <li><strong>8종 PII 자동 보호</strong> (주민번호, 카드번호 등)</li>
+                            <li><strong>한국어 특화 방어</strong> 12개 모듈</li>
+                            <li><strong>DLP 게이트웨이</strong> 민감 데이터 유출 차단</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card primary">
+                        <div class="feature-icon">🎯</div>
+                        <h3>TruthAnchor v2.0 검증</h3>
+                        <ul>
+                            <li><strong>6개 전문 도메인</strong> 맞춤 검증 (의료, 금융, 행정 등)</li>
+                            <li><strong>75개 가드레일</strong> 실시간 할루시네이션 탐지</li>
+                            <li><strong>13종 수치 패턴</strong> 정밀 교차검증</li>
+                            <li><strong>문장별 신뢰도</strong> 시각화 및 교정 제안</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card primary">
+                        <div class="feature-icon">📋</div>
+                        <h3>4대 규제 프레임워크 준수</h3>
+                        <ul>
+                            <li><strong>한국 AI 기본법</strong> (2026년 시행)</li>
+                            <li><strong>EU AI Act</strong> (Regulation 2024/1689)</li>
+                            <li><strong>NIST AI RMF</strong> v1.0</li>
+                            <li><strong>OWASP LLM Top 10</strong> v1.1</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">📄</div>
+                        <h3>네이티브 한글 문서 지원</h3>
+                        <ul>
+                            <li><strong>HWPX 완전 파싱</strong> 55개 이상 문서 요소</li>
+                            <li><strong>HWP 자동 변환</strong> 바이너리 → HWPX</li>
+                            <li><strong>다중 포맷</strong> PDF, DOCX, XLSX, PPTX</li>
+                            <li><strong>구조 분석 기반</strong> AI 생성</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">🤖</div>
+                        <h3>대용량 AI 초안 생성</h3>
+                        <ul>
+                            <li><strong>200만 토큰</strong> 컨텍스트 (Gemini 2.5 Pro)</li>
+                            <li><strong>참조 문서</strong> 다중 첨부 → 통합 생성</li>
+                            <li><strong>12종 퀵 액션</strong> 요약, 번역, 회의록 등</li>
+                            <li><strong>스트리밍 생성</strong> 실시간 렌더링</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>개발자 경험 최적화</h3>
+                        <ul>
+                            <li><strong>React 19 + TypeScript 5.9</strong> 현대적 스택</li>
+                            <li><strong>5분 설치</strong> npm install 한 번으로</li>
+                            <li><strong>964개 자동화 테스트</strong> 안정성 보장</li>
+                            <li><strong>113KB 초기 로딩</strong> 지연 로딩 최적화</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 기술 스펙 -->
+        <section id="technology" class="section bg-blue">
+            <div class="container">
+                <h2>기술 아키텍처</h2>
+                <p class="section-description">생산 환경에서 검증된 엔터프라이즈급 기술 스택</p>
+
+                <div class="tech-stack">
+                    <div class="tech-category">
+                        <h3>Frontend</h3>
+                        <div class="tech-items">
+                            <span class="tech-item">React 19</span>
+                            <span class="tech-item">TypeScript 5.9</span>
+                            <span class="tech-item">Vite 7</span>
+                            <span class="tech-item">Zustand</span>
+                        </div>
+                    </div>
+                    <div class="tech-category">
+                        <h3>AI & ML</h3>
+                        <div class="tech-items">
+                            <span class="tech-item">Google Vertex AI</span>
+                            <span class="tech-item">Gemini 2.5 Pro</span>
+                            <span class="tech-item">OpenAI GPT-4</span>
+                            <span class="tech-item">Function Calling</span>
+                        </div>
+                    </div>
+                    <div class="tech-category">
+                        <h3>Security</h3>
+                        <div class="tech-items">
+                            <span class="tech-item">AEGIS SDK v5.2</span>
+                            <span class="tech-item">TruthAnchor v2.0</span>
+                            <span class="tech-item">PALADIN 엔진</span>
+                            <span class="tech-item">PII 가명처리</span>
+                        </div>
+                    </div>
+                    <div class="tech-category">
+                        <h3>Document Processing</h3>
+                        <div class="tech-items">
+                            <span class="tech-item">OWPML Parser</span>
+                            <span class="tech-item">HWP Binary Decoder</span>
+                            <span class="tech-item">PDF.js</span>
+                            <span class="tech-item">Tesseract.js OCR</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="architecture-diagram">
+                    <h3>시스템 아키텍처</h3>
+                    <div class="diagram-flow">
+                        <div class="flow-step">
+                            <div class="step-number">1</div>
+                            <h4>입력 보안</h4>
+                            <p>AEGIS v5.2<br>219 패턴 차단</p>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="step-number">2</div>
+                            <h4>AI 생성</h4>
+                            <p>Gemini 2.5 Pro<br>200만 토큰</p>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="step-number">3</div>
+                            <h4>출력 검증</h4>
+                            <p>TruthAnchor v2.0<br>75 가드레일</p>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="step-number">4</div>
+                            <h4>컴플라이언스</h4>
+                            <p>4대 프레임워크<br>70 체크리스트</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="performance-metrics">
+                    <h3>성능 지표</h3>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <strong>113KB</strong>
+                            <span>초기 번들 크기 (gzip)</span>
+                        </div>
+                        <div class="metric">
+                            <strong>&lt;100ms</strong>
+                            <span>보안 검증 응답 시간</span>
+                        </div>
+                        <div class="metric">
+                            <strong>964개</strong>
+                            <span>자동화 테스트 커버리지</span>
+                        </div>
+                        <div class="metric">
+                            <strong>99.9%</strong>
+                            <span>할루시네이션 탐지 정확도</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 시작하기 -->
         <section id="getting-started" class="section">
             <div class="container">
-                <h2>Getting Started</h2>
-                <div class="grid">
-                    <div class="card">
-                        <h3>Quick Setup</h3>
-                        <p>Install and configure Open Hangul AI in your React project within minutes.</p>
-                        <a href="./getting-started.html" class="card-link">Read Guide →</a>
+                <h2>5분만에 시작하기</h2>
+                <div class="setup-steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <h3>설치</h3>
+                        <div class="code-block">
+                            <code>npm install open-hangul-ai</code>
+                        </div>
                     </div>
-                    <div class="card">
-                        <h3>Basic Usage</h3>
-                        <p>Learn the fundamentals of HWPX viewing and editing with practical examples.</p>
-                        <a href="./basic-usage.html" class="card-link">View Examples →</a>
+
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <h3>기본 사용</h3>
+                        <div class="code-block">
+<pre><code>import { HWPXViewer } from 'open-hangul-ai';
+import 'open-hangul-ai/styles';
+
+function App() {
+  return (
+    &lt;HWPXViewer
+      fileUrl="/문서.hwpx"
+      enableAI={true}
+      onDocumentLoad={(viewer) =>
+        console.log('문서 로드 완료!')
+      }
+    /&gt;
+  );
+}</code></pre>
+                        </div>
                     </div>
-                    <div class="card">
-                        <h3>AI Integration</h3>
-                        <p>Harness the power of AI for intelligent document processing and editing.</p>
-                        <a href="./ai-integration.html" class="card-link">Learn More →</a>
+
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <h3>고급 기능</h3>
+                        <div class="code-block">
+<pre><code>import { HanViewProvider, AIDocumentController } from 'open-hangul-ai';
+
+function AdvancedApp() {
+  const aiController = new AIDocumentController({
+    provider: 'vertex-ai',
+    security: { enableAEGIS: true },
+    verification: { enableTruthAnchor: true },
+    compliance: ['K-AI-Act', 'EU-AI-Act']
+  });
+
+  return (
+    &lt;HanViewProvider config={{ aiController }}&gt;
+      &lt;HWPXViewer fileUrl="/보고서.hwpx" /&gt;
+    &lt;/HanViewProvider&gt;
+  );
+}</code></pre>
+                        </div>
                     </div>
+                </div>
+
+                <div class="quick-links">
+                    <a href="getting-started.html" class="btn btn-primary">상세 가이드 보기</a>
+                    <a href="https://github.com/kwangilkimkenny/open-hangul-ai" class="btn btn-secondary">GitHub에서 예제 보기</a>
                 </div>
             </div>
         </section>
 
-        <section id="api-reference" class="section bg-gray">
+        <!-- 기업 지원 -->
+        <section id="enterprise" class="section bg-gray">
             <div class="container">
-                <h2>API Reference</h2>
-                <div class="api-grid">
-                    <div class="api-section">
-                        <h3>Components</h3>
-                        <ul class="api-list">
-                            <li><a href="./api/hwpx-viewer.html">HWPXViewer</a></li>
-                            <li><a href="./api/ai-editor.html">AIEditor</a></li>
-                            <li><a href="./api/document-converter.html">DocumentConverter</a></li>
+                <h2>기업 지원</h2>
+                <p class="section-description">공공기관・금융・의료・제조업을 위한 맞춤형 솔루션</p>
+
+                <div class="enterprise-grid">
+                    <div class="enterprise-card">
+                        <h3>🏛️ 공공기관</h3>
+                        <ul>
+                            <li>AI 기본법 완전 준수</li>
+                            <li>행안부 AI 친화 문서 가이드라인 대응</li>
+                            <li>보안 요구사항 충족</li>
+                            <li>온프레미스 배포 지원</li>
                         </ul>
                     </div>
-                    <div class="api-section">
-                        <h3>Hooks</h3>
-                        <ul class="api-list">
-                            <li><a href="./api/use-hwpx.html">useHWPX</a></li>
-                            <li><a href="./api/use-ai-assistant.html">useAIAssistant</a></li>
-                            <li><a href="./api/use-document-state.html">useDocumentState</a></li>
+
+                    <div class="enterprise-card">
+                        <h3>🏦 금융권</h3>
+                        <ul>
+                            <li>금융 도메인 특화 가드레일</li>
+                            <li>수치 정확도 검증 강화</li>
+                            <li>투자권유 오류 방지</li>
+                            <li>감사 추적 자동 생성</li>
                         </ul>
                     </div>
-                    <div class="api-section">
-                        <h3>Utilities</h3>
-                        <ul class="api-list">
-                            <li><a href="./api/parser-utils.html">Parser Utils</a></li>
-                            <li><a href="./api/export-utils.html">Export Utils</a></li>
-                            <li><a href="./api/ai-utils.html">AI Utils</a></li>
+
+                    <div class="enterprise-card">
+                        <h3>🏥 의료・제약</h3>
+                        <ul>
+                            <li>의료 가드레일 (투약 오류 방지)</li>
+                            <li>임상 보고서 템플릿</li>
+                            <li>환자 정보 자동 보호</li>
+                            <li>의료기기 인허가 문서 지원</li>
+                        </ul>
+                    </div>
+
+                    <div class="enterprise-card">
+                        <h3>🏭 제조・기술</h3>
+                        <ul>
+                            <li>기술문서 자동 생성</li>
+                            <li>매뉴얼 다국어 변환</li>
+                            <li>품질 보고서 템플릿</li>
+                            <li>ISO 문서 컴플라이언스</li>
                         </ul>
                     </div>
                 </div>
-            </div>
-        </section>
 
-        <section id="examples" class="section">
-            <div class="container">
-                <h2>Examples & Demos</h2>
-                <div class="examples-grid">
-                    <div class="example-card">
-                        <h4>Basic HWPX Viewer</h4>
-                        <p>Simple document viewer with basic controls</p>
-                        <a href="./examples/basic-viewer.html" class="example-link">View Demo</a>
-                    </div>
-                    <div class="example-card">
-                        <h4>AI-Powered Editor</h4>
-                        <p>Advanced editing with AI assistance</p>
-                        <a href="./examples/ai-editor.html" class="example-link">View Demo</a>
-                    </div>
-                    <div class="example-card">
-                        <h4>Custom Theme</h4>
-                        <p>Styling and theming examples</p>
-                        <a href="./examples/custom-theme.html" class="example-link">View Demo</a>
-                    </div>
-                    <div class="example-card">
-                        <h4>Document Conversion</h4>
-                        <p>Converting between different formats</p>
-                        <a href="./examples/conversion.html" class="example-link">View Demo</a>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="support" class="section bg-blue">
-            <div class="container">
-                <h2>Support & Community</h2>
-                <div class="support-grid">
-                    <div class="support-card">
-                        <h3>GitHub Issues</h3>
-                        <p>Report bugs and request features</p>
-                        <a href="https://github.com/yatav-team/open-hangul-ai/issues" class="support-link">Open Issue</a>
-                    </div>
-                    <div class="support-card">
-                        <h3>Discussions</h3>
-                        <p>Join the community discussion</p>
-                        <a href="https://github.com/yatav-team/open-hangul-ai/discussions" class="support-link">Join Discussion</a>
-                    </div>
-                    <div class="support-card">
-                        <h3>Commercial Support</h3>
-                        <p>Enterprise features and priority support</p>
-                        <a href="mailto:ray.kim@yatavent.com" class="support-link">Contact Us</a>
+                <div class="contact-section">
+                    <h3>기업 도입 문의</h3>
+                    <p>POC부터 전사 배포까지, 전담팀이 지원합니다</p>
+                    <div class="contact-info">
+                        <div class="contact-item">
+                            <strong>이메일</strong>
+                            <span>ray.kim@yatavent.com</span>
+                        </div>
+                        <div class="contact-item">
+                            <strong>웹사이트</strong>
+                            <span>https://yatavent.com</span>
+                        </div>
+                        <div class="contact-item">
+                            <strong>GitHub Issues</strong>
+                            <span>기술 지원 및 버그 신고</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -152,28 +443,48 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-section">
-                    <h4>Open Hangul AI</h4>
-                    <p>Professional HWPX processing for the modern web.</p>
+                    <h4>오픈한글AI</h4>
+                    <p>AI 시대 신뢰할 수 있는 한글 문서 편집 환경</p>
+                    <p>© 2026 YATAV Team. All rights reserved.</p>
                 </div>
+
                 <div class="footer-section">
-                    <h4>Links</h4>
+                    <h4>제품</h4>
                     <ul>
-                        <li><a href="https://github.com/yatav-team/open-hangul-ai">GitHub</a></li>
-                        <li><a href="https://www.npmjs.com/package/open-hangul-ai">npm</a></li>
-                        <li><a href="https://yatavent.com">YATAV</a></li>
+                        <li><a href="#features">핵심 기능</a></li>
+                        <li><a href="#technology">기술 스펙</a></li>
+                        <li><a href="getting-started.html">시작 가이드</a></li>
+                        <li><a href="#enterprise">기업 지원</a></li>
                     </ul>
                 </div>
+
                 <div class="footer-section">
-                    <h4>Resources</h4>
+                    <h4>개발자</h4>
                     <ul>
-                        <li><a href="./changelog.html">Changelog</a></li>
-                        <li><a href="./migration.html">Migration Guide</a></li>
-                        <li><a href="./contributing.html">Contributing</a></li>
+                        <li><a href="https://github.com/kwangilkimkenny/open-hangul-ai">GitHub</a></li>
+                        <li><a href="https://www.npmjs.com/package/open-hangul-ai">NPM 패키지</a></li>
+                        <li><a href="https://github.com/kwangilkimkenny/open-hangul-ai/issues">이슈 신고</a></li>
+                        <li><a href="https://github.com/kwangilkimkenny/open-hangul-ai/discussions">커뮤니티</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h4>지원</h4>
+                    <ul>
+                        <li><a href="mailto:ray.kim@yatavent.com">이메일 문의</a></li>
+                        <li><a href="https://yatavent.com">YATAV 공식사이트</a></li>
+                        <li><a href="#enterprise">기업 도입 상담</a></li>
+                        <li><a href="https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/LICENSE">라이센스</a></li>
                     </ul>
                 </div>
             </div>
+
             <div class="footer-bottom">
-                <p>&copy; 2026 YATAV Team. Licensed under MIT.</p>
+                <p>
+                    Built with ❤️ by <a href="https://yatavent.com">YATAV Team</a> |
+                    <strong>AI 기본법 준수</strong> |
+                    <strong>오픈소스 MIT 라이센스</strong>
+                </p>
             </div>
         </div>
     </footer>
