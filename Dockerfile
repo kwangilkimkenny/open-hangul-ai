@@ -91,9 +91,10 @@ EOF
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Add labels for metadata
-LABEL maintainer="ISM Team <support@ism-team.com>"
-LABEL version="2.1.0"
-LABEL description="HAN-View React App - HWPX Document Viewer"
+LABEL maintainer="YATAV <ray.kim@yatavent.com>"
+LABEL org.opencontainers.image.source="https://github.com/kwangilkimkenny/open-hangul-ai"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL description="Open Hangul AI - HWPX Document Viewer & Editor"
 
 # Expose port 80
 EXPOSE 80

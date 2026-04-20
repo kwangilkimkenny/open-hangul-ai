@@ -68,7 +68,7 @@ export function HWPXViewerWrapper({
   const [showAIPanelInternal, setShowAIPanelInternal] = useState(false);
   const showAIPanel = showAIPanelProp !== undefined ? showAIPanelProp : showAIPanelInternal;
   const setShowAIPanel = onToggleAI || (() => setShowAIPanelInternal(prev => !prev));
-  const [_aiReady, setAiReady] = useState(false);
+  const [, setAiReady] = useState(false);
 
   // ✅ Viewer 초기화 (마운트 시 1번만)
   useEffect(() => {
@@ -167,7 +167,7 @@ export function HWPXViewerWrapper({
     try {
       setIsLoading(true);
 
-      let fileToLoad = file;
+      const fileToLoad = file;
 
       // DOCX 파일인 경우 문서 데이터로 직접 변환
       if (file.name.toLowerCase().endsWith('.docx')) {
@@ -182,7 +182,10 @@ export function HWPXViewerWrapper({
           toast.dismiss('loading');
           toast.success('DOCX 문서 로드 완료');
           setIsLoading(false);
-          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+          if (
+            (viewerRef.current as any).editModeManager &&
+            !(viewerRef.current as any).editModeManager.isGlobalEditMode
+          ) {
             (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
           }
           document.body.classList.add('global-edit-mode');
@@ -208,7 +211,10 @@ export function HWPXViewerWrapper({
           toast.dismiss('loading');
           toast.success('Excel 문서 로드 완료');
           setIsLoading(false);
-          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+          if (
+            (viewerRef.current as any).editModeManager &&
+            !(viewerRef.current as any).editModeManager.isGlobalEditMode
+          ) {
             (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
           }
           document.body.classList.add('global-edit-mode');
@@ -235,7 +241,10 @@ export function HWPXViewerWrapper({
           toast.dismiss('loading');
           toast.success('Markdown 문서 로드 완료');
           setIsLoading(false);
-          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+          if (
+            (viewerRef.current as any).editModeManager &&
+            !(viewerRef.current as any).editModeManager.isGlobalEditMode
+          ) {
             (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
           }
           document.body.classList.add('global-edit-mode');
@@ -261,7 +270,10 @@ export function HWPXViewerWrapper({
           toast.dismiss('loading');
           toast.success('PDF 문서 로드 완료');
           setIsLoading(false);
-          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+          if (
+            (viewerRef.current as any).editModeManager &&
+            !(viewerRef.current as any).editModeManager.isGlobalEditMode
+          ) {
             (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
           }
           document.body.classList.add('global-edit-mode');
@@ -287,7 +299,10 @@ export function HWPXViewerWrapper({
           toast.dismiss('loading');
           toast.success('ODF 문서 로드 완료');
           setIsLoading(false);
-          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+          if (
+            (viewerRef.current as any).editModeManager &&
+            !(viewerRef.current as any).editModeManager.isGlobalEditMode
+          ) {
             (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
           }
           document.body.classList.add('global-edit-mode');
@@ -313,7 +328,10 @@ export function HWPXViewerWrapper({
           toast.dismiss('loading');
           toast.success('PPTX 문서 로드 완료');
           setIsLoading(false);
-          if ((viewerRef.current as any).editModeManager && !(viewerRef.current as any).editModeManager.isGlobalEditMode) {
+          if (
+            (viewerRef.current as any).editModeManager &&
+            !(viewerRef.current as any).editModeManager.isGlobalEditMode
+          ) {
             (viewerRef.current as any).editModeManager.toggleGlobalEditMode();
           }
           document.body.classList.add('global-edit-mode');
@@ -334,34 +352,26 @@ export function HWPXViewerWrapper({
           const uint8Array = new Uint8Array(arrayBuffer);
 
           // 매직바이트 검증 (OLE Compound Document: D0 CF 11 E0 A1 B1 1A E1 — 8바이트 전체)
-          if (uint8Array.length < 8 ||
-              uint8Array[0] !== 0xD0 || uint8Array[1] !== 0xCF ||
-              uint8Array[2] !== 0x11 || uint8Array[3] !== 0xE0 ||
-              uint8Array[4] !== 0xA1 || uint8Array[5] !== 0xB1 ||
-              uint8Array[6] !== 0x1A || uint8Array[7] !== 0xE1) {
+          if (
+            uint8Array.length < 8 ||
+            uint8Array[0] !== 0xd0 ||
+            uint8Array[1] !== 0xcf ||
+            uint8Array[2] !== 0x11 ||
+            uint8Array[3] !== 0xe0 ||
+            uint8Array[4] !== 0xa1 ||
+            uint8Array[5] !== 0xb1 ||
+            uint8Array[6] !== 0x1a ||
+            uint8Array[7] !== 0xe1
+          ) {
             toast.dismiss('loading');
-            toast.error('유효한 HWP 파일이 아닙니다. 파일이 손상되었거나 지원되지 않는 형식입니다.');
+            toast.error(
+              '유효한 HWP 파일이 아닙니다. 파일이 손상되었거나 지원되지 않는 형식입니다.'
+            );
             setIsLoading(false);
             return;
           }
 
-          // HWP to HWPX conversion - currently disabled in Community Edition
-          // TODO: Implement HWP conversion when hwp2hwpx package is available
-          // const { Hwp2Hwpx } = await import('@hwp2hwpx/Hwp2Hwpx');
-          // const hwpxBinary = await Hwp2Hwpx.convert(uint8Array, {
-          //   onProgress: (progress: any) => {
-          //     devLog(`HWP 변환: ${progress.percent}% - ${progress.stage || ''}`);
-          //   },
-          // });
-          throw new Error('HWP conversion not available in Community Edition');
-          // fileToLoad = new File(
-          //   [hwpxBinary],
-          //   file.name.replace(/\.hwp$/i, '.hwpx'),
-          //   { type: 'application/hwp+zip' }
-          // );
-          throw new Error('HWP conversion not available - missing hwp2hwpx dependency');
-          toast.dismiss('loading');
-          toast.success('HWP → HWPX 변환 완료');
+          throw new Error('HWP 형식은 현재 지원되지 않습니다. HWPX 로 변환 후 다시 시도해 주세요.');
         } catch (convertError: any) {
           toast.dismiss('loading');
           devError('❌ HWP conversion failed:', convertError);
@@ -553,28 +563,30 @@ export function HWPXViewerWrapper({
           const v = viewerRef.current as any;
           if (v) {
             const emptyDocument = {
-              sections: [{
-                elements: [
-                  {
-                    type: 'paragraph',
-                    runs: [{ text: '', style: {} }],
-                    text: '',
-                    style: { textAlign: 'left', lineHeight: '1.6' }
-                  }
-                ],
-                pageSettings: {
-                  width: '794px',
-                  height: '1123px',
-                  marginLeft: '85px',
-                  marginRight: '85px',
-                  marginTop: '71px',
-                  marginBottom: '57px',
+              sections: [
+                {
+                  elements: [
+                    {
+                      type: 'paragraph',
+                      runs: [{ text: '', style: {} }],
+                      text: '',
+                      style: { textAlign: 'left', lineHeight: '1.6' },
+                    },
+                  ],
+                  pageSettings: {
+                    width: '794px',
+                    height: '1123px',
+                    marginLeft: '85px',
+                    marginRight: '85px',
+                    marginTop: '71px',
+                    marginBottom: '57px',
+                  },
+                  pageWidth: 794,
+                  pageHeight: 1123,
+                  headers: { both: null, odd: null, even: null },
+                  footers: { both: null, odd: null, even: null },
                 },
-                pageWidth: 794,
-                pageHeight: 1123,
-                headers: { both: null, odd: null, even: null },
-                footers: { both: null, odd: null, even: null },
-              }],
+              ],
               images: new Map(),
               borderFills: new Map(),
               metadata: {
@@ -582,7 +594,7 @@ export function HWPXViewerWrapper({
                 sectionsCount: 1,
                 imagesCount: 0,
                 borderFillsCount: 0,
-              }
+              },
             };
             v.createNewDocument(emptyDocument);
           }
@@ -705,7 +717,10 @@ export function HWPXViewerWrapper({
 
         {/* Track Changes Panel */}
         {showTrackChanges && viewerRef.current && (
-          <TrackChangesPanel viewer={viewerRef.current} onClose={() => setShowTrackChanges(false)} />
+          <TrackChangesPanel
+            viewer={viewerRef.current}
+            onClose={() => setShowTrackChanges(false)}
+          />
         )}
 
         {/* Comments Panel */}
@@ -803,7 +818,11 @@ export function HWPXViewerWrapper({
           />
 
           {searchResults.count > 0 && (
-            <span style={{ fontSize: '13px', color: '#6b7280', minWidth: '60px' }} aria-live="polite" aria-atomic="true">
+            <span
+              style={{ fontSize: '13px', color: '#6b7280', minWidth: '60px' }}
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {searchResults.current}/{searchResults.count}
             </span>
           )}
@@ -973,7 +992,9 @@ export function HWPXViewerWrapper({
       </div>
 
       {/* Status Text - now rendered by HangulStatusBar in App.tsx */}
-      <div id="status-text" style={{ display: 'none' }}>준비됨</div>
+      <div id="status-text" style={{ display: 'none' }}>
+        준비됨
+      </div>
 
       {/* Progress Container */}
       <div id="progress-container" style={{ display: 'none' }}>
@@ -1007,8 +1028,12 @@ export function HWPXViewerWrapper({
             opacity: 0.8,
           }}
           title="AI 패널 열기"
-          onMouseEnter={e => { (e.target as HTMLElement).style.opacity = '1'; }}
-          onMouseLeave={e => { (e.target as HTMLElement).style.opacity = '0.8'; }}
+          onMouseEnter={e => {
+            (e.target as HTMLElement).style.opacity = '1';
+          }}
+          onMouseLeave={e => {
+            (e.target as HTMLElement).style.opacity = '0.8';
+          }}
         >
           AI
         </button>
@@ -1017,7 +1042,12 @@ export function HWPXViewerWrapper({
       {/* ✅ AI Chat Panel (Vanilla JS UI) */}
       {showAIPanel && enableAI && (
         <>
-          <div className="ai-chat-panel open" id="ai-chat-panel" role="complementary" aria-label="AI 문서 편집 패널">
+          <div
+            className="ai-chat-panel open"
+            id="ai-chat-panel"
+            role="complementary"
+            aria-label="AI 문서 편집 패널"
+          >
             <div className="ai-chat-header">
               <h3 id="ai-chat-panel-title">AI 문서 편집</h3>
               <button className="ai-chat-toggle" id="ai-chat-toggle" aria-label="AI 패널 닫기">
@@ -1034,60 +1064,160 @@ export function HWPXViewerWrapper({
               <details className="ai-accordion">
                 <summary className="ai-accordion-header">문서 분석</summary>
                 <div className="ai-accordion-body">
-                  <button className="ai-assistant-btn" id="ai-ast-summary" title="문서의 핵심 내용 3줄 요약">핵심 요약</button>
-                  <button className="ai-assistant-btn" id="ai-ast-keywords" title="주요 키워드/태그 추출">키워드 추출</button>
-                  <button className="ai-assistant-btn" id="ai-ast-audience" title="난이도/대상 독자 분석">독자 수준 분석</button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-summary"
+                    title="문서의 핵심 내용 3줄 요약"
+                  >
+                    핵심 요약
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-keywords"
+                    title="주요 키워드/태그 추출"
+                  >
+                    키워드 추출
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-audience"
+                    title="난이도/대상 독자 분석"
+                  >
+                    독자 수준 분석
+                  </button>
                 </div>
               </details>
               <details className="ai-accordion">
                 <summary className="ai-accordion-header">업무 커뮤니케이션</summary>
                 <div className="ai-accordion-body">
-                  <button className="ai-assistant-btn" id="ai-ast-forward-email" title="문서 전달용 이메일 본문 생성">전달 메일 작성</button>
-                  <button className="ai-assistant-btn" id="ai-ast-report-email" title="상사에게 보고할 메일 생성">보고 메일 작성</button>
-                  <button className="ai-assistant-btn" id="ai-ast-meeting" title="문서를 회의록 형태로 변환">회의록 변환</button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-forward-email"
+                    title="문서 전달용 이메일 본문 생성"
+                  >
+                    전달 메일 작성
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-report-email"
+                    title="상사에게 보고할 메일 생성"
+                  >
+                    보고 메일 작성
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-meeting"
+                    title="문서를 회의록 형태로 변환"
+                  >
+                    회의록 변환
+                  </button>
                 </div>
               </details>
               <details className="ai-accordion">
                 <summary className="ai-accordion-header">검토 / 피드백</summary>
                 <div className="ai-accordion-body">
-                  <button className="ai-assistant-btn" id="ai-ast-review" title="검토자 관점에서 체크리스트 생성">검토 의견</button>
-                  <button className="ai-assistant-btn" id="ai-ast-improve" title="문서 품질 개선점 분석">개선 제안</button>
-                  <button className="ai-assistant-btn" id="ai-ast-actions" title="후속 조치 사항 추출">액션 아이템</button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-review"
+                    title="검토자 관점에서 체크리스트 생성"
+                  >
+                    검토 의견
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-improve"
+                    title="문서 품질 개선점 분석"
+                  >
+                    개선 제안
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-actions"
+                    title="후속 조치 사항 추출"
+                  >
+                    액션 아이템
+                  </button>
                 </div>
               </details>
               <details className="ai-accordion">
                 <summary className="ai-accordion-header">변환 / 재작성</summary>
                 <div className="ai-accordion-body">
-                  <button className="ai-assistant-btn" id="ai-ast-simplify" title="초등학생 수준으로 재작성">쉽게 풀어쓰기</button>
-                  <button className="ai-assistant-btn" id="ai-ast-formal" title="격식체 공문서 스타일로 변환">공식 문서화</button>
-                  <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">영문 번역</button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-simplify"
+                    title="초등학생 수준으로 재작성"
+                  >
+                    쉽게 풀어쓰기
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-formal"
+                    title="격식체 공문서 스타일로 변환"
+                  >
+                    공식 문서화
+                  </button>
+                  <button className="ai-assistant-btn" id="ai-ast-translate" title="영어로 번역">
+                    영문 번역
+                  </button>
                 </div>
               </details>
               <details className="ai-accordion">
                 <summary className="ai-accordion-header">AI 문서 품질</summary>
                 <div className="ai-accordion-body">
-                  <button className="ai-assistant-btn" id="ai-ast-refine" title="정부 AI 친화 문서 표준에 따라 문장 교정">AI 친화 교정</button>
-                  <button className="ai-assistant-btn" id="ai-ast-readiness" title="문서의 AI 처리 적합도를 5가지 기준으로 평가">AI 품질 검증</button>
-                  <button className="ai-assistant-btn" id="ai-ast-local-check" title="GPT 호출 없이 로컬 규칙으로 빠른 문서 품질 체크">빠른 검사</button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-refine"
+                    title="정부 AI 친화 문서 표준에 따라 문장 교정"
+                  >
+                    AI 친화 교정
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-readiness"
+                    title="문서의 AI 처리 적합도를 5가지 기준으로 평가"
+                  >
+                    AI 품질 검증
+                  </button>
+                  <button
+                    className="ai-assistant-btn"
+                    id="ai-ast-local-check"
+                    title="GPT 호출 없이 로컬 규칙으로 빠른 문서 품질 체크"
+                  >
+                    빠른 검사
+                  </button>
                 </div>
               </details>
               <details className="ai-accordion" open>
                 <summary className="ai-accordion-header">보안 / 검증</summary>
                 <div className="ai-accordion-body">
                   <div className="security-toggle-row">
-                    <label className="security-toggle-label" title="AEGIS AI 보안 - 프롬프트 인젝션, PII 보호, 출력 필터링">
+                    <label
+                      className="security-toggle-label"
+                      title="AEGIS AI 보안 - 프롬프트 인젝션, PII 보호, 출력 필터링"
+                    >
                       <input type="checkbox" id="aegis-toggle" className="security-toggle-input" />
                       <span className="security-toggle-switch"></span>
                       <span>AEGIS 보안</span>
                     </label>
-                    <label className="security-toggle-label" title="TruthAnchor - AI 생성 텍스트 할루시네이션 검증">
-                      <input type="checkbox" id="truthanchor-toggle" className="security-toggle-input" />
+                    <label
+                      className="security-toggle-label"
+                      title="TruthAnchor - AI 생성 텍스트 할루시네이션 검증"
+                    >
+                      <input
+                        type="checkbox"
+                        id="truthanchor-toggle"
+                        className="security-toggle-input"
+                      />
                       <span className="security-toggle-switch"></span>
                       <span>할루시네이션 검증</span>
                     </label>
                   </div>
                   <div className="security-status" id="security-status"></div>
-                  <div className="validation-results" id="validation-results" style={{ display: 'none' }}></div>
+                  <div
+                    className="validation-results"
+                    id="validation-results"
+                    style={{ display: 'none' }}
+                  ></div>
                 </div>
               </details>
             </div>
@@ -1098,7 +1228,13 @@ export function HWPXViewerWrapper({
                 <span className="ai-ref-icon">📎</span>
                 <span className="ai-ref-text">레퍼런스 파일 드래그 또는 클릭</span>
                 <span className="ai-ref-hint">.hwp .hwpx .txt .md .csv .json</span>
-                <input type="file" id="ai-ref-file-input" accept=".hwp,.hwpx,.txt,.md,.csv,.json,.html,.xml" multiple style={{ display: 'none' }} />
+                <input
+                  type="file"
+                  id="ai-ref-file-input"
+                  accept=".hwp,.hwpx,.txt,.md,.csv,.json,.html,.xml"
+                  multiple
+                  style={{ display: 'none' }}
+                />
               </div>
               <div className="ai-ref-files" id="ai-ref-files" style={{ display: 'none' }}></div>
             </div>
