@@ -846,6 +846,124 @@ p {
 }
 
 /* ===========================
+   Manifesto / Philosophy
+=========================== */
+.manifesto-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  margin-top: var(--space-8);
+}
+
+.manifesto-card {
+  position: relative;
+  padding: var(--space-6);
+  background: #fff;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.manifesto-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-accent), #8b5cf6);
+  opacity: 0.75;
+}
+
+.manifesto-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: transparent;
+}
+
+.manifesto-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-4);
+}
+
+.manifesto-card h3 {
+  font-size: 1.25rem;
+  color: var(--color-ink-900);
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.01em;
+}
+
+.manifesto-lede {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-ink-900);
+  margin-bottom: var(--space-3);
+  line-height: 1.5;
+}
+
+.manifesto-card p {
+  color: var(--color-ink-500);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  margin-bottom: var(--space-4);
+}
+
+.manifesto-card strong {
+  color: var(--color-ink-900);
+  font-weight: 700;
+}
+
+.manifesto-card ul {
+  list-style: none;
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-line);
+}
+
+.manifesto-card li {
+  color: var(--color-ink-500);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-2);
+  padding-left: 1.25rem;
+  position: relative;
+}
+
+.manifesto-card li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  opacity: 0.7;
+  transform: rotate(45deg);
+}
+
+.manifesto-cta {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ===========================
    Technology
 =========================== */
 .tech-grid {
@@ -1167,8 +1285,12 @@ p {
   .features-primary,
   .features-secondary,
   .tech-grid,
-  .contact-grid {
+  .contact-grid,
+  .manifesto-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .manifesto-grid > .manifesto-card:nth-child(3) {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1231,8 +1353,12 @@ p {
   .features-primary,
   .features-secondary,
   .tech-grid,
-  .contact-grid {
+  .contact-grid,
+  .manifesto-grid {
     grid-template-columns: 1fr;
+  }
+  .manifesto-grid > .manifesto-card:nth-child(3) {
+    grid-column: auto;
   }
 
   .flow-diagram {
