@@ -1,7 +1,7 @@
 {
   "name": "open-hangul-ai",
   "private": false,
-  "version": "5.0.2",
+  "version": "5.0.5",
   "license": "MIT",
   "author": "YATAV Team <ray.kim@yatavent.com>",
   "contributors": [
@@ -25,8 +25,25 @@
     "type": "git",
     "url": "https://github.com/yatav-team/open-hangul-ai"
   },
-  "keywords": ["open-hangul-ai", "document-viewer", "hwpx", "pdf", "docx", "ai", "llm", "editor", "korean-docs", "hangul", "yatav"],
+  "keywords": [
+    "open-hangul-ai",
+    "document-viewer",
+    "hwpx",
+    "pdf",
+    "docx",
+    "ai",
+    "llm",
+    "editor",
+    "korean-docs",
+    "hangul",
+    "yatav"
+  ],
   "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "main": "./dist/open-hangul-ai.umd.js",
   "module": "./dist/open-hangul-ai.es.js",
   "types": "./dist/open-hangul-ai.es.d.ts",
