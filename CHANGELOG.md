@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+### Removed (오픈소스 정리)
+- 비공개 모듈 `packages-aegis/`, `TruthAnchor-core/` 를 git history 포함 완전 제거
+- 상업용 라이선스 자산 (`LICENSE-COMMERCIAL`, `LICENSE-OPENSOURCE`, `.gitignore-opensource`) 삭제
+- 보호 빌드 스크립트(`scripts/build-protected.js`) 및 npm 스크립트 4개 (`build:opensource`, `build:production`, `build:enterprise`, `package:opensource`) 삭제
+- 사용되지 않는 `src/lib/vanilla/ui/chat-panel-legacy.js` (3,369줄) 삭제
+- `docs-backup/`, `memo.md` 등 개발 과정 산출물 정리
+
+### Changed (오픈소스 정리)
+- `LICENSE` 본문을 MIT 텍스트로 교체 (`package.json` 의 `"license": "MIT"` 선언과 일치)
+- mock 모듈 `aegis-enterprise.ts` → `aegis-noop.ts` 로 이름 변경, 안내 문구를 단순 no-op 로 정리
+- GitHub 저장소 URL 을 `kwangilkimkenny/open-hangul-ai` 로 통일 (10개 파일)
+- 라이브러리 코드(`ai-config.js`)에서 `import.meta.env.VITE_OPENAI_API_KEY` 직접 참조 제거 (빌드 시 키 인라인 위험 차단)
+- 웹사이트 footer 에 운영 주체(YATAV) 사업자 정보 추가
+
 ### 계획된 기능
 - 실시간 협업 편집 지원
 - 더 많은 AI 프로바이더 통합 (Anthropic Claude, Google Gemini)
