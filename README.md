@@ -1,288 +1,306 @@
-# 오픈한글AI (Open Hangul AI)
+<div align="center">
+
+# 오픈한글AI · Open Hangul AI
+
+**한글(HWPX) 문서를 위한 차세대 오픈소스 웹 에디터** **Open-source web editor &
+React component library for Korean (HWPX) documents.**
 
 [![npm version](https://img.shields.io/npm/v/open-hangul-ai.svg)](https://www.npmjs.com/package/open-hangul-ai)
 [![npm downloads](https://img.shields.io/npm/dm/open-hangul-ai.svg)](https://www.npmjs.com/package/open-hangul-ai)
-[![npm bundle size](https://img.shields.io/bundlephobia/minzip/open-hangul-ai)](https://bundlephobia.com/package/open-hangul-ai)
-[![GitHub stars](https://img.shields.io/github/stars/kwangilkimkenny/open-hangul-ai.svg?style=social&label=Star)](https://github.com/kwangilkimkenny/open-hangul-ai)
-[![GitHub issues](https://img.shields.io/github/issues/kwangilkimkenny/open-hangul-ai.svg)](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/kwangilkimkenny/open-hangul-ai.svg)](https://github.com/kwangilkimkenny/open-hangul-ai/commits/main)
-
-[![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![GitHub stars](https://img.shields.io/github/stars/kwangilkimkenny/open-hangul-ai.svg?style=social&label=Star)](https://github.com/kwangilkimkenny/open-hangul-ai)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-> **Professional HWPX Viewer & AI Document Editor for React** - 한글 문서 및
-> 다양한 문서 형식을 지원하는 React 컴포넌트 라이브러리
+🌐 **[Live Demo / 체험하기](https://kwangilkimkenny.github.io/open-hangul-ai/)**
+· 📦 **[npm](https://www.npmjs.com/package/open-hangul-ai)** · 🐛
+**[Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)**
 
-## ✨ 특징
+</div>
 
-- 🇰🇷 **한글 문서 완벽 지원**: HWPX, HWP 파일 뷰어
-- 📄 **다양한 포맷 지원**: PDF, DOCX, XLSX, PPTX
-- 🤖 **AI 통합**: 문서 분석, 요약, 번역 기능
-- ⚛️ **React 네이티브**: TypeScript 완전 지원
-- 🎨 **커스터마이징**: 테마, 툴바, UI 완전 제어
-- 📱 **반응형 디자인**: 모바일, 태블릿, 데스크톱 지원
+<p align="center">
+  <a href="https://kwangilkimkenny.github.io/open-hangul-ai/">
+    <img src="docs/assets/screenshots/editor-main.png" alt="오픈한글AI 메인 화면 / Open Hangul AI main screen" width="780" />
+  </a>
+</p>
 
-## 📦 설치
+> **Languages / 언어:** [한국어](#한국어) · [English](#english)
+
+---
+
+<a id="한국어"></a>
+
+## 🇰🇷 한국어
+
+오픈한글AI는 한컴오피스의 표준 문서 형식인 **HWPX** 를 비롯해 PDF, DOCX, XLSX,
+PPTX 까지 단일 React 컴포넌트로 다루는 오픈소스 웹 에디터입니다. 한컴 한글이
+설치되지 않은 환경에서도 브라우저만으로 문서를 열어보고, 편집하고, 다시 저장할
+수 있습니다.
+
+### ✨ 주요 특징
+
+- **🇰🇷 한글 문서 네이티브 지원** — HWPX/HWP 파일을 변환 없이 직접 파싱·렌더링
+- **📄 멀티 포맷** — HWPX · PDF · DOCX · XLSX · PPTX 9개 포맷 지원
+- **🤖 AI 통합** — OpenAI/Anthropic/Google 기반 문서 분석·요약·작성 지원
+- **⚛️ React 친화적** — TypeScript 정의 포함, peer dependency 만 React 18+
+- **🎨 자유로운 커스터마이징** — 테마/툴바/패널 단위로 분리된 컴포넌트 구조
+- **🔒 프라이버시 우선** — 문서 파싱은 클라이언트에서 수행, 외부 전송 없음
+- **🪶 가벼운 번들** — manualChunks 기반 코드 스플리팅으로 필요한 기능만 로드
+
+### 📸 미리보기
+
+<table>
+<tr>
+<td align="center" width="50%">
+  <img src="docs/assets/screenshots/landing-hero.png" alt="공식 사이트 히어로" width="400" /><br/>
+  <sub><b>공식 사이트</b><br/>kwangilkimkenny.github.io/open-hangul-ai</sub>
+</td>
+<td align="center" width="50%">
+  <img src="docs/assets/screenshots/editor-main.png" alt="오픈한글AI 에디터" width="400" /><br/>
+  <sub><b>웹 에디터</b><br/>HWPX 문서 편집 화면</sub>
+</td>
+</tr>
+</table>
+
+전체 페이지 캡처:
+[docs/assets/screenshots/landing-full.png](docs/assets/screenshots/landing-full.png)
+
+### 📦 설치
 
 ```bash
-# npm
 npm install open-hangul-ai
-
-# yarn
+# 또는
 yarn add open-hangul-ai
-
-# pnpm
 pnpm add open-hangul-ai
 ```
 
-## 🚀 빠른 시작
-
-### 기본 HWPX 뷰어
+### 🚀 빠른 시작
 
 ```tsx
-import React from 'react';
 import { HWPXViewer } from 'open-hangul-ai';
 import 'open-hangul-ai/styles';
 
-function App() {
-  return (
-    <div>
-      <h1>문서 뷰어</h1>
-      <HWPXViewer
-        fileUrl="/path/to/document.hwpx"
-        width="100%"
-        height="600px"
-      />
-    </div>
-  );
+export default function App() {
+  return <HWPXViewer fileUrl="/sample.hwpx" width="100%" height="600px" />;
 }
-
-export default App;
 ```
 
-### 통합 앱 컴포넌트
+통합 앱 형태로 사용하려면 `HanViewApp` 을 임포트합니다.
 
 ```tsx
-import React from 'react';
 import { HanViewApp } from 'open-hangul-ai';
 import 'open-hangul-ai/styles';
 
-function DocumentApp() {
+export default function DocumentApp() {
   return (
     <HanViewApp
       config={{
         theme: 'light',
-        toolbar: {
-          enabled: true,
-          position: 'top',
-        },
-        aiPanel: {
-          enabled: true,
-          provider: 'openai', // openai, anthropic, google
-        },
+        toolbar: { enabled: true, position: 'top' },
+        aiPanel: { enabled: true, provider: 'openai' },
       }}
       onFileLoad={file => console.log('파일 로드:', file)}
-      onError={error => console.error('에러:', error)}
+      onError={err => console.error(err)}
     />
   );
 }
 ```
 
-### 커스텀 설정과 훅 사용
+### 📖 주요 컴포넌트
 
-```tsx
-import React from 'react';
-import { HanViewProvider, useHanView, HWPXViewer } from 'open-hangul-ai';
+| 컴포넌트                         | 용도                                     |
+| -------------------------------- | ---------------------------------------- |
+| `HanViewApp`                     | 툴바·뷰어·AI 패널이 결합된 완성형 에디터 |
+| `HWPXViewer`                     | HWPX 단일 뷰어 컴포넌트                  |
+| `HanViewProvider` / `useHanView` | 외부에서 상태·설정 주입을 위한 컨텍스트  |
+| `AIDocumentController`           | AI 문서 분석·요약·생성 클라이언트        |
+| `DocumentStructureExtractor`     | HWPX 문서 구조 추출 유틸리티             |
 
-function DocumentViewer() {
-  const { currentFile, setFile, config } = useHanView();
+### 📚 지원 파일 형식
 
-  return (
-    <div>
-      <input
-        type="file"
-        accept=".hwpx,.pdf,.docx"
-        onChange={e => {
-          const file = e.target.files?.[0];
-          if (file) setFile(file);
-        }}
-      />
+| 형식 | 열기 | 편집 | 내보내기 |
+| ---- | :--: | :--: | :------: |
+| HWPX |  ✅  |  ✅  |    ✅    |
+| HWP  |  ✅  |  ❌  |    ❌    |
+| PDF  |  ✅  |  ❌  |    ✅    |
+| DOCX |  ✅  |  ✅  |    ✅    |
+| XLSX |  ✅  |  ✅  |    ✅    |
+| PPTX |  ✅  |  ✅  |    ✅    |
 
-      {currentFile && <HWPXViewer file={currentFile} config={config} />}
-    </div>
-  );
-}
+### 🔧 개발 환경
 
-function App() {
-  return (
-    <HanViewProvider
-      config={{
-        theme: 'dark',
-        layout: {
-          sidebar: true,
-          minimap: true,
-        },
-      }}
-    >
-      <DocumentViewer />
-    </HanViewProvider>
-  );
-}
+- Node.js 16 이상
+- React 18 / 19 (peer)
+- TypeScript 5.x (선택)
+
+저장소 클론 후 직접 빌드하기:
+
+```bash
+git clone https://github.com/kwangilkimkenny/open-hangul-ai.git
+cd open-hangul-ai
+npm install
+npm run dev          # 개발 서버
+npm run build:lib    # NPM 패키지 빌드
+npm run test:run     # 유닛 테스트
 ```
 
-## 📖 주요 컴포넌트
+### 🤝 기여하기
 
-### `HanViewApp`
+이슈 등록, 풀 리퀘스트, 문서 개선 모두 환영합니다. 자세한 내용은
+[CONTRIBUTING.md](./CONTRIBUTING.md) 를 참고하세요.
 
-완전한 문서 편집기 애플리케이션
+### 📝 라이센스
 
-```tsx
-import { HanViewApp } from 'open-hangul-ai';
-
-<HanViewApp
-  config={{
-    theme: 'light' | 'dark',
-    toolbar: ToolbarConfig,
-    aiPanel: AIPanelConfig
-  }}
-  headerButtons?: HeaderButton[]
-  onFileLoad?: (file: File) => void
-  onError?: (error: Error) => void
-/>
-```
-
-### `HWPXViewer`
-
-HWPX 파일 전용 뷰어
-
-```tsx
-import { HWPXViewer } from 'open-hangul-ai';
-
-<HWPXViewer
-  fileUrl?: string
-  file?: File
-  width?: string
-  height?: string
-  config?: HanViewConfig
-/>
-```
-
-### `HanViewProvider`
-
-Context를 통한 상태 관리
-
-```tsx
-import { HanViewProvider, useHanView } from 'open-hangul-ai';
-
-<HanViewProvider config={config}>{/* 하위 컴포넌트들 */}</HanViewProvider>;
-```
-
-## 🎨 테마 커스터마이징
-
-```tsx
-const customTheme = {
-  colors: {
-    primary: '#007bff',
-    secondary: '#6c757d',
-    background: '#ffffff',
-    text: '#212529',
-  },
-  fonts: {
-    primary: 'Noto Sans KR, sans-serif',
-    mono: 'Fira Code, monospace',
-  },
-  spacing: {
-    small: '8px',
-    medium: '16px',
-    large: '24px',
-  },
-};
-
-<HanViewApp
-  config={{
-    theme: customTheme,
-    // 또는 내장 테마
-    // theme: 'light' | 'dark' | 'auto'
-  }}
-/>;
-```
-
-## 🤖 AI 기능 활용
-
-```tsx
-import {
-  AIDocumentController,
-  DocumentStructureExtractor,
-} from 'open-hangul-ai';
-
-// AI 문서 분석
-const aiController = new AIDocumentController({
-  provider: 'openai',
-  apiKey: 'your-api-key',
-});
-
-// 문서 요약
-const summary = await aiController.summarize(document);
-
-// 구조 추출
-const extractor = new DocumentStructureExtractor();
-const structure = extractor.extract(document);
-```
-
-## 📚 지원 파일 형식
-
-| 형식 | 읽기 | 편집 | 내보내기 |
-| ---- | ---- | ---- | -------- |
-| HWPX | ✅   | ✅   | ✅       |
-| HWP  | ✅   | ❌   | ❌       |
-| PDF  | ✅   | ❌   | ✅       |
-| DOCX | ✅   | ✅   | ✅       |
-| XLSX | ✅   | ✅   | ✅       |
-| PPTX | ✅   | ✅   | ✅       |
-
-## 🔧 개발 환경
-
-```json
-{
-  "peerDependencies": {
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
-  },
-  "engines": {
-    "node": ">=16.0.0"
-  }
-}
-```
-
-## 📝 라이센스
-
-MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
-
-## 🤝 기여하기
-
-1. 이 저장소를 Fork합니다
-2. 새 브랜치를 만듭니다 (`git checkout -b feature/새기능`)
-3. 변경사항을 커밋합니다 (`git commit -am '새 기능 추가'`)
-4. 브랜치를 Push합니다 (`git push origin feature/새기능`)
-5. Pull Request를 만듭니다
-
-## 📞 지원
-
-- **문제 보고**:
-  [GitHub Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
-- **문서**: [공식 문서](https://openhangulai.org)
-- **이메일**: team@openhangulai.org
-
-## 🏢 YATAV
-
-오픈한글AI는 [YATAV](https://yatavent.com)에서 개발하고 있습니다.
-
-- **Community Edition**: MIT 라이센스 (무료)
-- **Enterprise Edition**: 상용 라이센스 (유료)
+MIT License — [LICENSE](./LICENSE) 파일을 참조하세요.
 
 ---
 
-Made with ❤️ by YATAV Team
+<a id="english"></a>
+
+## 🇺🇸 English
+
+**Open Hangul AI** is an open-source web editor and React component library for
+**HWPX** — Hancom Office's XML document format used as the de facto standard for
+Korean government, legal, and academic documents. It opens, edits and saves
+HWPX/PDF/DOCX/XLSX/PPTX files entirely in the browser, no Hancom Office
+installation required.
+
+### ✨ Highlights
+
+- **🇰🇷 First-class HWPX/HWP support** — direct parsing & rendering, no
+  conversion step
+- **📄 Multi-format** — HWPX · PDF · DOCX · XLSX · PPTX in a single component
+- **🤖 AI built-in** — analyse, summarise and draft documents via OpenAI /
+  Anthropic / Google
+- **⚛️ React-native** — first-class TypeScript types, React 18+ peer dependency
+  only
+- **🎨 Composable UI** — theme, toolbar and panels are split into independent
+  components
+- **🔒 Privacy-first** — parsing happens entirely client-side; nothing leaves
+  the browser
+- **🪶 Lean bundle** — manualChunks code-splitting loads only what each route
+  needs
+
+### 📸 Screenshots
+
+<table>
+<tr>
+<td align="center" width="50%">
+  <img src="docs/assets/screenshots/landing-hero.png" alt="Project site" width="400" /><br/>
+  <sub><b>Project site</b><br/>kwangilkimkenny.github.io/open-hangul-ai</sub>
+</td>
+<td align="center" width="50%">
+  <img src="docs/assets/screenshots/editor-main.png" alt="Web editor" width="400" /><br/>
+  <sub><b>Web editor</b><br/>HWPX document editing</sub>
+</td>
+</tr>
+</table>
+
+Full-page capture:
+[docs/assets/screenshots/landing-full.png](docs/assets/screenshots/landing-full.png)
+
+### 📦 Install
+
+```bash
+npm install open-hangul-ai
+# or
+yarn add open-hangul-ai
+pnpm add open-hangul-ai
+```
+
+### 🚀 Quick start
+
+```tsx
+import { HWPXViewer } from 'open-hangul-ai';
+import 'open-hangul-ai/styles';
+
+export default function App() {
+  return <HWPXViewer fileUrl="/sample.hwpx" width="100%" height="600px" />;
+}
+```
+
+For a full-screen application shell, use `HanViewApp`:
+
+```tsx
+import { HanViewApp } from 'open-hangul-ai';
+import 'open-hangul-ai/styles';
+
+export default function DocumentApp() {
+  return (
+    <HanViewApp
+      config={{
+        theme: 'light',
+        toolbar: { enabled: true, position: 'top' },
+        aiPanel: { enabled: true, provider: 'openai' },
+      }}
+      onFileLoad={file => console.log('loaded:', file)}
+      onError={err => console.error(err)}
+    />
+  );
+}
+```
+
+### 📖 Main components
+
+| Component                        | Purpose                                             |
+| -------------------------------- | --------------------------------------------------- |
+| `HanViewApp`                     | Full editor shell — toolbar + viewer + AI panel     |
+| `HWPXViewer`                     | Standalone HWPX viewer                              |
+| `HanViewProvider` / `useHanView` | Context for injecting state and config from outside |
+| `AIDocumentController`           | AI client for analyse / summarise / generate        |
+| `DocumentStructureExtractor`     | Utility for extracting HWPX document structure      |
+
+### 📚 Supported formats
+
+| Format | Open | Edit | Export |
+| ------ | :--: | :--: | :----: |
+| HWPX   |  ✅  |  ✅  |   ✅   |
+| HWP    |  ✅  |  ❌  |   ❌   |
+| PDF    |  ✅  |  ❌  |   ✅   |
+| DOCX   |  ✅  |  ✅  |   ✅   |
+| XLSX   |  ✅  |  ✅  |   ✅   |
+| PPTX   |  ✅  |  ✅  |   ✅   |
+
+### 🔧 Development
+
+- Node.js 16+
+- React 18 / 19 (peer)
+- TypeScript 5.x (optional)
+
+```bash
+git clone https://github.com/kwangilkimkenny/open-hangul-ai.git
+cd open-hangul-ai
+npm install
+npm run dev          # dev server
+npm run build:lib    # build NPM package
+npm run test:run     # unit tests
+```
+
+### 🤝 Contributing
+
+Issues, pull requests and documentation improvements are all welcome. See
+[CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+
+### 📝 License
+
+MIT License — see the [LICENSE](./LICENSE) file.
+
+---
+
+<div align="center">
+
+### 🏢 Maintained by
+
+[**YATAV**](https://yatavent.com) — 오픈한글AI 프로젝트의 운영 주체 Maintainer ·
+[Kwang-il Kim](https://www.linkedin.com/in/kwang-il-kim-a399b3196/)
+(`ray.kim@yatavent.com`)
+
+📖 [Docs](https://kwangilkimkenny.github.io/open-hangul-ai/) · 💬
+[Discussions](https://github.com/kwangilkimkenny/open-hangul-ai/discussions) ·
+🐛 [Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
+
+Made with ❤️ in Seoul, Korea
+
+</div>
