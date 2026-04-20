@@ -295,7 +295,7 @@ MIT License — see the [LICENSE](./LICENSE) file.
 
 [**YATAV**](https://yatavent.com) — 오픈한글AI 프로젝트의 운영 주체 Maintainer ·
 [Kwang-il Kim](https://www.linkedin.com/in/kwang-il-kim-a399b3196/)
-(`ray.kim@yatavent.com`)
+(`yatav@yatavent.com`)
 
 📖 [Docs](https://kwangilkimkenny.github.io/open-hangul-ai/) · 💬
 [Discussions](https://github.com/kwangilkimkenny/open-hangul-ai/discussions) ·

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Send Email Edge Function
  * Resend API 기반 트랜잭션 이메일 발송
@@ -51,7 +52,9 @@ serve(async req => {
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user } } = await userClient.auth.getUser();
+    const {
+      data: { user },
+    } = await userClient.auth.getUser();
     if (!user) return jsonResponse({ error: '세션 무효' }, 401);
 
     const { template, to, data } = (await req.json()) as SendEmailRequest;
@@ -71,7 +74,7 @@ serve(async req => {
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        Authorization: `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -107,7 +110,10 @@ function jsonResponse(data: unknown, status = 200): Response {
 // 이메일 템플릿
 // ============================================================
 
-function renderTemplate(name: TemplateName, data: Record<string, any>): { subject: string; html: string } {
+function renderTemplate(
+  name: TemplateName,
+  data: Record<string, any>
+): { subject: string; html: string } {
   switch (name) {
     case 'welcome':
       return {
@@ -145,7 +151,7 @@ function renderTemplate(name: TemplateName, data: Record<string, any>): { subjec
             <tr><td>결제 일시</td><td><strong>${escapeHtml(data.paidAt || new Date().toLocaleString('ko-KR'))}</strong></td></tr>
           </table>
           ${data.receiptUrl ? `<a href="${escapeHtml(data.receiptUrl)}" class="btn">영수증 보기</a>` : ''}
-          <p style="color:#6b7280;font-size:13px;">환불 문의: <a href="mailto:ray.kim@yatavent.com">ray.kim@yatavent.com</a></p>
+          <p style="color:#6b7280;font-size:13px;">환불 문의: <a href="mailto:yatav@yatavent.com">yatav@yatavent.com</a></p>
         `),
       };
 
@@ -226,5 +232,9 @@ function baseTemplate(content: string): string {
 }
 
 function escapeHtml(str: string): string {
-  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

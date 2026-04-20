@@ -333,7 +333,7 @@ PR을 생성할 때 자동으로 템플릿이 적용됩니다. 모든 섹션을 
 
 - **GitHub Issues**: 버그 리포트, 기능 요청
 - **GitHub Discussions**: 일반적인 질문, 아이디어
-- **이메일**: team@openhangulai.org
+- **이메일**: yatav@yatavent.com
 
 ### 🤝 멘토링
 

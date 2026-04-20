@@ -18,7 +18,8 @@ const ERROR_MESSAGES: Record<string, string> = {
 export function PaymentFailPage() {
   const [params] = useSearchParams();
   const code = params.get('code') || '';
-  const message = params.get('message') || ERROR_MESSAGES[code] || '결제 처리 중 오류가 발생했습니다';
+  const message =
+    params.get('message') || ERROR_MESSAGES[code] || '결제 처리 중 오류가 발생했습니다';
 
   // 결제 메타 정리
   sessionStorage.removeItem('payment_meta');
@@ -38,12 +39,17 @@ export function PaymentFailPage() {
           {code && <p className="fail-code">오류 코드: {code}</p>}
 
           <div className="fail-actions">
-            <Link to="/pricing" className="btn-primary">요금제 다시 보기</Link>
-            <Link to="/" className="btn-secondary">홈으로 이동</Link>
+            <Link to="/pricing" className="btn-primary">
+              요금제 다시 보기
+            </Link>
+            <Link to="/" className="btn-secondary">
+              홈으로 이동
+            </Link>
           </div>
 
           <div className="help-text">
-            계속 문제가 발생하면 <a href="mailto:ray.kim@yatavent.com">ray.kim@yatavent.com</a>로 문의해주세요
+            계속 문제가 발생하면 <a href="mailto:yatav@yatavent.com">yatav@yatavent.com</a>로
+            문의해주세요
           </div>
         </div>
       </div>

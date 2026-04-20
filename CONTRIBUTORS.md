@@ -43,7 +43,7 @@
 
 **YATAV Team**
 
-- 📧 **Contact:** team@openhangulai.org
+- 📧 **Contact:** yatav@yatavent.com
 - 🌐 **Website:** https://openhangulai.org
 - 📁 **Repository:** https://github.com/kwangilkimkenny/open-hangul-ai
 
@@ -118,8 +118,8 @@
 
 ### 연락처
 
-- 📧 **Technical Questions:** ray.kim@yatavent.com
-- 📧 **General Inquiries:** team@openhangulai.org
+- 📧 **Technical Questions:** yatav@yatavent.com
+- 📧 **General Inquiries:** yatav@yatavent.com
 - 🐛 **Bug Reports:**
   [GitHub Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
 

@@ -158,7 +158,9 @@ export function PricingPage() {
             <button
               className={period === 'monthly' ? 'active' : ''}
               onClick={() => setPeriod('monthly')}
-            >월간</button>
+            >
+              월간
+            </button>
             <button
               className={period === 'yearly' ? 'active' : ''}
               onClick={() => setPeriod('yearly')}
@@ -186,9 +188,7 @@ export function PricingPage() {
 
               <div className="plan-price">
                 <span className="price-amount">{formatPrice(plan)}</span>
-                {plan.monthlyPrice > 0 && (
-                  <span className="price-period">/월</span>
-                )}
+                {plan.monthlyPrice > 0 && <span className="price-period">/월</span>}
               </div>
               {period === 'yearly' && plan.yearlyPrice > 0 && (
                 <p className="yearly-note">연 ₩{plan.yearlyPrice.toLocaleString()} 청구</p>
@@ -202,9 +202,18 @@ export function PricingPage() {
               </button>
 
               <div className="plan-limits">
-                <div><strong>{plan.limits.documents}</strong><span>문서</span></div>
-                <div><strong>{plan.limits.storage}</strong><span>저장공간</span></div>
-                <div><strong>{plan.limits.aiCredits}</strong><span>AI 크레딧</span></div>
+                <div>
+                  <strong>{plan.limits.documents}</strong>
+                  <span>문서</span>
+                </div>
+                <div>
+                  <strong>{plan.limits.storage}</strong>
+                  <span>저장공간</span>
+                </div>
+                <div>
+                  <strong>{plan.limits.aiCredits}</strong>
+                  <span>AI 크레딧</span>
+                </div>
               </div>
 
               <ul className="plan-features">
@@ -624,12 +633,30 @@ const comparisonRows = [
 ];
 
 const faqs = [
-  { q: '무료 체험 기간이 있나요?', a: '모든 유료 플랜은 14일 무료 체험을 제공합니다. 신용카드 등록 없이 시작할 수 있으며 언제든지 취소 가능합니다.' },
-  { q: '플랜을 언제든 변경할 수 있나요?', a: '네, 언제든지 업그레이드 또는 다운그레이드가 가능합니다. 차액은 일할 계산되어 청구됩니다.' },
-  { q: '데이터는 어떻게 보호되나요?', a: 'AEGIS 보안 게이트웨이가 PII 자동 마스킹과 프롬프트 인젝션 방어를 수행합니다. 모든 통신은 TLS 1.3으로 암호화되며, Enterprise 플랜은 mTLS를 지원합니다.' },
-  { q: 'AI 크레딧이란 무엇인가요?', a: 'AI 크레딧은 GPT 호출 횟수를 의미합니다. 한 번의 요약/번역/편집 작업은 1 크레딧을 사용하며, 매월 1일 자동 갱신됩니다.' },
-  { q: '환불 정책이 어떻게 되나요?', a: '구매 후 7일 이내에는 100% 환불됩니다. 연간 결제 시 사용하지 않은 월에 대해 일할 환불을 제공합니다.' },
-  { q: '교육·비영리 할인이 있나요?', a: '교육기관 50%, 비영리단체 30% 할인을 제공합니다. 영업팀(ray.kim@yatavent.com)으로 문의해주세요.' },
+  {
+    q: '무료 체험 기간이 있나요?',
+    a: '모든 유료 플랜은 14일 무료 체험을 제공합니다. 신용카드 등록 없이 시작할 수 있으며 언제든지 취소 가능합니다.',
+  },
+  {
+    q: '플랜을 언제든 변경할 수 있나요?',
+    a: '네, 언제든지 업그레이드 또는 다운그레이드가 가능합니다. 차액은 일할 계산되어 청구됩니다.',
+  },
+  {
+    q: '데이터는 어떻게 보호되나요?',
+    a: 'AEGIS 보안 게이트웨이가 PII 자동 마스킹과 프롬프트 인젝션 방어를 수행합니다. 모든 통신은 TLS 1.3으로 암호화되며, Enterprise 플랜은 mTLS를 지원합니다.',
+  },
+  {
+    q: 'AI 크레딧이란 무엇인가요?',
+    a: 'AI 크레딧은 GPT 호출 횟수를 의미합니다. 한 번의 요약/번역/편집 작업은 1 크레딧을 사용하며, 매월 1일 자동 갱신됩니다.',
+  },
+  {
+    q: '환불 정책이 어떻게 되나요?',
+    a: '구매 후 7일 이내에는 100% 환불됩니다. 연간 결제 시 사용하지 않은 월에 대해 일할 환불을 제공합니다.',
+  },
+  {
+    q: '교육·비영리 할인이 있나요?',
+    a: '교육기관 50%, 비영리단체 30% 할인을 제공합니다. 영업팀(yatav@yatavent.com)으로 문의해주세요.',
+  },
 ];
 
 export default PricingPage;

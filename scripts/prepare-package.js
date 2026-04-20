@@ -177,7 +177,7 @@ This package is available under the MIT license for open source use.
 
 - **Documentation**: [Official Documentation](https://kwangilkimkenny.github.io/open-hangul-ai/)
 - **Issues**: [GitHub Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
-- **Email**: ray.kim@yatavent.com
+- **Email**: yatav@yatavent.com
 
 ---
 
