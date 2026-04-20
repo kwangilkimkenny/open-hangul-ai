@@ -176,17 +176,8 @@ This package is available under the MIT license for open source use.
 ## Support
 
 - **Documentation**: [Official Documentation](https://kwangilkimkenny.github.io/open-hangul-ai/)
-- **Issues**: [GitHub Issues](https://github.com/yatav-team/open-hangul-ai/issues)
+- **Issues**: [GitHub Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
 - **Email**: ray.kim@yatavent.com
-- **Website**: https://yatavent.com
-
-## Commercial Support
-
-For enterprise features and commercial licensing:
-- Advanced security modules
-- Priority technical support
-- Custom integrations
-- SLA-backed service
 
 ---
 

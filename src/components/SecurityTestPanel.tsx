@@ -126,17 +126,15 @@ async function getAegisInstance(): Promise<any> {
             ? Math.floor(Math.random() * 30) + 70
             : Math.floor(Math.random() * 30) + 10,
           reason: hasThreats
-            ? 'Mock threat detected - Upgrade to Enterprise for real AEGIS protection'
+            ? 'Mock threat detected — install the AEGIS SDK for real protection'
             : 'Content appears safe (mock analysis)',
           categories: hasThreats ? ['mock-threat', 'demo-only'] : ['safe', 'demo-only'],
           blocked: hasThreats,
-          _enterprise: 'Contact license@hanview.ai for enterprise features',
         };
       },
 
       pseudonymize(text: string) {
-        // Mock PII protection
-        console.info('🏢 PII protection requires Enterprise license - showing mock behavior');
+        console.info('PII protection is mocked — install the AEGIS SDK for real detection');
 
         // Simple mock - just replace common PII patterns
         const mockResult = text
@@ -148,8 +146,7 @@ async function getAegisInstance(): Promise<any> {
           pseudonymized: mockResult,
           sessionId: `mock_session_${Date.now()}`,
           changed: mockResult !== text,
-          _notice:
-            'This is mock PII protection. Enterprise AEGIS provides comprehensive PII detection.',
+          _notice: 'Mock PII protection — install the AEGIS SDK for full detection.',
         };
       },
     };
