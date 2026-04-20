@@ -1,0 +1,157 @@
+name: 📚 Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  # 📄 문서 빌드 및 배포
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: 📋 Validate documentation
+        run: |
+          echo "## 📚 Documentation Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check required files
+          REQUIRED_FILES=("docs/index.html" "docs/getting-started.html" "docs/assets/style.css" "docs/assets/script.js")
+
+          echo "### Required Files" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "| $file | ✅ Found |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $file | ❌ Missing |" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+          done
+
+          # Count documentation pages
+          DOC_PAGES=$(find docs -name "*.html" | wc -l)
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Documentation Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "- **HTML Pages**: $DOC_PAGES" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Size**: $(du -sh docs | cut -f1)" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📂 Prepare documentation
+        run: |
+          echo "Preparing documentation files for GitHub Pages..."
+
+          # Create .nojekyll to disable Jekyll processing
+          touch docs/.nojekyll
+
+          # Create sitemap.xml
+          cat > docs/sitemap.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url>
+              <loc>https://yatav-team.github.io/open-hangul-ai/</loc>
+              <lastmod>$(date -u +%Y-%m-%d)</lastmod>
+              <priority>1.0</priority>
+            </url>
+            <url>
+              <loc>https://yatav-team.github.io/open-hangul-ai/getting-started.html</loc>
+              <lastmod>$(date -u +%Y-%m-%d)</lastmod>
+              <priority>0.8</priority>
+            </url>
+          </urlset>
+          EOF
+
+          # Create robots.txt
+          cat > docs/robots.txt << 'EOF'
+          User-agent: *
+          Allow: /
+          Sitemap: https://yatav-team.github.io/open-hangul-ai/sitemap.xml
+          EOF
+
+          # Add meta tags for SEO (inject into existing HTML files)
+          find docs -name "*.html" -exec sed -i 's|<title>|<meta property="og:site_name" content="Open Hangul AI Documentation"><meta property="og:type" content="website"><meta name="twitter:card" content="summary_large_image"><title>|' {} \;
+
+      - name: 🔍 HTML validation (optional)
+        run: |
+          # Simple HTML validation - check for common issues
+          echo "Performing basic HTML validation..."
+
+          VALIDATION_ERRORS=0
+
+          for html_file in docs/*.html; do
+            if [ -f "$html_file" ]; then
+              echo "Validating $html_file"
+
+              # Check for missing closing tags (basic check)
+              if ! grep -q "</html>" "$html_file"; then
+                echo "⚠️ Missing closing </html> tag in $html_file"
+                ((VALIDATION_ERRORS++))
+              fi
+
+              if ! grep -q "</body>" "$html_file"; then
+                echo "⚠️ Missing closing </body> tag in $html_file"
+                ((VALIDATION_ERRORS++))
+              fi
+            fi
+          done
+
+          if [ $VALIDATION_ERRORS -eq 0 ]; then
+            echo "✅ All HTML files passed basic validation"
+          else
+            echo "⚠️ Found $VALIDATION_ERRORS validation issues (non-blocking)"
+          fi
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: 'docs'
+
+      - name: 🌐 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+      - name: 📊 Deployment summary
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🌐 Documentation Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- **Documentation Site**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Getting Started**: ${{ steps.deployment.outputs.page_url }}getting-started.html" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm Package**: https://www.npmjs.com/package/open-hangul-ai" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Repository**: https://github.com/yatav-team/open-hangul-ai" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Deployment Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed at**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📧 Update package.json with docs URL
+        if: success()
+        run: |
+          # This could update package.json to point to the new docs URL
+          echo "Documentation deployed successfully to: ${{ steps.deployment.outputs.page_url }}"
+          echo "Consider updating package.json homepage to point to the docs site"

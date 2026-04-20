@@ -3,7 +3,7 @@
 /**
  * 패키지 배포 준비 스크립트
  * 빌드된 파일을 배포용 폴더로 복사하고 package.json 생성
- * 
+ *
  * 사용법: npm run package
  */
 
@@ -23,71 +23,61 @@ console.log('📦 HAN-View React 패키지 준비 시작...\n');
 
 // 1. 배포 폴더 생성
 if (fs.existsSync(packageDir)) {
-    fs.rmSync(packageDir, { recursive: true });
+  fs.rmSync(packageDir, { recursive: true });
 }
 fs.mkdirSync(packageDir, { recursive: true });
 
 console.log('✅ 배포 폴더 생성: hanview-react-dist/');
 
 // 2. 빌드 파일 복사
-const filesToCopy = [
-    'open-hangul-ai.es.js',
-    'open-hangul-ai.umd.js',
-    'open-hangul-ai.css',
-];
+const filesToCopy = ['open-hangul-ai.es.js', 'open-hangul-ai.umd.js', 'open-hangul-ai.css'];
 
 let copiedCount = 0;
 for (const file of filesToCopy) {
-    const src = path.join(distDir, file);
-    const dest = path.join(packageDir, file);
-    
-    if (fs.existsSync(src)) {
-        fs.copyFileSync(src, dest);
-        const size = (fs.statSync(dest).size / 1024).toFixed(2);
-        console.log(`  ✓ ${file} (${size} KB)`);
-        copiedCount++;
-    } else {
-        console.log(`  ⚠ ${file} 없음 (빌드 확인 필요)`);
-    }
+  const src = path.join(distDir, file);
+  const dest = path.join(packageDir, file);
+
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+    const size = (fs.statSync(dest).size / 1024).toFixed(2);
+    console.log(`  ✓ ${file} (${size} KB)`);
+    copiedCount++;
+  } else {
+    console.log(`  ⚠ ${file} 없음 (빌드 확인 필요)`);
+  }
 }
 
 // 3. TypeScript 타입 정의 파일 복사
 const dtsFiles = fs.readdirSync(distDir).filter(f => f.endsWith('.d.ts'));
 for (const file of dtsFiles) {
-    fs.copyFileSync(
-        path.join(distDir, file),
-        path.join(packageDir, file)
-    );
-    console.log(`  ✓ ${file}`);
-    copiedCount++;
+  fs.copyFileSync(path.join(distDir, file), path.join(packageDir, file));
+  console.log(`  ✓ ${file}`);
+  copiedCount++;
 }
 
 // 4. package.json 복사 및 수정
 const distPackageJson = JSON.parse(
-    fs.readFileSync(path.join(rootDir, 'dist-package.json'), 'utf-8')
+  fs.readFileSync(path.join(rootDir, 'dist-package.json'), 'utf-8')
 );
-fs.writeFileSync(
-    path.join(packageDir, 'package.json'),
-    JSON.stringify(distPackageJson, null, 2)
-);
+fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify(distPackageJson, null, 2));
 console.log('  ✓ package.json');
 
 // 5. README 생성
-const readme = `# HAN-View React
+const readme = `# Open Hangul AI
 
-> Professional HWPX (Hancom Word Processor XML) Viewer & AI Document Editor for React
+Professional HWPX (Hancom Word Processor XML) Viewer & AI Document Editor for React
 
-## 📦 설치
+## Installation
 
 \`\`\`bash
-npm install hanview-react
+npm install open-hangul-ai
 \`\`\`
 
-## 🚀 빠른 시작
+## Quick Start
 
 \`\`\`tsx
-import { HWPXViewer } from 'hanview-react';
-import 'hanview-react/styles';
+import { HWPXViewer } from 'open-hangul-ai';
+import 'open-hangul-ai/css';
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -100,66 +90,71 @@ function App() {
   return (
     <div style={{ height: '100vh' }}>
       <input type="file" accept=".hwpx" onChange={handleFileSelect} />
-      <HWPXViewer 
+      <HWPXViewer
         file={file}
         enableAI={true}
-        onDocumentLoad={(viewer) => console.log('문서 로드 완료!')}
+        onDocumentLoad={(viewer) => console.log('Document loaded!')}
       />
     </div>
   );
 }
 \`\`\`
 
-## ✨ 주요 기능
+## Features
 
-- 📄 HWPX 파일 파싱 및 렌더링
-- ✏️ 인라인 편집 (테이블 셀, 텍스트)
-- 🤖 AI 문서 편집 (GPT-4 연동)
-- 💾 HWPX 저장 / PDF 내보내기
-- 🔍 검색 기능 (Ctrl+F)
-- ⏪ 실행취소/다시실행 (Ctrl+Z/Y)
-- 🎨 다크/라이트 테마
+- HWPX file parsing and rendering
+- Inline editing (table cells, text)
+- AI document editing (GPT-4 integration)
+- HWPX save / PDF export
+- Search functionality (Ctrl+F)
+- Undo/Redo (Ctrl+Z/Y)
+- Dark/Light theme
 
-## ⌨️ 단축키
+## Keyboard Shortcuts
 
-| 단축키 | 기능 |
-|--------|------|
-| Ctrl+O | 파일 열기 |
-| Ctrl+S | 저장 |
-| Ctrl+P | 인쇄 |
-| Ctrl+F | 검색 |
-| Ctrl+Z | 실행취소 |
-| Ctrl+Y | 다시실행 |
+| Shortcut | Function |
+|----------|----------|
+| Ctrl+O | Open file |
+| Ctrl+S | Save |
+| Ctrl+P | Print |
+| Ctrl+F | Search |
+| Ctrl+Z | Undo |
+| Ctrl+Y | Redo |
 
-## 📋 Props
+## Props
 
-| Prop | 타입 | 설명 |
-|------|------|------|
-| file | File \\| null | 열 HWPX 파일 |
-| enableAI | boolean | AI 기능 활성화 (기본: true) |
-| onDocumentLoad | (viewer) => void | 문서 로드 완료 콜백 |
-| onError | (error) => void | 에러 콜백 |
-| className | string | 추가 CSS 클래스 |
+| Prop | Type | Description |
+|------|------|-------------|
+| file | File \\| null | HWPX file to open |
+| enableAI | boolean | Enable AI features (default: true) |
+| onDocumentLoad | (viewer) => void | Document load complete callback |
+| onError | (error) => void | Error callback |
+| className | string | Additional CSS class |
 
-## 📄 라이선스
+## License
 
-**상업용 라이센스 (Commercial License)**
+MIT License
 
-본 소프트웨어는 상업용 라이센스로 제공됩니다.  
-사용을 위해서는 라이센스 구매가 필요합니다.
+This package is available under the MIT license for open source use.
 
-### 라이센스 종류
-- **개인/소규모**: 1개 프로젝트, 최대 5명 개발자
-- **기업**: 무제한 프로젝트, 무제한 개발자, 우선 지원
+## Support
 
-### 라이센스 구매 문의
-- 📧 Email: ray.kim@yatavent.com
-- 🌐 Website: https://yatavent.com
-- 📞 전화: 지원 센터 문의
+- **Documentation**: [Official Documentation](https://yatav-team.github.io/open-hangul-ai/)
+- **Issues**: [GitHub Issues](https://github.com/yatav-team/open-hangul-ai/issues)
+- **Email**: ray.kim@yatavent.com
+- **Website**: https://yatavent.com
+
+## Commercial Support
+
+For enterprise features and commercial licensing:
+- Advanced security modules
+- Priority technical support
+- Custom integrations
+- SLA-backed service
 
 ---
 
-© ${new Date().getFullYear()} YATAV Team. All Rights Reserved.
+Copyright (c) ${new Date().getFullYear()} YATAV Team.
 `;
 
 fs.writeFileSync(path.join(packageDir, 'README.md'), readme);
@@ -227,8 +222,8 @@ All Rights Reserved.
 라이센스 구매 없이 본 소프트웨어를 사용하는 것은 불법입니다.
 정당한 라이센스 구매를 위해 위의 연락처로 문의하시기 바랍니다.
 `;
-    fs.writeFileSync(path.join(packageDir, 'LICENSE'), commercialLicense);
-    console.log('  ✓ LICENSE (상업용)');
+fs.writeFileSync(path.join(packageDir, 'LICENSE'), commercialLicense);
+console.log('  ✓ LICENSE (상업용)');
 
 // 7. 결과 출력
 console.log('\n' + '='.repeat(50));
@@ -240,9 +235,9 @@ console.log(`\n📁 위치: ${packageDir}`);
 const files = fs.readdirSync(packageDir);
 console.log('\n📄 포함된 파일:');
 files.forEach(file => {
-    const stats = fs.statSync(path.join(packageDir, file));
-    const size = (stats.size / 1024).toFixed(2);
-    console.log(`   ${file} (${size} KB)`);
+  const stats = fs.statSync(path.join(packageDir, file));
+  const size = (stats.size / 1024).toFixed(2);
+  console.log(`   ${file} (${size} KB)`);
 });
 
 console.log('\n🚀 배포 명령:');
@@ -256,4 +251,3 @@ console.log('   npm link');
 console.log('   # 다른 프로젝트에서:');
 console.log('   npm link hanview-react');
 console.log('');
-

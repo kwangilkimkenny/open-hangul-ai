@@ -1,6 +1,6 @@
 {
   "name": "open-hangul-ai",
-  "version": "5.0.2",
+  "version": "5.0.5",
   "description": "오픈한글AI - Professional HWPX Viewer & AI Document Editor for React - Open Source & Enterprise",
   "author": "YATAV Team <ray.kim@yatavent.com>",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "yatav",
     "enterprise"
   ],
-  "homepage": "https://yatavent.com",
+  "homepage": "https://yatav-team.github.io/open-hangul-ai/",
   "repository": {
     "type": "git",
     "url": "https://github.com/yatav-team/open-hangul-ai.git"
@@ -49,9 +49,7 @@
     "open-hangul-ai.es.d.ts",
     "*.d.ts"
   ],
-  "sideEffects": [
-    "*.css"
-  ],
+  "sideEffects": ["*.css"],
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
@@ -65,4 +63,3 @@
     "node": ">=16.0.0"
   }
 }
-
