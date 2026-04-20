@@ -315,19 +315,19 @@ jobs:
               <div class="card">
                 <h3>🚀 시작하기</h3>
                 <p>설치부터 첫 번째 구현까지 단계별 가이드입니다.</p>
-                <a href="https://github.com/yatav-team/open-hangul-ai/blob/main/docs/USAGE_GUIDE.md" class="btn">가이드 보기</a>
+                <a href="https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/docs/USAGE_GUIDE.md" class="btn">가이드 보기</a>
               </div>
 
               <div class="card">
                 <h3>📖 예제</h3>
                 <p>실제 사용 예제와 코드 스니펫을 확인하세요.</p>
-                <a href="https://github.com/yatav-team/open-hangul-ai/tree/main/examples" class="btn">예제 보기</a>
+                <a href="https://github.com/kwangilkimkenny/open-hangul-ai/tree/main/examples" class="btn">예제 보기</a>
               </div>
 
               <div class="card">
                 <h3>🐛 이슈 신고</h3>
                 <p>버그를 발견하셨나요? GitHub Issues로 알려주세요.</p>
-                <a href="https://github.com/yatav-team/open-hangul-ai/issues" class="btn">이슈 신고</a>
+                <a href="https://github.com/kwangilkimkenny/open-hangul-ai/issues" class="btn">이슈 신고</a>
               </div>
             </div>
 
@@ -453,4 +453,4 @@ jobs:
           echo "#### 🔗 링크" >> $GITHUB_STEP_SUMMARY
           echo "- [📚 온라인 문서](https://yatav-team.github.io/open-hangul-ai/)" >> $GITHUB_STEP_SUMMARY
           echo "- [📦 npm 패키지](https://www.npmjs.com/package/open-hangul-ai)" >> $GITHUB_STEP_SUMMARY
-          echo "- [💬 토론 참여](https://github.com/yatav-team/open-hangul-ai/discussions)" >> $GITHUB_STEP_SUMMARY
+          echo "- [💬 토론 참여](https://github.com/kwangilkimkenny/open-hangul-ai/discussions)" >> $GITHUB_STEP_SUMMARY

@@ -52,6 +52,7 @@ hanview-mcp/
 
 # Claude Code
 .claude/
+.mcp.json
 
 # Press release / marketing drafts (non-tech content)
 *PRESS_RELEASE*.md

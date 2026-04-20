@@ -142,7 +142,7 @@ jobs:
           echo "- **Documentation Site**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Getting Started**: ${{ steps.deployment.outputs.page_url }}getting-started.html" >> $GITHUB_STEP_SUMMARY
           echo "- **npm Package**: https://www.npmjs.com/package/open-hangul-ai" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub Repository**: https://github.com/yatav-team/open-hangul-ai" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Repository**: https://github.com/kwangilkimkenny/open-hangul-ai" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Deployment Info" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

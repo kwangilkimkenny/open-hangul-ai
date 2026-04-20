@@ -245,5 +245,5 @@ if: contains(github.event.head_commit.message, '[skip ci]')
 
 _이 가이드는 프로젝트 진화에 따라 지속적으로 업데이트됩니다. 질문이나 개선
 제안은
-[GitHub Discussions](https://github.com/yatav-team/open-hangul-ai/discussions)에
+[GitHub Discussions](https://github.com/kwangilkimkenny/open-hangul-ai/discussions)에
 올려주세요._

@@ -3,9 +3,9 @@
 [![npm version](https://img.shields.io/npm/v/open-hangul-ai.svg)](https://www.npmjs.com/package/open-hangul-ai)
 [![npm downloads](https://img.shields.io/npm/dm/open-hangul-ai.svg)](https://www.npmjs.com/package/open-hangul-ai)
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/open-hangul-ai)](https://bundlephobia.com/package/open-hangul-ai)
-[![GitHub stars](https://img.shields.io/github/stars/yatav-team/open-hangul-ai.svg?style=social&label=Star)](https://github.com/yatav-team/open-hangul-ai)
-[![GitHub issues](https://img.shields.io/github/issues/yatav-team/open-hangul-ai.svg)](https://github.com/yatav-team/open-hangul-ai/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/yatav-team/open-hangul-ai.svg)](https://github.com/yatav-team/open-hangul-ai/commits/main)
+[![GitHub stars](https://img.shields.io/github/stars/kwangilkimkenny/open-hangul-ai.svg?style=social&label=Star)](https://github.com/kwangilkimkenny/open-hangul-ai)
+[![GitHub issues](https://img.shields.io/github/issues/kwangilkimkenny/open-hangul-ai.svg)](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/kwangilkimkenny/open-hangul-ai.svg)](https://github.com/kwangilkimkenny/open-hangul-ai/commits/main)
 
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -13,7 +13,8 @@
 [![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-> **Professional HWPX Viewer & AI Document Editor for React** - 한글 문서 및 다양한 문서 형식을 지원하는 React 컴포넌트 라이브러리
+> **Professional HWPX Viewer & AI Document Editor for React** - 한글 문서 및
+> 다양한 문서 형식을 지원하는 React 컴포넌트 라이브러리
 
 ## ✨ 특징
 
@@ -50,7 +51,7 @@ function App() {
   return (
     <div>
       <h1>문서 뷰어</h1>
-      <HWPXViewer 
+      <HWPXViewer
         fileUrl="/path/to/document.hwpx"
         width="100%"
         height="600px"
@@ -76,15 +77,15 @@ function DocumentApp() {
         theme: 'light',
         toolbar: {
           enabled: true,
-          position: 'top'
+          position: 'top',
         },
         aiPanel: {
           enabled: true,
-          provider: 'openai' // openai, anthropic, google
-        }
+          provider: 'openai', // openai, anthropic, google
+        },
       }}
-      onFileLoad={(file) => console.log('파일 로드:', file)}
-      onError={(error) => console.error('에러:', error)}
+      onFileLoad={file => console.log('파일 로드:', file)}
+      onError={error => console.error('에러:', error)}
     />
   );
 }
@@ -94,11 +95,7 @@ function DocumentApp() {
 
 ```tsx
 import React from 'react';
-import { 
-  HanViewProvider, 
-  useHanView,
-  HWPXViewer 
-} from 'open-hangul-ai';
+import { HanViewProvider, useHanView, HWPXViewer } from 'open-hangul-ai';
 
 function DocumentViewer() {
   const { currentFile, setFile, config } = useHanView();
@@ -108,18 +105,13 @@ function DocumentViewer() {
       <input
         type="file"
         accept=".hwpx,.pdf,.docx"
-        onChange={(e) => {
+        onChange={e => {
           const file = e.target.files?.[0];
           if (file) setFile(file);
         }}
       />
-      
-      {currentFile && (
-        <HWPXViewer 
-          file={currentFile}
-          config={config}
-        />
-      )}
+
+      {currentFile && <HWPXViewer file={currentFile} config={config} />}
     </div>
   );
 }
@@ -131,8 +123,8 @@ function App() {
         theme: 'dark',
         layout: {
           sidebar: true,
-          minimap: true
-        }
+          minimap: true,
+        },
       }}
     >
       <DocumentViewer />
@@ -144,6 +136,7 @@ function App() {
 ## 📖 주요 컴포넌트
 
 ### `HanViewApp`
+
 완전한 문서 편집기 애플리케이션
 
 ```tsx
@@ -162,6 +155,7 @@ import { HanViewApp } from 'open-hangul-ai';
 ```
 
 ### `HWPXViewer`
+
 HWPX 파일 전용 뷰어
 
 ```tsx
@@ -177,14 +171,13 @@ import { HWPXViewer } from 'open-hangul-ai';
 ```
 
 ### `HanViewProvider`
+
 Context를 통한 상태 관리
 
 ```tsx
 import { HanViewProvider, useHanView } from 'open-hangul-ai';
 
-<HanViewProvider config={config}>
-  {/* 하위 컴포넌트들 */}
-</HanViewProvider>
+<HanViewProvider config={config}>{/* 하위 컴포넌트들 */}</HanViewProvider>;
 ```
 
 ## 🎨 테마 커스터마이징
@@ -195,40 +188,40 @@ const customTheme = {
     primary: '#007bff',
     secondary: '#6c757d',
     background: '#ffffff',
-    text: '#212529'
+    text: '#212529',
   },
   fonts: {
     primary: 'Noto Sans KR, sans-serif',
-    mono: 'Fira Code, monospace'
+    mono: 'Fira Code, monospace',
   },
   spacing: {
     small: '8px',
     medium: '16px',
-    large: '24px'
-  }
+    large: '24px',
+  },
 };
 
-<HanViewApp 
-  config={{ 
+<HanViewApp
+  config={{
     theme: customTheme,
     // 또는 내장 테마
     // theme: 'light' | 'dark' | 'auto'
-  }} 
-/>
+  }}
+/>;
 ```
 
 ## 🤖 AI 기능 활용
 
 ```tsx
-import { 
+import {
   AIDocumentController,
-  DocumentStructureExtractor 
+  DocumentStructureExtractor,
 } from 'open-hangul-ai';
 
 // AI 문서 분석
 const aiController = new AIDocumentController({
   provider: 'openai',
-  apiKey: 'your-api-key'
+  apiKey: 'your-api-key',
 });
 
 // 문서 요약
@@ -242,13 +235,13 @@ const structure = extractor.extract(document);
 ## 📚 지원 파일 형식
 
 | 형식 | 읽기 | 편집 | 내보내기 |
-|------|------|------|----------|
-| HWPX | ✅ | ✅ | ✅ |
-| HWP | ✅ | ❌ | ❌ |
-| PDF | ✅ | ❌ | ✅ |
-| DOCX | ✅ | ✅ | ✅ |
-| XLSX | ✅ | ✅ | ✅ |
-| PPTX | ✅ | ✅ | ✅ |
+| ---- | ---- | ---- | -------- |
+| HWPX | ✅   | ✅   | ✅       |
+| HWP  | ✅   | ❌   | ❌       |
+| PDF  | ✅   | ❌   | ✅       |
+| DOCX | ✅   | ✅   | ✅       |
+| XLSX | ✅   | ✅   | ✅       |
+| PPTX | ✅   | ✅   | ✅       |
 
 ## 🔧 개발 환경
 
@@ -278,7 +271,8 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 📞 지원
 
-- **문제 보고**: [GitHub Issues](https://github.com/yatav-team/open-hangul-ai/issues)
+- **문제 보고**:
+  [GitHub Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
 - **문서**: [공식 문서](https://openhangulai.org)
 - **이메일**: team@openhangulai.org
 

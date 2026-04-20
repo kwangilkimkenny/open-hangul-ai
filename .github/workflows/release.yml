@@ -211,9 +211,9 @@ jobs:
             echo "## 🔗 Links"
             echo ""
             echo "- 📦 [npm Package](https://www.npmjs.com/package/open-hangul-ai)"
-            echo "- 📚 [Documentation](https://github.com/yatav-team/open-hangul-ai/blob/main/README.md)"
-            echo "- 🐛 [Report Issues](https://github.com/yatav-team/open-hangul-ai/issues)"
-            echo "- 💬 [Discussions](https://github.com/yatav-team/open-hangul-ai/discussions)"
+            echo "- 📚 [Documentation](https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/README.md)"
+            echo "- 🐛 [Report Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)"
+            echo "- 💬 [Discussions](https://github.com/kwangilkimkenny/open-hangul-ai/discussions)"
             echo ""
             echo "---"
             echo "*Made with ❤️ by [YATAV Team](https://yatavent.com)*"
@@ -274,7 +274,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#React #TypeScript #Korean #OpenSource" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 https://github.com/yatav-team/open-hangul-ai" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 https://github.com/kwangilkimkenny/open-hangul-ai" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: 📧 Prepare community announcements

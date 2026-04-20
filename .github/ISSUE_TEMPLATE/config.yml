@@ -1,16 +1,16 @@
 blank_issues_enabled: false
 contact_links:
   - name: 📚 문서
-    url: https://github.com/yatav-team/open-hangul-ai/blob/main/README.md
+    url: https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/README.md
     about: 설치법과 기본 사용법을 확인하세요
   - name: 📖 API 문서
-    url: https://github.com/yatav-team/open-hangul-ai/blob/main/docs/API.md
+    url: https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/docs/API.md
     about: 전체 API 문서를 확인하세요
   - name: 📝 사용 가이드
-    url: https://github.com/yatav-team/open-hangul-ai/blob/main/docs/USAGE_GUIDE.md
+    url: https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/docs/USAGE_GUIDE.md
     about: 상세한 사용 가이드를 확인하세요
   - name: 💬 디스커션
-    url: https://github.com/yatav-team/open-hangul-ai/discussions
+    url: https://github.com/kwangilkimkenny/open-hangul-ai/discussions
     about: 커뮤니티와 일반적인 질문이나 아이디어를 공유하세요
   - name: 📧 이메일 지원
     url: mailto:team@openhangulai.org

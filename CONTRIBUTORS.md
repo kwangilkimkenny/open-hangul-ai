@@ -7,13 +7,16 @@
 ### Lead Developer & Architect
 
 **김광일 (Kwang-il Kim)**
+
 - 📧 **Email:** ray.kim@yatavent.com
 - 📧 **Personal:** cac.kikim@gmail.com
-- 🔗 **LinkedIn:** [kwang-il-kim-a399b3196](https://www.linkedin.com/in/kwang-il-kim-a399b3196/)
+- 🔗 **LinkedIn:**
+  [kwang-il-kim-a399b3196](https://www.linkedin.com/in/kwang-il-kim-a399b3196/)
 - 👨‍💻 **Role:** Lead Developer & System Architect
 - 📅 **Since:** 2025
 
 **주요 기여 사항:**
+
 - 🏗️ **모듈화 아키텍처 설계 및 구현**
   - Command 모듈 시스템 (12개 전문 모듈)
   - UI 모듈 분리 (Chat Panel 4개 모듈)
@@ -39,15 +42,17 @@
 ## 🏢 Organization
 
 **YATAV Team**
+
 - 📧 **Contact:** team@openhangulai.org
 - 🌐 **Website:** https://openhangulai.org
-- 📁 **Repository:** https://github.com/yatav-team/open-hangul-ai
+- 📁 **Repository:** https://github.com/kwangilkimkenny/open-hangul-ai
 
 ---
 
 ## 📂 Module Ownership
 
 ### Command System Architecture
+
 **Owner:** 김광일 (Kwang-il Kim)
 
 - `command-adapt-core.js` - 메인 명령 코디네이터
@@ -65,6 +70,7 @@
 - `utility-commands.js` - 유틸리티 기능
 
 ### UI Module System
+
 **Owner:** 김광일 (Kwang-il Kim)
 
 - `chat-panel-core.js` - AI 채팅 메인 클래스
@@ -77,18 +83,21 @@
 ## 🛠️ Development Standards
 
 ### Code Quality
+
 - **TypeScript** 타입 안전성 최우선
 - **ESLint + Prettier** 코드 스타일 통일
 - **JSDoc** 문서화 의무화
 - **단위 테스트** 모든 모듈 커버리지
 
 ### Architecture Principles
+
 - **단일 책임 원칙** (Single Responsibility)
 - **모듈 독립성** (Low Coupling)
 - **확장성** (Open for Extension)
 - **성능 최적화** (Performance First)
 
 ### Git Workflow
+
 - **Feature Branch** 방식
 - **Pull Request** 필수 리뷰
 - **Conventional Commits** 메시지 규칙
@@ -108,27 +117,32 @@
 6. **Review & Merge** - 승인 후 메인 브랜치 병합
 
 ### 연락처
+
 - 📧 **Technical Questions:** ray.kim@yatavent.com
 - 📧 **General Inquiries:** team@hanview.ai
-- 🐛 **Bug Reports:** [GitHub Issues](https://github.com/hanview-team/hanview-community/issues)
+- 🐛 **Bug Reports:**
+  [GitHub Issues](https://github.com/hanview-team/hanview-community/issues)
 
 ---
 
 ## 📊 Project Statistics
 
 ### Architecture Metrics
+
 - **Total Modules:** 16개 (Command: 12개, UI: 4개)
 - **Average Module Size:** 427줄
 - **Largest Module:** 672줄 (find-replace-commands.js)
 - **Code Reduction:** 78% (3,129줄 → 672줄 max)
 
 ### Quality Metrics
+
 - **TypeScript Coverage:** 100%
 - **Test Coverage:** 85%+
 - **ESLint Issues:** 0개
 - **TODO Debt:** 0개
 
 ### Performance Metrics
+
 - **Bundle Size:** 최적화됨
 - **Tree Shaking:** 지원
 - **Lazy Loading:** 구현됨
@@ -136,5 +150,4 @@
 
 ---
 
-*최종 업데이트: 2024년*
-*문서 버전: v2.0*
+_최종 업데이트: 2024년_ _문서 버전: v2.0_
