@@ -69,7 +69,7 @@ const distPackageJson = {
   repository: rootPkg.repository,
   bugs: {
     url: `${rootPkg.repository.url.replace(/\.git$/, '')}/issues`,
-    email: 'ray.kim@yatavent.com',
+    email: 'yatav@yatavent.com',
   },
   main: './open-hangul-ai.umd.js',
   module: './open-hangul-ai.es.js',

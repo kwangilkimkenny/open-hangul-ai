@@ -3,12 +3,11 @@
   "private": false,
   "version": "5.0.5",
   "license": "MIT",
-  "author": "YATAV Team <ray.kim@yatavent.com>",
+  "author": "YATAV Team <yatav@yatavent.com>",
   "contributors": [
     {
       "name": "Kwang-il Kim (김광일)",
-      "email": "ray.kim@yatavent.com",
-      "alternativeEmail": "cac.kikim@gmail.com",
+      "email": "yatav@yatavent.com",
       "url": "https://www.linkedin.com/in/kwang-il-kim-a399b3196/",
       "role": "Lead Developer & Architect"
     }
@@ -16,7 +15,7 @@
   "maintainers": [
     {
       "name": "Kwang-il Kim",
-      "email": "cac.kikim@gmail.com",
+      "email": "yatav@yatavent.com",
       "url": "https://www.linkedin.com/in/kwang-il-kim-a399b3196/"
     }
   ],

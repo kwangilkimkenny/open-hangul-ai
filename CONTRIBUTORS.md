@@ -8,8 +8,7 @@
 
 **김광일 (Kwang-il Kim)**
 
-- 📧 **Email:** ray.kim@yatavent.com
-- 📧 **Personal:** cac.kikim@gmail.com
+- 📧 **Email:** yatav@yatavent.com
 - 🔗 **LinkedIn:**
   [kwang-il-kim-a399b3196](https://www.linkedin.com/in/kwang-il-kim-a399b3196/)
 - 👨‍💻 **Role:** Lead Developer & System Architect
