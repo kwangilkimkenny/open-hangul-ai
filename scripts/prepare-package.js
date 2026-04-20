@@ -196,70 +196,14 @@ Copyright (c) ${new Date().getFullYear()} YATAV Team.
 fs.writeFileSync(path.join(packageDir, 'README.md'), readme);
 console.log('  ✓ README.md');
 
-// 6. LICENSE 생성 (상업용 라이센스)
-const commercialLicense = `HAN-View React - 상업용 라이센스
-Copyright (c) ${new Date().getFullYear()} YATAV Team
-All Rights Reserved.
-
-본 소프트웨어는 상업용 라이센스로 제공됩니다.
-
-1. 라이센스 부여
-   본 소프트웨어 및 관련 문서 파일("소프트웨어")는 YATAV의 독점 재산입니다.
-   정당한 라이센스를 구매한 개인 또는 조직에게만 사용 권한이 부여됩니다.
-
-2. 사용 권한
-   - 라이센스를 구매한 경우, 본인 또는 본인의 조직 내에서 소프트웨어를 사용할 수 있습니다.
-   - 라이센스는 상업적 목적을 포함한 모든 용도로 사용 가능합니다.
-   - 최종 제품에 통합하여 배포할 수 있습니다.
-
-3. 제한 사항
-   - 소프트웨어의 소스 코드를 재배포할 수 없습니다.
-   - 소프트웨어를 단독 제품으로 재판매할 수 없습니다.
-   - 라이센스는 양도할 수 없습니다.
-   - 리버스 엔지니어링, 디컴파일, 디스어셈블을 금지합니다.
-
-4. 라이센스 종류
-   a) 개인/소규모 라이센스
-      - 1개 프로젝트 또는 제품에 사용
-      - 개발자 최대 5명까지
-      
-   b) 기업 라이센스
-      - 무제한 프로젝트 및 제품
-      - 개발자 무제한
-      - 우선 기술 지원
-
-5. 지원 및 업데이트
-   - 1년간 무료 업데이트 제공
-   - 라이센스 구매자에게 기술 지원 제공
-   - 주요 버전 업그레이드는 별도 비용 발생 가능
-
-6. 보증 부인
-   본 소프트웨어는 "있는 그대로" 제공되며, 명시적이든 묵시적이든 어떠한 종류의 
-   보증도 제공하지 않습니다. 상품성, 특정 목적에의 적합성 및 비침해에 대한 
-   묵시적 보증을 포함하되 이에 국한되지 않습니다.
-
-7. 책임의 제한
-   YATAV는 계약, 불법 행위 또는 기타 어떠한 경우에도 본 소프트웨어의 사용 또는 
-   사용 불능으로 인해 발생하는 직접적, 간접적, 우발적, 특수, 징벌적 또는 결과적 
-   손해에 대해 책임을 지지 않습니다.
-
-8. 라이센스 위반
-   본 라이센스 조항을 위반할 경우, 모든 권한이 즉시 종료되며 법적 조치를 
-   취할 수 있습니다.
-
-9. 연락처
-   라이센스 구매 및 문의:
-   - 이메일: ray.kim@yatavent.com
-   - 웹사이트: https://yatavent.com
-   - 전화: 지원 센터 문의
-
-본 라이센스는 대한민국 법률에 따라 규율되고 해석됩니다.
-
-라이센스 구매 없이 본 소프트웨어를 사용하는 것은 불법입니다.
-정당한 라이센스 구매를 위해 위의 연락처로 문의하시기 바랍니다.
-`;
-fs.writeFileSync(path.join(packageDir, 'LICENSE'), commercialLicense);
-console.log('  ✓ LICENSE (상업용)');
+// 6. LICENSE 복사 (MIT)
+const rootLicensePath = path.join(rootDir, 'LICENSE');
+if (fs.existsSync(rootLicensePath)) {
+  fs.copyFileSync(rootLicensePath, path.join(packageDir, 'LICENSE'));
+  console.log('  ✓ LICENSE (MIT)');
+} else {
+  console.log('  ⚠ LICENSE 없음 (루트 LICENSE 파일을 확인하세요)');
+}
 
 // 7. 결과 출력
 console.log('\n' + '='.repeat(50));

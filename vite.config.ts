@@ -12,8 +12,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     resolve: {
       alias: {
-        '@aegis-sdk': path.resolve(__dirname, 'src/lib/mocks/aegis-enterprise.ts'),
-        '@hanview/aegis-enterprise': path.resolve(__dirname, 'src/lib/mocks/aegis-enterprise.ts'),
+        '@aegis-sdk': path.resolve(__dirname, 'src/lib/mocks/aegis-noop.ts'),
+        '@hanview/aegis-enterprise': path.resolve(__dirname, 'src/lib/mocks/aegis-noop.ts'),
       },
     },
     server: {
