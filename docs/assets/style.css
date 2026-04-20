@@ -1244,6 +1244,76 @@ p {
   color: var(--color-ink-900);
 }
 
+.footer-meta {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-500);
+  font-size: 0.8125rem;
+}
+
+.footer-meta-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-ink-400);
+  margin: 0 0 6px;
+}
+
+.footer-meta-company {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-ink-900);
+  margin: 0 0 10px;
+}
+
+.footer-meta-company a {
+  color: inherit;
+}
+
+.footer-meta-company a:hover {
+  color: var(--color-accent);
+}
+
+.footer-meta-tagline {
+  font-weight: 400;
+  color: var(--color-ink-400);
+  margin-left: 6px;
+  font-size: 0.8125rem;
+}
+
+.footer-meta-info {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--space-4);
+  line-height: 1.7;
+}
+
+.footer-meta-info a {
+  color: inherit;
+}
+
+.footer-meta-info a:hover {
+  color: var(--color-ink-900);
+}
+
+.footer-bottom {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-line);
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-ink-400);
+}
+
+.footer-bottom p {
+  margin: 0;
+}
+
 /* ===========================
    Reveal animation
 =========================== */
@@ -1376,6 +1446,14 @@ p {
   .footer-content {
     flex-direction: column;
     text-align: center;
+  }
+
+  .footer-meta {
+    text-align: center;
+  }
+
+  .footer-meta-info {
+    justify-content: center;
   }
 
   .mockup-window {
