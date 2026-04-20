@@ -19,15 +19,15 @@ HWPX 문서 뷰어 메인 클래스
 ### Constructor
 
 ```javascript
-new HWPXViewer(options)
+new HWPXViewer(options);
 ```
 
-| 파라미터 | 타입 | 기본값 | 설명 |
-|----------|------|--------|------|
-| `options.container` | HTMLElement \| string | 필수 | 뷰어 컨테이너 |
-| `options.enableAI` | boolean | `true` | AI 기능 활성화 |
-| `options.useWorker` | boolean | `false` | Web Worker 사용 |
-| `options.autoRender` | boolean | `true` | 자동 렌더링 |
+| 파라미터             | 타입                  | 기본값  | 설명            |
+| -------------------- | --------------------- | ------- | --------------- |
+| `options.container`  | HTMLElement \| string | 필수    | 뷰어 컨테이너   |
+| `options.enableAI`   | boolean               | `true`  | AI 기능 활성화  |
+| `options.useWorker`  | boolean               | `false` | Web Worker 사용 |
+| `options.autoRender` | boolean               | `true`  | 자동 렌더링     |
 
 ### Methods
 
@@ -39,9 +39,9 @@ HWPX 파일 로드
 await viewer.loadFile(file);
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
-| `file` | File | HWPX 파일 객체 |
+| 파라미터 | 타입 | 설명           |
+| -------- | ---- | -------------- |
+| `file`   | File | HWPX 파일 객체 |
 
 **반환**: `Promise<Object>` - 파싱된 문서
 
@@ -63,8 +63,8 @@ const document = viewer.getDocument();
 await viewer.updateDocument(modifiedDocument);
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
+| 파라미터   | 타입   | 설명             |
+| ---------- | ------ | ---------------- |
 | `document` | Object | 수정된 문서 객체 |
 
 #### `saveFile(filename?)`
@@ -75,8 +75,8 @@ HWPX 파일로 저장
 await viewer.saveFile('output.hwpx');
 ```
 
-| 파라미터 | 타입 | 기본값 | 설명 |
-|----------|------|--------|------|
+| 파라미터   | 타입   | 기본값      | 설명          |
+| ---------- | ------ | ----------- | ------------- |
 | `filename` | string | 원본 파일명 | 저장할 파일명 |
 
 #### `printDocument()`
@@ -105,13 +105,13 @@ viewer.destroy();
 
 ### Properties
 
-| 속성 | 타입 | 설명 |
-|------|------|------|
-| `state.document` | Object | 현재 문서 |
-| `state.currentFile` | File | 현재 파일 |
-| `state.isLoading` | boolean | 로딩 상태 |
-| `aiController` | AIDocumentController | AI 컨트롤러 |
-| `inlineEditor` | InlineEditor | 인라인 편집기 |
+| 속성                | 타입                 | 설명          |
+| ------------------- | -------------------- | ------------- |
+| `state.document`    | Object               | 현재 문서     |
+| `state.currentFile` | File                 | 현재 파일     |
+| `state.isLoading`   | boolean              | 로딩 상태     |
+| `aiController`      | AIDocumentController | AI 컨트롤러   |
+| `inlineEditor`      | InlineEditor         | 인라인 편집기 |
 
 ---
 
@@ -122,13 +122,13 @@ AI 문서 편집 컨트롤러
 ### Constructor
 
 ```javascript
-new AIDocumentController(viewer, options)
+new AIDocumentController(viewer, options);
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
-| `viewer` | HWPXViewer | 뷰어 인스턴스 |
-| `options.autoRender` | boolean | 자동 렌더링 (기본: true) |
+| 파라미터             | 타입       | 설명                     |
+| -------------------- | ---------- | ------------------------ |
+| `viewer`             | HWPXViewer | 뷰어 인스턴스            |
+| `options.autoRender` | boolean    | 자동 렌더링 (기본: true) |
 
 ### Methods
 
@@ -156,11 +156,12 @@ const hasKey = controller.hasApiKey(); // true/false
 const result = await controller.handleUserRequest('쉽게 바꿔줘');
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
+| 파라미터  | 타입   | 설명               |
+| --------- | ------ | ------------------ |
 | `message` | string | 사용자 요청 메시지 |
 
 **반환**:
+
 ```javascript
 {
     success: true,
@@ -195,28 +196,29 @@ const result = await controller.handleUserRequestWithCellSelection(
 
 ```javascript
 const result = await controller.fillFromExternalAPI(
-    'https://api.example.com/data',
-    {
-        method: 'GET',
-        headers: { 'Authorization': 'Bearer xxx' },
-        mapping: {
-            '학생 이름': 'student.name',
-            '점수': 'scores.total'
-        },
-        autoMap: false
-    }
+  'https://api.example.com/data',
+  {
+    method: 'GET',
+    headers: { Authorization: 'Bearer xxx' },
+    mapping: {
+      '학생 이름': 'student.name',
+      점수: 'scores.total',
+    },
+    autoMap: false,
+  }
 );
 ```
 
-| 옵션 | 타입 | 설명 |
-|------|------|------|
-| `method` | string | HTTP 메서드 (GET/POST) |
-| `headers` | Object | 요청 헤더 |
-| `body` | Object | POST body |
-| `mapping` | Object | 필드 매핑 |
-| `autoMap` | boolean | 자동 매핑 사용 |
+| 옵션      | 타입    | 설명                   |
+| --------- | ------- | ---------------------- |
+| `method`  | string  | HTTP 메서드 (GET/POST) |
+| `headers` | Object  | 요청 헤더              |
+| `body`    | Object  | POST body              |
+| `mapping` | Object  | 필드 매핑              |
+| `autoMap` | boolean | 자동 매핑 사용         |
 
 **반환**:
+
 ```javascript
 {
     success: true,
@@ -263,12 +265,12 @@ const fetcher = controller.getDataFetcher();
 
 ### Properties
 
-| 속성 | 타입 | 설명 |
-|------|------|------|
-| `state.isProcessing` | boolean | 처리 중 상태 |
-| `state.originalDocument` | Object | 원본 문서 |
-| `state.updatedDocument` | Object | 수정된 문서 |
-| `state.error` | Error | 마지막 에러 |
+| 속성                     | 타입    | 설명         |
+| ------------------------ | ------- | ------------ |
+| `state.isProcessing`     | boolean | 처리 중 상태 |
+| `state.originalDocument` | Object  | 원본 문서    |
+| `state.updatedDocument`  | Object  | 수정된 문서  |
+| `state.error`            | Error   | 마지막 에러  |
 
 ---
 
@@ -279,7 +281,7 @@ const fetcher = controller.getDataFetcher();
 ### Constructor
 
 ```javascript
-new ExternalDataFetcher()
+new ExternalDataFetcher();
 ```
 
 ### Methods
@@ -290,9 +292,9 @@ API에서 데이터 가져오기
 
 ```javascript
 const data = await fetcher.fetchData('https://api.example.com', {
-    method: 'GET',
-    headers: { 'Authorization': 'Bearer xxx' },
-    body: { param: 'value' }  // POST 시
+  method: 'GET',
+  headers: { Authorization: 'Bearer xxx' },
+  body: { param: 'value' }, // POST 시
 });
 ```
 
@@ -304,15 +306,15 @@ JSON 데이터를 템플릿 형식으로 변환
 
 ```javascript
 const result = fetcher.transformToTemplateFormat(
-    { student: { name: '홍길동' } },
-    { '학생 이름': 'student.name' }
+  { student: { name: '홍길동' } },
+  { '학생 이름': 'student.name' }
 );
 // { '학생 이름': '홍길동' }
 ```
 
-| 파라미터 | 타입 | 설명 |
-|----------|------|------|
-| `data` | Object | 원본 JSON |
+| 파라미터  | 타입   | 설명                                  |
+| --------- | ------ | ------------------------------------- |
+| `data`    | Object | 원본 JSON                             |
 | `mapping` | Object | 매핑 설정 `{ templateKey: jsonPath }` |
 
 #### `autoExtractKeys(data)`
@@ -321,7 +323,7 @@ JSON에서 자동으로 키-값 추출
 
 ```javascript
 const flat = fetcher.autoExtractKeys({
-    student: { name: '홍길동', age: 10 }
+  student: { name: '홍길동', age: 10 },
 });
 // { name: '홍길동', age: '10' }
 ```
@@ -331,7 +333,10 @@ const flat = fetcher.autoExtractKeys({
 문서 헤더와 JSON 키 자동 매핑
 
 ```javascript
-const { mapping, flattenedData } = fetcher.autoMapToDocument(document, jsonData);
+const { mapping, flattenedData } = fetcher.autoMapToDocument(
+  document,
+  jsonData
+);
 ```
 
 #### `getCached(url, maxAge?)`
@@ -360,11 +365,11 @@ const sample = ExternalDataFetcher.getSampleData();
 
 ### Properties
 
-| 속성 | 타입 | 설명 |
-|------|------|------|
+| 속성           | 타입   | 설명            |
+| -------------- | ------ | --------------- |
 | `lastResponse` | Object | 마지막 API 응답 |
-| `lastError` | Object | 마지막 에러 |
-| `cache` | Map | 캐시 데이터 |
+| `lastError`    | Object | 마지막 에러     |
+| `cache`        | Map    | 캐시 데이터     |
 
 ---
 
@@ -375,7 +380,7 @@ const sample = ExternalDataFetcher.getSampleData();
 ### Constructor
 
 ```javascript
-new CellSelector(viewer)
+new CellSelector(viewer);
 ```
 
 ### Methods
@@ -412,12 +417,12 @@ const isActive = selector.toggle();
 selector.setCellMode('t0-r1-c2', 'keep');
 ```
 
-| 모드 | 값 | 설명 |
-|------|-----|------|
-| 자동 | `'auto'` | 자동 감지 |
-| 유지 | `'keep'` | 원본 유지 |
-| 수정 | `'edit'` | 기존 내용 수정 |
-| 생성 | `'generate'` | 새로 생성 |
+| 모드 | 값           | 설명           |
+| ---- | ------------ | -------------- |
+| 자동 | `'auto'`     | 자동 감지      |
+| 유지 | `'keep'`     | 원본 유지      |
+| 수정 | `'edit'`     | 기존 내용 수정 |
+| 생성 | `'generate'` | 새로 생성      |
 
 #### `setAllCellsMode(mode)`
 
@@ -480,11 +485,11 @@ selector.loadState(jsonString);
 
 ### Properties
 
-| 속성 | 타입 | 설명 |
-|------|------|------|
-| `isActive` | boolean | 활성화 상태 |
-| `cellModes` | Map | 셀별 모드 |
-| `onSelectionChange` | Function | 변경 콜백 |
+| 속성                | 타입     | 설명        |
+| ------------------- | -------- | ----------- |
+| `isActive`          | boolean  | 활성화 상태 |
+| `cellModes`         | Map      | 셀별 모드   |
+| `onSelectionChange` | Function | 변경 콜백   |
 
 ### Events
 
@@ -493,8 +498,8 @@ selector.loadState(jsonString);
 셀 선택 적용 시 발생
 
 ```javascript
-document.addEventListener('cellSelectionApplied', (e) => {
-    const { summary, requestData } = e.detail;
+document.addEventListener('cellSelectionApplied', e => {
+  const { summary, requestData } = e.detail;
 });
 ```
 
@@ -507,7 +512,7 @@ AI 채팅 패널
 ### Constructor
 
 ```javascript
-new ChatPanel(aiController)
+new ChatPanel(aiController);
 ```
 
 ### Methods
@@ -598,44 +603,44 @@ panel.handleCellSelectMode();
 
 ```javascript
 // 문서 로드 완료
-viewer.on('documentLoaded', (document) => { });
+viewer.on('documentLoaded', document => {});
 
 // 문서 업데이트
-viewer.on('documentUpdated', (document) => { });
+viewer.on('documentUpdated', document => {});
 
 // 저장 완료
-viewer.on('documentSaved', (filename) => { });
+viewer.on('documentSaved', filename => {});
 ```
 
 ### 편집 이벤트
 
 ```javascript
 // 셀 편집 시작
-viewer.on('cellEditStart', (cell) => { });
+viewer.on('cellEditStart', cell => {});
 
 // 셀 편집 완료
-viewer.on('cellEditEnd', (cell, oldText, newText) => { });
+viewer.on('cellEditEnd', (cell, oldText, newText) => {});
 ```
 
 ### AI 이벤트
 
 ```javascript
 // AI 처리 시작
-aiController.on('processingStart', () => { });
+aiController.on('processingStart', () => {});
 
 // AI 처리 완료
-aiController.on('processingComplete', (result) => { });
+aiController.on('processingComplete', result => {});
 
 // AI 처리 에러
-aiController.on('processingError', (error) => { });
+aiController.on('processingError', error => {});
 ```
 
 ### 셀 선택 이벤트
 
 ```javascript
 // 셀 선택 적용
-document.addEventListener('cellSelectionApplied', (e) => {
-    const { summary, requestData } = e.detail;
+document.addEventListener('cellSelectionApplied', e => {
+  const { summary, requestData } = e.detail;
 });
 ```
 
@@ -647,14 +652,14 @@ document.addEventListener('cellSelectionApplied', (e) => {
 
 ```typescript
 interface HWPXDocument {
-    sections: Section[];
-    images: Map<string, ImageInfo>;
-    rawHeaderXml: string;
-    metadata: {
-        parsedAt: string;
-        sectionsCount: number;
-        imagesCount: number;
-    };
+  sections: Section[];
+  images: Map<string, ImageInfo>;
+  rawHeaderXml: string;
+  metadata: {
+    parsedAt: string;
+    sectionsCount: number;
+    imagesCount: number;
+  };
 }
 ```
 
@@ -662,7 +667,7 @@ interface HWPXDocument {
 
 ```typescript
 interface Section {
-    elements: (Paragraph | Table | Image | Shape)[];
+  elements: (Paragraph | Table | Image | Shape)[];
 }
 ```
 
@@ -670,12 +675,12 @@ interface Section {
 
 ```typescript
 interface Table {
-    type: 'table';
-    rows: Row[];
-    style: {
-        width: number;
-        borderStyle?: string;
-    };
+  type: 'table';
+  rows: Row[];
+  style: {
+    width: number;
+    borderStyle?: string;
+  };
 }
 ```
 
@@ -683,8 +688,8 @@ interface Table {
 
 ```typescript
 interface Row {
-    cells: Cell[];
-    height?: number;
+  cells: Cell[];
+  height?: number;
 }
 ```
 
@@ -692,20 +697,20 @@ interface Row {
 
 ```typescript
 interface Cell {
-    elements: Paragraph[];
-    style: {
-        width?: number;
-        height?: number;
-        backgroundColor?: string;
-        borderTop?: string;
-        borderBottom?: string;
-        borderLeft?: string;
-        borderRight?: string;
-        verticalAlign?: string;
-    };
-    colspan?: number;
-    rowspan?: number;
-    isHeader?: boolean;
+  elements: Paragraph[];
+  style: {
+    width?: number;
+    height?: number;
+    backgroundColor?: string;
+    borderTop?: string;
+    borderBottom?: string;
+    borderLeft?: string;
+    borderRight?: string;
+    verticalAlign?: string;
+  };
+  colspan?: number;
+  rowspan?: number;
+  isHeader?: boolean;
 }
 ```
 
@@ -713,15 +718,15 @@ interface Cell {
 
 ```typescript
 interface Paragraph {
-    type: 'paragraph';
-    runs: Run[];
-    style: {
-        textAlign?: 'left' | 'center' | 'right' | 'justify';
-        lineHeight?: number;
-        marginTop?: number;
-        marginBottom?: number;
-        indent?: number;
-    };
+  type: 'paragraph';
+  runs: Run[];
+  style: {
+    textAlign?: 'left' | 'center' | 'right' | 'justify';
+    lineHeight?: number;
+    marginTop?: number;
+    marginBottom?: number;
+    indent?: number;
+  };
 }
 ```
 
@@ -729,17 +734,17 @@ interface Paragraph {
 
 ```typescript
 interface Run {
-    text: string;
-    style: {
-        fontSize?: number;
-        fontFamily?: string;
-        fontWeight?: string;
-        fontStyle?: string;
-        color?: string;
-        backgroundColor?: string;
-        underline?: boolean;
-        strikethrough?: boolean;
-    };
+  text: string;
+  style: {
+    fontSize?: number;
+    fontFamily?: string;
+    fontWeight?: string;
+    fontStyle?: string;
+    color?: string;
+    backgroundColor?: string;
+    underline?: boolean;
+    strikethrough?: boolean;
+  };
 }
 ```
 
@@ -747,15 +752,15 @@ interface Run {
 
 ```typescript
 interface Image {
-    type: 'image';
-    binaryId: string;
-    src?: string;  // Blob URL
-    width: number;
-    height: number;
-    position?: {
-        x: number;
-        y: number;
-    };
+  type: 'image';
+  binaryId: string;
+  src?: string; // Blob URL
+  width: number;
+  height: number;
+  position?: {
+    x: number;
+    y: number;
+  };
 }
 ```
 
@@ -763,22 +768,22 @@ interface Image {
 
 ```typescript
 interface CellSelectionData {
-    keepCells: CellInfo[];
-    editCells: CellInfo[];
-    generateCells: CellInfo[];
-    autoCells: CellInfo[];
+  keepCells: CellInfo[];
+  editCells: CellInfo[];
+  generateCells: CellInfo[];
+  autoCells: CellInfo[];
 }
 
 interface CellInfo {
-    id: string;
-    content: string;
-    header?: string;
-    path?: {
-        section: number;
-        table: number;
-        row: number;
-        cell: number;
-    };
+  id: string;
+  content: string;
+  header?: string;
+  path?: {
+    section: number;
+    table: number;
+    row: number;
+    cell: number;
+  };
 }
 ```
 
@@ -786,11 +791,11 @@ interface CellInfo {
 
 ```typescript
 interface ExternalAPIOptions {
-    method?: 'GET' | 'POST';
-    headers?: Record<string, string>;
-    body?: object;
-    mapping?: Record<string, string>;
-    autoMap?: boolean;
+  method?: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  body?: object;
+  mapping?: Record<string, string>;
+  autoMap?: boolean;
 }
 ```
 
@@ -798,16 +803,16 @@ interface ExternalAPIOptions {
 
 ```typescript
 interface AIResult {
-    success: boolean;
-    updatedDocument?: HWPXDocument;
-    metadata: {
-        request?: string;
-        slotsUpdated?: number;
-        itemsUpdated?: number;
-        tokensUsed?: number;
-        apiUrl?: string;
-        data?: object;
-    };
+  success: boolean;
+  updatedDocument?: HWPXDocument;
+  metadata: {
+    request?: string;
+    slotsUpdated?: number;
+    itemsUpdated?: number;
+    tokensUsed?: number;
+    apiUrl?: string;
+    data?: object;
+  };
 }
 ```
 
@@ -819,20 +824,20 @@ interface AIResult {
 
 ```javascript
 // 뷰어 인스턴스
-window.viewer
+window.viewer;
 
 // 셀 선택기
-window.CellSelector
-window.CellMode
+window.CellSelector;
+window.CellMode;
 
 // 외부 데이터 fetcher
-window.ExternalDataFetcher
+window.ExternalDataFetcher;
 
 // 편집 모드 매니저
-window.editModeManager
+window.editModeManager;
 
 // 로그 레벨 설정
-window.setLogLevel('debug' | 'info' | 'warn' | 'error')
+window.setLogLevel('debug' | 'info' | 'warn' | 'error');
 ```
 
 ---
@@ -843,23 +848,22 @@ window.setLogLevel('debug' | 'info' | 'warn' | 'error')
 import { HWPXError, ErrorType } from './utils/error.js';
 
 // 에러 타입
-ErrorType.PARSE_ERROR      // 파싱 에러
-ErrorType.RENDER_ERROR     // 렌더링 에러
-ErrorType.EXPORT_ERROR     // 내보내기 에러
-ErrorType.VALIDATION_ERROR // 유효성 검사 에러
-ErrorType.API_ERROR        // API 에러
-ErrorType.NETWORK_ERROR    // 네트워크 에러
+ErrorType.PARSE_ERROR; // 파싱 에러
+ErrorType.RENDER_ERROR; // 렌더링 에러
+ErrorType.EXPORT_ERROR; // 내보내기 에러
+ErrorType.VALIDATION_ERROR; // 유효성 검사 에러
+ErrorType.API_ERROR; // API 에러
+ErrorType.NETWORK_ERROR; // 네트워크 에러
 
 // 에러 생성
 throw new HWPXError(ErrorType.VALIDATION_ERROR, '문서가 없습니다');
 
 // 에러 처리
 try {
-    await viewer.loadFile(file);
+  await viewer.loadFile(file);
 } catch (error) {
-    if (error instanceof HWPXError) {
-        console.log(error.type, error.message);
-    }
+  if (error instanceof HWPXError) {
+    console.log(error.type, error.message);
+  }
 }
 ```
-

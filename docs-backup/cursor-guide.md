@@ -2,21 +2,26 @@
 
 ## 개요
 
-Cursor 시스템은 편집 가능한 문서에서 텍스트 커서를 표시하고 관리하는 시스템입니다. Canvas-editor의 Cursor 시스템을 DOM 기반으로 적용하여 구현되었습니다.
+Cursor 시스템은 편집 가능한 문서에서 텍스트 커서를 표시하고 관리하는
+시스템입니다. Canvas-editor의 Cursor 시스템을 DOM 기반으로 적용하여
+구현되었습니다.
 
 ## 주요 기능
 
 ### 1. 커서 렌더링
+
 - 깜빡이는 세로선 커서
 - 정확한 문자 위치에 표시
 - 커스터마이징 가능 (색상, 너비, 깜빡임)
 
 ### 2. 커서 이동
+
 - 클릭으로 위치 이동
 - 화살표 키로 이동
 - Home/End로 줄 시작/끝 이동
 
 ### 3. 입력 캡처
+
 - CursorAgent (숨겨진 textarea)로 키보드 입력 감지
 - IME (한글 입력) 지원
 - 특수 키 (Backspace, Delete, Enter) 처리
@@ -43,7 +48,7 @@ const cursor = viewer.getCursor();
 
 ```javascript
 // 인덱스로 위치 설정
-cursor.setCursorPosition(100);  // 100번째 문자에 커서
+cursor.setCursorPosition(100); // 100번째 문자에 커서
 
 // 클릭으로 자동 설정 (자동으로 활성화됨)
 // 문서 클릭 시 해당 위치에 커서 표시
@@ -59,7 +64,7 @@ cursor.show();
 cursor.hide();
 
 // 포커스
-cursor.focus();  // 키보드 입력 활성화
+cursor.focus(); // 키보드 입력 활성화
 
 // 포커스 해제
 cursor.blur();
@@ -69,8 +74,8 @@ cursor.blur();
 
 ```javascript
 // 상대 이동
-cursor.moveCursor(1);   // 1글자 앞으로
-cursor.moveCursor(-1);  // 1글자 뒤로
+cursor.moveCursor(1); // 1글자 앞으로
+cursor.moveCursor(-1); // 1글자 뒤로
 
 // 현재 위치 가져오기
 const index = cursor.getCursorIndex();
@@ -84,11 +89,11 @@ console.log('Cursor at:', index);
 cursor.setColor('#ff0000');
 
 // 너비 변경
-cursor.setWidth(3);  // 3px
+cursor.setWidth(3); // 3px
 
 // 깜빡임 활성화/비활성화
-cursor.setBlinking(false);  // 깜빡임 중지
-cursor.setBlinking(true);   // 깜빡임 시작
+cursor.setBlinking(false); // 깜빡임 중지
+cursor.setBlinking(true); // 깜빡임 시작
 ```
 
 ## 키보드 내비게이션
@@ -135,8 +140,8 @@ cursor.show();
 // 특정 단어로 이동
 const searchResults = viewer.searchText('중요');
 if (searchResults.length > 0) {
-    cursor.setCursorPosition(searchResults[0].startIndex);
-    cursor.focus();
+  cursor.setCursorPosition(searchResults[0].startIndex);
+  cursor.focus();
 }
 
 // 문서 시작으로 이동
@@ -154,18 +159,20 @@ cursor.setCursorPosition(lastIndex);
 let lastCursorIndex = -1;
 
 setInterval(() => {
-    const currentIndex = cursor.getCursorIndex();
-    if (currentIndex !== lastCursorIndex) {
-        console.log('Cursor moved:', lastCursorIndex, '→', currentIndex);
-        lastCursorIndex = currentIndex;
+  const currentIndex = cursor.getCursorIndex();
+  if (currentIndex !== lastCursorIndex) {
+    console.log('Cursor moved:', lastCursorIndex, '→', currentIndex);
+    lastCursorIndex = currentIndex;
 
-        // 현재 위치의 문자 정보
-        const position = viewer.getPositionManager().getPositionByIndex(currentIndex);
-        if (position) {
-            console.log('Character:', position.value);
-            console.log('Element type:', position.elementType);
-        }
+    // 현재 위치의 문자 정보
+    const position = viewer
+      .getPositionManager()
+      .getPositionByIndex(currentIndex);
+    if (position) {
+      console.log('Character:', position.value);
+      console.log('Element type:', position.elementType);
     }
+  }
 }, 100);
 ```
 
@@ -192,30 +199,33 @@ cursor.cursorElement.classList.add('theme-blue');
 
 ```javascript
 function showCursorInfo() {
-    const index = cursor.getCursorIndex();
-    if (index < 0) {
-        console.log('Cursor not visible');
-        return;
-    }
+  const index = cursor.getCursorIndex();
+  if (index < 0) {
+    console.log('Cursor not visible');
+    return;
+  }
 
-    const position = viewer.getPositionManager().getPositionByIndex(index);
-    if (!position) {
-        return;
-    }
+  const position = viewer.getPositionManager().getPositionByIndex(index);
+  if (!position) {
+    return;
+  }
 
-    console.log('=== Cursor Info ===');
-    console.log('Index:', index);
-    console.log('Character:', position.value);
-    console.log('Page:', position.pageNumber);
-    console.log('Element type:', position.elementType);
-    console.log('Coordinate:', position.coordinate);
+  console.log('=== Cursor Info ===');
+  console.log('Index:', index);
+  console.log('Character:', position.value);
+  console.log('Page:', position.pageNumber);
+  console.log('Element type:', position.elementType);
+  console.log('Coordinate:', position.coordinate);
 
-    // 주변 텍스트
-    const positions = viewer.getPositionManager().getPositionList();
-    const start = Math.max(0, index - 10);
-    const end = Math.min(positions.length, index + 10);
-    const context = positions.slice(start, end).map(p => p.value).join('');
-    console.log('Context:', context);
+  // 주변 텍스트
+  const positions = viewer.getPositionManager().getPositionList();
+  const start = Math.max(0, index - 10);
+  const end = Math.min(positions.length, index + 10);
+  const context = positions
+    .slice(start, end)
+    .map(p => p.value)
+    .join('');
+  console.log('Context:', context);
 }
 
 // 사용
@@ -228,43 +238,48 @@ showCursorInfo();
 
 ```javascript
 class CursorNavigator {
-    constructor(viewer) {
-        this.viewer = viewer;
-        this.cursor = viewer.getCursor();
-        this.setupButtons();
-    }
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.cursor = viewer.getCursor();
+    this.setupButtons();
+  }
 
-    setupButtons() {
-        // 이전 글자
-        document.getElementById('btn-cursor-prev').addEventListener('click', () => {
-            this.cursor.moveCursor(-1);
-        });
+  setupButtons() {
+    // 이전 글자
+    document.getElementById('btn-cursor-prev').addEventListener('click', () => {
+      this.cursor.moveCursor(-1);
+    });
 
-        // 다음 글자
-        document.getElementById('btn-cursor-next').addEventListener('click', () => {
-            this.cursor.moveCursor(1);
-        });
+    // 다음 글자
+    document.getElementById('btn-cursor-next').addEventListener('click', () => {
+      this.cursor.moveCursor(1);
+    });
 
-        // 문서 시작
-        document.getElementById('btn-cursor-start').addEventListener('click', () => {
-            this.cursor.setCursorPosition(0);
-        });
+    // 문서 시작
+    document
+      .getElementById('btn-cursor-start')
+      .addEventListener('click', () => {
+        this.cursor.setCursorPosition(0);
+      });
 
-        // 문서 끝
-        document.getElementById('btn-cursor-end').addEventListener('click', () => {
-            const lastIndex = this.viewer.getPositionManager().getPositionList().length - 1;
-            this.cursor.setCursorPosition(lastIndex);
-        });
+    // 문서 끝
+    document.getElementById('btn-cursor-end').addEventListener('click', () => {
+      const lastIndex =
+        this.viewer.getPositionManager().getPositionList().length - 1;
+      this.cursor.setCursorPosition(lastIndex);
+    });
 
-        // 커서 표시/숨기기 토글
-        document.getElementById('btn-cursor-toggle').addEventListener('click', () => {
-            if (this.cursor.isVisible()) {
-                this.cursor.hide();
-            } else {
-                this.cursor.show();
-            }
-        });
-    }
+    // 커서 표시/숨기기 토글
+    document
+      .getElementById('btn-cursor-toggle')
+      .addEventListener('click', () => {
+        if (this.cursor.isVisible()) {
+          this.cursor.hide();
+        } else {
+          this.cursor.show();
+        }
+      });
+  }
 }
 
 // 사용
@@ -275,35 +290,35 @@ const navigator = new CursorNavigator(viewer);
 
 ```javascript
 class CursorIndicator {
-    constructor(viewer) {
-        this.viewer = viewer;
-        this.cursor = viewer.getCursor();
-        this.indicator = document.getElementById('cursor-indicator');
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.cursor = viewer.getCursor();
+    this.indicator = document.getElementById('cursor-indicator');
 
-        // 주기적으로 업데이트
-        setInterval(() => this.update(), 100);
+    // 주기적으로 업데이트
+    setInterval(() => this.update(), 100);
+  }
+
+  update() {
+    const index = this.cursor.getCursorIndex();
+
+    if (index < 0) {
+      this.indicator.textContent = 'No cursor';
+      return;
     }
 
-    update() {
-        const index = this.cursor.getCursorIndex();
+    const position = this.viewer.getPositionManager().getPositionByIndex(index);
+    if (!position) {
+      return;
+    }
 
-        if (index < 0) {
-            this.indicator.textContent = 'No cursor';
-            return;
-        }
-
-        const position = this.viewer.getPositionManager().getPositionByIndex(index);
-        if (!position) {
-            return;
-        }
-
-        this.indicator.innerHTML = `
+    this.indicator.innerHTML = `
             <div>Position: ${index}</div>
             <div>Character: "${position.value}"</div>
             <div>Page: ${position.pageNumber}</div>
             <div>Type: ${position.elementType}</div>
         `;
-    }
+  }
 }
 
 // 사용
@@ -314,24 +329,24 @@ const indicator = new CursorIndicator(viewer);
 
 ```javascript
 class TypingSimulator {
-    constructor(viewer) {
-        this.viewer = viewer;
-        this.cursor = viewer.getCursor();
-    }
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.cursor = viewer.getCursor();
+  }
 
-    async typeText(text, speed = 100) {
-        for (const char of text) {
-            // 현재 위치에 문자 삽입
-            this.viewer.command.insertText(char);
+  async typeText(text, speed = 100) {
+    for (const char of text) {
+      // 현재 위치에 문자 삽입
+      this.viewer.command.insertText(char);
 
-            // 지연
-            await this.delay(speed);
-        }
+      // 지연
+      await this.delay(speed);
     }
+  }
 
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 }
 
 // 사용
@@ -343,44 +358,44 @@ simulator.typeText('Hello, World!', 100);
 
 ```javascript
 class CursorHistory {
-    constructor(viewer) {
-        this.viewer = viewer;
-        this.cursor = viewer.getCursor();
-        this.history = [];
-        this.currentIndex = -1;
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.cursor = viewer.getCursor();
+    this.history = [];
+    this.currentIndex = -1;
 
-        this.startTracking();
-    }
+    this.startTracking();
+  }
 
-    startTracking() {
-        setInterval(() => {
-            const index = this.cursor.getCursorIndex();
-            if (index >= 0 && index !== this.history[this.history.length - 1]) {
-                this.history.push(index);
-                this.currentIndex = this.history.length - 1;
+  startTracking() {
+    setInterval(() => {
+      const index = this.cursor.getCursorIndex();
+      if (index >= 0 && index !== this.history[this.history.length - 1]) {
+        this.history.push(index);
+        this.currentIndex = this.history.length - 1;
 
-                // 최대 100개 기록
-                if (this.history.length > 100) {
-                    this.history.shift();
-                    this.currentIndex--;
-                }
-            }
-        }, 500);
-    }
-
-    goBack() {
-        if (this.currentIndex > 0) {
-            this.currentIndex--;
-            this.cursor.setCursorPosition(this.history[this.currentIndex]);
+        // 최대 100개 기록
+        if (this.history.length > 100) {
+          this.history.shift();
+          this.currentIndex--;
         }
-    }
+      }
+    }, 500);
+  }
 
-    goForward() {
-        if (this.currentIndex < this.history.length - 1) {
-            this.currentIndex++;
-            this.cursor.setCursorPosition(this.history[this.currentIndex]);
-        }
+  goBack() {
+    if (this.currentIndex > 0) {
+      this.currentIndex--;
+      this.cursor.setCursorPosition(this.history[this.currentIndex]);
     }
+  }
+
+  goForward() {
+    if (this.currentIndex < this.history.length - 1) {
+      this.currentIndex++;
+      this.cursor.setCursorPosition(this.history[this.currentIndex]);
+    }
+  }
 }
 
 // 사용
@@ -388,12 +403,12 @@ const history = new CursorHistory(viewer);
 
 // Alt+← : 이전 위치
 // Alt+→ : 다음 위치
-document.addEventListener('keydown', (e) => {
-    if (e.altKey && e.key === 'ArrowLeft') {
-        history.goBack();
-    } else if (e.altKey && e.key === 'ArrowRight') {
-        history.goForward();
-    }
+document.addEventListener('keydown', e => {
+  if (e.altKey && e.key === 'ArrowLeft') {
+    history.goBack();
+  } else if (e.altKey && e.key === 'ArrowRight') {
+    history.goForward();
+  }
 });
 ```
 
@@ -403,9 +418,9 @@ document.addEventListener('keydown', (e) => {
 
 ```css
 .hwpx-cursor {
-    width: 2px;
-    background-color: #000;
-    animation: cursor-blink 1.06s step-end infinite;
+  width: 2px;
+  background-color: #000;
+  animation: cursor-blink 1.06s step-end infinite;
 }
 ```
 
@@ -414,12 +429,12 @@ document.addEventListener('keydown', (e) => {
 ```css
 /* 파란색 커서 */
 .hwpx-cursor {
-    background-color: #0078d4;
+  background-color: #0078d4;
 }
 
 /* 빨간색 커서 */
 .hwpx-cursor {
-    background-color: #e74c3c;
+  background-color: #e74c3c;
 }
 ```
 
@@ -428,26 +443,28 @@ document.addEventListener('keydown', (e) => {
 ```css
 /* 빠른 깜빡임 */
 .hwpx-cursor {
-    animation: cursor-blink 0.5s step-end infinite;
+  animation: cursor-blink 0.5s step-end infinite;
 }
 
 /* 느린 깜빡임 */
 .hwpx-cursor {
-    animation: cursor-blink 2s step-end infinite;
+  animation: cursor-blink 2s step-end infinite;
 }
 
 /* 부드러운 페이드 */
 @keyframes cursor-fade {
-    0%, 49% {
-        opacity: 1;
-    }
-    50%, 100% {
-        opacity: 0.3;
-    }
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.3;
+  }
 }
 
 .hwpx-cursor {
-    animation: cursor-fade 1s ease-in-out infinite;
+  animation: cursor-fade 1s ease-in-out infinite;
 }
 ```
 
@@ -455,33 +472,38 @@ document.addEventListener('keydown', (e) => {
 
 ```css
 .hwpx-cursor.composing {
-    width: 4px;
-    background-color: #0078d4;
-    opacity: 0.7;
+  width: 4px;
+  background-color: #0078d4;
+  opacity: 0.7;
 }
 ```
 
 ## 주의사항
 
 ### 1. PositionManager 의존성
-커서는 PositionManager에 의존합니다. 문서 렌더링 후 위치 정보가 계산되어야 커서가 작동합니다.
+
+커서는 PositionManager에 의존합니다. 문서 렌더링 후 위치 정보가 계산되어야
+커서가 작동합니다.
 
 ```javascript
 // PositionManager 준비 확인
 if (viewer.getPositionManager().isPositionReady()) {
-    cursor.setCursorPosition(0);
+  cursor.setCursorPosition(0);
 } else {
-    console.warn('PositionManager not ready');
+  console.warn('PositionManager not ready');
 }
 ```
 
 ### 2. 테이블 셀 내부
+
 테이블 셀 내부는 InlineEditor가 별도로 처리하므로 커서가 자동으로 숨겨집니다.
 
 ### 3. 성능
+
 대용량 문서에서 커서 이동 시 위치 재계산 부하가 있을 수 있습니다.
 
 ### 4. 브라우저 호환성
+
 - 모든 모던 브라우저 지원
 - IME (한글 입력)는 CursorAgent를 통해 처리
 
@@ -538,25 +560,30 @@ console.log('Active element:', document.activeElement);
 ### Cursor 클래스
 
 #### 위치 관리
+
 - `setCursorPosition(index)` - 커서 위치 설정
 - `moveCursor(offset)` - 상대 이동
 - `getCursorIndex()` - 현재 위치 가져오기
 
 #### 표시/숨김
+
 - `show()` - 커서 표시
 - `hide()` - 커서 숨김
 - `isVisible()` - 가시성 확인
 
 #### 포커스
+
 - `focus()` - 키보드 입력 활성화
 - `blur()` - 포커스 해제
 
 #### 스타일
+
 - `setColor(color)` - 색상 변경
 - `setWidth(width)` - 너비 변경
 - `setBlinking(enabled)` - 깜빡임 활성화/비활성화
 
 #### 정리
+
 - `destroy()` - 리소스 정리
 
 ## 참고 자료
@@ -564,7 +591,8 @@ console.log('Active element:', document.activeElement);
 - [PositionManager 가이드](./position-manager-guide.md)
 - [RangeManager 가이드](./range-manager-guide.md)
 - [Canvas-editor Cursor](https://github.com/Hufe921/canvas-editor)
-- MDN: [Selection API](https://developer.mozilla.org/en-US/docs/Web/API/Selection)
+- MDN:
+  [Selection API](https://developer.mozilla.org/en-US/docs/Web/API/Selection)
 
 ## 문의
 

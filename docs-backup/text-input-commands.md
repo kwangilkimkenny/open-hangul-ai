@@ -2,7 +2,9 @@
 
 ## 개요
 
-Text Input Commands는 HWPX 뷰어에서 실시간 텍스트 편집을 가능하게 하는 명령 시스템입니다. 사용자가 키보드로 입력한 내용을 문서에 반영하고, Undo/Redo를 통해 변경 이력을 관리할 수 있습니다.
+Text Input Commands는 HWPX 뷰어에서 실시간 텍스트 편집을 가능하게 하는 명령
+시스템입니다. 사용자가 키보드로 입력한 내용을 문서에 반영하고, Undo/Redo를 통해
+변경 이력을 관리할 수 있습니다.
 
 ## 아키텍처
 
@@ -33,9 +35,11 @@ HistoryManagerV2 (Undo/Redo)
 커서 위치에 텍스트를 삽입합니다.
 
 **파라미터:**
+
 - `text` (string): 삽입할 텍스트
 
 **동작:**
+
 1. 현재 커서 위치 가져오기
 2. 해당 위치의 Position 정보 조회
 3. 문서 데이터 백업 (undo용)
@@ -48,6 +52,7 @@ HistoryManagerV2 (Undo/Redo)
 8. Undo/Redo 함수 저장
 
 **예제:**
+
 ```javascript
 // 단일 문자 삽입
 viewer.command.insertText('A');
@@ -60,6 +65,7 @@ viewer.command.insertText('안녕하세요');
 ```
 
 **구현 위치:**
+
 - `src/lib/vanilla/command/command-adapt.js`: `executeInsertText()`
 - `src/lib/vanilla/command/command.js`: `insertText()`
 - `src/lib/vanilla/features/cursor.js`: `_handleInput()`
@@ -69,6 +75,7 @@ viewer.command.insertText('안녕하세요');
 커서 이전 문자를 삭제합니다 (Backspace 키).
 
 **동작:**
+
 1. 현재 커서 위치가 0보다 크면 실행
 2. 이전 위치의 Position 정보 조회
 3. 문서 데이터 백업
@@ -81,12 +88,14 @@ viewer.command.insertText('안녕하세요');
 8. Undo/Redo 함수 저장
 
 **예제:**
+
 ```javascript
 // Backspace 키 처리
 viewer.command.deleteBackward();
 ```
 
 **구현 위치:**
+
 - `src/lib/vanilla/command/command-adapt.js`: `executeDeleteBackward()`
 - `src/lib/vanilla/command/command.js`: `deleteBackward()`
 - `src/lib/vanilla/features/cursor.js`: `_handleKeyDown()` - Backspace case
@@ -96,6 +105,7 @@ viewer.command.deleteBackward();
 커서 다음 문자를 삭제합니다 (Delete 키).
 
 **동작:**
+
 1. 현재 커서 위치의 문자 확인
 2. 문서 데이터 백업
 3. 문자 삭제:
@@ -107,12 +117,14 @@ viewer.command.deleteBackward();
 7. Undo/Redo 함수 저장
 
 **예제:**
+
 ```javascript
 // Delete 키 처리
 viewer.command.deleteForward();
 ```
 
 **구현 위치:**
+
 - `src/lib/vanilla/command/command-adapt.js`: `executeDeleteForward()`
 - `src/lib/vanilla/command/command.js`: `deleteForward()`
 - `src/lib/vanilla/features/cursor.js`: `_handleKeyDown()` - Delete case
@@ -122,6 +134,7 @@ viewer.command.deleteForward();
 커서 위치에 줄바꿈을 삽입합니다 (Enter 키).
 
 **동작:**
+
 1. 현재 커서 위치 가져오기
 2. 문서 데이터 백업
 3. 줄바꿈 문자 삽입:
@@ -133,12 +146,14 @@ viewer.command.deleteForward();
 7. Undo/Redo 함수 저장
 
 **예제:**
+
 ```javascript
 // Enter 키 처리
 viewer.command.insertLineBreak();
 ```
 
 **구현 위치:**
+
 - `src/lib/vanilla/command/command-adapt.js`: `executeInsertLineBreak()`
 - `src/lib/vanilla/command/command.js`: `insertLineBreak()`
 - `src/lib/vanilla/features/cursor.js`: `_handleKeyDown()` - Enter case
@@ -199,18 +214,18 @@ _handleKeyDown(e) {
 
 ```javascript
 const execute = () => {
-    // 문서 수정
-    // 렌더링
-    // Position 재계산
-    // 커서 이동
+  // 문서 수정
+  // 렌더링
+  // Position 재계산
+  // 커서 이동
 };
 
 const undo = () => {
-    // 이전 상태 복원
-    // 렌더링
-    // Position 재계산
-    // 커서 복원
-    return execute;  // Redo용 함수 반환
+  // 이전 상태 복원
+  // 렌더링
+  // Position 재계산
+  // 커서 복원
+  return execute; // Redo용 함수 반환
 };
 
 this.historyManager.execute(execute, undo, 'Insert Text');
@@ -249,7 +264,7 @@ viewer.command.insertText('Inserted text');
 // 여러 문자 연속 삽입
 const text = 'Hello World';
 for (const char of text) {
-    viewer.command.insertText(char);
+  viewer.command.insertText(char);
 }
 ```
 
@@ -260,41 +275,41 @@ for (const char of text) {
 viewer.command.insertText('Test');
 
 // 취소
-viewer.command.undo();  // 'Test' 삭제
+viewer.command.undo(); // 'Test' 삭제
 
 // 다시 실행
-viewer.command.redo();  // 'Test' 복원
+viewer.command.redo(); // 'Test' 복원
 ```
 
 ### 4. 자동 완성 구현
 
 ```javascript
 class AutoComplete {
-    constructor(viewer) {
-        this.viewer = viewer;
-        this.cursor = viewer.getCursor();
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.cursor = viewer.getCursor();
+  }
+
+  complete(suggestion) {
+    // 현재 단어 위치 찾기
+    const cursorIndex = this.cursor.getCursorIndex();
+    const positions = this.viewer.getPositionManager().getPositionList();
+
+    // 현재 단어의 시작 찾기
+    let wordStart = cursorIndex;
+    while (wordStart > 0 && positions[wordStart - 1].value.match(/\w/)) {
+      wordStart--;
     }
 
-    complete(suggestion) {
-        // 현재 단어 위치 찾기
-        const cursorIndex = this.cursor.getCursorIndex();
-        const positions = this.viewer.getPositionManager().getPositionList();
-
-        // 현재 단어의 시작 찾기
-        let wordStart = cursorIndex;
-        while (wordStart > 0 && positions[wordStart - 1].value.match(/\w/)) {
-            wordStart--;
-        }
-
-        // 현재 단어 삭제
-        const wordLength = cursorIndex - wordStart;
-        for (let i = 0; i < wordLength; i++) {
-            this.viewer.command.deleteBackward();
-        }
-
-        // 제안 삽입
-        this.viewer.command.insertText(suggestion);
+    // 현재 단어 삭제
+    const wordLength = cursorIndex - wordStart;
+    for (let i = 0; i < wordLength; i++) {
+      this.viewer.command.deleteBackward();
     }
+
+    // 제안 삽입
+    this.viewer.command.insertText(suggestion);
+  }
 }
 
 // 사용
@@ -306,24 +321,24 @@ autoComplete.complete('autocomplete');
 
 ```javascript
 class TypeWriter {
-    constructor(viewer) {
-        this.viewer = viewer;
-        this.cursor = viewer.getCursor();
-    }
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.cursor = viewer.getCursor();
+  }
 
-    async type(text, speed = 100) {
-        for (const char of text) {
-            this.viewer.command.insertText(char);
-            await new Promise(resolve => setTimeout(resolve, speed));
-        }
+  async type(text, speed = 100) {
+    for (const char of text) {
+      this.viewer.command.insertText(char);
+      await new Promise(resolve => setTimeout(resolve, speed));
     }
+  }
 
-    async delete(count, speed = 50) {
-        for (let i = 0; i < count; i++) {
-            this.viewer.command.deleteBackward();
-            await new Promise(resolve => setTimeout(resolve, speed));
-        }
+  async delete(count, speed = 50) {
+    for (let i = 0; i < count; i++) {
+      this.viewer.command.deleteBackward();
+      await new Promise(resolve => setTimeout(resolve, speed));
     }
+  }
 }
 
 // 사용
@@ -398,20 +413,22 @@ await this.positionManager.computePositions(this.viewer.container);
 
 ### 1. 일반 단락 줄바꿈
 
-현재 `insertLineBreak()`는 테이블 셀 내에서만 완전히 작동합니다. 일반 단락에서 Enter 키로 새 단락을 생성하는 기능은 TODO입니다.
+현재 `insertLineBreak()`는 테이블 셀 내에서만 완전히 작동합니다. 일반 단락에서
+Enter 키로 새 단락을 생성하는 기능은 TODO입니다.
 
 ```javascript
 // TODO: 일반 단락에서 줄바꿈
 if (!position.cellData) {
-    // 현재 단락을 두 개로 분리
-    // 새 단락 생성
-    // sections에 삽입
+  // 현재 단락을 두 개로 분리
+  // 새 단락 생성
+  // sections에 삽입
 }
 ```
 
 ### 2. Rich Text 포맷 유지
 
-현재는 단순 텍스트만 삽입됩니다. 현재 커서 위치의 서식(Bold, Italic, Color 등)을 자동으로 적용하는 기능은 TODO입니다.
+현재는 단순 텍스트만 삽입됩니다. 현재 커서 위치의 서식(Bold, Italic, Color 등)을
+자동으로 적용하는 기능은 TODO입니다.
 
 ```javascript
 // TODO: 현재 서식 적용
@@ -422,6 +439,7 @@ newRun.charPr = currentFormat;
 ### 3. 복잡한 편집 작업
 
 다음 기능들은 아직 구현되지 않았습니다:
+
 - 선택 영역 삭제
 - 잘라내기/복사/붙여넣기
 - 찾기/바꾸기

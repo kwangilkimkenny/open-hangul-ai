@@ -38,28 +38,35 @@ gh release upload v5.0.1 \
 ## 🖱 웹 인터페이스 릴리스 생성
 
 ### 1. GitHub 저장소 접속
+
 https://github.com/yatav-team/open-hangul-ai/releases/new
 
 ### 2. 릴리스 정보 입력
+
 - **Tag version**: `v5.0.1` (기존 태그 선택)
 - **Release title**: `🎉 v5.0.1: 첫 번째 npm 패키지 릴리스`
 - **Description**: 아래 내용 복사/붙여넣기
 
 ### 3. 릴리스 설명 (Copy & Paste)
 
-```markdown
+````markdown
 # 🎉 첫 번째 npm 패키지 출시
 
-오픈한글AI가 드디어 npm 패키지로 출시되었습니다! 이제 `npm install open-hangul-ai` 명령어 하나로 한글 문서 뷰어와 AI 편집 기능을 React 프로젝트에 쉽게 추가할 수 있습니다.
+오픈한글AI가 드디어 npm 패키지로 출시되었습니다! 이제
+`npm install open-hangul-ai` 명령어 하나로 한글 문서 뷰어와 AI 편집 기능을 React
+프로젝트에 쉽게 추가할 수 있습니다.
 
 ## ⚡ 주요 하이라이트
 
 ### 📦 간편한 설치
+
 ```bash
 npm install open-hangul-ai
 ```
+````
 
 ### 🚀 5분 안에 시작
+
 ```tsx
 import { HWPXViewer } from 'open-hangul-ai';
 import 'open-hangul-ai/styles';
@@ -70,11 +77,13 @@ function App() {
 ```
 
 ### 🇰🇷 한글 문서 완벽 지원
+
 - **HWPX**: 완전한 뷰어 및 편집 지원
 - **HWP**: 읽기 지원
 - **PDF, DOCX, XLSX, PPTX**: 다양한 형식 지원
 
 ### 🤖 AI 기능 내장
+
 - 문서 분석 및 요약
 - 실시간 AI 어시스턴트
 - Vertex AI, OpenAI 등 다양한 프로바이더 지원
@@ -82,12 +91,14 @@ function App() {
 ## ✨ 새로운 기능
 
 ### React 컴포넌트
+
 - `HanViewApp`: 완전한 문서 편집기
 - `HWPXViewer`: HWPX 전용 뷰어
 - `HanViewProvider`: 상태 관리 Context
 - `ErrorBoundary`: 에러 경계 컴포넌트
 
 ### React 훅스
+
 - `useHanView`: 메인 상태 관리
 - `useHanViewConfig`: 설정 관리
 - `useHanViewTheme`: 테마 변경
@@ -95,6 +106,7 @@ function App() {
 - `useDraftStream`: AI 스트리밍
 
 ### AI 통합 모듈
+
 - `AIDocumentController`: 문서 AI 분석
 - `DraftGenerator`: AI 문서 생성
 - `DocumentStructureExtractor`: 구조 추출
@@ -102,20 +114,24 @@ function App() {
 
 ## 📊 기술 사양
 
-| 항목 | 상세 |
-|------|------|
-| **React 지원** | 18.0.0 이상 |
-| **TypeScript** | 완전한 타입 정의 |
-| **번들 크기** | 1.8MB (압축) |
+| 항목              | 상세                                |
+| ----------------- | ----------------------------------- |
+| **React 지원**    | 18.0.0 이상                         |
+| **TypeScript**    | 완전한 타입 정의                    |
+| **번들 크기**     | 1.8MB (압축)                        |
 | **브라우저 지원** | Chrome 90+, Firefox 88+, Safari 14+ |
-| **라이센스** | MIT |
+| **라이센스**      | MIT                                 |
 
 ## 📚 문서
 
-- [README](https://github.com/yatav-team/open-hangul-ai/blob/main/README.md) - 빠른 시작 가이드
-- [API 문서](https://github.com/yatav-team/open-hangul-ai/blob/main/docs/API.md) - 완전한 API 레퍼런스
-- [사용 가이드](https://github.com/yatav-team/open-hangul-ai/blob/main/docs/USAGE_GUIDE.md) - 상세한 사용법
-- [기여 가이드](https://github.com/yatav-team/open-hangul-ai/blob/main/CONTRIBUTING.md) - 기여하는 방법
+- [README](https://github.com/yatav-team/open-hangul-ai/blob/main/README.md) -
+  빠른 시작 가이드
+- [API 문서](https://github.com/yatav-team/open-hangul-ai/blob/main/docs/API.md) -
+  완전한 API 레퍼런스
+- [사용 가이드](https://github.com/yatav-team/open-hangul-ai/blob/main/docs/USAGE_GUIDE.md) -
+  상세한 사용법
+- [기여 가이드](https://github.com/yatav-team/open-hangul-ai/blob/main/CONTRIBUTING.md) -
+  기여하는 방법
 
 ## 🚀 시작하기
 
@@ -141,8 +157,10 @@ function App() {
 
 ## 💬 커뮤니티
 
-- **이슈 신고**: [GitHub Issues](https://github.com/yatav-team/open-hangul-ai/issues)
-- **기능 요청**: [GitHub Discussions](https://github.com/yatav-team/open-hangul-ai/discussions)
+- **이슈 신고**:
+  [GitHub Issues](https://github.com/yatav-team/open-hangul-ai/issues)
+- **기능 요청**:
+  [GitHub Discussions](https://github.com/yatav-team/open-hangul-ai/discussions)
 - **이메일**: team@openhangulai.org
 
 ---
@@ -150,7 +168,8 @@ function App() {
 **🎯 오픈한글AI로 한국어 문서 편집의 새로운 시대를 열어보세요!**
 
 Made with ❤️ by [YATAV Team](https://yatavent.com)
-```
+
+````
 
 ### 4. 릴리스 설정
 - [ ] **Set as the latest release** 체크
@@ -202,8 +221,9 @@ jobs:
           body_path: docs/RELEASE_NOTES.md
           draft: false
           prerelease: false
-```
+````
 
 ---
 
-이 가이드를 따라 GitHub Release를 생성하면 프로젝트의 공식 릴리스가 완성됩니다! 🚀
+이 가이드를 따라 GitHub Release를 생성하면 프로젝트의 공식 릴리스가 완성됩니다!
+🚀

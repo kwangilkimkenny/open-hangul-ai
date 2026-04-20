@@ -7,6 +7,7 @@
 ## 📋 Prerequisites
 
 ### 1. Install Docker
+
 ```bash
 # Check if Docker is installed
 docker --version
@@ -18,6 +19,7 @@ docker --version
 ```
 
 ### 2. Verify Docker is Running
+
 ```bash
 # Start Docker service
 docker info
@@ -31,11 +33,13 @@ sudo systemctl start docker  # Linux
 ## 🚀 Deployment Steps
 
 ### Step 1: Navigate to Project Directory
+
 ```bash
 cd /Users/kimkwangil/Documents/project_03/hanview-react-app-v3
 ```
 
 ### Step 2: Build Docker Image
+
 ```bash
 # Build the Docker image (takes 2-5 minutes)
 docker build -t hanview-react-app:2.1.0 -t hanview-react-app:latest .
@@ -45,12 +49,14 @@ docker images | grep hanview
 ```
 
 **Expected Output:**
+
 ```
 hanview-react-app   2.1.0    abc123    2 minutes ago    50MB
 hanview-react-app   latest   abc123    2 minutes ago    50MB
 ```
 
 ### Step 3: Test Container Locally
+
 ```bash
 # Run container on port 8080
 docker run -d -p 8080:80 --name hanview-test hanview-react-app:2.1.0
@@ -67,6 +73,7 @@ curl http://localhost:8080/health
 **Expected:** "healthy" response
 
 ### Step 4: Verify Application Works
+
 1. Open http://localhost:8080 in your browser
 2. Load a HWPX file
 3. Test undo/redo (Ctrl+Z / Ctrl+Y)
@@ -74,6 +81,7 @@ curl http://localhost:8080/health
 5. Check browser console for errors (F12)
 
 ### Step 5: Stop Test Container
+
 ```bash
 # Stop and remove test container
 docker stop hanview-test
@@ -87,6 +95,7 @@ docker rm hanview-test
 ### Option A: Docker Compose (Recommended)
 
 **1. Deploy with Docker Compose:**
+
 ```bash
 # Start application in background
 docker-compose up -d
@@ -99,10 +108,12 @@ docker-compose ps
 ```
 
 **2. Access Application:**
+
 - **URL:** http://localhost:8080
 - **Health Check:** http://localhost:8080/health
 
 **3. Stop Application:**
+
 ```bash
 docker-compose down
 ```
@@ -112,6 +123,7 @@ docker-compose down
 ### Option B: Docker Run Command
 
 **1. Run Container:**
+
 ```bash
 docker run -d \
   --name hanview-react-app \
@@ -121,11 +133,13 @@ docker run -d \
 ```
 
 **2. View Logs:**
+
 ```bash
 docker logs -f hanview-react-app
 ```
 
 **3. Stop Container:**
+
 ```bash
 docker stop hanview-react-app
 docker rm hanview-react-app
@@ -136,11 +150,13 @@ docker rm hanview-react-app
 ### Option C: Docker Swarm (For Clusters)
 
 **1. Initialize Swarm:**
+
 ```bash
 docker swarm init
 ```
 
 **2. Deploy as Service:**
+
 ```bash
 docker service create \
   --name hanview-app \
@@ -150,11 +166,13 @@ docker service create \
 ```
 
 **3. Scale Service:**
+
 ```bash
 docker service scale hanview-app=5
 ```
 
 **4. Remove Service:**
+
 ```bash
 docker service rm hanview-app
 ```
@@ -164,6 +182,7 @@ docker service rm hanview-app
 ### Option D: Push to Container Registry
 
 **1. Docker Hub:**
+
 ```bash
 # Tag image
 docker tag hanview-react-app:2.1.0 yourusername/hanview-react-app:2.1.0
@@ -176,6 +195,7 @@ docker push yourusername/hanview-react-app:2.1.0
 ```
 
 **2. AWS ECR:**
+
 ```bash
 # Create repository
 aws ecr create-repository --repository-name hanview-react-app
@@ -194,6 +214,7 @@ docker push \
 ```
 
 **3. Google Container Registry (GCR):**
+
 ```bash
 # Configure Docker for GCR
 gcloud auth configure-docker
@@ -206,6 +227,7 @@ docker push gcr.io/your-project-id/hanview-react-app:2.1.0
 ```
 
 **4. Azure Container Registry (ACR):**
+
 ```bash
 # Login to ACR
 az acr login --name yourregistry
@@ -224,6 +246,7 @@ docker push yourregistry.azurecr.io/hanview-react-app:2.1.0
 ### Environment Variables
 
 Create a `.env` file:
+
 ```env
 # Application settings
 NODE_ENV=production
@@ -239,6 +262,7 @@ VITE_ENABLE_AUTOSAVE=true
 ```
 
 Run with environment file:
+
 ```bash
 docker run -d \
   --name hanview-react-app \
@@ -250,6 +274,7 @@ docker run -d \
 ### Port Mapping
 
 Change external port:
+
 ```bash
 # Run on port 3000 instead of 8080
 docker run -d -p 3000:80 hanview-react-app:2.1.0
@@ -274,6 +299,7 @@ docker run -d \
 ### Option 1: nginx Reverse Proxy with Let's Encrypt
 
 **1. Create nginx SSL configuration:**
+
 ```nginx
 # nginx-ssl.conf
 server {
@@ -300,6 +326,7 @@ server {
 ```
 
 **2. Run with SSL:**
+
 ```bash
 docker run -d \
   --name nginx-proxy \
@@ -314,6 +341,7 @@ docker run -d \
 ### Option 2: Caddy (Automatic HTTPS)
 
 **Caddyfile:**
+
 ```
 your-domain.com {
     reverse_proxy hanview-app:80
@@ -321,6 +349,7 @@ your-domain.com {
 ```
 
 **Run Caddy:**
+
 ```bash
 docker run -d \
   --name caddy \
@@ -337,6 +366,7 @@ docker run -d \
 ## 📊 Monitoring & Maintenance
 
 ### View Container Logs
+
 ```bash
 # Real-time logs
 docker logs -f hanview-react-app
@@ -349,6 +379,7 @@ docker logs --timestamps hanview-react-app
 ```
 
 ### Check Container Stats
+
 ```bash
 # Live resource usage
 docker stats hanview-react-app
@@ -358,6 +389,7 @@ docker stats --no-stream hanview-react-app
 ```
 
 ### Execute Commands in Container
+
 ```bash
 # Open shell in container
 docker exec -it hanview-react-app sh
@@ -370,6 +402,7 @@ docker exec hanview-react-app ps aux
 ```
 
 ### Health Checks
+
 ```bash
 # Check health endpoint
 curl http://localhost:8080/health
@@ -385,6 +418,7 @@ docker inspect --format='{{.State.Health.Status}}' hanview-react-app
 ### Update to New Version
 
 **1. Build new version:**
+
 ```bash
 # Pull latest code
 git pull origin main
@@ -394,12 +428,14 @@ docker build -t hanview-react-app:2.2.0 .
 ```
 
 **2. Stop old container:**
+
 ```bash
 docker stop hanview-react-app
 docker rm hanview-react-app
 ```
 
 **3. Start new container:**
+
 ```bash
 docker run -d \
   --name hanview-react-app \
@@ -430,11 +466,13 @@ docker run -d \
 ### Issue: Container Won't Start
 
 **Check logs:**
+
 ```bash
 docker logs hanview-react-app
 ```
 
 **Check if port is in use:**
+
 ```bash
 # macOS/Linux
 lsof -i :8080
@@ -446,6 +484,7 @@ kill -9 <PID>
 ### Issue: Build Fails
 
 **Clear Docker cache:**
+
 ```bash
 # Remove old images
 docker system prune -a
@@ -457,11 +496,13 @@ docker build --no-cache -t hanview-react-app:2.1.0 .
 ### Issue: Application Not Loading
 
 **Check nginx configuration:**
+
 ```bash
 docker exec hanview-react-app nginx -t
 ```
 
 **Check file permissions:**
+
 ```bash
 docker exec hanview-react-app ls -la /usr/share/nginx/html
 ```
@@ -469,6 +510,7 @@ docker exec hanview-react-app ls -la /usr/share/nginx/html
 ### Issue: High Memory Usage
 
 **Set memory limits:**
+
 ```bash
 docker run -d \
   --name hanview-react-app \
@@ -570,10 +612,12 @@ If you encounter issues:
 ## 🎉 Deployment Complete!
 
 Your application should now be running at:
+
 - **HTTP:** http://localhost:8080
 - **Health Check:** http://localhost:8080/health
 
 **Next Steps:**
+
 1. Test the application thoroughly
 2. Configure SSL if deploying publicly
 3. Set up monitoring
