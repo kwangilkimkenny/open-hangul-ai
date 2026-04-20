@@ -1,10 +1,12 @@
 /**
- * HAN-View React Library
- * NPM 패키지 진입점
- * 
- * @version 2.0.0
- * @license Commercial
+ * Open Hangul AI · NPM 패키지 진입점
+ *
+ * @license MIT
+ * @see https://github.com/kwangilkimkenny/open-hangul-ai
  */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: `as any` is used here only to register browser globals (window.JSZip).
 
 // ✅ JSZip 자동 로드 (HWPX 파일 처리에 필수)
 import JSZip from 'jszip';
@@ -101,7 +103,7 @@ export type {
   HWPXImage,
   HWPXShape,
   HWPXRun,
-  HWPXMetadata
+  HWPXMetadata,
 } from '../types/hwpx';
 
 // ✅ 보안 — Invisible Watermark
@@ -123,12 +125,7 @@ export {
   concatResults as ocrConcatResults,
   terminate as ocrTerminate,
 } from './ocr/ocr-service';
-export type {
-  OCRResult,
-  OCRLanguage,
-  OCROptions,
-  OCRProgressEvent,
-} from './ocr/ocr-service';
+export type { OCRResult, OCRLanguage, OCROptions, OCRProgressEvent } from './ocr/ocr-service';
 
 // ✅ 문서 Diff — 구조/서식 인식
 export {
@@ -155,12 +152,7 @@ export {
   toNDJSON as ragToNDJSON,
   toLangChainDocs,
 } from './rag/rag-extractor';
-export type {
-  RAGDocument,
-  RAGChunk,
-  RAGExtractorOptions,
-  LangChainDoc,
-} from './rag/rag-extractor';
+export type { RAGDocument, RAGChunk, RAGExtractorOptions, LangChainDoc } from './rag/rag-extractor';
 
 // ✅ UI 컴포넌트 — Diff / OCR
 export { default as DiffViewer } from '../components/DiffViewer';
@@ -168,7 +160,13 @@ export { default as OCRDialog } from '../components/OCRDialog';
 
 // ✅ Vertex AI — 장문 컨텍스트 초안 생성 (v5)
 export { VertexClient, parseSSEEvent } from './ai/vertex-client';
-export type { VertexRequest, VertexContent, VertexPart, VertexChunk, StreamOptions } from './ai/vertex-client';
+export type {
+  VertexRequest,
+  VertexContent,
+  VertexPart,
+  VertexChunk,
+  StreamOptions,
+} from './ai/vertex-client';
 export {
   estimateTokens,
   computeBudget,
@@ -178,10 +176,7 @@ export {
   MODEL_LIMITS,
   DEFAULT_FREE_TIER_DAILY,
 } from './ai/ai-quota';
-export {
-  DraftGenerator,
-  createDraftGenerator,
-} from './ai/draft-generator';
+export { DraftGenerator, createDraftGenerator } from './ai/draft-generator';
 export type { GenerateOptions, GenerateResult } from './ai/draft-generator';
 export {
   validateDraft,
@@ -229,4 +224,3 @@ export { useDraftStore } from '../stores/draftStore';
 // ✅ 버전 정보
 export const VERSION = '2.0.0';
 export const BUILD_DATE = new Date().toISOString().split('T')[0];
-

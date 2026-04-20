@@ -1,33 +1,25 @@
 /**
- * Universal LLM Service - HanView Community Edition
- * 모든 LLM Provider 통합 관리
+ * Universal LLM Service
  *
- * Copyright (c) 2026 HanView Team
- * Licensed under MIT License
+ * 다양한 LLM 제공자를 단일 인터페이스로 통합 관리합니다.
  *
- * ✅ Community Features:
- * - Universal LLM Integration (OpenAI, Claude, Gemini, etc.)
- * - Smart Provider Selection & Fallback
- * - Performance Monitoring & Analytics
- * - Cost Optimization & Rate Limiting
- * - Local Model Support (Ollama, vLLM)
- *
- * 🏢 Enterprise Features:
- * - AEGIS Security Integration
- * - TruthAnchor Fact Verification
- * - Advanced Compliance Reporting
- *
- * Contact license@hanview.ai for enterprise features
- *
- * Supported Providers:
- * - OpenAI GPT-4o, GPT-3.5
- * - Anthropic Claude 3.5 Sonnet, Haiku, Opus
+ * 지원 제공자:
+ * - OpenAI (GPT-4o, GPT-3.5)
+ * - Anthropic Claude (3.5 Sonnet/Haiku/Opus)
  * - Google Vertex AI (Gemini)
  * - X.AI Grok
  * - Azure OpenAI
  * - Cohere Command R/R+
- * - Local Models (Ollama, vLLM, TGI)
+ * - 로컬 모델 (Ollama, vLLM, TGI)
+ *
+ * 주요 기능:
+ * - Smart Provider Selection & Fallback
+ * - Performance Monitoring & Analytics
+ * - Cost Optimization & Rate Limiting
  */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: provider-agnostic LLM response shapes intentionally use `any`.
 
 import type {
   LLMConfig,
@@ -135,7 +127,10 @@ export class UniversalLLMService {
   /**
    * 설정 검증 (캐싱 지원)
    */
-  async validateConfig(config: LLMConfig, useCache: boolean = true): Promise<{ valid: boolean; error?: string }> {
+  async validateConfig(
+    config: LLMConfig,
+    useCache: boolean = true
+  ): Promise<{ valid: boolean; error?: string }> {
     await this.initializeProviders();
 
     // 캐시 확인
@@ -159,7 +154,9 @@ export class UniversalLLMService {
       const isValid = await provider.validateConfig(config);
       const endTime = performance.now();
 
-      console.debug(`[${config.provider}] Validation completed in ${Math.round(endTime - startTime)}ms`);
+      console.debug(
+        `[${config.provider}] Validation completed in ${Math.round(endTime - startTime)}ms`
+      );
 
       // 성공한 검증만 캐시 (실패는 재시도 가능성 고려)
       if (isValid) {
@@ -168,7 +165,8 @@ export class UniversalLLMService {
 
       return { valid: isValid };
     } catch (error) {
-      const errorMessage = error instanceof LLMError ? error.getUserMessage() : (error as Error).message;
+      const errorMessage =
+        error instanceof LLMError ? error.getUserMessage() : (error as Error).message;
       validationCache.set(config, false, 30000); // 짧은 캐시 (재시도 허용)
       return { valid: false, error: errorMessage };
     }
@@ -225,9 +223,10 @@ export class UniversalLLMService {
       metricsCollector.recordRequest(metrics);
       loadBalancer.updateHealthStatus(config.provider, true);
 
-      console.debug(`[${config.provider}] Request ${requestId} completed successfully in ${Math.round(duration)}ms`);
+      console.debug(
+        `[${config.provider}] Request ${requestId} completed successfully in ${Math.round(duration)}ms`
+      );
       return response;
-
     } catch (error) {
       success = false;
       const endTime = performance.now();
@@ -235,7 +234,10 @@ export class UniversalLLMService {
 
       if (error instanceof LLMError) {
         errorType = error.type;
-        loadBalancer.updateHealthStatus(config.provider, !['rate_limit', 'server_error'].includes(error.type));
+        loadBalancer.updateHealthStatus(
+          config.provider,
+          !['rate_limit', 'server_error'].includes(error.type)
+        );
       } else {
         errorType = 'unknown';
         loadBalancer.updateHealthStatus(config.provider, false);
@@ -259,7 +261,10 @@ export class UniversalLLMService {
 
       metricsCollector.recordRequest(metrics);
 
-      console.error(`[${config.provider}] Request ${requestId} failed after ${Math.round(duration)}ms:`, (error as any)?.message);
+      console.error(
+        `[${config.provider}] Request ${requestId} failed after ${Math.round(duration)}ms:`,
+        (error as any)?.message
+      );
 
       if (error instanceof LLMError) {
         throw error;
@@ -500,7 +505,6 @@ export class UniversalLLMService {
     throw new Error(`모든 Provider 실패. 마지막 오류: ${lastError?.message}`);
   }
 
-
   /**
    * 통계 및 사용량 반환 (실제 구현)
    */
@@ -521,29 +525,43 @@ export class UniversalLLMService {
     const providers = Object.keys(allMetrics) as LLMProvider[];
 
     const totalRequests = providers.reduce((sum, p) => sum + allMetrics[p].totalRequests, 0);
-    const successfulRequests = providers.reduce((sum, p) => sum + allMetrics[p].successfulRequests, 0);
+    const successfulRequests = providers.reduce(
+      (sum, p) => sum + allMetrics[p].successfulRequests,
+      0
+    );
     const totalCost = providers.reduce((sum, p) => sum + allMetrics[p].totalCost, 0);
 
-    const avgLatency = totalRequests > 0
-      ? Math.round(providers.reduce((sum, p) => sum + (allMetrics[p].avgLatency * allMetrics[p].totalRequests), 0) / totalRequests)
-      : 0;
+    const avgLatency =
+      totalRequests > 0
+        ? Math.round(
+            providers.reduce(
+              (sum, p) => sum + allMetrics[p].avgLatency * allMetrics[p].totalRequests,
+              0
+            ) / totalRequests
+          )
+        : 0;
 
-    const providerBreakdown = providers.reduce((acc, provider) => {
-      acc[provider] = allMetrics[provider].totalRequests;
-      return acc;
-    }, {} as Record<LLMProvider, number>);
+    const providerBreakdown = providers.reduce(
+      (acc, provider) => {
+        acc[provider] = allMetrics[provider].totalRequests;
+        return acc;
+      },
+      {} as Record<LLMProvider, number>
+    );
 
     // 성능 순위
-    const latencyRanking = metricsCollector.getPerformanceRanking('avgLatency')
+    const latencyRanking = metricsCollector
+      .getPerformanceRanking('avgLatency')
       .filter(p => allMetrics[p.provider]?.totalRequests > 0);
-    const uptimeRanking = metricsCollector.getPerformanceRanking('uptime')
+    const uptimeRanking = metricsCollector
+      .getPerformanceRanking('uptime')
       .filter(p => allMetrics[p.provider]?.totalRequests > 0);
 
     const costRanking = providers
       .filter(p => allMetrics[p].totalTokens > 0)
       .map(p => ({
         provider: p,
-        value: allMetrics[p].totalCost / allMetrics[p].totalTokens
+        value: allMetrics[p].totalCost / allMetrics[p].totalTokens,
       }))
       .sort((a, b) => a.value - b.value);
 
@@ -591,15 +609,12 @@ export class UniversalLLMService {
     options: LLMGenerateOptions = {}
   ): Promise<LLMResponse & { usedProvider: LLMProvider; recommendation: any }> {
     const promptLength = messages.reduce((sum, msg) => sum + msg.content.length, 0);
-    const availableProviders = this.getAvailableProviders()
-      .filter(p => !requirements.excludeProviders?.includes(p));
+    const availableProviders = this.getAvailableProviders().filter(
+      p => !requirements.excludeProviders?.includes(p)
+    );
 
     if (availableProviders.length === 0) {
-      throw new LLMError(
-        '사용 가능한 Provider가 없습니다',
-        'validation' as any,
-        'system'
-      );
+      throw new LLMError('사용 가능한 Provider가 없습니다', 'validation' as any, 'system');
     }
 
     // 성능 기반 추천
@@ -612,15 +627,20 @@ export class UniversalLLMService {
     // 추천된 Provider가 사용 가능한지 확인
     let selectedProvider = recommendation.provider;
     if (!availableProviders.includes(selectedProvider)) {
-      selectedProvider = loadBalancer.selectProvider(availableProviders, {
-        maxCost: requirements.maxCost,
-        maxLatency: requirements.maxLatency,
-        minUptime: 90,
-      }) || availableProviders[0];
+      selectedProvider =
+        loadBalancer.selectProvider(availableProviders, {
+          maxCost: requirements.maxCost,
+          maxLatency: requirements.maxLatency,
+          minUptime: 90,
+        }) || availableProviders[0];
     }
 
     const config = this.getDefaultConfigForProvider(selectedProvider);
-    config.model = this.getModelForProvider(selectedProvider, requirements.quality, Math.ceil(promptLength / 4));
+    config.model = this.getModelForProvider(
+      selectedProvider,
+      requirements.quality,
+      Math.ceil(promptLength / 4)
+    );
 
     const response = await this.generateText(messages, config, options);
 
@@ -630,9 +650,10 @@ export class UniversalLLMService {
       recommendation: {
         ...recommendation,
         actualProvider: selectedProvider,
-        reasonForChange: selectedProvider !== recommendation.provider
-          ? `${recommendation.provider} 사용 불가, ${selectedProvider}로 대체`
-          : undefined,
+        reasonForChange:
+          selectedProvider !== recommendation.provider
+            ? `${recommendation.provider} 사용 불가, ${selectedProvider}로 대체`
+            : undefined,
       },
     };
   }
@@ -688,56 +709,63 @@ export class UniversalLLMService {
   /**
    * Provider 상태 체크 (향상된 버전)
    */
-  async checkProviderHealth(): Promise<Record<LLMProvider, {
-    status: 'ok' | 'error' | 'degraded';
-    latency?: number;
-    error?: string;
-    uptime?: number;
-    lastCheck?: number;
-  }>> {
-    const results: Record<string, any> = {};
-    const healthChecks = Array.from(this.providers.entries()).map(async ([providerName, provider]) => {
-      const start = Date.now();
-      try {
-        // 기본 설정으로 테스트
-        const testConfig = this.getDefaultConfigForProvider(providerName);
-        testConfig.model = this.getModelsForProvider(providerName)[0] || 'default';
-        testConfig.maxTokens = 10;
-        testConfig.temperature = 0;
-
-        const isValid = await provider.validateConfig(testConfig);
-        const latency = Date.now() - start;
-
-        // 최근 메트릭 확인
-        const metrics = metricsCollector.getProviderMetrics(providerName, 900000); // 15분 윈도우
-
-        let status: 'ok' | 'error' | 'degraded' = 'ok';
-        if (!isValid) {
-          status = 'error';
-        } else if (metrics.uptime < 95 || metrics.avgLatency > 10000) {
-          status = 'degraded';
-        }
-
-        results[providerName] = {
-          status,
-          latency,
-          uptime: metrics.uptime,
-          lastCheck: Date.now(),
-        };
-
-        loadBalancer.updateHealthStatus(providerName, status !== 'error');
-      } catch (error) {
-        const latency = Date.now() - start;
-        results[providerName] = {
-          status: 'error',
-          latency,
-          error: error instanceof Error ? error.message : String(error),
-          lastCheck: Date.now(),
-        };
-
-        loadBalancer.updateHealthStatus(providerName, false);
+  async checkProviderHealth(): Promise<
+    Record<
+      LLMProvider,
+      {
+        status: 'ok' | 'error' | 'degraded';
+        latency?: number;
+        error?: string;
+        uptime?: number;
+        lastCheck?: number;
       }
-    });
+    >
+  > {
+    const results: Record<string, any> = {};
+    const healthChecks = Array.from(this.providers.entries()).map(
+      async ([providerName, provider]) => {
+        const start = Date.now();
+        try {
+          // 기본 설정으로 테스트
+          const testConfig = this.getDefaultConfigForProvider(providerName);
+          testConfig.model = this.getModelsForProvider(providerName)[0] || 'default';
+          testConfig.maxTokens = 10;
+          testConfig.temperature = 0;
+
+          const isValid = await provider.validateConfig(testConfig);
+          const latency = Date.now() - start;
+
+          // 최근 메트릭 확인
+          const metrics = metricsCollector.getProviderMetrics(providerName, 900000); // 15분 윈도우
+
+          let status: 'ok' | 'error' | 'degraded' = 'ok';
+          if (!isValid) {
+            status = 'error';
+          } else if (metrics.uptime < 95 || metrics.avgLatency > 10000) {
+            status = 'degraded';
+          }
+
+          results[providerName] = {
+            status,
+            latency,
+            uptime: metrics.uptime,
+            lastCheck: Date.now(),
+          };
+
+          loadBalancer.updateHealthStatus(providerName, status !== 'error');
+        } catch (error) {
+          const latency = Date.now() - start;
+          results[providerName] = {
+            status: 'error',
+            latency,
+            error: error instanceof Error ? error.message : String(error),
+            lastCheck: Date.now(),
+          };
+
+          loadBalancer.updateHealthStatus(providerName, false);
+        }
+      }
+    );
 
     await Promise.allSettled(healthChecks);
     return results;

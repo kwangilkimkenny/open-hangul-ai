@@ -6,6 +6,9 @@
  * @version 1.0.0
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, no-useless-escape, prefer-const */
+// Note: ExcelJS workbook objects are dynamically shaped; `any` keeps interop simple.
+
 interface Run {
   text: string;
   type?: string;
@@ -58,7 +61,7 @@ interface DocumentData {
 const MAX_ROWS = 10000;
 const VIRTUAL_SCROLL_THRESHOLD = 200;
 const DEFAULT_COL_WIDTH = 8.43; // Excel default column width in character units
-// const PAGE_CONTENT_WIDTH = 624; // A4 content area: 794 - 85 - 85 (unused in Community Edition)
+// const PAGE_CONTENT_WIDTH = 624; // A4 content area: 794 - 85 - 85 (currently unused)
 
 // Excel theme color defaults (Office standard)
 const THEME_COLORS: Record<number, string> = {
@@ -244,7 +247,9 @@ function buildFontStyle(font: any): Record<string, any> {
  * 워크시트의 병합 셀 맵 구축
  * Returns: Map<'row,col', { rowSpan, colSpan, isOrigin }>
  */
-function buildMergeMap(worksheet: any): Map<string, { rowSpan: number; colSpan: number; isOrigin: boolean }> {
+function buildMergeMap(
+  worksheet: any
+): Map<string, { rowSpan: number; colSpan: number; isOrigin: boolean }> {
   const mergeMap = new Map<string, { rowSpan: number; colSpan: number; isOrigin: boolean }>();
 
   // ExcelJS stores merges as range strings like 'A1:C3' or as model merges
@@ -314,7 +319,8 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
 
   // .xls 감지 (OLE Compound Document: D0 CF 11 E0)
   const header = new Uint8Array(buffer.slice(0, 4));
-  const isXls = header[0] === 0xD0 && header[1] === 0xCF && header[2] === 0x11 && header[3] === 0xE0;
+  const isXls =
+    header[0] === 0xd0 && header[1] === 0xcf && header[2] === 0x11 && header[3] === 0xe0;
 
   if (isXls) {
     // .xls → .xlsx 변환 (SheetJS)
@@ -338,10 +344,12 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
     // 시트 이름 제목
     elements.push({
       type: 'paragraph',
-      runs: [{
-        text: worksheet.name || 'Sheet',
-        inlineStyle: { bold: true, fontSize: '16pt' },
-      }],
+      runs: [
+        {
+          text: worksheet.name || 'Sheet',
+          inlineStyle: { bold: true, fontSize: '16pt' },
+        },
+      ],
     });
 
     // 빈 줄
@@ -358,13 +366,14 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
     }
 
     const totalWidthPx = colWidthsPx.reduce((a, b) => a + b, 0) || 1;
-    const colWidthsPercent = colWidthsPx.map(px => `${(px / totalWidthPx * 100).toFixed(2)}%`);
+    const colWidthsPercent = colWidthsPx.map(px => `${((px / totalWidthPx) * 100).toFixed(2)}%`);
 
     // 병합 셀 맵
     const mergeMap = buildMergeMap(worksheet);
 
     // freeze pane에서 헤더 행 감지
-    const frozenRow = worksheet.views?.[0]?.state === 'frozen' ? (worksheet.views[0] as any).ySplit || 0 : 0;
+    const frozenRow =
+      worksheet.views?.[0]?.state === 'frozen' ? (worksheet.views[0] as any).ySplit || 0 : 0;
 
     // 행 순회
     const rows: RowData[] = [];
@@ -423,15 +432,22 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
         if (cell.alignment) {
           if (cell.alignment.horizontal) {
             const hMap: Record<string, string> = {
-              left: 'left', center: 'center', right: 'right',
-              justify: 'justify', fill: 'left', distributed: 'justify',
+              left: 'left',
+              center: 'center',
+              right: 'right',
+              justify: 'justify',
+              fill: 'left',
+              distributed: 'justify',
             };
             cellStyle.textAlign = hMap[cell.alignment.horizontal] || 'left';
           }
           if (cell.alignment.vertical) {
             const vMap: Record<string, string> = {
-              top: 'top', middle: 'middle', bottom: 'bottom',
-              justify: 'middle', distributed: 'middle',
+              top: 'top',
+              middle: 'middle',
+              bottom: 'bottom',
+              justify: 'middle',
+              distributed: 'middle',
             };
             cellStyle.verticalAlign = vMap[cell.alignment.vertical] || 'middle';
           }
@@ -519,10 +535,12 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
       elements.push({ type: 'paragraph', runs: [{ text: '' }] });
       elements.push({
         type: 'paragraph',
-        runs: [{
-          text: `[${MAX_ROWS}행까지만 표시됩니다. 전체 ${worksheet.rowCount}행]`,
-          inlineStyle: { italic: true, color: '#999999', fontSize: '10pt' },
-        }],
+        runs: [
+          {
+            text: `[${MAX_ROWS}행까지만 표시됩니다. 전체 ${worksheet.rowCount}행]`,
+            inlineStyle: { italic: true, color: '#999999', fontSize: '10pt' },
+          },
+        ],
       });
     }
 
@@ -549,14 +567,19 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
   // 시트가 없는 경우 빈 섹션
   if (sections.length === 0) {
     sections.push({
-      elements: [{
-        type: 'paragraph',
-        runs: [{ text: '빈 Excel 파일입니다.', inlineStyle: { italic: true, color: '#999999' } }],
-      }],
+      elements: [
+        {
+          type: 'paragraph',
+          runs: [{ text: '빈 Excel 파일입니다.', inlineStyle: { italic: true, color: '#999999' } }],
+        },
+      ],
       pageSettings: {
-        width: '794px', height: '1123px',
-        marginLeft: '85px', marginRight: '85px',
-        marginTop: '71px', marginBottom: '57px',
+        width: '794px',
+        height: '1123px',
+        marginLeft: '85px',
+        marginRight: '85px',
+        marginTop: '71px',
+        marginBottom: '57px',
       },
       pageWidth: 794,
       pageHeight: 1123,
@@ -577,13 +600,14 @@ export async function parseExcel(buffer: ArrayBuffer, fileName: string): Promise
       sourceFormat: 'excel',
       fileName,
       truncated: truncatedSheets.length > 0,
-      originalRowCount: truncatedSheets.length > 0
-        ? Object.fromEntries(
-            workbook.worksheets
-              .filter((ws: any) => ws && truncatedSheets.includes(ws.name))
-              .map((ws: any) => [ws.name, ws.rowCount])
-          )
-        : undefined,
+      originalRowCount:
+        truncatedSheets.length > 0
+          ? Object.fromEntries(
+              workbook.worksheets
+                .filter((ws: any) => ws && truncatedSheets.includes(ws.name))
+                .map((ws: any) => [ws.name, ws.rowCount])
+            )
+          : undefined,
       truncatedSheets: truncatedSheets.length > 0 ? truncatedSheets : undefined,
     },
   };
@@ -609,7 +633,11 @@ function hexToArgb(hex: string): string {
     const b = Math.min(255, parseInt(rgbMatch[3], 10));
     v = [r, g, b].map(n => n.toString(16).padStart(2, '0')).join('');
   }
-  if (/^[0-9a-fA-F]{3}$/.test(v)) v = v.split('').map(c => c + c).join('');
+  if (/^[0-9a-fA-F]{3}$/.test(v))
+    v = v
+      .split('')
+      .map(c => c + c)
+      .join('');
   if (!/^[0-9a-fA-F]{6}$/.test(v)) return 'FF000000';
   return `FF${v.toUpperCase()}`;
 }
@@ -641,7 +669,7 @@ function cssBorderToExcel(borderDef: any): any | undefined {
 /**
  * 문서의 paragraph runs에서 텍스트 추출
  */
-// Currently unused in Community Edition
+// Currently unused
 // function extractTextFromElement(el: any): string {
 //   if (!el || !el.runs) return '';
 //   return el.runs
@@ -697,7 +725,10 @@ export async function exportToExcel(doc: DocumentData, _fileName?: string): Prom
     let sheetName = `Sheet${sIdx + 1}`;
     const firstEl = section.elements[0];
     if (firstEl.type === 'paragraph' && firstEl.runs) {
-      const title = firstEl.runs.map((r: Run) => r.text || '').join('').trim();
+      const title = firstEl.runs
+        .map((r: Run) => r.text || '')
+        .join('')
+        .trim();
       if (title && title.length <= 31) {
         // Excel 시트 이름 제한: 31자, 특수문자 제거
         sheetName = title.replace(/[\\/*?:\[\]]/g, '').substring(0, 31) || sheetName;
@@ -722,7 +753,7 @@ export async function exportToExcel(doc: DocumentData, _fileName?: string): Prom
         el.colWidthsPercent.forEach((pct: string, colIdx: number) => {
           const percent = parseFloat(pct);
           // 퍼센트를 문자 단위로 역변환 (대략적)
-          const charWidth = Math.max(8, Math.round(percent / 100 * 80));
+          const charWidth = Math.max(8, Math.round((percent / 100) * 80));
           const col = worksheet.getColumn(colIdx + 1);
           col.width = charWidth;
         });
@@ -806,13 +837,16 @@ export async function exportToExcel(doc: DocumentData, _fileName?: string): Prom
           if (Object.keys(border).length > 0) cell.border = border;
 
           // 병합 셀
-          if ((cellData.colSpan && cellData.colSpan > 1) || (cellData.rowSpan && cellData.rowSpan > 1)) {
+          if (
+            (cellData.colSpan && cellData.colSpan > 1) ||
+            (cellData.rowSpan && cellData.rowSpan > 1)
+          ) {
             const endRow = excelRow + (cellData.rowSpan || 1) - 1;
             const endCol = excelCol + (cellData.colSpan || 1) - 1;
             merges.push({ startRow: excelRow, startCol: excelCol, endRow, endCol });
           }
 
-          excelCol += (cellData.colSpan || 1);
+          excelCol += cellData.colSpan || 1;
         }
 
         // 행 높이
@@ -869,7 +903,10 @@ export async function exportToExcel(doc: DocumentData, _fileName?: string): Prom
 /**
  * HWPXDocument를 Excel 파일로 다운로드
  */
-export async function downloadExcel(doc: DocumentData, fileName: string = '문서.xlsx'): Promise<void> {
+export async function downloadExcel(
+  doc: DocumentData,
+  fileName: string = '문서.xlsx'
+): Promise<void> {
   const blob = await exportToExcel(doc, fileName);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
