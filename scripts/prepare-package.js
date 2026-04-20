@@ -139,7 +139,7 @@ This package is available under the MIT license for open source use.
 
 ## Support
 
-- **Documentation**: [Official Documentation](https://yatav-team.github.io/open-hangul-ai/)
+- **Documentation**: [Official Documentation](https://kwangilkimkenny.github.io/open-hangul-ai/)
 - **Issues**: [GitHub Issues](https://github.com/yatav-team/open-hangul-ai/issues)
 - **Email**: ray.kim@yatavent.com
 - **Website**: https://yatavent.com
