@@ -32,14 +32,14 @@ function HanViewApp(props: HanViewAppProps): JSX.Element;
 
 #### Props
 
-| 이름 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `config` | `HanViewConfig` | `{}` | 전체 앱 설정 |
-| `headerButtons` | `HeaderButton[]` | `[]` | 헤더에 표시할 커스텀 버튼들 |
-| `onFileLoad` | `(file: File) => void` | - | 파일 로드 완료 콜백 |
-| `onError` | `(error: Error) => void` | - | 에러 발생 콜백 |
-| `className` | `string` | - | CSS 클래스명 |
-| `style` | `React.CSSProperties` | - | 인라인 스타일 |
+| 이름            | 타입                     | 기본값 | 설명                        |
+| --------------- | ------------------------ | ------ | --------------------------- |
+| `config`        | `HanViewConfig`          | `{}`   | 전체 앱 설정                |
+| `headerButtons` | `HeaderButton[]`         | `[]`   | 헤더에 표시할 커스텀 버튼들 |
+| `onFileLoad`    | `(file: File) => void`   | -      | 파일 로드 완료 콜백         |
+| `onError`       | `(error: Error) => void` | -      | 에러 발생 콜백              |
+| `className`     | `string`                 | -      | CSS 클래스명                |
+| `style`         | `React.CSSProperties`    | -      | 인라인 스타일               |
 
 #### 예제
 
@@ -48,17 +48,17 @@ function HanViewApp(props: HanViewAppProps): JSX.Element;
   config={{
     theme: 'dark',
     toolbar: { enabled: true },
-    aiPanel: { enabled: true }
+    aiPanel: { enabled: true },
   }}
   headerButtons={[
     {
       label: '저장',
       icon: '💾',
-      onClick: () => saveDocument()
-    }
+      onClick: () => saveDocument(),
+    },
   ]}
-  onFileLoad={(file) => console.log('Loaded:', file.name)}
-  onError={(error) => console.error(error)}
+  onFileLoad={file => console.log('Loaded:', file.name)}
+  onError={error => console.error(error)}
 />
 ```
 
@@ -86,17 +86,17 @@ function HWPXViewer(props: HWPXViewerProps): JSX.Element;
 
 #### Props
 
-| 이름 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `fileUrl` | `string` | - | 파일 URL (file과 함께 사용할 수 없음) |
-| `file` | `File` | - | File 객체 (fileUrl과 함께 사용할 수 없음) |
-| `width` | `string \| number` | `'100%'` | 뷰어 너비 |
-| `height` | `string \| number` | `'600px'` | 뷰어 높이 |
-| `config` | `Partial<HanViewConfig>` | `{}` | 뷰어 설정 |
-| `onLoad` | `(document: HWPXDocument) => void` | - | 문서 로드 완료 콜백 |
-| `onError` | `(error: Error) => void` | - | 에러 발생 콜백 |
-| `onPageChange` | `(pageNumber: number) => void` | - | 페이지 변경 콜백 |
-| `onTextSelect` | `(selectedText: string) => void` | - | 텍스트 선택 콜백 |
+| 이름           | 타입                               | 기본값    | 설명                                      |
+| -------------- | ---------------------------------- | --------- | ----------------------------------------- |
+| `fileUrl`      | `string`                           | -         | 파일 URL (file과 함께 사용할 수 없음)     |
+| `file`         | `File`                             | -         | File 객체 (fileUrl과 함께 사용할 수 없음) |
+| `width`        | `string \| number`                 | `'100%'`  | 뷰어 너비                                 |
+| `height`       | `string \| number`                 | `'600px'` | 뷰어 높이                                 |
+| `config`       | `Partial<HanViewConfig>`           | `{}`      | 뷰어 설정                                 |
+| `onLoad`       | `(document: HWPXDocument) => void` | -         | 문서 로드 완료 콜백                       |
+| `onError`      | `(error: Error) => void`           | -         | 에러 발생 콜백                            |
+| `onPageChange` | `(pageNumber: number) => void`     | -         | 페이지 변경 콜백                          |
+| `onTextSelect` | `(selectedText: string) => void`   | -         | 텍스트 선택 콜백                          |
 
 ### HanViewProvider
 
@@ -233,22 +233,22 @@ interface HotkeyOptions {
 
 type HotkeyMap = Record<string, (event: KeyboardEvent) => void>;
 
-function useHotkeys(
-  hotkeys: HotkeyMap, 
-  options?: HotkeyOptions
-): void;
+function useHotkeys(hotkeys: HotkeyMap, options?: HotkeyOptions): void;
 ```
 
 #### 예제
 
 ```tsx
-useHotkeys({
-  'ctrl+s': () => saveDocument(),
-  'ctrl+z': () => undo(),
-  'ctrl+shift+z': () => redo(),
-}, {
-  preventDefault: true
-});
+useHotkeys(
+  {
+    'ctrl+s': () => saveDocument(),
+    'ctrl+z': () => undo(),
+    'ctrl+shift+z': () => redo(),
+  },
+  {
+    preventDefault: true,
+  }
+);
 ```
 
 ### useDraftStream
@@ -280,7 +280,7 @@ Vanilla JS 코어 뷰어 클래스입니다.
 ```tsx
 class HWPXViewerCore {
   constructor(container: HTMLElement, options?: ViewerOptions);
-  
+
   loadFile(file: File | string): Promise<void>;
   destroy(): void;
   getCurrentPage(): number;
@@ -308,7 +308,7 @@ class SimpleHWPXParser {
 ```tsx
 class DocumentRenderer {
   constructor(container: HTMLElement);
-  
+
   render(document: HWPXDocument): void;
   setTheme(theme: HanViewTheme): void;
   destroy(): void;
@@ -349,8 +349,8 @@ enum ErrorType {
 
 class HWPXError extends Error {
   constructor(
-    message: string, 
-    public type: ErrorType, 
+    message: string,
+    public type: ErrorType,
     public originalError?: Error
   );
 }
@@ -413,11 +413,18 @@ interface ToolbarConfig {
   customButtons?: ToolbarButton[];
 }
 
-type ToolbarButtonType = 
-  | 'file-open' | 'save' | 'export' 
-  | 'undo' | 'redo' 
-  | 'bold' | 'italic' | 'underline'
-  | 'ai-assistant' | 'comments' | 'share'
+type ToolbarButtonType =
+  | 'file-open'
+  | 'save'
+  | 'export'
+  | 'undo'
+  | 'redo'
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'ai-assistant'
+  | 'comments'
+  | 'share'
   | 'separator';
 
 interface ToolbarButton {
@@ -540,12 +547,8 @@ interface VertexPart {
 }
 
 class VertexClient {
-  constructor(options: {
-    projectId: string;
-    location: string;
-    apiKey: string;
-  });
-  
+  constructor(options: { projectId: string; location: string; apiKey: string });
+
   generateContent(request: VertexRequest): Promise<string>;
   streamContent(request: VertexRequest): AsyncIterable<VertexChunk>;
 }
@@ -575,9 +578,12 @@ interface GenerateResult {
 
 class DraftGenerator {
   constructor(client: VertexClient);
-  
+
   generate(prompt: string, options?: GenerateOptions): Promise<GenerateResult>;
-  generateStream(prompt: string, options?: GenerateOptions): AsyncIterable<string>;
+  generateStream(
+    prompt: string,
+    options?: GenerateOptions
+  ): AsyncIterable<string>;
 }
 
 function createDraftGenerator(options: {
@@ -625,8 +631,8 @@ interface WatermarkOptions {
 }
 
 function embedWatermark(
-  document: HWPXDocument, 
-  payload: WatermarkPayload, 
+  document: HWPXDocument,
+  payload: WatermarkPayload,
   options?: WatermarkOptions
 ): Promise<HWPXDocument>;
 
@@ -666,14 +672,11 @@ interface OCRProgressEvent {
 }
 
 function recognize(
-  image: File | string, 
+  image: File | string,
   options?: OCROptions
 ): Promise<OCRResult>;
 
-function recognizePdf(
-  pdf: File, 
-  options?: OCROptions
-): Promise<OCRResult[]>;
+function recognizePdf(pdf: File, options?: OCROptions): Promise<OCRResult[]>;
 
 function concatResults(results: OCRResult[]): OCRResult;
 
@@ -698,12 +701,12 @@ interface DiffChange {
 }
 
 function diffDocuments(
-  docA: HWPXDocument, 
+  docA: HWPXDocument,
   docB: HWPXDocument
 ): Promise<DiffResult>;
 
 function diffDocumentsStructural(
-  docA: HWPXDocument, 
+  docA: HWPXDocument,
   docB: HWPXDocument
 ): Promise<StructuralDiffResult>;
 
@@ -732,7 +735,7 @@ function App() {
       config={{
         theme: 'light',
         toolbar: { enabled: true },
-        aiPanel: { enabled: true }
+        aiPanel: { enabled: true },
       }}
     />
   );
@@ -747,29 +750,27 @@ import {
   HanViewProvider,
   useHanView,
   HWPXViewer,
-  AIDocumentController
+  AIDocumentController,
 } from 'open-hangul-ai';
 
 function DocumentAnalyzer() {
   const { currentFile } = useHanView();
-  
+
   const analyzeWithAI = async () => {
     if (!currentFile) return;
-    
+
     const ai = new AIDocumentController({
       provider: 'openai',
-      apiKey: process.env.REACT_APP_OPENAI_KEY
+      apiKey: process.env.REACT_APP_OPENAI_KEY,
     });
-    
+
     const analysis = await ai.analyze(currentFile);
     console.log(analysis);
   };
 
   return (
     <div>
-      <button onClick={analyzeWithAI}>
-        AI 분석
-      </button>
+      <button onClick={analyzeWithAI}>AI 분석</button>
       <HWPXViewer />
     </div>
   );

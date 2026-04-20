@@ -2,26 +2,32 @@
 
 ## 개요
 
-PositionManager는 HWPX 문서 내 모든 문자의 정확한 위치를 추적하고 관리하는 시스템입니다. Canvas-editor의 Position 시스템을 DOM 기반으로 적용하여 구현되었습니다.
+PositionManager는 HWPX 문서 내 모든 문자의 정확한 위치를 추적하고 관리하는
+시스템입니다. Canvas-editor의 Position 시스템을 DOM 기반으로 적용하여
+구현되었습니다.
 
 ## 주요 기능
 
 ### 1. 문자 단위 위치 추적
+
 - 렌더링된 모든 문자의 좌표 정보 수집
 - 페이지, 요소 타입, 컨텍스트 정보 포함
 - Range API를 사용한 정확한 위치 측정
 
 ### 2. 클릭-투-포지션
+
 - 클릭한 위치의 문자 찾기
 - Ctrl+Shift+Click으로 디버그 정보 출력
 - 시각적 하이라이트 제공
 
 ### 3. 텍스트 검색
+
 - 위치 기반 텍스트 검색
 - 대소문자 구분 옵션
 - 검색 결과의 시작/끝 인덱스 반환
 
 ### 4. 범위 하이라이트
+
 - 특정 범위의 텍스트 하이라이트
 - 커스텀 색상 지정 가능
 - 하이라이트 제거 기능
@@ -54,11 +60,13 @@ console.log(`First 100 characters`);
 ### 3. 클릭-투-포지션 사용
 
 문서를 로드한 후:
+
 1. **Ctrl+Shift+Click**으로 원하는 위치 클릭
 2. 콘솔에서 해당 문자의 상세 정보 확인
 3. 클릭한 문자가 0.5초간 노란색으로 하이라이트됨
 
 출력되는 정보:
+
 - Character: 문자 값
 - Index: 전체 문서에서의 인덱스
 - Page: 페이지 번호
@@ -76,7 +84,9 @@ const results = viewer.searchText('SearchTerm', true);
 
 // 결과 순회
 results.forEach(result => {
-    console.log(`Found at index ${result.startIndex}-${result.endIndex}: "${result.text}"`);
+  console.log(
+    `Found at index ${result.startIndex}-${result.endIndex}: "${result.text}"`
+  );
 });
 ```
 
@@ -150,12 +160,12 @@ console.log('Full document text:', fullText);
 ### 1. 정밀한 커서 포지셔닝
 
 ```javascript
-container.addEventListener('click', (e) => {
-    const position = positionManager.getPositionByXY(e.clientX, e.clientY);
-    if (position) {
-        // 커서를 해당 위치로 이동
-        setCursorAtPosition(position);
-    }
+container.addEventListener('click', e => {
+  const position = positionManager.getPositionByXY(e.clientX, e.clientY);
+  if (position) {
+    // 커서를 해당 위치로 이동
+    setCursorAtPosition(position);
+  }
 });
 ```
 
@@ -164,21 +174,21 @@ container.addEventListener('click', (e) => {
 ```javascript
 let startPos = null;
 
-container.addEventListener('mousedown', (e) => {
-    startPos = positionManager.getPositionByXY(e.clientX, e.clientY);
+container.addEventListener('mousedown', e => {
+  startPos = positionManager.getPositionByXY(e.clientX, e.clientY);
 });
 
-container.addEventListener('mouseup', (e) => {
-    const endPos = positionManager.getPositionByXY(e.clientX, e.clientY);
-    if (startPos && endPos) {
-        const range = positionManager.getPositionsInRange(
-            startPos.index,
-            endPos.index
-        );
-        // 선택된 텍스트 처리
-        const selectedText = range.map(p => p.value).join('');
-        console.log('Selected:', selectedText);
-    }
+container.addEventListener('mouseup', e => {
+  const endPos = positionManager.getPositionByXY(e.clientX, e.clientY);
+  if (startPos && endPos) {
+    const range = positionManager.getPositionsInRange(
+      startPos.index,
+      endPos.index
+    );
+    // 선택된 텍스트 처리
+    const selectedText = range.map(p => p.value).join('');
+    console.log('Selected:', selectedText);
+  }
 });
 ```
 
@@ -189,13 +199,13 @@ const searchTerm = '검색어';
 const results = viewer.searchText(searchTerm);
 
 results.forEach((result, index) => {
-    // 각 결과를 다른 색으로 하이라이트
-    const colors = ['yellow', 'lightblue', 'lightgreen'];
-    viewer.highlightRange(
-        result.startIndex,
-        result.endIndex,
-        colors[index % colors.length]
-    );
+  // 각 결과를 다른 색으로 하이라이트
+  const colors = ['yellow', 'lightblue', 'lightgreen'];
+  viewer.highlightRange(
+    result.startIndex,
+    result.endIndex,
+    colors[index % colors.length]
+  );
 });
 ```
 
@@ -207,12 +217,12 @@ const positions = positionManager.getPositionList();
 const pageCharCounts = {};
 
 positions.forEach(pos => {
-    if (!pageCharCounts[pos.pageNumber]) {
-        pageCharCounts[pos.pageNumber] = 0;
-    }
-    if (!pos.isWhitespace) {
-        pageCharCounts[pos.pageNumber]++;
-    }
+  if (!pageCharCounts[pos.pageNumber]) {
+    pageCharCounts[pos.pageNumber] = 0;
+  }
+  if (!pos.isWhitespace) {
+    pageCharCounts[pos.pageNumber]++;
+  }
 });
 
 console.log('Characters per page:', pageCharCounts);
@@ -228,15 +238,19 @@ console.log('Characters per page:', pageCharCounts);
 ## 디버깅 팁
 
 ### 1. 위치 정보 확인
+
 ```javascript
 // 첫 100개 문자 출력
 const positions = positionManager.getPositionList().slice(0, 100);
 positions.forEach(pos => {
-    console.log(`[${pos.index}] "${pos.value}" at (${pos.coordinate.left}, ${pos.coordinate.top})`);
+  console.log(
+    `[${pos.index}] "${pos.value}" at (${pos.coordinate.left}, ${pos.coordinate.top})`
+  );
 });
 ```
 
 ### 2. 특정 요소의 위치들
+
 ```javascript
 const paragraph = document.querySelector('.hwp-paragraph');
 const positions = positionManager.getPositionsByElement(paragraph);
@@ -244,6 +258,7 @@ console.log(`Paragraph has ${positions.length} characters`);
 ```
 
 ### 3. 클릭 위치 디버깅
+
 - Ctrl+Shift+Click으로 자동으로 상세 정보 출력
 - 콘솔에서 Position 객체 확인
 

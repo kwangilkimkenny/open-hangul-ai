@@ -2,8 +2,7 @@
 
 > **HAN-View React v2.1.0** - Complete deployment guide for Phase 2-5 features
 
-**Last Updated:** 2025-01-12
-**Version:** 2.1.0 (Phase 2-5 Complete)
+**Last Updated:** 2025-01-12 **Version:** 2.1.0 (Phase 2-5 Complete)
 
 ---
 
@@ -27,6 +26,7 @@
 ### Code Quality
 
 - [ ] All 43 tests passing
+
   ```bash
   node test-phase2-p0.js  # ✅ 6/6 tests
   node test-phase2-p1.js  # ✅ 6/6 tests
@@ -38,11 +38,13 @@
   ```
 
 - [ ] Linting passes
+
   ```bash
   npm run lint
   ```
 
 - [ ] No console.log statements (use logger instead)
+
   ```bash
   # Search for console.log in source
   grep -r "console.log" src/lib/vanilla --exclude-dir=node_modules
@@ -166,6 +168,7 @@ npm run build
 ```
 
 **Target Bundle Sizes:**
+
 - Main JS bundle: <500 KB (gzipped)
 - CSS bundle: <50 KB (gzipped)
 - Total initial load: <600 KB
@@ -177,12 +180,14 @@ npm run build
 ### Production Environment Variables
 
 **Required:**
+
 ```env
 NODE_ENV=production
 VITE_API_BASE_URL=https://api.your-domain.com
 ```
 
 **Optional (Recommended):**
+
 ```env
 # Logging
 VITE_LOG_LEVEL=error          # error, warn, info, debug
@@ -215,6 +220,7 @@ import { createProductionLogger } from './src/lib/vanilla/utils/logging-validato
 ```
 
 **Validate logging setup:**
+
 ```javascript
 import { validateLogging } from './src/lib/vanilla/utils/logging-validator.js';
 const report = validateLogging();
@@ -228,17 +234,20 @@ console.log(report);
 ### Phase 2-5 Optimizations (Already Implemented)
 
 ✅ **Command Pattern Undo/Redo**
+
 - <1ms per operation
 - WeakMap for memory efficiency
 - Batch operations (90% faster)
 
 ✅ **Pagination Performance**
+
 - Debounced checks (500ms)
 - Dirty flags (only check edited pages)
 - Queue system (100+ concurrent requests)
 - 10x faster UI response
 
 ✅ **Memory Management**
+
 - WeakMap auto garbage collection
 - No memory leaks
 - 90% memory reduction vs full document storage
@@ -248,26 +257,27 @@ console.log(report);
 #### 1. Enable Compression
 
 **Vite config (vite.config.ts):**
+
 ```typescript
 export default defineConfig({
   build: {
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,  // Remove console.log
-        drop_debugger: true
-      }
+        drop_console: true, // Remove console.log
+        drop_debugger: true,
+      },
     },
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
-          'ui-vendor': ['zustand', 'lucide-react']
-        }
-      }
-    }
-  }
-})
+          'ui-vendor': ['zustand', 'lucide-react'],
+        },
+      },
+    },
+  },
+});
 ```
 
 #### 2. Enable HTTP/2 Server Push
@@ -307,15 +317,17 @@ gzip_types text/plain text/css text/xml text/javascript
 Add to HTML header:
 
 ```html
-<meta http-equiv="Content-Security-Policy"
-      content="
+<meta
+  http-equiv="Content-Security-Policy"
+  content="
         default-src 'self';
         script-src 'self' 'unsafe-inline' https://api.openai.com;
         style-src 'self' 'unsafe-inline';
         img-src 'self' data: blob:;
         font-src 'self' data:;
         connect-src 'self' https://api.openai.com;
-      ">
+      "
+/>
 ```
 
 ### 2. Security Headers (nginx)
@@ -356,12 +368,12 @@ server {
 
 ```javascript
 // ❌ BAD: Hardcoded API key
-const apiKey = "sk-xxx";
+const apiKey = 'sk-xxx';
 
 // ✅ GOOD: Backend proxy
 const response = await fetch('/api/openai', {
-    method: 'POST',
-    body: JSON.stringify({ prompt: '...' })
+  method: 'POST',
+  body: JSON.stringify({ prompt: '...' }),
 });
 ```
 
@@ -374,7 +386,7 @@ import { safeDOMOperation } from './src/lib/vanilla/utils/error-boundary.js';
 
 // Prevents XSS attacks
 const sanitized = safeDOMOperation(() => {
-    return DOMPurify.sanitize(userInput);
+  return DOMPurify.sanitize(userInput);
 });
 ```
 
@@ -385,16 +397,19 @@ const sanitized = safeDOMOperation(() => {
 ### Option 1: Vercel (Recommended - Easiest)
 
 **1. Install Vercel CLI:**
+
 ```bash
 npm install -g vercel
 ```
 
 **2. Deploy:**
+
 ```bash
 vercel --prod
 ```
 
 **3. Configure:**
+
 ```json
 // vercel.json
 {
@@ -424,6 +439,7 @@ vercel --prod
 ```
 
 **4. Set Environment Variables:**
+
 ```bash
 vercel env add VITE_API_BASE_URL
 vercel env add VITE_OPENAI_API_KEY
@@ -434,16 +450,19 @@ vercel env add VITE_OPENAI_API_KEY
 ### Option 2: Netlify
 
 **1. Install Netlify CLI:**
+
 ```bash
 npm install -g netlify-cli
 ```
 
 **2. Deploy:**
+
 ```bash
 netlify deploy --prod
 ```
 
 **3. Configure:**
+
 ```toml
 # netlify.toml
 [build]
@@ -466,11 +485,13 @@ netlify deploy --prod
 ### Option 3: AWS S3 + CloudFront
 
 **1. Build:**
+
 ```bash
 npm run build
 ```
 
 **2. Upload to S3:**
+
 ```bash
 aws s3 sync dist/ s3://your-bucket-name \
   --delete \
@@ -478,6 +499,7 @@ aws s3 sync dist/ s3://your-bucket-name \
 ```
 
 **3. Invalidate CloudFront:**
+
 ```bash
 aws cloudfront create-invalidation \
   --distribution-id YOUR_DISTRIBUTION_ID \
@@ -485,6 +507,7 @@ aws cloudfront create-invalidation \
 ```
 
 **4. CloudFront Configuration:**
+
 - Origin: S3 bucket
 - Viewer Protocol Policy: Redirect HTTP to HTTPS
 - Compress Objects: Yes
@@ -495,16 +518,19 @@ aws cloudfront create-invalidation \
 ### Option 4: nginx (Self-Hosted)
 
 **1. Build:**
+
 ```bash
 npm run build
 ```
 
 **2. Copy to server:**
+
 ```bash
 scp -r dist/* user@server:/var/www/hanview/
 ```
 
 **3. nginx configuration:**
+
 ```nginx
 server {
     listen 443 ssl http2;
@@ -540,6 +566,7 @@ server {
 ```
 
 **4. Restart nginx:**
+
 ```bash
 sudo systemctl restart nginx
 ```
@@ -549,6 +576,7 @@ sudo systemctl restart nginx
 ### Option 5: Docker
 
 **1. Create Dockerfile:**
+
 ```dockerfile
 # Build stage
 FROM node:18-alpine AS builder
@@ -567,6 +595,7 @@ CMD ["nginx", "-g", "daemon off;"]
 ```
 
 **2. Create nginx.conf:**
+
 ```nginx
 server {
     listen 80;
@@ -586,6 +615,7 @@ server {
 ```
 
 **3. Build & Run:**
+
 ```bash
 # Build image
 docker build -t hanview-react:2.1.0 .
@@ -598,6 +628,7 @@ docker run -d \
 ```
 
 **4. Docker Compose:**
+
 ```yaml
 # docker-compose.yml
 version: '3.8'
@@ -605,7 +636,7 @@ services:
   web:
     build: .
     ports:
-      - "80:80"
+      - '80:80'
     environment:
       - NODE_ENV=production
     restart: unless-stopped
@@ -678,31 +709,31 @@ ab -n 1000 -c 10 https://your-domain.com/
 ### 1. Error Tracking (Sentry)
 
 **Install:**
+
 ```bash
 npm install @sentry/react @sentry/tracing
 ```
 
 **Configure:**
+
 ```typescript
 // src/main.tsx
-import * as Sentry from "@sentry/react";
+import * as Sentry from '@sentry/react';
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
   tracesSampleRate: 1.0,
-  integrations: [
-    new Sentry.BrowserTracing(),
-    new Sentry.Replay()
-  ]
+  integrations: [new Sentry.BrowserTracing(), new Sentry.Replay()],
 });
 ```
 
 **Phase 5 Integration:**
+
 ```javascript
 // Already implemented in error-boundary.js
 if (typeof window !== 'undefined' && window.errorTracker) {
-    window.errorTracker.captureException(error, { context });
+  window.errorTracker.captureException(error, { context });
 }
 ```
 
@@ -724,6 +755,7 @@ trackEvent('page_split', { pageCount: 2 });
 ### 3. Performance Monitoring
 
 **Monitor these metrics:**
+
 - Undo/Redo response time (target: <1ms)
 - Typing FPS (target: >30 FPS)
 - Page load time (target: <3s)
@@ -731,23 +763,26 @@ trackEvent('page_split', { pageCount: 2 });
 - Memory usage (target: stable, no growth)
 
 **Phase 4 Debug Mode:**
+
 ```javascript
 // Enable in production for debugging
-window.viewer.renderer.enablePaginationDebug()
+window.viewer.renderer.enablePaginationDebug();
 
 // Check performance
-console.log(window.viewer.renderer.dirtyPages.size)
-console.log(window.viewer.renderer.paginationQueue.length)
+console.log(window.viewer.renderer.dirtyPages.size);
+console.log(window.viewer.renderer.paginationQueue.length);
 ```
 
 ### 4. Uptime Monitoring
 
 Use services like:
+
 - **Pingdom** - https://www.pingdom.com/
 - **UptimeRobot** - https://uptimerobot.com/
 - **StatusCake** - https://www.statuscake.com/
 
 Set up alerts for:
+
 - Downtime (>1 minute)
 - Slow response (>3 seconds)
 - SSL certificate expiration
@@ -756,6 +791,7 @@ Set up alerts for:
 ### 5. Logging & Alerts
 
 **Phase 5 Logging Validator:**
+
 ```javascript
 // Check production logging configuration
 import { generateLoggingReport } from './src/lib/vanilla/utils/logging-validator.js';
@@ -763,6 +799,7 @@ console.log(generateLoggingReport());
 ```
 
 **Set up alerts for:**
+
 - Error rate >1%
 - Performance degradation (>100ms undo/redo)
 - Memory leaks (growing heap)
@@ -775,6 +812,7 @@ console.log(generateLoggingReport());
 ### Quick Rollback
 
 **Vercel:**
+
 ```bash
 # List deployments
 vercel ls
@@ -784,6 +822,7 @@ vercel rollback [deployment-url]
 ```
 
 **Netlify:**
+
 ```bash
 # List deployments
 netlify deploys:list
@@ -793,6 +832,7 @@ netlify api rollbackSiteDeploy --site-id [SITE_ID] --deploy-id [DEPLOY_ID]
 ```
 
 **nginx:**
+
 ```bash
 # Keep previous builds
 /var/www/hanview-current -> /var/www/hanview-2.1.0
@@ -821,11 +861,13 @@ sudo systemctl reload nginx
 ### Issue: Build fails
 
 **Symptoms:**
+
 ```
 ✘ [ERROR] Build failed
 ```
 
 **Solutions:**
+
 ```bash
 # Clear cache
 rm -rf node_modules/.vite
@@ -845,93 +887,104 @@ npm run build
 ### Issue: Undo/Redo not working in production
 
 **Symptoms:**
+
 - Ctrl+Z/Y does nothing
 - Console error: "historyManager is undefined"
 
 **Solutions:**
+
 ```javascript
 // Check if HistoryManager is initialized
-console.log(window.viewer?.historyManager)
+console.log(window.viewer?.historyManager);
 
 // Verify Phase 2 features loaded
-console.log(typeof window.viewer?.historyManager?.execute)
+console.log(typeof window.viewer?.historyManager?.execute);
 ```
 
 ### Issue: Pagination not triggering
 
 **Symptoms:**
+
 - Pages don't split automatically
 - Content overflows
 
 **Solutions:**
+
 ```javascript
 // Check if auto-pagination is enabled
-console.log(window.viewer?.renderer?.options?.enableAutoPagination)
+console.log(window.viewer?.renderer?.options?.enableAutoPagination);
 
 // Check Phase 3 features
-console.log(typeof window.viewer?.renderer?.autoPaginateContent)
+console.log(typeof window.viewer?.renderer?.autoPaginateContent);
 
 // Enable debug mode
-window.viewer.renderer.enablePaginationDebug()
+window.viewer.renderer.enablePaginationDebug();
 ```
 
 ### Issue: Performance degradation
 
 **Symptoms:**
+
 - Slow undo/redo (>100ms)
 - Typing lag
 - High memory usage
 
 **Solutions:**
+
 ```javascript
 // Check Phase 4 optimizations
 console.log({
-    isPaginating: window.viewer.renderer.isPaginating,
-    queueLength: window.viewer.renderer.paginationQueue.length,
-    dirtyPages: window.viewer.renderer.dirtyPages.size
-})
+  isPaginating: window.viewer.renderer.isPaginating,
+  queueLength: window.viewer.renderer.paginationQueue.length,
+  dirtyPages: window.viewer.renderer.dirtyPages.size,
+});
 
 // Clear queue if stuck
-window.viewer.renderer.paginationQueue = []
-window.viewer.renderer.isPaginating = false
+window.viewer.renderer.paginationQueue = [];
+window.viewer.renderer.isPaginating = false;
 ```
 
 ### Issue: Memory leaks
 
 **Symptoms:**
+
 - Memory grows continuously
 - Browser slows down over time
 
 **Solutions:**
+
 ```javascript
 // Phase 2 P1: Verify WeakMap is working
 // Old elements should be garbage collected
 
 // Check history size
-const stats = window.viewer.historyManager.getStats()
-console.log('History size:', stats.undoCount + stats.redoCount)
+const stats = window.viewer.historyManager.getStats();
+console.log('History size:', stats.undoCount + stats.redoCount);
 
 // Clear history if too large (>50)
 if (stats.undoCount > 50) {
-    window.viewer.historyManager.clear()
+  window.viewer.historyManager.clear();
 }
 ```
 
 ### Issue: Console errors
 
 **Symptoms:**
+
 - Red errors in console
 - Application works but shows errors
 
 **Solutions:**
+
 ```javascript
 // Phase 5: Check if errors are being caught
 // Error boundaries should catch all errors
 
 // Check error boundary status
-console.log('Error boundaries installed:',
-    typeof window.viewer.renderer.enablePaginationDebug === 'function'
-)
+console.log(
+  'Error boundaries installed:',
+  typeof window.viewer.renderer.enablePaginationDebug === 'function'
+);
 ```
 
 ---
@@ -939,11 +992,13 @@ console.log('Error boundaries installed:',
 ## 📚 Additional Resources
 
 ### Documentation
+
 - [README.md](README.md) - Main documentation
 - [BROWSER_TEST_CHECKLIST.md](BROWSER_TEST_CHECKLIST.md) - Testing guide
 - [test-live-features.md](test-live-features.md) - Manual test procedures
 
 ### Test Suites
+
 - [test-phase2-p0.js](test-phase2-p0.js) - Command Pattern (6 tests)
 - [test-phase2-p1.js](test-phase2-p1.js) - WeakMap (6 tests)
 - [test-phase2-p2.js](test-phase2-p2.js) - Batch Operations (6 tests)
@@ -953,6 +1008,7 @@ console.log('Error boundaries installed:',
 - [test-phase5.js](test-phase5.js) - Integration (7 tests)
 
 ### Verification Scripts
+
 - [verify-implementation.sh](verify-implementation.sh) - File verification
 - [smoke-test.js](smoke-test.js) - Quick verification
 
@@ -963,6 +1019,7 @@ console.log('Error boundaries installed:',
 Final checklist before going live:
 
 ### Pre-Deploy
+
 - [ ] All 43 tests passing ✅
 - [ ] Bundle optimized (<600 KB) ✅
 - [ ] Environment variables configured ✅
@@ -970,12 +1027,14 @@ Final checklist before going live:
 - [ ] HTTPS enabled ✅
 
 ### Deploy
+
 - [ ] Production build successful ✅
 - [ ] Assets uploaded ✅
 - [ ] DNS configured ✅
 - [ ] SSL certificate valid ✅
 
 ### Post-Deploy
+
 - [ ] Application loads ✅
 - [ ] Undo/Redo works ✅
 - [ ] Page splitting works ✅
@@ -984,6 +1043,7 @@ Final checklist before going live:
 - [ ] Mobile works ✅
 
 ### Monitoring
+
 - [ ] Error tracking configured (Sentry) ✅
 - [ ] Analytics configured (GA) ✅
 - [ ] Uptime monitoring enabled ✅

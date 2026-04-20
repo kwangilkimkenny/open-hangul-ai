@@ -2,21 +2,26 @@
 
 ## 개요
 
-Clipboard Commands는 HWPX 뷰어에서 텍스트 복사, 잘라내기, 붙여넣기 기능을 제공합니다. 브라우저의 Clipboard API와 통합되어 시스템 클립보드와 완벽하게 연동됩니다.
+Clipboard Commands는 HWPX 뷰어에서 텍스트 복사, 잘라내기, 붙여넣기 기능을
+제공합니다. 브라우저의 Clipboard API와 통합되어 시스템 클립보드와 완벽하게
+연동됩니다.
 
 ## 주요 기능
 
 ### 1. Copy (복사)
+
 - 선택된 텍스트를 시스템 클립보드에 복사
 - 원본 문서는 변경되지 않음
 - 단축키: `Ctrl+C` (Mac: `Cmd+C`)
 
 ### 2. Cut (잘라내기)
+
 - 선택된 텍스트를 시스템 클립보드에 복사하고 삭제
 - Undo/Redo 지원
 - 단축키: `Ctrl+X` (Mac: `Cmd+X`)
 
 ### 3. Paste (붙여넣기)
+
 - 클립보드의 텍스트를 커서 위치에 삽입
 - 선택 영역이 있으면 선택 영역을 대체
 - Undo/Redo 지원
@@ -94,19 +99,19 @@ viewer.command.paste(clipboardText);
 
 ### 클립보드 단축키
 
-| 단축키 | Mac | 기능 |
-|--------|-----|------|
-| `Ctrl+C` | `Cmd+C` | 복사 |
+| 단축키   | Mac     | 기능     |
+| -------- | ------- | -------- |
+| `Ctrl+C` | `Cmd+C` | 복사     |
 | `Ctrl+X` | `Cmd+X` | 잘라내기 |
 | `Ctrl+V` | `Cmd+V` | 붙여넣기 |
 
 ### 추가 단축키
 
-| 단축키 | Mac | 기능 |
-|--------|-----|------|
-| `Ctrl+Z` | `Cmd+Z` | 실행 취소 |
-| `Ctrl+Y` | `Cmd+Y` | 다시 실행 |
-| `Shift+화살표` | `Shift+화살표` | 텍스트 선택 |
+| 단축키          | Mac             | 기능        |
+| --------------- | --------------- | ----------- |
+| `Ctrl+Z`        | `Cmd+Z`         | 실행 취소   |
+| `Ctrl+Y`        | `Cmd+Y`         | 다시 실행   |
+| `Shift+화살표`  | `Shift+화살표`  | 텍스트 선택 |
 | `마우스 드래그` | `마우스 드래그` | 텍스트 선택 |
 
 ## 고급 사용법
@@ -152,60 +157,60 @@ viewer.command.paste(text);
 
 ```javascript
 class ClipboardHelper {
-    constructor(viewer) {
-        this.viewer = viewer;
+  constructor(viewer) {
+    this.viewer = viewer;
+  }
+
+  // 현재 선택된 텍스트 복사
+  async copySelection() {
+    const text = this.viewer.command.copy();
+    if (text) {
+      await navigator.clipboard.writeText(text);
+      return text;
     }
+    return null;
+  }
 
-    // 현재 선택된 텍스트 복사
-    async copySelection() {
-        const text = this.viewer.command.copy();
-        if (text) {
-            await navigator.clipboard.writeText(text);
-            return text;
-        }
-        return null;
+  // 클립보드 내용을 현재 위치에 붙여넣기
+  async pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        this.viewer.command.paste(text);
+        return text;
+      }
+    } catch (error) {
+      console.error('Paste failed:', error);
     }
+    return null;
+  }
 
-    // 클립보드 내용을 현재 위치에 붙여넣기
-    async pasteFromClipboard() {
-        try {
-            const text = await navigator.clipboard.readText();
-            if (text) {
-                this.viewer.command.paste(text);
-                return text;
-            }
-        } catch (error) {
-            console.error('Paste failed:', error);
-        }
-        return null;
+  // 텍스트를 클립보드에 복사하고 특정 위치에 붙여넣기
+  async copyAndPaste(sourceStart, sourceEnd, targetIndex) {
+    // 복사
+    this.viewer.command.setRange(sourceStart, sourceEnd);
+    const text = await this.copySelection();
+
+    if (text) {
+      // 붙여넣기
+      this.viewer.getCursor().setCursorPosition(targetIndex);
+      this.viewer.command.paste(text);
     }
+  }
 
-    // 텍스트를 클립보드에 복사하고 특정 위치에 붙여넣기
-    async copyAndPaste(sourceStart, sourceEnd, targetIndex) {
-        // 복사
-        this.viewer.command.setRange(sourceStart, sourceEnd);
-        const text = await this.copySelection();
+  // 텍스트 이동 (잘라내기 + 붙여넣기)
+  async moveText(sourceStart, sourceEnd, targetIndex) {
+    // 잘라내기
+    this.viewer.command.setRange(sourceStart, sourceEnd);
+    const text = this.viewer.command.cut();
 
-        if (text) {
-            // 붙여넣기
-            this.viewer.getCursor().setCursorPosition(targetIndex);
-            this.viewer.command.paste(text);
-        }
+    if (text) {
+      // 붙여넣기
+      await navigator.clipboard.writeText(text);
+      this.viewer.getCursor().setCursorPosition(targetIndex);
+      this.viewer.command.paste(text);
     }
-
-    // 텍스트 이동 (잘라내기 + 붙여넣기)
-    async moveText(sourceStart, sourceEnd, targetIndex) {
-        // 잘라내기
-        this.viewer.command.setRange(sourceStart, sourceEnd);
-        const text = this.viewer.command.cut();
-
-        if (text) {
-            // 붙여넣기
-            await navigator.clipboard.writeText(text);
-            this.viewer.getCursor().setCursorPosition(targetIndex);
-            this.viewer.command.paste(text);
-        }
-    }
+  }
 }
 
 // 사용
@@ -218,44 +223,44 @@ await clipboardHelper.pasteFromClipboard();
 
 ```javascript
 class ClipboardHistory {
-    constructor(maxSize = 10) {
-        this.history = [];
-        this.maxSize = maxSize;
-    }
+  constructor(maxSize = 10) {
+    this.history = [];
+    this.maxSize = maxSize;
+  }
 
-    // 클립보드에 추가
-    add(text) {
-        this.history.unshift(text);
-        if (this.history.length > this.maxSize) {
-            this.history.pop();
-        }
+  // 클립보드에 추가
+  add(text) {
+    this.history.unshift(text);
+    if (this.history.length > this.maxSize) {
+      this.history.pop();
     }
+  }
 
-    // 히스토리에서 가져오기
-    get(index = 0) {
-        return this.history[index] || null;
-    }
+  // 히스토리에서 가져오기
+  get(index = 0) {
+    return this.history[index] || null;
+  }
 
-    // 히스토리 목록
-    getAll() {
-        return [...this.history];
-    }
+  // 히스토리 목록
+  getAll() {
+    return [...this.history];
+  }
 
-    // 히스토리 초기화
-    clear() {
-        this.history = [];
-    }
+  // 히스토리 초기화
+  clear() {
+    this.history = [];
+  }
 }
 
 // 사용
 const clipboardHistory = new ClipboardHistory(10);
 
 // 복사 시 히스토리에 추가
-viewer.getCursor().addEventListener('copy', (e) => {
-    const text = viewer.command.copy();
-    if (text) {
-        clipboardHistory.add(text);
-    }
+viewer.getCursor().addEventListener('copy', e => {
+  const text = viewer.command.copy();
+  if (text) {
+    clipboardHistory.add(text);
+  }
 });
 
 // 이전 복사 내용 확인
@@ -264,7 +269,7 @@ console.log('Clipboard history:', clipboardHistory.getAll());
 // 이전 복사 내용 붙여넣기
 const previousCopy = clipboardHistory.get(1); // 2번째 복사 내용
 if (previousCopy) {
-    viewer.command.paste(previousCopy);
+  viewer.command.paste(previousCopy);
 }
 ```
 
@@ -272,39 +277,39 @@ if (previousCopy) {
 
 ```javascript
 class MultiClipboard {
-    constructor() {
-        this.clips = new Map();
-    }
+  constructor() {
+    this.clips = new Map();
+  }
 
-    // 특정 슬롯에 저장
-    copy(viewer, slot = 'default') {
-        const text = viewer.command.copy();
-        if (text) {
-            this.clips.set(slot, text);
-            return text;
-        }
-        return null;
+  // 특정 슬롯에 저장
+  copy(viewer, slot = 'default') {
+    const text = viewer.command.copy();
+    if (text) {
+      this.clips.set(slot, text);
+      return text;
     }
+    return null;
+  }
 
-    // 특정 슬롯에서 붙여넣기
-    paste(viewer, slot = 'default') {
-        const text = this.clips.get(slot);
-        if (text) {
-            viewer.command.paste(text);
-            return text;
-        }
-        return null;
+  // 특정 슬롯에서 붙여넣기
+  paste(viewer, slot = 'default') {
+    const text = this.clips.get(slot);
+    if (text) {
+      viewer.command.paste(text);
+      return text;
     }
+    return null;
+  }
 
-    // 모든 슬롯 목록
-    getSlots() {
-        return Array.from(this.clips.keys());
-    }
+  // 모든 슬롯 목록
+  getSlots() {
+    return Array.from(this.clips.keys());
+  }
 
-    // 슬롯 삭제
-    delete(slot) {
-        this.clips.delete(slot);
-    }
+  // 슬롯 삭제
+  delete(slot) {
+    this.clips.delete(slot);
+  }
 }
 
 // 사용
@@ -333,11 +338,15 @@ multiClip.paste(viewer, 'content');
 
 ```javascript
 // 클립보드 읽기 권한 확인
-const permission = await navigator.permissions.query({ name: 'clipboard-read' });
+const permission = await navigator.permissions.query({
+  name: 'clipboard-read',
+});
 console.log('Clipboard read permission:', permission.state);
 
 // 클립보드 쓰기 권한 확인
-const writePermission = await navigator.permissions.query({ name: 'clipboard-write' });
+const writePermission = await navigator.permissions.query({
+  name: 'clipboard-write',
+});
 console.log('Clipboard write permission:', writePermission.state);
 ```
 
@@ -345,43 +354,43 @@ console.log('Clipboard write permission:', writePermission.state);
 
 ```javascript
 async function copyToClipboard(text) {
-    try {
-        // 최신 Clipboard API 사용
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(text);
-            return true;
-        }
-
-        // 폴백: document.execCommand (deprecated)
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        const success = document.execCommand('copy');
-        document.body.removeChild(textarea);
-        return success;
-    } catch (error) {
-        console.error('Copy failed:', error);
-        return false;
+  try {
+    // 최신 Clipboard API 사용
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
     }
+
+    // 폴백: document.execCommand (deprecated)
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const success = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return success;
+  } catch (error) {
+    console.error('Copy failed:', error);
+    return false;
+  }
 }
 
 async function pasteFromClipboard() {
-    try {
-        // 최신 Clipboard API 사용
-        if (navigator.clipboard && navigator.clipboard.readText) {
-            return await navigator.clipboard.readText();
-        }
-
-        // 폴백: 사용자에게 수동 붙여넣기 요청
-        const text = prompt('클립보드에서 텍스트를 붙여넣으세요:');
-        return text;
-    } catch (error) {
-        console.error('Paste failed:', error);
-        return null;
+  try {
+    // 최신 Clipboard API 사용
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      return await navigator.clipboard.readText();
     }
+
+    // 폴백: 사용자에게 수동 붙여넣기 요청
+    const text = prompt('클립보드에서 텍스트를 붙여넣으세요:');
+    return text;
+  } catch (error) {
+    console.error('Paste failed:', error);
+    return null;
+  }
 }
 ```
 
@@ -393,23 +402,24 @@ Clipboard API는 HTTPS 또는 localhost에서만 작동합니다:
 
 ```javascript
 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-    console.warn('⚠️ Clipboard API requires HTTPS or localhost');
+  console.warn('⚠️ Clipboard API requires HTTPS or localhost');
 }
 ```
 
 ### 2. 사용자 제스처 필요
 
-일부 브라우저에서는 사용자 제스처(클릭, 키보드 입력) 내에서만 클립보드 접근이 가능합니다:
+일부 브라우저에서는 사용자 제스처(클릭, 키보드 입력) 내에서만 클립보드 접근이
+가능합니다:
 
 ```javascript
 // ✅ 버튼 클릭 핸들러 내에서 - 작동
 button.addEventListener('click', async () => {
-    await navigator.clipboard.writeText('text');
+  await navigator.clipboard.writeText('text');
 });
 
 // ❌ setTimeout 내에서 - 작동하지 않을 수 있음
 setTimeout(async () => {
-    await navigator.clipboard.writeText('text'); // 오류 발생 가능
+  await navigator.clipboard.writeText('text'); // 오류 발생 가능
 }, 1000);
 ```
 
@@ -419,12 +429,12 @@ setTimeout(async () => {
 
 ```javascript
 function sanitizeClipboardText(text) {
-    // 비밀번호 패턴 제거
-    if (text.includes('password') || text.includes('secret')) {
-        console.warn('⚠️ Sensitive information detected in clipboard');
-        return null;
-    }
-    return text;
+  // 비밀번호 패턴 제거
+  if (text.includes('password') || text.includes('secret')) {
+    console.warn('⚠️ Sensitive information detected in clipboard');
+    return null;
+  }
+  return text;
 }
 ```
 
@@ -465,12 +475,12 @@ open http://localhost:5173/docs/test-clipboard.html
 
 ### 지원 브라우저
 
-| 브라우저 | 버전 | Clipboard API |
-|----------|------|---------------|
-| Chrome | 66+ | ✅ |
-| Firefox | 63+ | ✅ |
-| Safari | 13.1+ | ✅ |
-| Edge | 79+ | ✅ |
+| 브라우저 | 버전  | Clipboard API |
+| -------- | ----- | ------------- |
+| Chrome   | 66+   | ✅            |
+| Firefox  | 63+   | ✅            |
+| Safari   | 13.1+ | ✅            |
+| Edge     | 79+   | ✅            |
 
 ### 폴백 지원
 
@@ -522,12 +532,12 @@ open http://localhost:5173/docs/test-clipboard.html
 // 해결: 사용자 제스처 내에서 실행하거나 권한 요청
 
 try {
-    const text = await navigator.clipboard.readText();
+  const text = await navigator.clipboard.readText();
 } catch (error) {
-    if (error.name === 'NotAllowedError') {
-        console.warn('⚠️ 클립보드 권한이 필요합니다');
-        // 사용자에게 권한 요청 안내
-    }
+  if (error.name === 'NotAllowedError') {
+    console.warn('⚠️ 클립보드 권한이 필요합니다');
+    // 사용자에게 권한 요청 안내
+  }
 }
 ```
 
@@ -538,7 +548,7 @@ try {
 // 해결: HTTPS 또는 localhost 사용
 
 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-    alert('클립보드 기능을 사용하려면 HTTPS가 필요합니다');
+  alert('클립보드 기능을 사용하려면 HTTPS가 필요합니다');
 }
 ```
 
@@ -550,8 +560,8 @@ if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
 
 const text = await navigator.clipboard.readText();
 if (!text || text.length === 0) {
-    console.warn('⚠️ 클립보드가 비어있습니다');
-    return;
+  console.warn('⚠️ 클립보드가 비어있습니다');
+  return;
 }
 ```
 
@@ -560,6 +570,7 @@ if (!text || text.length === 0) {
 ### Command 클래스
 
 #### copy()
+
 ```javascript
 /**
  * 선택된 텍스트 복사
@@ -569,6 +580,7 @@ const text = viewer.command.copy();
 ```
 
 #### cut()
+
 ```javascript
 /**
  * 선택된 텍스트 잘라내기
@@ -578,6 +590,7 @@ const text = viewer.command.cut();
 ```
 
 #### paste(text)
+
 ```javascript
 /**
  * 텍스트 붙여넣기
@@ -589,6 +602,7 @@ viewer.command.paste('Hello World');
 ### Cursor 클래스
 
 키보드 단축키는 자동으로 처리됩니다:
+
 - `Ctrl+C`: 복사
 - `Ctrl+X`: 잘라내기
 - `Ctrl+V`: 붙여넣기

@@ -1,8 +1,7 @@
 # Environment Variables Guide
 
-**Project:** HAN-View React App v3
-**Version:** 1.0.0
-**Last Updated:** 2026-01-16
+**Project:** HAN-View React App v3 **Version:** 1.0.0 **Last Updated:**
+2026-01-16
 
 ---
 
@@ -21,7 +20,9 @@
 
 ## Introduction
 
-이 가이드는 HAN-View React App의 환경 변수 관리 시스템을 설명합니다. Vite의 환경 변수 시스템을 활용하여 개발, 스테이징, 프로덕션 환경을 분리하고 안전하게 설정을 관리합니다.
+이 가이드는 HAN-View React App의 환경 변수 관리 시스템을 설명합니다. Vite의 환경
+변수 시스템을 활용하여 개발, 스테이징, 프로덕션 환경을 분리하고 안전하게 설정을
+관리합니다.
 
 ### 주요 기능
 
@@ -91,6 +92,7 @@ project-root/
 4. `.env` - 공통 기본값
 
 **예시 (development 모드)**:
+
 ```
 .env.development.local → .env.development → .env.local → .env
 ```
@@ -101,94 +103,94 @@ project-root/
 
 ### OpenAI API Configuration
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_OPENAI_API_KEY` | string | - | OpenAI API 키 (선택사항) |
-| `VITE_OPENAI_API_ENDPOINT` | string | `https://api.openai.com/v1/chat/completions` | API 엔드포인트 |
-| `VITE_OPENAI_MODEL` | string | `gpt-4-turbo-preview` | 사용할 GPT 모델 |
-| `VITE_OPENAI_TEMPERATURE` | number | `0.7` | Temperature (0.0 ~ 2.0) |
-| `VITE_OPENAI_MAX_TOKENS` | number | `4000` | 최대 토큰 수 |
-| `VITE_OPENAI_TIMEOUT` | number | `120000` | API 타임아웃 (ms) |
+| 변수명                     | 타입   | 기본값                                       | 설명                     |
+| -------------------------- | ------ | -------------------------------------------- | ------------------------ |
+| `VITE_OPENAI_API_KEY`      | string | -                                            | OpenAI API 키 (선택사항) |
+| `VITE_OPENAI_API_ENDPOINT` | string | `https://api.openai.com/v1/chat/completions` | API 엔드포인트           |
+| `VITE_OPENAI_MODEL`        | string | `gpt-4-turbo-preview`                        | 사용할 GPT 모델          |
+| `VITE_OPENAI_TEMPERATURE`  | number | `0.7`                                        | Temperature (0.0 ~ 2.0)  |
+| `VITE_OPENAI_MAX_TOKENS`   | number | `4000`                                       | 최대 토큰 수             |
+| `VITE_OPENAI_TIMEOUT`      | number | `120000`                                     | API 타임아웃 (ms)        |
 
 ### Custom API Configuration
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_CUSTOM_API_ENABLED` | boolean | `false` | 커스텀 API 활성화 |
-| `VITE_CUSTOM_API_ENDPOINT` | string | - | 커스텀 API 엔드포인트 |
-| `VITE_CUSTOM_API_KEY` | string | - | 커스텀 API 키 |
+| 변수명                     | 타입    | 기본값  | 설명                  |
+| -------------------------- | ------- | ------- | --------------------- |
+| `VITE_CUSTOM_API_ENABLED`  | boolean | `false` | 커스텀 API 활성화     |
+| `VITE_CUSTOM_API_ENDPOINT` | string  | -       | 커스텀 API 엔드포인트 |
+| `VITE_CUSTOM_API_KEY`      | string  | -       | 커스텀 API 키         |
 
 ### Application Configuration
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_APP_NAME` | string | `HAN-View React App` | 앱 이름 |
-| `VITE_APP_VERSION` | string | `3.0.0` | 앱 버전 |
-| `VITE_PORT` | number | `5090` | 개발 서버 포트 |
-| `VITE_BASE_URL` | string | `/` | 베이스 URL |
+| 변수명             | 타입   | 기본값               | 설명           |
+| ------------------ | ------ | -------------------- | -------------- |
+| `VITE_APP_NAME`    | string | `HAN-View React App` | 앱 이름        |
+| `VITE_APP_VERSION` | string | `3.0.0`              | 앱 버전        |
+| `VITE_PORT`        | number | `5090`               | 개발 서버 포트 |
+| `VITE_BASE_URL`    | string | `/`                  | 베이스 URL     |
 
 ### File Upload Configuration
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_MAX_FILE_SIZE_MB` | number | `50` | 최대 파일 크기 (MB) |
+| 변수명                         | 타입   | 기본값  | 설명                    |
+| ------------------------------ | ------ | ------- | ----------------------- |
+| `VITE_MAX_FILE_SIZE_MB`        | number | `50`    | 최대 파일 크기 (MB)     |
 | `VITE_ALLOWED_FILE_EXTENSIONS` | string | `.hwpx` | 허용 확장자 (쉼표 구분) |
 
 ### Logging Configuration
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_LOG_LEVEL` | enum | `info` | 로그 레벨 (`debug`, `info`, `warn`, `error`) |
-| `VITE_ENABLE_CONSOLE_LOG` | boolean | `true` (dev) | 콘솔 로그 활성화 |
-| `VITE_ENABLE_PERFORMANCE_MEASUREMENT` | boolean | `true` | 성능 측정 활성화 |
+| 변수명                                | 타입    | 기본값       | 설명                                         |
+| ------------------------------------- | ------- | ------------ | -------------------------------------------- |
+| `VITE_LOG_LEVEL`                      | enum    | `info`       | 로그 레벨 (`debug`, `info`, `warn`, `error`) |
+| `VITE_ENABLE_CONSOLE_LOG`             | boolean | `true` (dev) | 콘솔 로그 활성화                             |
+| `VITE_ENABLE_PERFORMANCE_MEASUREMENT` | boolean | `true`       | 성능 측정 활성화                             |
 
 ### Feature Flags
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_ENABLE_AI_FEATURES` | boolean | `true` | AI 기능 활성화 |
-| `VITE_ENABLE_TABLE_EDIT` | boolean | `true` | 테이블 편집 활성화 |
-| `VITE_ENABLE_IMAGE_EDIT` | boolean | `true` | 이미지 편집 활성화 |
-| `VITE_ENABLE_SHAPE_EDIT` | boolean | `true` | 도형 편집 활성화 |
-| `VITE_ENABLE_PDF_EXPORT` | boolean | `true` | PDF 내보내기 활성화 |
-| `VITE_ENABLE_HWPX_EXPORT` | boolean | `true` | HWPX 내보내기 활성화 |
-| `VITE_ENABLE_AUTO_SAVE` | boolean | `true` | 자동 저장 활성화 |
-| `VITE_AUTO_SAVE_INTERVAL` | number | `30000` | 자동 저장 간격 (ms) |
+| 변수명                    | 타입    | 기본값  | 설명                 |
+| ------------------------- | ------- | ------- | -------------------- |
+| `VITE_ENABLE_AI_FEATURES` | boolean | `true`  | AI 기능 활성화       |
+| `VITE_ENABLE_TABLE_EDIT`  | boolean | `true`  | 테이블 편집 활성화   |
+| `VITE_ENABLE_IMAGE_EDIT`  | boolean | `true`  | 이미지 편집 활성화   |
+| `VITE_ENABLE_SHAPE_EDIT`  | boolean | `true`  | 도형 편집 활성화     |
+| `VITE_ENABLE_PDF_EXPORT`  | boolean | `true`  | PDF 내보내기 활성화  |
+| `VITE_ENABLE_HWPX_EXPORT` | boolean | `true`  | HWPX 내보내기 활성화 |
+| `VITE_ENABLE_AUTO_SAVE`   | boolean | `true`  | 자동 저장 활성화     |
+| `VITE_AUTO_SAVE_INTERVAL` | number  | `30000` | 자동 저장 간격 (ms)  |
 
 ### UI Configuration
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_CHAT_PANEL_DEFAULT_STATE` | enum | `closed` | 채팅 패널 기본 상태 (`open`, `closed`) |
-| `VITE_ENABLE_DARK_MODE` | boolean | `false` | 다크 모드 지원 |
-| `VITE_DEFAULT_LANGUAGE` | enum | `ko` | 기본 언어 (`ko`, `en`) |
+| 변수명                          | 타입    | 기본값   | 설명                                   |
+| ------------------------------- | ------- | -------- | -------------------------------------- |
+| `VITE_CHAT_PANEL_DEFAULT_STATE` | enum    | `closed` | 채팅 패널 기본 상태 (`open`, `closed`) |
+| `VITE_ENABLE_DARK_MODE`         | boolean | `false`  | 다크 모드 지원                         |
+| `VITE_DEFAULT_LANGUAGE`         | enum    | `ko`     | 기본 언어 (`ko`, `en`)                 |
 
 ### Security Configuration
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_ENABLE_CSP` | boolean | `true` (prod) | Content Security Policy 활성화 |
-| `VITE_FORCE_HTTPS` | boolean | `true` (prod) | HTTPS 강제 |
-| `VITE_ENABLE_API_KEY_ENCRYPTION` | boolean | `true` | API 키 암호화 |
+| 변수명                           | 타입    | 기본값        | 설명                           |
+| -------------------------------- | ------- | ------------- | ------------------------------ |
+| `VITE_ENABLE_CSP`                | boolean | `true` (prod) | Content Security Policy 활성화 |
+| `VITE_FORCE_HTTPS`               | boolean | `true` (prod) | HTTPS 강제                     |
+| `VITE_ENABLE_API_KEY_ENCRYPTION` | boolean | `true`        | API 키 암호화                  |
 
 ### Cost Management
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_ENABLE_COST_TRACKING` | boolean | `true` | 비용 추적 활성화 |
-| `VITE_COST_WARNING_THRESHOLD` | number | `1.0` | 비용 경고 임계값 (USD) |
-| `VITE_COST_MAX_LIMIT` | number | `10.0` | 최대 허용 비용 (USD) |
-| `VITE_COST_PER_INPUT_TOKEN` | number | `0.00001` | Input token 비용 (USD) |
-| `VITE_COST_PER_OUTPUT_TOKEN` | number | `0.00003` | Output token 비용 (USD) |
+| 변수명                        | 타입    | 기본값    | 설명                    |
+| ----------------------------- | ------- | --------- | ----------------------- |
+| `VITE_ENABLE_COST_TRACKING`   | boolean | `true`    | 비용 추적 활성화        |
+| `VITE_COST_WARNING_THRESHOLD` | number  | `1.0`     | 비용 경고 임계값 (USD)  |
+| `VITE_COST_MAX_LIMIT`         | number  | `10.0`    | 최대 허용 비용 (USD)    |
+| `VITE_COST_PER_INPUT_TOKEN`   | number  | `0.00001` | Input token 비용 (USD)  |
+| `VITE_COST_PER_OUTPUT_TOKEN`  | number  | `0.00003` | Output token 비용 (USD) |
 
 ### Debug & Development
 
-| 변수명 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `VITE_DEBUG_MODE` | boolean | `false` | 디버그 모드 |
-| `VITE_LOG_API_REQUESTS` | boolean | `false` | API 요청 로깅 |
-| `VITE_LOG_API_RESPONSES` | boolean | `false` | API 응답 로깅 |
-| `VITE_ENABLE_SOURCEMAP` | boolean | `true` (dev) | 소스맵 활성화 |
+| 변수명                       | 타입    | 기본값       | 설명           |
+| ---------------------------- | ------- | ------------ | -------------- |
+| `VITE_DEBUG_MODE`            | boolean | `false`      | 디버그 모드    |
+| `VITE_LOG_API_REQUESTS`      | boolean | `false`      | API 요청 로깅  |
+| `VITE_LOG_API_RESPONSES`     | boolean | `false`      | API 응답 로깅  |
+| `VITE_ENABLE_SOURCEMAP`      | boolean | `true` (dev) | 소스맵 활성화  |
 | `VITE_ENABLE_REACT_DEVTOOLS` | boolean | `true` (dev) | React DevTools |
 
 ---
@@ -350,7 +352,9 @@ function initializeApp() {
   const validation = validateEnv();
 
   if (!validation.isValid) {
-    throw new Error(`Environment validation failed: ${validation.errors.join(', ')}`);
+    throw new Error(
+      `Environment validation failed: ${validation.errors.join(', ')}`
+    );
   }
 
   // 앱 초기화 계속...
@@ -426,13 +430,15 @@ VITE_ENABLE_SOURCEMAP=false
 ### 문제 1: 환경 변수가 로드되지 않음
 
 **증상**:
+
 ```typescript
 console.log(import.meta.env.VITE_OPENAI_API_KEY); // undefined
 ```
 
 **해결 방법**:
 
-1. **VITE_ 접두사 확인**:
+1. **VITE\_ 접두사 확인**:
+
    ```bash
    # ❌ 잘못됨
    OPENAI_API_KEY=sk-key
@@ -442,6 +448,7 @@ console.log(import.meta.env.VITE_OPENAI_API_KEY); // undefined
    ```
 
 2. **개발 서버 재시작**:
+
    ```bash
    # 환경 변수 변경 후 반드시 재시작
    npm run dev
@@ -459,6 +466,7 @@ console.log(import.meta.env.VITE_OPENAI_API_KEY); // undefined
 ### 문제 2: TypeScript 타입 에러
 
 **증상**:
+
 ```typescript
 // Property 'VITE_OPENAI_API_KEY' does not exist on type 'ImportMetaEnv'
 ```
@@ -471,6 +479,7 @@ console.log(import.meta.env.VITE_OPENAI_API_KEY); // undefined
 ### 문제 3: 프로덕션 빌드에서 환경 변수 누락
 
 **증상**:
+
 ```bash
 npm run build
 # 빌드 후 환경 변수가 undefined
@@ -479,6 +488,7 @@ npm run build
 **해결 방법**:
 
 1. **빌드 명령어 확인**:
+
    ```bash
    # ✅ 올바름
    npm run build  # .env.production 자동 로드
@@ -488,6 +498,7 @@ npm run build
    ```
 
 2. **서버 환경 변수 설정**:
+
    ```bash
    # Docker
    docker run -e VITE_OPENAI_API_KEY=sk-key my-app
@@ -499,6 +510,7 @@ npm run build
 ### 문제 4: 환경 변수 캐싱
 
 **증상**:
+
 - 환경 변수를 변경했지만 이전 값이 계속 사용됨
 
 **해결 방법**:
@@ -514,22 +526,25 @@ npm run dev
 ### 문제 5: 다른 환경 파일이 로드됨
 
 **증상**:
+
 - `npm run dev`인데 production 설정이 로드됨
 
 **해결 방법**:
 
 1. **MODE 확인**:
+
    ```json
    // package.json
    {
      "scripts": {
-       "dev": "vite",  // development 모드
-       "build": "vite build"  // production 모드
+       "dev": "vite", // development 모드
+       "build": "vite build" // production 모드
      }
    }
    ```
 
 2. **명시적 모드 지정**:
+
    ```bash
    # 강제로 development 모드
    vite --mode development
@@ -566,7 +581,9 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       // 런타임에 환경 변수 오버라이드
-      'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString()),
+      'import.meta.env.VITE_BUILD_TIME': JSON.stringify(
+        new Date().toISOString()
+      ),
     },
   };
 });
@@ -601,6 +618,4 @@ export default defineConfig(({ mode }) => {
 
 ---
 
-**Last Updated:** 2026-01-16
-**Version:** 1.0.0
-**Maintainer:** Claude Code AI
+**Last Updated:** 2026-01-16 **Version:** 1.0.0 **Maintainer:** Claude Code AI

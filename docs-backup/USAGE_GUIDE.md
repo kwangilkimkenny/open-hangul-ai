@@ -1,6 +1,7 @@
 # 오픈한글AI 사용 가이드
 
-이 가이드는 `open-hangul-ai` npm 패키지를 React 프로젝트에서 사용하는 방법을 자세히 설명합니다.
+이 가이드는 `open-hangul-ai` npm 패키지를 React 프로젝트에서 사용하는 방법을
+자세히 설명합니다.
 
 ## 📋 목차
 
@@ -53,11 +54,7 @@ import { HWPXViewer } from 'open-hangul-ai';
 
 function DocumentViewer() {
   return (
-    <HWPXViewer
-      fileUrl="/documents/sample.hwpx"
-      width="100%"
-      height="600px"
-    />
+    <HWPXViewer fileUrl="/documents/sample.hwpx" width="100%" height="600px" />
   );
 }
 ```
@@ -85,13 +82,9 @@ function FileUploadViewer() {
         accept=".hwpx,.hwp,.pdf,.docx"
         onChange={handleFileChange}
       />
-      
+
       {selectedFile && (
-        <HWPXViewer
-          file={selectedFile}
-          width="100%"
-          height="700px"
-        />
+        <HWPXViewer file={selectedFile} width="100%" height="700px" />
       )}
     </div>
   );
@@ -114,24 +107,24 @@ function FullEditor() {
         toolbar: {
           enabled: true,
           position: 'top',
-          buttons: ['save', 'export', 'ai', 'share']
+          buttons: ['save', 'export', 'ai', 'share'],
         },
         aiPanel: {
           enabled: true,
-          position: 'right'
-        }
+          position: 'right',
+        },
       }}
       headerButtons={[
         {
           label: '저장',
           icon: '💾',
-          onClick: () => console.log('저장하기')
-        }
+          onClick: () => console.log('저장하기'),
+        },
       ]}
-      onFileLoad={(file) => {
+      onFileLoad={file => {
         console.log('파일 로드됨:', file.name);
       }}
-      onError={(error) => {
+      onError={error => {
         console.error('에러 발생:', error);
       }}
     />
@@ -151,7 +144,7 @@ import {
   HanViewProvider,
   useHanView,
   useHanViewConfig,
-  HWPXViewer
+  HWPXViewer,
 } from 'open-hangul-ai';
 
 // 하위 컴포넌트
@@ -179,13 +172,13 @@ function App() {
         layout: {
           sidebar: true,
           minimap: true,
-          statusBar: true
+          statusBar: true,
         },
         features: {
           collaboration: true,
           comments: true,
-          aiAssistant: true
-        }
+          aiAssistant: true,
+        },
       }}
     >
       <div>
@@ -232,7 +225,7 @@ function EventHandlerExample() {
       config={{
         enableTextSelection: true,
         enableZoom: true,
-        showPageNumbers: true
+        showPageNumbers: true,
       }}
     />
   );
@@ -254,14 +247,14 @@ function AIAnalysis() {
   const aiController = new AIDocumentController({
     provider: 'openai', // 'openai' | 'anthropic' | 'google'
     apiKey: process.env.REACT_APP_OPENAI_API_KEY,
-    model: 'gpt-4'
+    model: 'gpt-4',
   });
 
   const analyzeDocument = async (file: File) => {
     setLoading(true);
     try {
       const result = await aiController.analyze(file, {
-        tasks: ['summarize', 'extract_key_points', 'sentiment']
+        tasks: ['summarize', 'extract_key_points', 'sentiment'],
       });
       setAnalysis(result.summary);
     } catch (error) {
@@ -276,12 +269,12 @@ function AIAnalysis() {
       <input
         type="file"
         accept=".hwpx,.pdf,.docx"
-        onChange={(e) => {
+        onChange={e => {
           const file = e.target.files?.[0];
           if (file) analyzeDocument(file);
         }}
       />
-      
+
       {loading && <p>AI가 문서를 분석 중입니다...</p>}
       {analysis && (
         <div>
@@ -309,14 +302,14 @@ function StructureExtraction() {
       headings: structure.headings,
       paragraphs: structure.paragraphs.length,
       tables: structure.tables.length,
-      images: structure.images.length
+      images: structure.images.length,
     });
   };
 
   return (
     <input
       type="file"
-      onChange={(e) => {
+      onChange={e => {
         const file = e.target.files?.[0];
         if (file) extractStructure(file);
       }}
@@ -346,25 +339,25 @@ const customTheme = {
     background: '#ffffff',
     surface: '#f8f9fa',
     text: '#212529',
-    textSecondary: '#6c757d'
+    textSecondary: '#6c757d',
   },
   fonts: {
     primary: '"Noto Sans KR", "Apple SD Gothic Neo", sans-serif',
     secondary: '"Noto Serif KR", serif',
-    mono: '"Fira Code", "Monaco", monospace'
+    mono: '"Fira Code", "Monaco", monospace',
   },
   spacing: {
     xs: '4px',
     sm: '8px',
     md: '16px',
     lg: '24px',
-    xl: '32px'
+    xl: '32px',
   },
   borderRadius: {
     sm: '4px',
     md: '8px',
-    lg: '12px'
-  }
+    lg: '12px',
+  },
 };
 
 function CustomThemedApp() {
@@ -398,7 +391,7 @@ const customToolbarConfig = {
     'separator',
     'ai-assistant',
     'comments',
-    'share'
+    'share',
   ],
   customButtons: [
     {
@@ -406,16 +399,16 @@ const customToolbarConfig = {
       label: '커스텀',
       icon: '⚡',
       onClick: () => alert('커스텀 액션!'),
-      position: 'right'
-    }
-  ]
+      position: 'right',
+    },
+  ],
 };
 
 function CustomToolbar() {
   return (
     <HanViewApp
       config={{
-        toolbar: customToolbarConfig
+        toolbar: customToolbarConfig,
       }}
     />
   );
@@ -454,7 +447,7 @@ const config: HanViewConfig = {
 // ✅ 에러 핸들링 추가
 <HWPXViewer
   fileUrl="/docs/sample.hwpx"
-  onError={(error) => {
+  onError={error => {
     console.error('파일 로드 실패:', error);
     // 사용자에게 알림 표시
   }}
@@ -470,18 +463,16 @@ import React, { useMemo } from 'react';
 import { HWPXViewer } from 'open-hangul-ai';
 
 function OptimizedViewer({ file }: { file: File }) {
-  const config = useMemo(() => ({
-    lazy: true, // 지연 로딩
-    virtualScrolling: true, // 가상 스크롤링
-    pageLimit: 10 // 페이지 제한
-  }), []);
-
-  return (
-    <HWPXViewer
-      file={file}
-      config={config}
-    />
+  const config = useMemo(
+    () => ({
+      lazy: true, // 지연 로딩
+      virtualScrolling: true, // 가상 스크롤링
+      pageLimit: 10, // 페이지 제한
+    }),
+    []
   );
+
+  return <HWPXViewer file={file} config={config} />;
 }
 ```
 
@@ -523,7 +514,7 @@ function DebugApp() {
       config={{
         debug: true, // 개발자 모드 활성화
         showFPS: true, // FPS 표시
-        showMemoryUsage: true // 메모리 사용량 표시
+        showMemoryUsage: true, // 메모리 사용량 표시
       }}
     />
   );
@@ -539,4 +530,5 @@ function DebugApp() {
 
 ---
 
-이 가이드가 도움이 되었다면 [GitHub](https://github.com/yatav-team/open-hangul-ai)에서 ⭐를 눌러주세요!
+이 가이드가 도움이 되었다면
+[GitHub](https://github.com/yatav-team/open-hangul-ai)에서 ⭐를 눌러주세요!

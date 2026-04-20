@@ -18,9 +18,12 @@
 ## 프로젝트 개요
 
 ### 목적
-한글(HWP/HWPX) 문서를 웹 브라우저에서 뷰잉, 편집, AI 기반 내용 생성, 외부 API 연동을 지원하는 React 애플리케이션입니다.
+
+한글(HWP/HWPX) 문서를 웹 브라우저에서 뷰잉, 편집, AI 기반 내용 생성, 외부 API
+연동을 지원하는 React 애플리케이션입니다.
 
 ### 주요 기능
+
 - **HWPX 파싱 및 렌더링**: 한글 문서를 브라우저에서 표시
 - **인라인 편집**: 테이블 셀, 단락 직접 편집
 - **AI 문서 편집**: GPT API를 통한 내용 생성/수정
@@ -29,6 +32,7 @@
 - **HWPX 저장**: 편집된 내용을 HWPX로 다운로드
 
 ### 핵심 설계 결정
+
 - **Vanilla JS Wrapper 패턴**: 기존 순수 JavaScript 뷰어를 React로 래핑
 - **원본 보존 전략**: HWPX 저장 시 원본 ZIP 기반으로 수정된 부분만 교체
 - **자동 줄바꿈 처리**: `linesegarray` 제거 및 `lineWrap` 속성 추가
@@ -37,16 +41,16 @@
 
 ## 기술 스택
 
-| 분류 | 기술 | 버전 | 용도 |
-|------|------|------|------|
-| **프레임워크** | React | 19.x | UI 컴포넌트 |
-| **언어** | TypeScript | 5.9.x | 타입 안전성 |
-| **빌드** | Vite | 7.x | 빌드 및 개발 서버 |
-| **상태관리** | Zustand | 5.x | 전역 상태 |
-| **ZIP 처리** | JSZip | 3.x | HWPX 압축/해제 |
-| **아이콘** | Lucide React | - | UI 아이콘 |
-| **토스트** | React Hot Toast | - | 알림 |
-| **AI** | OpenAI GPT-4 | - | 내용 생성 |
+| 분류           | 기술            | 버전  | 용도              |
+| -------------- | --------------- | ----- | ----------------- |
+| **프레임워크** | React           | 19.x  | UI 컴포넌트       |
+| **언어**       | TypeScript      | 5.9.x | 타입 안전성       |
+| **빌드**       | Vite            | 7.x   | 빌드 및 개발 서버 |
+| **상태관리**   | Zustand         | 5.x   | 전역 상태         |
+| **ZIP 처리**   | JSZip           | 3.x   | HWPX 압축/해제    |
+| **아이콘**     | Lucide React    | -     | UI 아이콘         |
+| **토스트**     | React Hot Toast | -     | 알림              |
+| **AI**         | OpenAI GPT-4    | -     | 내용 생성         |
 
 ---
 
@@ -164,46 +168,46 @@ document.hwpx (ZIP)
 ```typescript
 // 파싱된 문서 구조
 interface HWPXDocument {
-    sections: Section[];
-    images: Map<string, ImageInfo>;
-    rawHeaderXml: string;  // 원본 header.xml 보존
-    metadata: {
-        parsedAt: string;
-        sectionsCount: number;
-        imagesCount: number;
-    };
+  sections: Section[];
+  images: Map<string, ImageInfo>;
+  rawHeaderXml: string; // 원본 header.xml 보존
+  metadata: {
+    parsedAt: string;
+    sectionsCount: number;
+    imagesCount: number;
+  };
 }
 
 interface Section {
-    elements: (Paragraph | Table | Image | Shape)[];
+  elements: (Paragraph | Table | Image | Shape)[];
 }
 
 interface Table {
-    type: 'table';
-    rows: Row[];
-    style: TableStyle;
+  type: 'table';
+  rows: Row[];
+  style: TableStyle;
 }
 
 interface Row {
-    cells: Cell[];
+  cells: Cell[];
 }
 
 interface Cell {
-    elements: Paragraph[];
-    style: CellStyle;
-    colspan?: number;
-    rowspan?: number;
+  elements: Paragraph[];
+  style: CellStyle;
+  colspan?: number;
+  rowspan?: number;
 }
 
 interface Paragraph {
-    type: 'paragraph';
-    runs: Run[];
-    style: ParagraphStyle;
+  type: 'paragraph';
+  runs: Run[];
+  style: ParagraphStyle;
 }
 
 interface Run {
-    text: string;
-    style: RunStyle;
+  text: string;
+  style: RunStyle;
 }
 ```
 
@@ -218,9 +222,9 @@ interface Run {
 ```javascript
 // 초기화
 const viewer = new HWPXViewer({
-    container: document.getElementById('viewer'),
-    enableAI: true,
-    useWorker: false
+  container: document.getElementById('viewer'),
+  enableAI: true,
+  useWorker: false,
 });
 
 // 파일 로드
@@ -234,6 +238,7 @@ await viewer.saveFile('output.hwpx');
 ```
 
 **주요 속성**:
+
 - `parser`: SimpleHWPXParser 인스턴스
 - `renderer`: DocumentRenderer 인스턴스
 - `aiController`: AIDocumentController 인스턴스
@@ -251,14 +256,16 @@ const document = await parser.parse(fileBuffer);
 ```
 
 **핵심 메서드**:
+
 - `parse(buffer)`: 메인 파싱 함수
 - `unzip(buffer)`: ZIP 해제 및 `this.zip` 저장
-- `parseSection(xml)`: section*.xml 파싱
+- `parseSection(xml)`: section\*.xml 파싱
 - `parseTable(element)`: 테이블 파싱
 - `parseParagraph(element)`: 단락 파싱
 - `parseImage(element)`: 이미지 파싱
 
 **주의사항**:
+
 ```javascript
 // rawHeaderXml 추출 (HWPX 저장 시 필요)
 const headerEntry = this.zip.file('Contents/header.xml');
@@ -271,30 +278,36 @@ this.rawHeaderXml = await headerEntry.async('string');
 
 ```javascript
 const exporter = new HwpxSafeExporter();
-await exporter.exportModifiedHwpx(originalFile, modifiedDocument, 'output.hwpx');
+await exporter.exportModifiedHwpx(
+  originalFile,
+  modifiedDocument,
+  'output.hwpx'
+);
 ```
 
 **핵심 로직**:
+
 1. 원본 HWPX ZIP 로드
 2. header.xml 수정 (lineWrap, wordWrap 속성)
-3. section*.xml 수정:
+3. section\*.xml 수정:
    - `linesegarray` 제거 (자동 줄바꿈 위해)
    - 텍스트 내용 교체
    - `ctrl` 요소(이미지) 보존
 4. 새 ZIP 생성 및 다운로드
 
 **중요 함수**:
+
 ```javascript
 // 자동 줄바꿈 속성 추가 및 linesegarray 제거
 _addLineWrapAttributes(sectionXml) {
     // DOM 파싱
     const parser = new DOMParser();
     const doc = parser.parseFromString(sectionXml, 'text/xml');
-    
+
     // subList에 lineWrap="BREAK" 추가
     // paragraph에 autoLineBreak="1" 추가
     // linesegarray 제거 (핵심!)
-    
+
     return new XMLSerializer().serializeToString(doc);
 }
 ```
@@ -315,7 +328,7 @@ await controller.handleUserRequestWithCellSelection(message, cellData);
 
 // 외부 API 데이터로 채우기
 await controller.fillFromExternalAPI('https://api.example.com/data', {
-    mapping: { '학생 이름': 'student.name' }
+  mapping: { '학생 이름': 'student.name' },
 });
 
 // HWPX 저장
@@ -323,6 +336,7 @@ await controller.saveAsHwpx('output.hwpx');
 ```
 
 **구성 모듈**:
+
 - `extractor`: 문서 구조 추출
 - `generator`: GPT 내용 생성
 - `merger`: 내용 병합
@@ -340,8 +354,8 @@ const selector = new CellSelector(viewer);
 selector.activate();
 
 // 셀 모드 설정
-selector.setCellMode('t0-r1-c2', 'keep');  // 유지
-selector.setCellMode('t0-r1-c3', 'generate');  // 생성
+selector.setCellMode('t0-r1-c2', 'keep'); // 유지
+selector.setCellMode('t0-r1-c3', 'generate'); // 생성
 
 // 모든 셀 한번에
 selector.setAllCellsMode('generate');
@@ -354,6 +368,7 @@ const data = selector.buildAIRequestData();
 ```
 
 **모드 종류**:
+
 - `auto`: 자동 감지 (기본)
 - `keep`: 유지 (원본 그대로)
 - `edit`: 수정 (기존 내용 기반)
@@ -368,14 +383,14 @@ const fetcher = new ExternalDataFetcher();
 
 // API 호출
 const data = await fetcher.fetchData('https://api.example.com/data', {
-    method: 'GET',
-    headers: { 'Authorization': 'Bearer xxx' }
+  method: 'GET',
+  headers: { Authorization: 'Bearer xxx' },
 });
 
 // 필드 매핑 변환
 const mapped = fetcher.transformToTemplateFormat(data, {
-    '학생 이름': 'student.name',
-    '점수': 'scores.total'
+  '학생 이름': 'student.name',
+  점수: 'scores.total',
 });
 
 // 자동 키 추출
@@ -403,6 +418,7 @@ panel.showExternalApiModal();
 ```
 
 **UI 요소**:
+
 - AI 채팅 입력/출력
 - 문서 구조 보기
 - 스타일 적용
@@ -550,9 +566,9 @@ VITE_DEFAULT_API_URL=https://api.example.com
 ```typescript
 // vite.config.ts
 export default defineConfig({
-    server: {
-        port: 5090
-    }
+  server: {
+    port: 5090,
+  },
 });
 ```
 
@@ -577,16 +593,16 @@ npm run preview
 async myNewAIFeature(params) {
     // 1. 문서 데이터 추출
     const document = this.viewer.getDocument();
-    
+
     // 2. GPT 호출 또는 처리
     const result = await this.generator.generate(prompt);
-    
+
     // 3. 문서 업데이트
     const updated = this.merger.merge(document, result);
-    
+
     // 4. 렌더링
     await this.viewer.updateDocument(updated);
-    
+
     return { success: true };
 }
 
@@ -654,6 +670,7 @@ customTransform(data) {
 **증상**: 저장된 파일이 한글에서 열리지 않음
 
 **해결**:
+
 ```javascript
 // 1. header.xml 원본 보존 확인
 console.log(document.rawHeaderXml);
@@ -670,6 +687,7 @@ console.log(document.rawHeaderXml);
 **증상**: 긴 텍스트가 셀 밖으로 넘침
 
 **해결**:
+
 ```javascript
 // hwpx-safe-exporter.js _addLineWrapAttributes 확인
 // 1. subList에 lineWrap="BREAK"
@@ -682,10 +700,11 @@ console.log(document.rawHeaderXml);
 **증상**: 저장 후 이미지가 보이지 않음
 
 **해결**:
+
 ```javascript
 // _replaceByElementTypeMatching에서 ctrl 요소 보존 확인
-const preservedCtrlNodes = Array.from(xmlP.children).filter(child =>
-    child.tagName === 'hp:ctrl' || child.localName === 'ctrl'
+const preservedCtrlNodes = Array.from(xmlP.children).filter(
+  child => child.tagName === 'hp:ctrl' || child.localName === 'ctrl'
 );
 ```
 
@@ -694,6 +713,7 @@ const preservedCtrlNodes = Array.from(xmlP.children).filter(child =>
 **증상**: 편집 내용이 저장에 반영 안됨
 
 **해결**:
+
 ```javascript
 // viewer.js _syncDocumentFromDOM 확인
 // 1. inlineEditor.finishEditing() 호출
@@ -760,16 +780,16 @@ import { specific } from 'large-library';
 
 ```javascript
 // 현재 문서 확인
-window.viewer.getDocument()
+window.viewer.getDocument();
 
 // 셀 데이터 확인
-document.querySelector('.table-cell')._cellData
+document.querySelector('.table-cell')._cellData;
 
 // AI 컨트롤러 상태
-window.viewer.aiController.state
+window.viewer.aiController.state;
 
 // 로깅 레벨 변경
-window.setLogLevel('debug')
+window.setLogLevel('debug');
 ```
 
 ### HWPX 분석 코드
@@ -779,17 +799,17 @@ window.setLogLevel('debug')
 const input = document.createElement('input');
 input.type = 'file';
 input.accept = '.hwpx';
-input.onchange = async (e) => {
-    const file = e.target.files[0];
-    const zip = await JSZip.loadAsync(file);
-    
-    // header.xml 확인
-    const header = await zip.file('Contents/header.xml').async('string');
-    console.log(header);
-    
-    // section0.xml 확인
-    const section = await zip.file('Contents/section0.xml').async('string');
-    console.log(section);
+input.onchange = async e => {
+  const file = e.target.files[0];
+  const zip = await JSZip.loadAsync(file);
+
+  // header.xml 확인
+  const header = await zip.file('Contents/header.xml').async('string');
+  console.log(header);
+
+  // section0.xml 확인
+  const section = await zip.file('Contents/section0.xml').async('string');
+  console.log(section);
 };
 input.click();
 ```
@@ -808,12 +828,12 @@ input.click();
 
 ## 버전 히스토리
 
-| 버전 | 날짜 | 변경 내용 |
-|------|------|----------|
-| 1.0.0 | 2025-01 | 초기 버전 |
-| 1.1.0 | 2025-01 | AI 편집 기능 추가 |
-| 1.2.0 | 2025-01 | HWPX 저장 안정화 |
-| 1.3.0 | 2025-01 | 셀 선택 모드 추가 |
+| 버전  | 날짜    | 변경 내용          |
+| ----- | ------- | ------------------ |
+| 1.0.0 | 2025-01 | 초기 버전          |
+| 1.1.0 | 2025-01 | AI 편집 기능 추가  |
+| 1.2.0 | 2025-01 | HWPX 저장 안정화   |
+| 1.3.0 | 2025-01 | 셀 선택 모드 추가  |
 | 1.4.0 | 2025-01 | 외부 API 연동 추가 |
 
 ---
@@ -821,4 +841,3 @@ input.click();
 ## 문의
 
 프로젝트 관련 문의사항은 이슈 트래커를 이용해주세요.
-

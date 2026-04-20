@@ -6,10 +6,12 @@
 
 1. **Download Docker Desktop for Mac:**
    - Visit: https://www.docker.com/products/docker-desktop
-   - Or direct download: https://desktop.docker.com/mac/main/arm64/Docker.dmg (Apple Silicon)
+   - Or direct download: https://desktop.docker.com/mac/main/arm64/Docker.dmg
+     (Apple Silicon)
    - Or: https://desktop.docker.com/mac/main/amd64/Docker.dmg (Intel)
 
 2. **Install:**
+
    ```bash
    # Open the downloaded .dmg file
    # Drag Docker to Applications folder
@@ -42,12 +44,14 @@ open /Applications/Docker.app
 ### Deploy the Application
 
 **Option A: Using Docker Compose (Easiest)**
+
 ```bash
 cd /Users/kimkwangil/Documents/project_03/hanview-react-app-v3
 docker-compose up -d
 ```
 
 **Option B: Using the Deploy Script**
+
 ```bash
 cd /Users/kimkwangil/Documents/project_03/hanview-react-app-v3
 chmod +x deploy-docker.sh
@@ -55,6 +59,7 @@ chmod +x deploy-docker.sh
 ```
 
 **Option C: Manual Docker Commands**
+
 ```bash
 # Build the image
 docker build -t hanview-react-app:2.1.0 .
@@ -79,6 +84,7 @@ docker ps
 ## Access the Application
 
 After deployment:
+
 - **URL:** http://localhost:8080
 - **Health Check:** http://localhost:8080/health
 
@@ -115,6 +121,7 @@ docker stats hanview-react-app
 ## Troubleshooting
 
 ### Docker Desktop Won't Start
+
 ```bash
 # Reset Docker
 rm -rf ~/Library/Containers/com.docker.docker
@@ -124,6 +131,7 @@ rm -rf ~/Library/Application\ Support/Docker\ Desktop
 ```
 
 ### Permission Issues
+
 ```bash
 # Add yourself to docker group (Linux)
 sudo usermod -aG docker $USER
@@ -131,6 +139,7 @@ newgrp docker
 ```
 
 ### Port 8080 Already in Use
+
 ```bash
 # Find what's using port 8080
 lsof -ti:8080
@@ -149,6 +158,7 @@ kill $(lsof -ti:8080)
 If you can't install Docker, you can deploy using the production build directly:
 
 ### Option 1: Static Web Server
+
 ```bash
 # Install a static web server
 npm install -g serve
@@ -158,6 +168,7 @@ serve -s dist -l 8080
 ```
 
 ### Option 2: Nginx (Manual)
+
 ```bash
 # Build the app
 npm run build
@@ -167,7 +178,9 @@ npm run build
 ```
 
 ### Option 3: Deploy to Cloud
+
 See `DOCKER_DEPLOYMENT_INSTRUCTIONS.md` for:
+
 - Vercel (easiest, no Docker needed)
 - Netlify
 - AWS
@@ -184,5 +197,6 @@ See `DOCKER_DEPLOYMENT_INSTRUCTIONS.md` for:
 4. Access your app at http://localhost:8080
 
 **For detailed deployment options, see:**
+
 - `DOCKER_DEPLOYMENT_INSTRUCTIONS.md` - Complete Docker guide
 - `PRODUCTION_DEPLOYMENT_READY.md` - Quick start guide

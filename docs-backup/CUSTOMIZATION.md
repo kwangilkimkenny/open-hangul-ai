@@ -47,7 +47,7 @@ const customConfig = {
   },
   toolbar: {
     buttons: {
-      print: false,  // 인쇄 버튼 숨기기
+      print: false, // 인쇄 버튼 숨기기
     },
   },
 };
@@ -87,11 +87,11 @@ function App() {
   --hanview-primary-color: #0066ff;
   --hanview-primary-hover: #0052cc;
   --hanview-secondary-color: #6366f1;
-  
+
   /* 배경 색상 */
   --hanview-container-bg: #1a1a2e;
   --hanview-page-bg: #ffffff;
-  
+
   /* AI 패널 */
   --hanview-ai-panel-bg: #0f0f23;
   --hanview-ai-panel-width: 500px;
@@ -126,7 +126,7 @@ import { useHanViewTheme } from 'hanview-react';
 
 function ThemeToggle() {
   const { theme, setTheme } = useHanViewTheme();
-  
+
   return (
     <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
       {theme === 'dark' ? '🌞 라이트' : '🌙 다크'}
@@ -354,15 +354,13 @@ import { useHanViewAIPanel } from 'hanview-react';
 
 function AIToggleButton() {
   const { isOpen, toggle, setAIPanel } = useHanViewAIPanel();
-  
+
   return (
     <>
       <button onClick={toggle}>
         {isOpen ? 'AI 패널 닫기' : 'AI 패널 열기'}
       </button>
-      <button onClick={() => setAIPanel({ width: 600 })}>
-        패널 넓히기
-      </button>
+      <button onClick={() => setAIPanel({ width: 600 })}>패널 넓히기</button>
     </>
   );
 }
@@ -380,17 +378,17 @@ function AIToggleButton() {
     console.log('문서 로드됨:', document);
     analytics.track('document_loaded');
   },
-  
+
   onDocumentSave: (result) => {
     if (result.success) {
       showNotification('저장 완료!');
     }
   },
-  
+
   onChange: (changes) => {
     console.log('변경사항:', changes);
   },
-  
+
   onPageChange: (pageNumber) => {
     console.log('현재 페이지:', pageNumber);
   },
@@ -404,7 +402,7 @@ function AIToggleButton() {
   onEditStart: (element) => {
     console.log('편집 시작:', element);
   },
-  
+
   onEditEnd: (element, content) => {
     console.log('편집 종료:', content);
     saveToServer(content);
@@ -441,49 +439,49 @@ function AIToggleButton() {
 
 ### 색상 변수
 
-| 변수명 | 기본값 | 설명 |
-|--------|--------|------|
-| `--hanview-primary-color` | `#667eea` | 메인 색상 |
+| 변수명                      | 기본값    | 설명      |
+| --------------------------- | --------- | --------- |
+| `--hanview-primary-color`   | `#667eea` | 메인 색상 |
 | `--hanview-secondary-color` | `#764ba2` | 보조 색상 |
-| `--hanview-accent-color` | `#4CAF50` | 강조 색상 |
-| `--hanview-success-color` | `#10b981` | 성공 색상 |
-| `--hanview-warning-color` | `#f59e0b` | 경고 색상 |
-| `--hanview-error-color` | `#ef4444` | 에러 색상 |
+| `--hanview-accent-color`    | `#4CAF50` | 강조 색상 |
+| `--hanview-success-color`   | `#10b981` | 성공 색상 |
+| `--hanview-warning-color`   | `#f59e0b` | 경고 색상 |
+| `--hanview-error-color`     | `#ef4444` | 에러 색상 |
 
 ### 레이아웃 변수
 
-| 변수명 | 기본값 | 설명 |
-|--------|--------|------|
-| `--hanview-page-width` | `794px` | 페이지 너비 |
-| `--hanview-page-height` | `1123px` | 페이지 높이 |
-| `--hanview-page-padding` | `57px` | 페이지 패딩 |
-| `--hanview-header-height` | `60px` | 헤더 높이 |
-| `--hanview-footer-height` | `32px` | 푸터 높이 |
+| 변수명                    | 기본값   | 설명        |
+| ------------------------- | -------- | ----------- |
+| `--hanview-page-width`    | `794px`  | 페이지 너비 |
+| `--hanview-page-height`   | `1123px` | 페이지 높이 |
+| `--hanview-page-padding`  | `57px`   | 페이지 패딩 |
+| `--hanview-header-height` | `60px`   | 헤더 높이   |
+| `--hanview-footer-height` | `32px`   | 푸터 높이   |
 
 ### AI 패널 변수
 
-| 변수명 | 기본값 | 설명 |
-|--------|--------|------|
-| `--hanview-ai-panel-width` | `450px` | AI 패널 너비 |
-| `--hanview-ai-panel-bg` | `#1e1e2e` | AI 패널 배경 |
-| `--hanview-ai-message-user-bg` | `#667eea` | 사용자 메시지 배경 |
-| `--hanview-ai-message-assistant-bg` | `rgba(255,255,255,0.1)` | AI 메시지 배경 |
+| 변수명                              | 기본값                  | 설명               |
+| ----------------------------------- | ----------------------- | ------------------ |
+| `--hanview-ai-panel-width`          | `450px`                 | AI 패널 너비       |
+| `--hanview-ai-panel-bg`             | `#1e1e2e`               | AI 패널 배경       |
+| `--hanview-ai-message-user-bg`      | `#667eea`               | 사용자 메시지 배경 |
+| `--hanview-ai-message-assistant-bg` | `rgba(255,255,255,0.1)` | AI 메시지 배경     |
 
 ### 타이포그래피 변수
 
-| 변수명 | 기본값 | 설명 |
-|--------|--------|------|
-| `--hanview-font-family` | `'Malgun Gothic', sans-serif` | 기본 폰트 |
-| `--hanview-font-size-base` | `14px` | 기본 폰트 크기 |
-| `--hanview-line-height-normal` | `1.5` | 기본 줄 높이 |
+| 변수명                         | 기본값                        | 설명           |
+| ------------------------------ | ----------------------------- | -------------- |
+| `--hanview-font-family`        | `'Malgun Gothic', sans-serif` | 기본 폰트      |
+| `--hanview-font-size-base`     | `14px`                        | 기본 폰트 크기 |
+| `--hanview-line-height-normal` | `1.5`                         | 기본 줄 높이   |
 
 ---
 
 ## 완전한 예제
 
 ```tsx
-import { 
-  HWPXViewer, 
+import {
+  HWPXViewer,
   HanViewProvider,
   useHanView,
   useHanViewTheme,
@@ -504,11 +502,11 @@ const myTheme = {
 // 커스텀 설정
 const config = {
   theme: myTheme,
-  
+
   layout: {
     showFooter: false,
   },
-  
+
   toolbar: {
     buttons: {
       print: false,
@@ -522,7 +520,7 @@ const config = {
       },
     ],
   },
-  
+
   aiPanel: {
     enabled: true,
     headerTitle: '스마트 문서 도우미',
@@ -530,21 +528,18 @@ const config = {
       externalApi: false,
     },
   },
-  
-  onDocumentLoad: (doc) => console.log('로드됨'),
-  onError: (err) => alert(err.message),
+
+  onDocumentLoad: doc => console.log('로드됨'),
+  onError: err => alert(err.message),
 };
 
 function App() {
   const [file, setFile] = useState(null);
-  
+
   return (
     <HanViewProvider config={config}>
       <div className="app">
-        <HWPXViewer 
-          file={file}
-          className="my-viewer"
-        />
+        <HWPXViewer file={file} className="my-viewer" />
         <ThemeToggle />
       </div>
     </HanViewProvider>
@@ -553,9 +548,9 @@ function App() {
 
 function ThemeToggle() {
   const { theme, setTheme } = useHanViewTheme();
-  
+
   return (
-    <button 
+    <button
       className="theme-toggle"
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
     >
@@ -572,4 +567,3 @@ function ThemeToggle() {
 - 📖 [전체 API 문서](./API.md)
 - 💬 [GitHub Issues](https://github.com/your-org/hanview-react/issues)
 - 📧 [이메일 문의](mailto:ray.kim@yatavent.com)
-

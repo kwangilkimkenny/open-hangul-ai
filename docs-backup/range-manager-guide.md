@@ -2,26 +2,32 @@
 
 ## 개요
 
-RangeManager는 HWPX 뷰어에서 텍스트 범위 선택을 관리하는 시스템입니다. Canvas-editor의 RangeManager를 DOM 기반으로 적용하여 마우스 드래그, 키보드 선택, 포맷 적용 등을 지원합니다.
+RangeManager는 HWPX 뷰어에서 텍스트 범위 선택을 관리하는 시스템입니다.
+Canvas-editor의 RangeManager를 DOM 기반으로 적용하여 마우스 드래그, 키보드 선택,
+포맷 적용 등을 지원합니다.
 
 ## 주요 기능
 
 ### 1. 드래그 선택
+
 - 마우스로 드래그하여 텍스트 선택
 - 실시간 시각적 하이라이트
 - 선택 범위 자동 추적
 
 ### 2. 키보드 선택
+
 - Shift + Arrow 키로 선택 확장
 - Shift + Home/End로 줄 단위 선택 (예정)
 - Ctrl + A로 전체 선택
 
 ### 3. 포맷 적용
+
 - 선택된 텍스트에 볼드, 이탤릭, 밑줄 등 적용
 - 색상 변경
 - 스타일 정보 추출
 
 ### 4. 선택 관리
+
 - 범위 설정/해제
 - 선택된 텍스트 추출
 - 선택 정보 조회
@@ -41,7 +47,7 @@ const rangeManager = viewer.getRangeManager();
 
 ```javascript
 // 특정 범위 선택 (인덱스 기반)
-viewer.setRange(0, 99);  // 첫 100개 문자 선택
+viewer.setRange(0, 99); // 첫 100개 문자 선택
 
 // 전체 선택
 viewer.selectAll();
@@ -80,7 +86,7 @@ console.log('Range:', range);
 
 // 선택 여부 확인
 if (rangeManager.hasSelection()) {
-    console.log('Text is selected');
+  console.log('Text is selected');
 }
 ```
 
@@ -157,7 +163,7 @@ console.log(`${elements.length} elements affected`);
 // 선택된 텍스트 복사
 const success = await rangeManager.copySelection();
 if (success) {
-    console.log('Copied to clipboard');
+  console.log('Copied to clipboard');
 }
 
 // 또는 viewer API 사용
@@ -181,21 +187,21 @@ rangeManager.deleteSelection();
 
 ```javascript
 // 선택 시작 감지
-document.addEventListener('mousedown', (e) => {
-    // RangeManager가 내부적으로 처리
+document.addEventListener('mousedown', e => {
+  // RangeManager가 내부적으로 처리
 });
 
 // 선택 중
-document.addEventListener('mousemove', (e) => {
-    // 드래그 중 하이라이트 업데이트
+document.addEventListener('mousemove', e => {
+  // 드래그 중 하이라이트 업데이트
 });
 
 // 선택 완료
-document.addEventListener('mouseup', (e) => {
-    const text = viewer.getSelectedText();
-    if (text) {
-        console.log(`Selected: ${text.length} chars`);
-    }
+document.addEventListener('mouseup', e => {
+  const text = viewer.getSelectedText();
+  if (text) {
+    console.log(`Selected: ${text.length} chars`);
+  }
 });
 ```
 
@@ -203,11 +209,11 @@ document.addEventListener('mouseup', (e) => {
 
 ```javascript
 // Shift + Arrow 키
-container.addEventListener('keydown', (e) => {
-    if (e.shiftKey) {
-        // RangeManager가 내부적으로 처리
-        // 선택 범위 확장
-    }
+container.addEventListener('keydown', e => {
+  if (e.shiftKey) {
+    // RangeManager가 내부적으로 처리
+    // 선택 범위 확장
+  }
 });
 ```
 
@@ -219,8 +225,8 @@ container.addEventListener('keydown', (e) => {
 // 텍스트 검색 후 선택
 const results = viewer.searchText('검색어');
 if (results.length > 0) {
-    const first = results[0];
-    viewer.setRange(first.startIndex, first.endIndex);
+  const first = results[0];
+  viewer.setRange(first.startIndex, first.endIndex);
 }
 ```
 
@@ -230,7 +236,9 @@ if (results.length > 0) {
 const positions = rangeManager.getSelectedPositions();
 
 positions.forEach(pos => {
-    console.log(`[${pos.index}] "${pos.value}" at (${pos.coordinate.left}, ${pos.coordinate.top})`);
+  console.log(
+    `[${pos.index}] "${pos.value}" at (${pos.coordinate.left}, ${pos.coordinate.top})`
+  );
 });
 ```
 
@@ -240,7 +248,7 @@ positions.forEach(pos => {
 // PositionManager를 사용한 커스텀 하이라이트
 const results = viewer.searchText('중요');
 results.forEach(result => {
-    viewer.highlightRange(result.startIndex, result.endIndex, '#ffff00');
+  viewer.highlightRange(result.startIndex, result.endIndex, '#ffff00');
 });
 
 // 제거
@@ -251,19 +259,19 @@ viewer.clearHighlight();
 
 ```javascript
 function formatSelectedText(format, value) {
-    if (!rangeManager.hasSelection()) {
-        alert('텍스트를 먼저 선택하세요.');
-        return;
-    }
+  if (!rangeManager.hasSelection()) {
+    alert('텍스트를 먼저 선택하세요.');
+    return;
+  }
 
-    // 히스토리에 저장 (undo 지원)
-    const currentRange = rangeManager.getRange();
+  // 히스토리에 저장 (undo 지원)
+  const currentRange = rangeManager.getRange();
 
-    // 포맷 적용
-    viewer.applyFormat(format, value);
+  // 포맷 적용
+  viewer.applyFormat(format, value);
 
-    // 문서 저장 플래그
-    viewer.autoSaveManager?.markDirty();
+  // 문서 저장 플래그
+  viewer.autoSaveManager?.markDirty();
 }
 
 // 사용
@@ -274,17 +282,17 @@ formatSelectedText('bold', true);
 
 ```javascript
 function highlightAllMatches(searchTerm) {
-    const results = viewer.searchText(searchTerm);
+  const results = viewer.searchText(searchTerm);
 
-    // 각 결과를 다른 색으로 표시
-    const colors = ['#ffeb3b', '#4caf50', '#2196f3', '#f44336'];
+  // 각 결과를 다른 색으로 표시
+  const colors = ['#ffeb3b', '#4caf50', '#2196f3', '#f44336'];
 
-    results.forEach((result, index) => {
-        const color = colors[index % colors.length];
-        viewer.highlightRange(result.startIndex, result.endIndex, color);
-    });
+  results.forEach((result, index) => {
+    const color = colors[index % colors.length];
+    viewer.highlightRange(result.startIndex, result.endIndex, color);
+  });
 
-    console.log(`Highlighted ${results.length} matches`);
+  console.log(`Highlighted ${results.length} matches`);
 }
 
 // 사용
@@ -298,18 +306,18 @@ highlightAllMatches('테스트');
 ```css
 /* 선택 하이라이트 색상 변경 */
 .hwpx-selection-highlight {
-    background-color: rgba(255, 200, 0, 0.4) !important;
+  background-color: rgba(255, 200, 0, 0.4) !important;
 }
 
 /* 드래그 중 커서 */
 .hwpx-selecting {
-    cursor: crosshair !important;
+  cursor: crosshair !important;
 }
 
 /* 선택 툴팁 스타일 */
 .hwpx-selection-tooltip {
-    background: rgba(0, 0, 0, 0.9) !important;
-    font-size: 14px !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  font-size: 14px !important;
 }
 ```
 
@@ -329,58 +337,60 @@ document.querySelector('#hwpx-viewer').classList.remove('hwpx-selection-debug');
 
 ```javascript
 class EditorToolbar {
-    constructor(viewer) {
-        this.viewer = viewer;
-        this.rangeManager = viewer.getRangeManager();
-        this.setupButtons();
+  constructor(viewer) {
+    this.viewer = viewer;
+    this.rangeManager = viewer.getRangeManager();
+    this.setupButtons();
+  }
+
+  setupButtons() {
+    // Bold 버튼
+    document.getElementById('btn-bold').addEventListener('click', () => {
+      if (this.rangeManager.hasSelection()) {
+        this.viewer.applyFormat('bold', true);
+      }
+    });
+
+    // Italic 버튼
+    document.getElementById('btn-italic').addEventListener('click', () => {
+      if (this.rangeManager.hasSelection()) {
+        this.viewer.applyFormat('italic', true);
+      }
+    });
+
+    // Color picker
+    document.getElementById('color-picker').addEventListener('change', e => {
+      if (this.rangeManager.hasSelection()) {
+        this.viewer.applyFormat('color', e.target.value);
+      }
+    });
+
+    // Copy 버튼
+    document.getElementById('btn-copy').addEventListener('click', async () => {
+      const success = await this.rangeManager.copySelection();
+      if (success) {
+        alert('복사되었습니다!');
+      }
+    });
+  }
+
+  updateToolbarState() {
+    // 선택 여부에 따라 버튼 활성화/비활성화
+    const hasSelection = this.rangeManager.hasSelection();
+    document.getElementById('btn-bold').disabled = !hasSelection;
+    document.getElementById('btn-italic').disabled = !hasSelection;
+
+    // 현재 스타일 표시
+    if (hasSelection) {
+      const style = this.rangeManager.getSelectionStyle();
+      document
+        .getElementById('btn-bold')
+        .classList.toggle(
+          'active',
+          style.fontWeight === '700' || style.fontWeight === 'bold'
+        );
     }
-
-    setupButtons() {
-        // Bold 버튼
-        document.getElementById('btn-bold').addEventListener('click', () => {
-            if (this.rangeManager.hasSelection()) {
-                this.viewer.applyFormat('bold', true);
-            }
-        });
-
-        // Italic 버튼
-        document.getElementById('btn-italic').addEventListener('click', () => {
-            if (this.rangeManager.hasSelection()) {
-                this.viewer.applyFormat('italic', true);
-            }
-        });
-
-        // Color picker
-        document.getElementById('color-picker').addEventListener('change', (e) => {
-            if (this.rangeManager.hasSelection()) {
-                this.viewer.applyFormat('color', e.target.value);
-            }
-        });
-
-        // Copy 버튼
-        document.getElementById('btn-copy').addEventListener('click', async () => {
-            const success = await this.rangeManager.copySelection();
-            if (success) {
-                alert('복사되었습니다!');
-            }
-        });
-    }
-
-    updateToolbarState() {
-        // 선택 여부에 따라 버튼 활성화/비활성화
-        const hasSelection = this.rangeManager.hasSelection();
-        document.getElementById('btn-bold').disabled = !hasSelection;
-        document.getElementById('btn-italic').disabled = !hasSelection;
-
-        // 현재 스타일 표시
-        if (hasSelection) {
-            const style = this.rangeManager.getSelectionStyle();
-            document.getElementById('btn-bold').classList.toggle(
-                'active',
-                style.fontWeight === '700' || style.fontWeight === 'bold'
-            );
-        }
-    }
+  }
 }
 
 // 사용
@@ -394,26 +404,26 @@ setInterval(() => toolbar.updateToolbarState(), 100);
 
 ```javascript
 function showSelectionInfo() {
-    const rangeManager = viewer.getRangeManager();
+  const rangeManager = viewer.getRangeManager();
 
-    if (!rangeManager.hasSelection()) {
-        console.log('No selection');
-        return;
-    }
+  if (!rangeManager.hasSelection()) {
+    console.log('No selection');
+    return;
+  }
 
-    const info = rangeManager.getRangeInfo();
+  const info = rangeManager.getRangeInfo();
 
-    console.log('=== Selection Info ===');
-    console.log(`Range: [${info.startIndex}, ${info.endIndex}]`);
-    console.log(`Length: ${info.length} chars`);
-    console.log(`Characters: ${info.characterCount}`);
-    console.log(`Whitespace: ${info.whitespaceCount}`);
-    console.log(`Text: "${info.text.substring(0, 50)}..."`);
+  console.log('=== Selection Info ===');
+  console.log(`Range: [${info.startIndex}, ${info.endIndex}]`);
+  console.log(`Length: ${info.length} chars`);
+  console.log(`Characters: ${info.characterCount}`);
+  console.log(`Whitespace: ${info.whitespaceCount}`);
+  console.log(`Text: "${info.text.substring(0, 50)}..."`);
 }
 
 // 마우스 업 시 정보 표시
 document.addEventListener('mouseup', () => {
-    setTimeout(showSelectionInfo, 100);
+  setTimeout(showSelectionInfo, 100);
 });
 ```
 
@@ -421,76 +431,80 @@ document.addEventListener('mouseup', () => {
 
 ```javascript
 class SelectionHistory {
-    constructor() {
-        this.history = [];
-        this.currentIndex = -1;
-    }
+  constructor() {
+    this.history = [];
+    this.currentIndex = -1;
+  }
 
-    save(rangeManager) {
-        const range = rangeManager.getRange();
-        if (!range.isCollapsed) {
-            this.history.push(range);
-            this.currentIndex = this.history.length - 1;
-        }
+  save(rangeManager) {
+    const range = rangeManager.getRange();
+    if (!range.isCollapsed) {
+      this.history.push(range);
+      this.currentIndex = this.history.length - 1;
     }
+  }
 
-    restore(viewer, index) {
-        if (index >= 0 && index < this.history.length) {
-            const range = this.history[index];
-            viewer.setRange(range.startIndex, range.endIndex);
-            this.currentIndex = index;
-        }
+  restore(viewer, index) {
+    if (index >= 0 && index < this.history.length) {
+      const range = this.history[index];
+      viewer.setRange(range.startIndex, range.endIndex);
+      this.currentIndex = index;
     }
+  }
 
-    previous(viewer) {
-        if (this.currentIndex > 0) {
-            this.restore(viewer, this.currentIndex - 1);
-        }
+  previous(viewer) {
+    if (this.currentIndex > 0) {
+      this.restore(viewer, this.currentIndex - 1);
     }
+  }
 
-    next(viewer) {
-        if (this.currentIndex < this.history.length - 1) {
-            this.restore(viewer, this.currentIndex + 1);
-        }
+  next(viewer) {
+    if (this.currentIndex < this.history.length - 1) {
+      this.restore(viewer, this.currentIndex + 1);
     }
+  }
 }
 
 // 사용
 const selectionHistory = new SelectionHistory();
 
 document.addEventListener('mouseup', () => {
-    selectionHistory.save(viewer.getRangeManager());
+  selectionHistory.save(viewer.getRangeManager());
 });
 
 // Ctrl+[ : 이전 선택
 // Ctrl+] : 다음 선택
-document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === '[') {
-        selectionHistory.previous(viewer);
-    } else if (e.ctrlKey && e.key === ']') {
-        selectionHistory.next(viewer);
-    }
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === '[') {
+    selectionHistory.previous(viewer);
+  } else if (e.ctrlKey && e.key === ']') {
+    selectionHistory.next(viewer);
+  }
 });
 ```
 
 ## 제약사항 및 주의사항
 
 ### 1. 테이블 셀 내부
+
 - 테이블 셀 내부는 InlineEditor가 별도로 처리
 - 셀 클릭 시 RangeManager의 드래그 선택 비활성화
 - 셀 편집 모드에서는 브라우저 네이티브 선택 사용
 
 ### 2. 성능 고려사항
+
 - 대용량 문서에서 드래그 선택 시 하이라이트 렌더링 부하
 - 수천 개 이상의 문자 선택 시 하이라이트 요소 많아짐
 - 필요시 `_updateSelectionHighlight()` 최적화 필요
 
 ### 3. 스크롤
+
 - 하이라이트 위치는 viewport 기준이 아닌 컨테이너 기준
 - 스크롤 시 하이라이트 위치 자동 조정
 - 스크롤 중 선택하면 자동 스크롤 미지원 (향후 추가 예정)
 
 ### 4. 편집 모드
+
 - 전역 편집 모드(`EditModeManager`)와 연동 필요
 - 읽기 전용 모드에서는 선택만 가능, 포맷 적용 불가
 
@@ -551,7 +565,8 @@ viewer.getRangeManager()._updateSelectionHighlight();
 
 - [PositionManager 가이드](./position-manager-guide.md)
 - [Canvas-editor Range System](https://github.com/Hufe921/canvas-editor)
-- MDN: [Selection API](https://developer.mozilla.org/en-US/docs/Web/API/Selection)
+- MDN:
+  [Selection API](https://developer.mozilla.org/en-US/docs/Web/API/Selection)
 - MDN: [Range API](https://developer.mozilla.org/en-US/docs/Web/API/Range)
 
 ## 문의
