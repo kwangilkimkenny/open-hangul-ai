@@ -1,4 +1,5 @@
 // Copy to clipboard functionality
+// Updated: 2026-04-20 - Canvas Particle System
 function copyToClipboard(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard
