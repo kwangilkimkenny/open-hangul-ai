@@ -210,3 +210,172 @@ const animationStyles = `
 const styleSheet = document.createElement('style');
 styleSheet.textContent = animationStyles;
 document.head.appendChild(styleSheet);
+
+// ===== Background Canvas Particle System =====
+
+class TextParticle {
+  constructor(canvas, text) {
+    this.canvas = canvas;
+    this.text = text;
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.vx = (Math.random() - 0.5) * 0.5;
+    this.vy = (Math.random() - 0.5) * 0.5;
+    this.fontSize = Math.random() * 20 + 12;
+    this.opacity = Math.random() * 0.1 + 0.05;
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotationSpeed = (Math.random() - 0.5) * 0.002;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.rotation += this.rotationSpeed;
+
+    // Wrap around screen
+    if (this.x > this.canvas.width + 50) this.x = -50;
+    if (this.x < -50) this.x = this.canvas.width + 50;
+    if (this.y > this.canvas.height + 50) this.y = -50;
+    if (this.y < -50) this.y = this.canvas.height + 50;
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.globalAlpha = this.opacity;
+    ctx.font = `${this.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif`;
+    ctx.fillStyle = '#2d3748';
+    ctx.textAlign = 'center';
+
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    ctx.fillText(this.text, 0, 0);
+
+    ctx.restore();
+  }
+}
+
+class ParticleSystem {
+  constructor() {
+    this.canvas = document.getElementById('backgroundCanvas');
+    if (!this.canvas) return;
+
+    this.ctx = this.canvas.getContext('2d');
+    this.particles = [];
+    this.keywords = [
+      // 한글 키워드
+      '문서',
+      '편집',
+      '한글',
+      '워드',
+      '엑셀',
+      '파워포인트',
+      '보안',
+      '검증',
+      '신뢰',
+      '편집기',
+      '뷰어',
+      '파일',
+
+      // 영어 키워드
+      'HWPX',
+      'Document',
+      'Security',
+      'AI',
+      'Verification',
+      'React',
+      'TypeScript',
+      'AEGIS',
+      'TruthAnchor',
+      'Canvas',
+      'Editor',
+      'Viewer',
+      'Parser',
+
+      // 기술 키워드
+      'JavaScript',
+      'Node.js',
+      'Vite',
+      'npm',
+      'PDF',
+      'DOCX',
+      'Excel',
+      'PowerPoint',
+    ];
+
+    this.init();
+    this.setupEventListeners();
+    this.animate();
+  }
+
+  init() {
+    this.resizeCanvas();
+    this.createParticles();
+  }
+
+  resizeCanvas() {
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+  }
+
+  createParticles() {
+    const density = Math.min(100, Math.floor((this.canvas.width * this.canvas.height) / 15000));
+
+    this.particles = [];
+    for (let i = 0; i < density; i++) {
+      const randomKeyword = this.keywords[Math.floor(Math.random() * this.keywords.length)];
+      this.particles.push(new TextParticle(this.canvas, randomKeyword));
+    }
+  }
+
+  setupEventListeners() {
+    window.addEventListener('resize', () => {
+      this.resizeCanvas();
+      this.createParticles();
+    });
+
+    // Pause animation when tab is not visible (performance optimization)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.stopAnimation();
+      } else {
+        this.animate();
+      }
+    });
+  }
+
+  animate() {
+    if (document.hidden) return;
+
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    this.particles.forEach(particle => {
+      particle.update();
+      particle.draw(this.ctx);
+    });
+
+    this.animationId = requestAnimationFrame(() => this.animate());
+  }
+
+  stopAnimation() {
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+    }
+  }
+}
+
+// Initialize particle system when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  // Add a small delay to ensure canvas is rendered
+  setTimeout(() => {
+    new ParticleSystem();
+  }, 100);
+});
+
+// Accessibility: Respect user's motion preferences
+if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  // Don't initialize particle system for users who prefer reduced motion
+  const canvas = document.getElementById('backgroundCanvas');
+  if (canvas) {
+    canvas.style.display = 'none';
+  }
+}

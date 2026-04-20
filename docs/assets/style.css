@@ -16,6 +16,19 @@ body {
   color: #2d3748;
   background: #ffffff;
   font-size: 16px;
+  position: relative;
+}
+
+/* Background Canvas */
+.background-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.03;
 }
 
 /* Typography */
