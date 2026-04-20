@@ -106,18 +106,43 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
-// Add scroll-based navbar background
+// Add scroll-based navbar background (uses .is-scrolled class — see CSS)
 document.addEventListener('scroll', function () {
   const navbar = document.querySelector('.navbar');
-  const scrolled = window.scrollY > 50;
+  if (!navbar) return;
+  navbar.classList.toggle('is-scrolled', window.scrollY > 12);
+});
 
-  if (scrolled) {
-    navbar.style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
-    navbar.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
-  } else {
-    navbar.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
-    navbar.style.boxShadow = 'none';
-  }
+// Mobile hamburger toggle
+document.addEventListener('DOMContentLoaded', function () {
+  const toggle = document.getElementById('navToggle');
+  const menu = document.getElementById('navMenu');
+  if (!toggle || !menu) return;
+
+  const closeMenu = () => {
+    menu.classList.remove('is-open');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', '메뉴 열기');
+  };
+
+  toggle.addEventListener('click', () => {
+    const isOpen = menu.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    toggle.setAttribute('aria-label', isOpen ? '메뉴 닫기' : '메뉴 열기');
+  });
+
+  // Close on link click (mobile)
+  menu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+
+  // Close on escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeMenu();
+  });
+
+  // Close when resizing back to desktop
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) closeMenu();
+  });
 });
 
 // Analytics and tracking (placeholder)
@@ -171,46 +196,24 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
-// Progressive enhancement for better performance
+// Reveal-on-scroll for elements marked with .reveal (style is in CSS)
 if ('IntersectionObserver' in window) {
   const observer = new IntersectionObserver(
     entries => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
-          entry.target.classList.add('animate-in');
+          entry.target.classList.add('is-in');
+          observer.unobserve(entry.target);
         }
       });
     },
-    {
-      threshold: 0.1,
-      rootMargin: '0px 0px -50px 0px',
-    }
+    { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
   );
 
-  // Observe cards and sections for animation
-  document.addEventListener('DOMContentLoaded', function () {
-    const animatableElements = document.querySelectorAll('.card, .api-section, .example-card');
-    animatableElements.forEach(el => observer.observe(el));
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
   });
 }
-
-// Add CSS for animations
-const animationStyles = `
-    .card, .api-section, .example-card {
-        opacity: 0;
-        transform: translateY(20px);
-        transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-
-    .animate-in {
-        opacity: 1 !important;
-        transform: translateY(0) !important;
-    }
-`;
-
-const styleSheet = document.createElement('style');
-styleSheet.textContent = animationStyles;
-document.head.appendChild(styleSheet);
 
 // ===== Background Canvas Particle System =====
 

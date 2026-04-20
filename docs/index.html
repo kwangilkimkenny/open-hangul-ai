@@ -4,66 +4,171 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>오픈한글AI - 신뢰할 수 있는 한글 문서 편집 솔루션</title>
-    <meta name="description" content="HWPX 네이티브 지원과 AI 보안·검증이 통합된 전문 문서 편집 라이브러리">
-    <meta name="keywords" content="HWPX, 한글문서, React, TypeScript, AI문서편집, 보안">
+    <meta name="description" content="HWPX 네이티브 지원과 AI 보안·검증이 통합된 React 라이브러리. 219개 보안 패턴 차단, TruthAnchor 신뢰도 검증, 200만 토큰 컨텍스트.">
+    <meta name="keywords" content="HWPX, 한글문서, React, TypeScript, AI문서편집, 보안, AEGIS, TruthAnchor">
     <meta name="author" content="YATAV Team">
     <meta name="updated" content="2026-04-20">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="오픈한글AI - 신뢰할 수 있는 한글 문서 편집 솔루션">
+    <meta property="og:description" content="HWPX 네이티브 지원과 AI 보안·검증이 통합된 React 라이브러리">
+
+    <!-- Pretendard (Korean web font) -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+
     <link rel="stylesheet" href="./assets/style.css">
     <link rel="icon" href="./assets/favicon.ico">
 </head>
 <body>
-    <nav class="navbar">
+    <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+
+    <nav class="navbar" aria-label="주요 메뉴">
         <div class="nav-container">
-            <div class="nav-brand">
-                <h1>오픈한글AI</h1>
+            <a class="nav-brand" href="#" aria-label="오픈한글AI 홈">
+                <h1>오픈한글<span style="color:var(--color-accent)">AI</span></h1>
                 <span class="nav-subtitle">Open Hangul AI</span>
-            </div>
-            <ul class="nav-menu">
+            </a>
+
+            <button class="nav-toggle" id="navToggle" aria-label="메뉴 열기" aria-expanded="false" aria-controls="navMenu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                    <line x1="4" y1="7" x2="20" y2="7"/>
+                    <line x1="4" y1="12" x2="20" y2="12"/>
+                    <line x1="4" y1="17" x2="20" y2="17"/>
+                </svg>
+            </button>
+
+            <ul class="nav-menu" id="navMenu">
                 <li><a href="#features">기능</a></li>
                 <li><a href="#technology">기술</a></li>
                 <li><a href="#getting-started">시작하기</a></li>
                 <li><a href="#contact">문의</a></li>
+                <li><a class="nav-cta" href="https://github.com/kwangilkimkenny/open-hangul-ai" rel="noopener">GitHub</a></li>
             </ul>
         </div>
     </nav>
 
     <!-- Background Canvas -->
-    <canvas id="backgroundCanvas" class="background-canvas"></canvas>
+    <canvas id="backgroundCanvas" class="background-canvas" aria-hidden="true"></canvas>
 
-    <main>
+    <main id="main">
         <!-- Hero -->
         <section class="hero">
             <div class="container">
-                <h1>신뢰할 수 있는<br>한글 문서 편집 솔루션</h1>
-                <p class="hero-subtitle">HWPX 네이티브 지원과 AI 보안·검증이 통합된 React 라이브러리</p>
+                <div class="hero-grid">
+                    <div class="hero-copy">
+                        <span class="hero-eyebrow"><span class="dot"></span> v1.0 · React 19 · TypeScript 5.9</span>
 
-                <div class="hero-stats">
-                    <div class="stat">
-                        <span class="stat-number">219</span>
-                        <span class="stat-label">보안 패턴</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-number">75</span>
-                        <span class="stat-label">검증 규칙</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-number">4</span>
-                        <span class="stat-label">규제 프레임워크</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-number">200만</span>
-                        <span class="stat-label">토큰 컨텍스트</span>
-                    </div>
-                </div>
+                        <h1>신뢰할 수 있는<br><span class="accent">한글 문서</span> 편집 솔루션</h1>
 
-                <div class="hero-actions">
-                    <a href="getting-started.html" class="btn btn-primary">시작하기</a>
-                    <a href="https://github.com/kwangilkimkenny/open-hangul-ai" class="btn btn-secondary">GitHub</a>
-                </div>
+                        <p class="hero-subtitle">
+                            서버 변환 없이 브라우저에서 바로 처리하는 HWPX 네이티브 뷰어와,
+                            AI 보안·검증·규제 준수까지 통합된 단 하나의 React 라이브러리.
+                        </p>
 
-                <div class="install-command">
-                    <code>npm install open-hangul-ai</code>
-                    <button class="copy-btn" onclick="copyToClipboard('npm install open-hangul-ai')">복사</button>
+                        <div class="hero-actions">
+                            <a href="https://github.com/kwangilkimkenny/open-hangul-ai" class="btn btn-primary" rel="noopener">
+                                브라우저에서 바로 체험
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                            </a>
+                            <a href="getting-started.html" class="btn btn-secondary">설치 가이드</a>
+                        </div>
+
+                        <div class="install-command">
+                            <span class="prompt">$</span>
+                            <code>npm install open-hangul-ai</code>
+                            <button class="copy-btn" onclick="copyToClipboard('npm install open-hangul-ai')">복사</button>
+                        </div>
+
+                        <div class="trust-badges" aria-label="프로젝트 배지">
+                            <a href="https://www.npmjs.com/package/open-hangul-ai" rel="noopener">
+                                <img alt="npm version" src="https://img.shields.io/npm/v/open-hangul-ai?style=flat-square&color=4f46e5&label=npm">
+                            </a>
+                            <a href="https://github.com/kwangilkimkenny/open-hangul-ai/stargazers" rel="noopener">
+                                <img alt="GitHub stars" src="https://img.shields.io/github/stars/kwangilkimkenny/open-hangul-ai?style=flat-square&color=0f172a&label=stars">
+                            </a>
+                            <a href="https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/LICENSE" rel="noopener">
+                                <img alt="License" src="https://img.shields.io/badge/license-MIT-10b981?style=flat-square">
+                            </a>
+                            <img alt="Tests" src="https://img.shields.io/badge/tests-964%20passing-10b981?style=flat-square">
+                        </div>
+
+                        <div class="hero-stats">
+                            <div class="stat">
+                                <span class="stat-number">219<span style="font-size:1rem;color:var(--color-ink-400)">+</span></span>
+                                <span class="stat-label">AI 공격 패턴 차단</span>
+                                <span class="stat-hint">프롬프트 인젝션 · PII 유출</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-number">75</span>
+                                <span class="stat-label">신뢰도 검증 규칙</span>
+                                <span class="stat-hint">할루시네이션 사전 차단</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-number">4</span>
+                                <span class="stat-label">규제 프레임워크</span>
+                                <span class="stat-hint">K-AI · EU AI Act · NIST</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-number">2M</span>
+                                <span class="stat-label">토큰 컨텍스트</span>
+                                <span class="stat-hint">대용량 참조 문서 처리</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Product mockup (no real screenshot yet — pure HTML/CSS) -->
+                    <div class="hero-mockup" aria-hidden="true">
+                        <div class="mockup-window">
+                            <div class="mockup-titlebar">
+                                <span class="mockup-dot r"></span>
+                                <span class="mockup-dot y"></span>
+                                <span class="mockup-dot g"></span>
+                                <span class="mockup-tab">📄 사업계획서_2026.hwpx</span>
+                            </div>
+                            <div class="mockup-body">
+                                <aside class="mockup-side">
+                                    <div class="mockup-side-item active"><span class="ic"></span> 1. 사업 개요</div>
+                                    <div class="mockup-side-item"><span class="ic" style="opacity:.4"></span> 2. 시장 분석</div>
+                                    <div class="mockup-side-item"><span class="ic" style="opacity:.4"></span> 3. 기술 전략</div>
+                                    <div class="mockup-side-item"><span class="ic" style="opacity:.4"></span> 4. 재무 계획</div>
+                                </aside>
+                                <div class="mockup-doc">
+                                    <h4>1. 사업 개요</h4>
+                                    <div class="mockup-line w-100"></div>
+                                    <div class="mockup-line w-90"></div>
+                                    <div class="mockup-line w-75"></div>
+
+                                    <div class="mockup-highlight">
+                                        <span class="tag">✦ AI 제안</span>
+                                        <div class="text">"2025년 3분기 매출 142억" — TruthAnchor: 출처 검증 완료</div>
+                                    </div>
+
+                                    <div class="mockup-line w-100"></div>
+                                    <div class="mockup-line w-60"></div>
+                                    <div class="mockup-line w-90"></div>
+                                    <div class="mockup-line w-40"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mockup-floating top">
+                            <div class="icon-dot">A</div>
+                            <div>
+                                <div class="label">AEGIS</div>
+                                <div class="sub">PII 자동 마스킹</div>
+                            </div>
+                        </div>
+
+                        <div class="mockup-floating bottom">
+                            <div class="icon-dot" style="background:#dcfce7;color:#10b981">✓</div>
+                            <div>
+                                <div class="label">신뢰도 98%</div>
+                                <div class="sub">TruthAnchor 검증 완료</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -71,99 +176,105 @@
         <!-- Features -->
         <section id="features" class="section">
             <div class="container">
-                <h2>핵심 기능</h2>
+                <span class="section-eyebrow">Core Features</span>
+                <h2>다른 솔루션이 못하는 것을 합니다</h2>
+                <p class="section-lede">3가지 차별화 기능과 3가지 개발자 편의 기능으로, 한글 문서 AI의 새로운 표준을 만듭니다.</p>
 
-                <div class="features-grid">
-                    <div class="feature-item">
-                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2"/>
-                            <path d="M9 12l2 2 4-4"/>
-                        </svg>
+                <!-- Primary 3 -->
+                <div class="features-primary">
+                    <div class="feature-item is-primary reveal">
+                        <div class="feature-icon-wrap">
+                            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <path d="M9 14l2 2 4-4"/>
+                            </svg>
+                        </div>
                         <h3>HWPX 네이티브 지원</h3>
-                        <p>브라우저에서 직접 HWPX 파일 처리. 서버 변환 불필요.</p>
+                        <p>브라우저에서 직접 HWPX/HWP 파일을 처리합니다. 서버 변환·외부 SaaS 의존성이 0.</p>
                         <ul>
                             <li>완전한 OWPML 파싱</li>
-                            <li>HWP 자동 변환</li>
-                            <li>다중 포맷 지원</li>
+                            <li>HWP → HWPX 자동 변환</li>
+                            <li>PDF · DOCX · TXT 통합 지원</li>
                         </ul>
                     </div>
 
-                    <div class="feature-item">
-                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="3"/>
-                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-                        </svg>
+                    <div class="feature-item is-primary reveal">
+                        <div class="feature-icon-wrap">
+                            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                <path d="M9 12l2 2 4-4"/>
+                            </svg>
+                        </div>
                         <h3>AEGIS 보안 시스템</h3>
-                        <p>AI 입출력 보안 및 개인정보 자동 보호.</p>
+                        <p>AI 입출력을 실시간 스캔. 한국어 특화 219개 공격 패턴을 사전 차단하고 PII를 자동 가명처리합니다.</p>
                         <ul>
-                            <li>219개 공격 패턴 차단</li>
-                            <li>PII 자동 가명처리</li>
-                            <li>한국어 특화 방어</li>
+                            <li>219개 프롬프트 인젝션 패턴</li>
+                            <li>주민번호 · 카드 · 연락처 자동 마스킹</li>
+                            <li>한국어 특화 우회 공격 방어</li>
                         </ul>
                     </div>
 
-                    <div class="feature-item">
-                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 12l2 2 4-4"/>
-                            <path d="M21 12c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"/>
-                            <path d="M3 12c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"/>
-                            <path d="M12 3c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"/>
-                            <path d="M12 21c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"/>
-                            <path d="M18.364 5.636c.39-.39.39-1.024 0-1.414s-1.024-.39-1.414 0-.39 1.024 0 1.414 1.024.39 1.414 0z"/>
-                            <path d="M7.05 18.364c.39-.39.39-1.024 0-1.414s-1.024-.39-1.414 0-.39 1.024 0 1.414 1.024.39 1.414 0z"/>
-                            <path d="M5.636 5.636c-.39-.39-1.024-.39-1.414 0s-.39 1.024 0 1.414 1.024.39 1.414 0 .39-1.024 0-1.414z"/>
-                            <path d="M18.364 18.364c-.39-.39-1.024-.39-1.414 0s-.39 1.024 0 1.414 1.024.39 1.414 0 .39-1.024 0-1.414z"/>
-                        </svg>
+                    <div class="feature-item is-primary reveal">
+                        <div class="feature-icon-wrap">
+                            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="9"/>
+                                <path d="M8 12l3 3 5-6"/>
+                            </svg>
+                        </div>
                         <h3>TruthAnchor 검증</h3>
-                        <p>AI 출력 신뢰도 검증 및 할루시네이션 방지.</p>
+                        <p>AI 출력의 수치·인용·사실관계를 75개 규칙으로 교차 검증해 할루시네이션을 차단합니다.</p>
                         <ul>
-                            <li>6개 도메인 가드레일</li>
-                            <li>수치 정확도 검증</li>
-                            <li>실시간 사실 확인</li>
+                            <li>6개 도메인별 가드레일</li>
+                            <li>수치·날짜·인용 정확도 검증</li>
+                            <li>출처 추적 가능한 응답</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Secondary 3 -->
+                <div class="features-secondary">
+                    <div class="feature-item is-secondary reveal">
+                        <div class="feature-icon-wrap">
+                            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <h3>규제 준수 자동 평가</h3>
+                        <p>4개 글로벌 AI 규제 프레임워크 기준으로 자동 점검합니다.</p>
+                        <ul>
+                            <li>한국 AI 기본법 · EU AI Act</li>
+                            <li>NIST AI RMF · ISO/IEC 42001</li>
                         </ul>
                     </div>
 
-                    <div class="feature-item">
-                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                            <polyline points="14,2 14,8 20,8"/>
-                            <line x1="16" y1="13" x2="8" y2="13"/>
-                            <line x1="16" y1="17" x2="8" y2="17"/>
-                            <polyline points="10,9 9,9 8,9"/>
-                        </svg>
-                        <h3>규제 준수</h3>
-                        <p>글로벌 AI 규제 프레임워크 자동 평가.</p>
-                        <ul>
-                            <li>한국 AI 기본법</li>
-                            <li>EU AI Act</li>
-                            <li>NIST AI RMF</li>
-                        </ul>
-                    </div>
-
-                    <div class="feature-item">
-                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                        </svg>
+                    <div class="feature-item is-secondary reveal">
+                        <div class="feature-icon-wrap">
+                            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                            </svg>
+                        </div>
                         <h3>AI 문서 생성</h3>
-                        <p>대용량 참조 문서 기반 AI 초안 생성.</p>
+                        <p>200만 토큰 컨텍스트로 대용량 참조 문서 기반 초안을 스트리밍 생성합니다.</p>
                         <ul>
-                            <li>200만 토큰 컨텍스트</li>
-                            <li>다중 참조 문서</li>
-                            <li>스트리밍 생성</li>
+                            <li>다중 참조 · 인용 추적</li>
+                            <li>실시간 스트리밍 응답</li>
                         </ul>
                     </div>
 
-                    <div class="feature-item">
-                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="16 18 22 12 16 6"/>
-                            <polyline points="8 6 2 12 8 18"/>
-                        </svg>
+                    <div class="feature-item is-secondary reveal">
+                        <div class="feature-icon-wrap">
+                            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="16 18 22 12 16 6"/>
+                                <polyline points="8 6 2 12 8 18"/>
+                            </svg>
+                        </div>
                         <h3>개발자 경험</h3>
-                        <p>React 19 + TypeScript 5.9 기반 모던 스택.</p>
+                        <p>5분 안에 설치 끝. 완전한 타입 지원과 964개 테스트로 검증된 안정성.</p>
                         <ul>
-                            <li>5분 설치</li>
-                            <li>완전한 타입 지원</li>
-                            <li>964개 테스트</li>
+                            <li>React 19 · TypeScript 5.9</li>
+                            <li>964개 테스트 · CI 검증</li>
                         </ul>
                     </div>
                 </div>
@@ -173,10 +284,12 @@
         <!-- Technology -->
         <section id="technology" class="section bg-light">
             <div class="container">
-                <h2>기술 스택</h2>
+                <span class="section-eyebrow">Technology</span>
+                <h2>검증된 모던 스택 위에 구축</h2>
+                <p class="section-lede">엔터프라이즈에서 그대로 채택할 수 있도록, 산업 표준 기술만 사용합니다.</p>
 
                 <div class="tech-grid">
-                    <div class="tech-category">
+                    <div class="tech-category reveal">
                         <h3>Frontend</h3>
                         <ul>
                             <li>React 19</li>
@@ -185,8 +298,8 @@
                             <li>Zustand</li>
                         </ul>
                     </div>
-                    <div class="tech-category">
-                        <h3>AI & Security</h3>
+                    <div class="tech-category reveal">
+                        <h3>AI &amp; Security</h3>
                         <ul>
                             <li>Google Vertex AI</li>
                             <li>AEGIS SDK v5.2</li>
@@ -194,7 +307,7 @@
                             <li>Function Calling</li>
                         </ul>
                     </div>
-                    <div class="tech-category">
+                    <div class="tech-category reveal">
                         <h3>Document Processing</h3>
                         <ul>
                             <li>OWPML Parser</li>
@@ -206,7 +319,7 @@
                 </div>
 
                 <div class="architecture">
-                    <h3>처리 흐름</h3>
+                    <h3>요청 처리 흐름</h3>
                     <div class="flow-diagram">
                         <div class="flow-step">
                             <span class="step-number">1</span>
@@ -235,32 +348,35 @@
         <!-- Getting Started -->
         <section id="getting-started" class="section">
             <div class="container">
-                <h2>시작하기</h2>
+                <span class="section-eyebrow">Getting Started</span>
+                <h2>5분 안에 시작하기</h2>
+                <p class="section-lede">npm 설치부터 보안·검증 활성화까지, 3 단계면 충분합니다.</p>
 
                 <div class="getting-started-content">
                     <div class="step-list">
-                        <div class="step">
+                        <div class="step reveal">
                             <span class="step-number">1</span>
                             <div class="step-content">
                                 <h3>설치</h3>
                                 <div class="code-block">
-                                    <code>npm install open-hangul-ai</code>
+<pre><code><span class="tok-com"># 패키지 설치</span>
+npm install open-hangul-ai</code></pre>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="step">
+                        <div class="step reveal">
                             <span class="step-number">2</span>
                             <div class="step-content">
                                 <h3>기본 사용</h3>
                                 <div class="code-block">
-<pre><code>import { HWPXViewer } from 'open-hangul-ai';
+<pre><code><span class="tok-key">import</span> { HWPXViewer } <span class="tok-key">from</span> <span class="tok-str">'open-hangul-ai'</span>;
 
-function App() {
-  return (
-    &lt;HWPXViewer
-      fileUrl="/문서.hwpx"
-      enableAI={true}
+<span class="tok-key">function</span> <span class="tok-tag">App</span>() {
+  <span class="tok-key">return</span> (
+    &lt;<span class="tok-tag">HWPXViewer</span>
+      <span class="tok-key">fileUrl</span>=<span class="tok-str">"/문서.hwpx"</span>
+      <span class="tok-key">enableAI</span>={<span class="tok-key">true</span>}
     /&gt;
   );
 }</code></pre>
@@ -268,15 +384,15 @@ function App() {
                             </div>
                         </div>
 
-                        <div class="step">
+                        <div class="step reveal">
                             <span class="step-number">3</span>
                             <div class="step-content">
-                                <h3>보안 설정</h3>
+                                <h3>보안 · 검증 활성화</h3>
                                 <div class="code-block">
-<pre><code>const config = {
-  security: { enableAEGIS: true },
-  verification: { enableTruthAnchor: true },
-  compliance: ['K-AI-Act', 'EU-AI-Act']
+<pre><code><span class="tok-key">const</span> config = {
+  security: { enableAEGIS: <span class="tok-key">true</span> },
+  verification: { enableTruthAnchor: <span class="tok-key">true</span> },
+  compliance: [<span class="tok-str">'K-AI-Act'</span>, <span class="tok-str">'EU-AI-Act'</span>]
 };</code></pre>
                                 </div>
                             </div>
@@ -284,8 +400,8 @@ function App() {
                     </div>
 
                     <div class="quick-links">
-                        <a href="getting-started.html" class="btn btn-outline">상세 가이드</a>
-                        <a href="https://github.com/kwangilkimkenny/open-hangul-ai" class="btn btn-outline">예제 보기</a>
+                        <a href="getting-started.html" class="btn btn-outline">상세 가이드 →</a>
+                        <a href="https://github.com/kwangilkimkenny/open-hangul-ai" class="btn btn-outline" rel="noopener">예제 코드 보기</a>
                     </div>
                 </div>
             </div>
@@ -294,25 +410,27 @@ function App() {
         <!-- Contact -->
         <section id="contact" class="section bg-light">
             <div class="container">
-                <h2>문의</h2>
+                <span class="section-eyebrow">Contact</span>
+                <h2>도입 · 기술 문의</h2>
+                <p class="section-lede">오픈소스 커뮤니티 지원부터 엔터프라이즈 POC까지, 단계에 맞춰 안내합니다.</p>
 
                 <div class="contact-grid">
-                    <div class="contact-item">
+                    <div class="contact-item reveal">
                         <h3>기술 지원</h3>
-                        <p>GitHub Issues를 통한 기술 문의 및 버그 신고</p>
-                        <a href="https://github.com/kwangilkimkenny/open-hangul-ai/issues">Issues 열기</a>
+                        <p>GitHub Issues로 버그 리포트 · 기능 제안을 받습니다.</p>
+                        <a href="https://github.com/kwangilkimkenny/open-hangul-ai/issues" rel="noopener">Issues 열기 →</a>
                     </div>
 
-                    <div class="contact-item">
+                    <div class="contact-item reveal">
                         <h3>기업 도입</h3>
-                        <p>POC부터 전사 배포까지 전담팀 지원</p>
+                        <p>POC부터 전사 배포까지 전담팀이 직접 지원합니다.</p>
                         <a href="mailto:ray.kim@yatavent.com">ray.kim@yatavent.com</a>
                     </div>
 
-                    <div class="contact-item">
+                    <div class="contact-item reveal">
                         <h3>공식 사이트</h3>
-                        <p>YATAV 공식 웹사이트 및 추가 정보</p>
-                        <a href="https://yatavent.com">yatavent.com</a>
+                        <p>YATAV의 다른 AI 제품군 정보를 확인하세요.</p>
+                        <a href="https://yatavent.com" rel="noopener">yatavent.com →</a>
                     </div>
                 </div>
             </div>
@@ -324,12 +442,12 @@ function App() {
             <div class="footer-content">
                 <div class="footer-brand">
                     <h4>오픈한글AI</h4>
-                    <p>© 2026 YATAV Team</p>
+                    <p>© 2026 YATAV Team · MIT License</p>
                 </div>
 
                 <div class="footer-links">
-                    <a href="https://github.com/kwangilkimkenny/open-hangul-ai">GitHub</a>
-                    <a href="https://www.npmjs.com/package/open-hangul-ai">NPM</a>
+                    <a href="https://github.com/kwangilkimkenny/open-hangul-ai" rel="noopener">GitHub</a>
+                    <a href="https://www.npmjs.com/package/open-hangul-ai" rel="noopener">NPM</a>
                     <a href="getting-started.html">문서</a>
                     <a href="mailto:ray.kim@yatavent.com">문의</a>
                 </div>
