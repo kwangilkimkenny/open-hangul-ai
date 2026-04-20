@@ -40,6 +40,7 @@
             </button>
 
             <ul class="nav-menu" id="navMenu">
+                <li><a href="#manifesto">철학</a></li>
                 <li><a href="#features">기능</a></li>
                 <li><a href="#technology">기술</a></li>
                 <li><a href="#getting-started">시작하기</a></li>
@@ -58,13 +59,15 @@
             <div class="container">
                 <div class="hero-grid">
                     <div class="hero-copy">
-                        <span class="hero-eyebrow"><span class="dot"></span> v1.0 · React 19 · TypeScript 5.9</span>
+                        <span class="hero-eyebrow"><span class="dot"></span> 100% Open Source · MIT License · v1.0 · React 19</span>
 
-                        <h1>신뢰할 수 있는<br><span class="accent">한글 문서</span> 편집 솔루션</h1>
+                        <h1>사람도, AI도 함께 쓰는<br><span class="accent">열린 한글</span> 문서 편집기</h1>
 
                         <p class="hero-subtitle">
-                            서버 변환 없이 브라우저에서 바로 처리하는 HWPX 네이티브 뷰어와,
-                            AI 보안·검증·규제 준수까지 통합된 단 하나의 React 라이브러리.
+                            닫힌 포맷과 무거운 설치로 묶여 있던 한글 편집기의 한계를
+                            <strong>오픈소스</strong>로 풀어냅니다.
+                            브라우저에서 바로 열리고, <strong>사람과 AI 모두에게 친화적</strong>이며,
+                            한 줄의 코드까지 투명하게 공개된 단 하나의 한글 문서 라이브러리.
                         </p>
 
                         <div class="hero-actions">
@@ -169,6 +172,85 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Manifesto / Philosophy -->
+        <section id="manifesto" class="section bg-light">
+            <div class="container">
+                <span class="section-eyebrow">Our Philosophy</span>
+                <h2>닫힌 편집기의 시대를,<br><span style="color:var(--color-accent)">오픈소스</span>로 끝냅니다</h2>
+                <p class="section-lede">
+                    한글 문서는 공공·기업·개인의 가장 중요한 기록입니다.
+                    그 편집기가 특정 벤더·특정 OS·특정 포맷에 묶여 있을 수는 없습니다.
+                    오픈한글AI는 <strong>투명한 코드</strong>와 <strong>열린 생태계</strong>로
+                    한글 문서의 미래를 다시 설계합니다.
+                </p>
+
+                <div class="manifesto-grid">
+                    <article class="manifesto-card reveal">
+                        <div class="manifesto-badge">01</div>
+                        <h3>완전한 오픈소스</h3>
+                        <p class="manifesto-lede">
+                            한 줄의 코드까지 GitHub에 공개되어 있습니다.
+                        </p>
+                        <p>
+                            MIT 라이선스로 누구나 읽고, 고치고, 자유롭게 배포할 수 있습니다.
+                            블랙박스 없는 투명한 문서 기술 — 한글의 미래는 한 회사가 아닌
+                            <strong>커뮤니티가 함께</strong> 만듭니다.
+                        </p>
+                        <ul>
+                            <li>MIT License · 상업적 사용 제한 없음</li>
+                            <li>코드 · 이슈 · 로드맵 모두 공개</li>
+                            <li>Pull Request · 기여자 언제든 환영</li>
+                        </ul>
+                    </article>
+
+                    <article class="manifesto-card reveal">
+                        <div class="manifesto-badge">02</div>
+                        <h3>기존 한글 편집기의 한계를 넘어</h3>
+                        <p class="manifesto-lede">
+                            플랫폼 종속, 무거운 설치, 사라지는 호환성 — 끝냅니다.
+                        </p>
+                        <p>
+                            수십 년간 반복된 한글 편집기의 고질적 문제를
+                            <strong>웹 표준</strong>과 <strong>브라우저 네이티브 처리</strong>로
+                            근본부터 다시 풉니다. 서버 변환도, 외부 SaaS도 필요 없습니다.
+                        </p>
+                        <ul>
+                            <li>설치 없이 브라우저에서 바로 열기</li>
+                            <li>OWPML 표준 기반 장기 보존성</li>
+                            <li>OS · 디바이스 · 플랫폼 독립</li>
+                        </ul>
+                    </article>
+
+                    <article class="manifesto-card reveal">
+                        <div class="manifesto-badge">03</div>
+                        <h3>사람과 AI, 모두에게 친화적</h3>
+                        <p class="manifesto-lede">
+                            사람은 더 빠르게, AI는 더 정확하게 — 같은 문서를 함께.
+                        </p>
+                        <p>
+                            사람에게는 직관적인 UI와 안전한 개인정보 보호를,
+                            AI에게는 구조화된 컨텍스트와 검증 가능한 접근을.
+                            <strong>Human-friendly × AI-friendly</strong>를 동시에 설계한
+                            첫 한글 편집기입니다.
+                        </p>
+                        <ul>
+                            <li>Human : 직관적 UX · WCAG 접근성</li>
+                            <li>AI : 구조화 파싱 · 컨텍스트 API · 출처 추적</li>
+                            <li>양측이 안전하게 협업하는 단일 문서 레이어</li>
+                        </ul>
+                    </article>
+                </div>
+
+                <div class="manifesto-cta">
+                    <a href="https://github.com/kwangilkimkenny/open-hangul-ai" class="btn btn-primary" rel="noopener">
+                        GitHub에서 코드 보기
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                    </a>
+                    <a href="https://github.com/kwangilkimkenny/open-hangul-ai/blob/main/CONTRIBUTING.md" class="btn btn-outline" rel="noopener">기여 가이드</a>
                 </div>
             </div>
         </section>
