@@ -119,9 +119,9 @@
 ### 연락처
 
 - 📧 **Technical Questions:** ray.kim@yatavent.com
-- 📧 **General Inquiries:** team@hanview.ai
+- 📧 **General Inquiries:** team@openhangulai.org
 - 🐛 **Bug Reports:**
-  [GitHub Issues](https://github.com/hanview-team/hanview-community/issues)
+  [GitHub Issues](https://github.com/kwangilkimkenny/open-hangul-ai/issues)
 
 ---
 
