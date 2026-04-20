@@ -55,10 +55,46 @@ for (const file of dtsFiles) {
   copiedCount++;
 }
 
-// 4. package.json 복사 및 수정
-const distPackageJson = JSON.parse(
-  fs.readFileSync(path.join(rootDir, 'dist-package.json'), 'utf-8')
-);
+// 4. package.json 생성 (배포용 메타데이터)
+const rootPkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'));
+const distPackageJson = {
+  name: rootPkg.name,
+  version: rootPkg.version,
+  description: '오픈한글AI - Professional HWPX Viewer & AI Document Editor for React',
+  author: rootPkg.author,
+  license: rootPkg.license,
+  private: false,
+  keywords: rootPkg.keywords,
+  homepage: rootPkg.homepage,
+  repository: rootPkg.repository,
+  bugs: {
+    url: `${rootPkg.repository.url.replace(/\.git$/, '')}/issues`,
+    email: 'ray.kim@yatavent.com',
+  },
+  main: './open-hangul-ai.umd.js',
+  module: './open-hangul-ai.es.js',
+  types: './open-hangul-ai.es.d.ts',
+  exports: {
+    '.': {
+      import: './open-hangul-ai.es.js',
+      require: './open-hangul-ai.umd.js',
+      types: './open-hangul-ai.es.d.ts',
+    },
+    './styles': './open-hangul-ai.css',
+    './css': './open-hangul-ai.css',
+  },
+  files: [
+    'open-hangul-ai.es.js',
+    'open-hangul-ai.umd.js',
+    'open-hangul-ai.css',
+    'open-hangul-ai.es.d.ts',
+    '*.d.ts',
+  ],
+  sideEffects: ['*.css'],
+  peerDependencies: { react: '>=18.0.0', 'react-dom': '>=18.0.0' },
+  peerDependenciesMeta: { 'react-hot-toast': { optional: true } },
+  engines: { node: '>=16.0.0' },
+};
 fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify(distPackageJson, null, 2));
 console.log('  ✓ package.json');
 
