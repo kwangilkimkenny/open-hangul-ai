@@ -69,7 +69,8 @@ export class ChatPanel {
       }
 
       if (this._initialized) {
-        logger.warn('ChatPanel already initialized');
+        // Re-init from React StrictMode double-mount or panel toggle is normal — debug only.
+        logger.debug('ChatPanel already initialized, skipping re-init');
         return true;
       }
 
