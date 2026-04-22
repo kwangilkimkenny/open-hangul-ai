@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+### Added (canvas-editor 통합)
+- 신규 의존성 `@hufe921/canvas-editor` (^0.9.131) — MIT, runtime Vue 의존성 없음 검증 완료
+- `hwpxToCanvasEditor()` / `canvasEditorToHwpx()` — HWPX ↔ canvas-editor IEditorData 양방향 변환기
+- `CanvasEditorAdapter` — canvas-editor 인스턴스 lifecycle 래퍼 (lazy import, contentChange debounce)
+- React 컴포넌트 `CanvasEditorPanel` — 전체 문서 캔버스 편집 surface
+- `HWPXViewerWrapper` 에 `editorType?: 'inline' | 'canvas'` prop 추가 (기본값 `'inline'`, 기존 동작 유지)
+- `HWPXViewer.mountCanvasEditor(container, options)` — 현재 문서를 canvas-editor 로 마운트
+- 라운드트립 단위 테스트 5개 (`hwpx-canvas-editor.test.js`) 추가
+
 ### Removed (오픈소스 정리)
 - 비공개 모듈 `packages-aegis/`, `TruthAnchor-core/` 를 git history 포함 완전 제거
 - 상업용 라이선스 자산 (`LICENSE-COMMERCIAL`, `LICENSE-OPENSOURCE`, `.gitignore-opensource`) 삭제

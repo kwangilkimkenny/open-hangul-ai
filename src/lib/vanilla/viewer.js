@@ -99,8 +99,12 @@ export class HWPXViewer {
       onProgress: options.onProgress || null,
       useWorker: options.useWorker !== false, // 기본값: Worker 사용
       enableAI: options.enableAI !== false, // AI 기능 활성화 (기본값: true)
+      editorType: options.editorType || 'inline', // 'inline' (default) | 'canvas'
       parserOptions: options.parserOptions || {},
     };
+
+    // canvas-editor adapter (lazy mounted on demand)
+    this.canvasEditor = null;
 
     // Container 초기화
     this.container =
@@ -212,13 +216,15 @@ export class HWPXViewer {
 
       // AccessibilityManager (접근성 — 비동기 초기화)
       this.accessibilityManager = null;
-      import('../a11y/accessibility').then(({ AccessibilityManager }) => {
-        this.accessibilityManager = new AccessibilityManager(this.container);
-        this.accessibilityManager.init();
-        logger.info('✅ AccessibilityManager initialized');
-      }).catch(() => {
-        logger.warn('AccessibilityManager 로드 실패 — 접근성 기능 비활성');
-      });
+      import('../a11y/accessibility')
+        .then(({ AccessibilityManager }) => {
+          this.accessibilityManager = new AccessibilityManager(this.container);
+          this.accessibilityManager.init();
+          logger.info('✅ AccessibilityManager initialized');
+        })
+        .catch(() => {
+          logger.warn('AccessibilityManager 로드 실패 — 접근성 기능 비활성');
+        });
 
       // Command 시스템
       this.commandAdapt = new CommandAdapt(this);
@@ -620,7 +626,10 @@ export class HWPXViewer {
           });
         } catch (workerError) {
           // Worker 파싱 실패 시 메인 스레드로 자동 폴백
-          logger.warn('⚠️ Worker parsing failed, falling back to main thread:', workerError.message);
+          logger.warn(
+            '⚠️ Worker parsing failed, falling back to main thread:',
+            workerError.message
+          );
           document = await this.parser.parse(buffer);
         }
       } else {
@@ -703,7 +712,9 @@ export class HWPXViewer {
       await this.render(document);
 
       if (this.inlineEditor) {
-        setTimeout(() => { this._enableEditingFeatures(); }, 100);
+        setTimeout(() => {
+          this._enableEditingFeatures();
+        }, 100);
       }
 
       if (this.options.onLoad) {
@@ -937,7 +948,7 @@ export class HWPXViewer {
               type: 'paragraph',
               runs: [{ text: para.textContent || '', style: {} }],
               text: para.textContent || '',
-              style: {}
+              style: {},
             };
           }
           para.classList.add('editable-paragraph');
@@ -1014,12 +1025,14 @@ export class HWPXViewer {
       if (page._pageClickBound) return;
       page._pageClickBound = true;
 
-      page.addEventListener('click', (e) => {
+      page.addEventListener('click', e => {
         // 단락이나 테이블을 직접 클릭한 경우는 무시 (이미 자체 핸들러 있음)
         const target = e.target;
-        if (target.closest('.hwp-paragraph.editable-paragraph') ||
-            target.closest('.hwp-table td') ||
-            target.closest('.hwp-table th')) {
+        if (
+          target.closest('.hwp-paragraph.editable-paragraph') ||
+          target.closest('.hwp-table td') ||
+          target.closest('.hwp-table th')
+        ) {
           return;
         }
 
@@ -1161,7 +1174,9 @@ export class HWPXViewer {
         // ✅ v2.1.4: 단락 데이터 수집 (테이블 외부 단락만)
         // 테이블 내부 단락은 이미 tableData에 포함되어 있음
         const isInsideTable = para.closest('.hwp-table');
-        logger.debug(`  🔍 Paragraph ${paraIndex}: isInsideTable=${!!isInsideTable}, type=${paraData.type}`);
+        logger.debug(
+          `  🔍 Paragraph ${paraIndex}: isInsideTable=${!!isInsideTable}, type=${paraData.type}`
+        );
         if (!isInsideTable) {
           // ✅ v2.1.5: type이 없으면 'paragraph'로 설정 (안전 장치)
           if (!paraData.type) {
@@ -1215,12 +1230,16 @@ export class HWPXViewer {
 
         // ✅ v2.1.5: 디버그 - 새 요소들의 타입 출력
         sortedElements.forEach((elem, idx) => {
-          logger.info(`      Element ${idx}: type=${elem.type}, rows=${elem.rows?.length || 'N/A'}`);
+          logger.info(
+            `      Element ${idx}: type=${elem.type}, rows=${elem.rows?.length || 'N/A'}`
+          );
           if (elem.type === 'table' && elem.rows?.[0]?.cells?.[0]) {
             const firstCell = elem.rows[0].cells[0];
             const runs = firstCell.elements?.[0]?.runs || [];
             const text = runs.map(r => r.text || (r.type === 'linebreak' ? '↵' : '')).join('');
-            logger.info(`        First cell: ${runs.length} runs, text="${text.substring(0, 30)}..."`);
+            logger.info(
+              `        First cell: ${runs.length} runs, text="${text.substring(0, 30)}..."`
+            );
           }
         });
 
@@ -1229,7 +1248,9 @@ export class HWPXViewer {
 
         logger.info(`  ✅ Document structure rebuilt: ${section.elements.length} elements`);
       } else {
-        logger.warn(`  ⚠️ Document structure NOT rebuilt: elementMap.size=${elementMap.size}, sections exist=${!!this.state.document.sections?.[0]}`);
+        logger.warn(
+          `  ⚠️ Document structure NOT rebuilt: elementMap.size=${elementMap.size}, sections exist=${!!this.state.document.sections?.[0]}`
+        );
       }
 
       logger.info(
@@ -1556,7 +1577,9 @@ export class HWPXViewer {
     // ✅ 2단계: DOM의 모든 변경사항을 document에 강제 동기화
     logger.info('🔄 Syncing ALL changes from DOM to document...');
     const syncResult = this._syncDocumentFromDOM();
-    logger.info(`✅ Sync complete: ${syncResult.updatedCells} cells, ${syncResult.updatedParagraphs} paragraphs updated`);
+    logger.info(
+      `✅ Sync complete: ${syncResult.updatedCells} cells, ${syncResult.updatedParagraphs} paragraphs updated`
+    );
 
     // ✅ 디버그: document 상태 확인
     const doc = this.getDocument();
@@ -1566,7 +1589,9 @@ export class HWPXViewer {
         if (section.elements) {
           const tables = section.elements.filter(e => e.type === 'table');
           const paragraphs = section.elements.filter(e => e.type === 'paragraph');
-          logger.info(`  Section ${sIdx}: ${section.elements.length} elements (${tables.length} tables, ${paragraphs.length} paragraphs)`);
+          logger.info(
+            `  Section ${sIdx}: ${section.elements.length} elements (${tables.length} tables, ${paragraphs.length} paragraphs)`
+          );
         }
       });
     } else {
@@ -1723,7 +1748,7 @@ export class HWPXViewer {
         else if (el.type === 'table') bodyContent += this._generateTableXmlNative(el, styleMap);
       });
       if (!bodyContent) {
-        bodyContent = `<hp:p id="${Math.floor(Math.random()*4e9)}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:t></hp:t></hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="42520" flags="393216"/></hp:linesegarray></hp:p>`;
+        bodyContent = `<hp:p id="${Math.floor(Math.random() * 4e9)}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0"><hp:t></hp:t></hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="800" spacing="300" horzpos="0" horzsize="42520" flags="393216"/></hp:linesegarray></hp:p>`;
       }
       const sectionXml = sectionHeader + bodyContent + '</hs:sec>';
 
@@ -1743,8 +1768,14 @@ export class HWPXViewer {
         logger.warn('Python server unavailable, using JSZip fallback:', e.message);
         zip.file('Contents/section0.xml', sectionXml);
         zip.file('mimetype', 'application/hwp+zip', { compression: 'STORE' });
-        Object.keys(zip.files).forEach(n => { if (zip.files[n].dir) delete zip.files[n]; });
-        blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+        Object.keys(zip.files).forEach(n => {
+          if (zip.files[n].dir) delete zip.files[n];
+        });
+        blob = await zip.generateAsync({
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        });
       }
 
       const url = URL.createObjectURL(blob);
@@ -1807,9 +1838,12 @@ export class HWPXViewer {
         sections.push({
           elements,
           pageSettings: {
-            width: '794px', height: '1123px',
-            marginLeft: '85px', marginRight: '85px',
-            marginTop: '71px', marginBottom: '57px',
+            width: '794px',
+            height: '1123px',
+            marginLeft: '85px',
+            marginRight: '85px',
+            marginTop: '71px',
+            marginBottom: '57px',
           },
         });
       });
@@ -1837,7 +1871,7 @@ export class HWPXViewer {
     const pageSettings = section.pageSettings || {};
     // px → HWPX 단위 변환: HWPX 단위는 1/7200인치, A4 width=59528, height=84188
     // px 값(~794)과 HWPX 값(~59528)을 구분: 5000 미만이면 px로 판단
-    const toHwpUnit = (val) => {
+    const toHwpUnit = val => {
       const num = parseInt(val);
       if (!num) return 0;
       if (num < 5000) return Math.round(num * 75); // px → HWPX (1px ≈ 75 HWP units at 96dpi)
@@ -1900,13 +1934,24 @@ ${bodyContent}
     const styleMap = new Map();
     // id=0: 기본 스타일 (항상 존재)
     const defaultKey = 'default';
-    styleMap.set(defaultKey, { id: 0, bold: false, italic: false, underline: false, height: 1000, color: '#000000', fontFamily: '' });
+    styleMap.set(defaultKey, {
+      id: 0,
+      bold: false,
+      italic: false,
+      underline: false,
+      height: 1000,
+      color: '#000000',
+      fontFamily: '',
+    });
 
-    const getStyleKey = (style) => {
+    const getStyleKey = style => {
       const s = style || {};
-      const bold = !!(s.bold || s.fontWeight === 'bold' || (parseInt(s.fontWeight) >= 700));
+      const bold = !!(s.bold || s.fontWeight === 'bold' || parseInt(s.fontWeight) >= 700);
       const italic = !!(s.italic || s.fontStyle === 'italic');
-      const underline = !!(s.underline || (s.textDecoration && s.textDecoration.includes('underline')));
+      const underline = !!(
+        s.underline ||
+        (s.textDecoration && s.textDecoration.includes('underline'))
+      );
       const fontSize = parseFloat(s.fontSize) || 0;
       const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000; // pt → HWPX (1pt = 100)
       const color = s.color || '#000000';
@@ -1914,7 +1959,7 @@ ${bodyContent}
       return `${bold}|${italic}|${underline}|${height}|${color}|${fontFamily}`;
     };
 
-    const processRuns = (runs) => {
+    const processRuns = runs => {
       if (!runs) return;
       for (const run of runs) {
         if (run.type === 'linebreak') continue;
@@ -1923,25 +1968,36 @@ ${bodyContent}
         if (key === 'false|false|false|1000|#000000|') continue; // 기본 스타일
         if (!styleMap.has(key)) {
           const s = style;
-          const bold = !!(s.bold || s.fontWeight === 'bold' || (parseInt(s.fontWeight) >= 700));
+          const bold = !!(s.bold || s.fontWeight === 'bold' || parseInt(s.fontWeight) >= 700);
           const italic = !!(s.italic || s.fontStyle === 'italic');
-          const underline = !!(s.underline || (s.textDecoration && s.textDecoration.includes('underline')));
+          const underline = !!(
+            s.underline ||
+            (s.textDecoration && s.textDecoration.includes('underline'))
+          );
           const fontSize = parseFloat(s.fontSize) || 0;
           const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000;
           const color = s.color || '#000000';
           const fontFamily = this._normalizeFontFamily(s.fontFamily);
-          styleMap.set(key, { id: styleMap.size, bold, italic, underline, height, color, fontFamily });
+          styleMap.set(key, {
+            id: styleMap.size,
+            bold,
+            italic,
+            underline,
+            height,
+            color,
+            fontFamily,
+          });
         }
       }
     };
 
-    for (const section of (doc.sections || [])) {
-      for (const el of (section.elements || [])) {
+    for (const section of doc.sections || []) {
+      for (const el of section.elements || []) {
         if (el.type === 'paragraph') processRuns(el.runs);
         if (el.type === 'table' && el.rows) {
           for (const row of el.rows) {
-            for (const cell of (row.cells || [])) {
-              for (const ce of (cell.elements || [])) {
+            for (const cell of row.cells || []) {
+              for (const ce of cell.elements || []) {
                 if (ce.runs) processRuns(ce.runs);
               }
             }
@@ -1966,8 +2022,10 @@ ${bodyContent}
     const maxExistingId = existingIds.length > 0 ? Math.max(...existingIds) : -1;
 
     // template charPr id=0의 fontRef를 복사해서 새 charPr에 사용 (기본 폰트 참조)
-    const fontRefMatch = headerXml.match(/<hh:charPr id="0"[^>]*>.*?<hh:fontRef([^/]*)\/>/) ;
-    const defaultFontRefAttrs = fontRefMatch ? fontRefMatch[1] : ' hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"';
+    const fontRefMatch = headerXml.match(/<hh:charPr id="0"[^>]*>.*?<hh:fontRef([^/]*)\/>/);
+    const defaultFontRefAttrs = fontRefMatch
+      ? fontRefMatch[1]
+      : ' hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"';
 
     // 기존 charPr id=0의 borderFillIDRef 가져오기
     const bfMatch = headerXml.match(/<hh:charPr id="0"[^>]*borderFillIDRef="(\d+)"/);
@@ -2013,7 +2071,10 @@ ${bodyContent}
 
     if (addedFonts.length > 0) {
       for (const lang of langGroups) {
-        const re = new RegExp(`(<hh:fontface lang="${lang}"[^>]*fontCnt=")(\\d+)(".*?)(</hh:fontface>)`, 's');
+        const re = new RegExp(
+          `(<hh:fontface lang="${lang}"[^>]*fontCnt=")(\\d+)(".*?)(</hh:fontface>)`,
+          's'
+        );
         result = result.replace(re, (match, pre, cnt, mid, close) => {
           const newCnt = parseInt(cnt) + addedFonts.length;
           let fontEntries = '';
@@ -2024,7 +2085,9 @@ ${bodyContent}
         });
       }
       // itemCnt 업데이트 (fontfaces의 언어 그룹 수는 변경 없음)
-      logger.info(`Added ${addedFonts.length} new font(s) to fontfaces: ${addedFonts.map(f => f[0]).join(', ')}`);
+      logger.info(
+        `Added ${addedFonts.length} new font(s) to fontfaces: ${addedFonts.map(f => f[0]).join(', ')}`
+      );
     }
 
     // --- charPr 생성 ---
@@ -2073,7 +2136,9 @@ ${bodyContent}
     );
     result = result.replace('</hh:charProperties>', newCharPrXml + '</hh:charProperties>');
 
-    logger.info(`Injected ${nextId - maxExistingId - 1} new charPr defs (ids ${maxExistingId + 1}-${nextId - 1})`);
+    logger.info(
+      `Injected ${nextId - maxExistingId - 1} new charPr defs (ids ${maxExistingId + 1}-${nextId - 1})`
+    );
     return result;
   }
 
@@ -2092,13 +2157,15 @@ ${bodyContent}
 
     // fontfaces 생성
     const langs = ['HANGUL', 'LATIN', 'HANJA'];
-    const fontfacesXml = langs.map(lang => {
-      let fonts = `<hh:font id="0" face="함초롬돋움" type="TTF"/>`;
-      for (const [name, id] of customFonts) {
-        fonts += `<hh:font id="${id}" face="${name}" type="TTF"/>`;
-      }
-      return `<hh:fontface lang="${lang}" fontCnt="${1 + customFonts.size}">${fonts}</hh:fontface>`;
-    }).join('');
+    const fontfacesXml = langs
+      .map(lang => {
+        let fonts = `<hh:font id="0" face="함초롬돋움" type="TTF"/>`;
+        for (const [name, id] of customFonts) {
+          fonts += `<hh:font id="${id}" face="${name}" type="TTF"/>`;
+        }
+        return `<hh:fontface lang="${lang}" fontCnt="${1 + customFonts.size}">${fonts}</hh:fontface>`;
+      })
+      .join('');
 
     let charPrXml = '';
     for (const [key, style] of styleMap) {
@@ -2106,7 +2173,10 @@ ${bodyContent}
       const italicAttr = style.italic ? ' italic="1"' : '';
       const underType = style.underline ? 'BOTTOM' : 'NONE';
       const color = style.color.startsWith('#') ? style.color : `#${style.color}`;
-      const fid = (style.fontFamily && customFonts.has(style.fontFamily)) ? customFonts.get(style.fontFamily) : 0;
+      const fid =
+        style.fontFamily && customFonts.has(style.fontFamily)
+          ? customFonts.get(style.fontFamily)
+          : 0;
 
       charPrXml += `<hh:charPr id="${style.id}" height="${style.height}" textColor="${color}" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="0"${boldAttr}${italicAttr}><hh:fontRef hangul="${fid}" latin="${fid}" hanja="${fid}" japanese="${fid}" other="${fid}" symbol="${fid}" user="${fid}"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="${underType}" shape="SOLID" color="${color}"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`;
     }
@@ -2120,9 +2190,12 @@ ${bodyContent}
    */
   _getRunStyleKey(run) {
     const s = run.inlineStyle || run.style || {};
-    const bold = !!(s.bold || s.fontWeight === 'bold' || (parseInt(s.fontWeight) >= 700));
+    const bold = !!(s.bold || s.fontWeight === 'bold' || parseInt(s.fontWeight) >= 700);
     const italic = !!(s.italic || s.fontStyle === 'italic');
-    const underline = !!(s.underline || (s.textDecoration && s.textDecoration.includes('underline')));
+    const underline = !!(
+      s.underline ||
+      (s.textDecoration && s.textDecoration.includes('underline'))
+    );
     const fontSize = parseFloat(s.fontSize) || 0;
     const height = fontSize > 0 ? Math.round(fontSize * 100) : 1000;
     const color = s.color || '#000000';
@@ -2147,12 +2220,16 @@ ${bodyContent}
     let runContent = '';
     let totalText = '';
 
-    runs.forEach((run) => {
+    runs.forEach(run => {
       if (run.type === 'linebreak') {
         runContent += `<hp:run charPrIDRef="0"><hp:t>\n</hp:t></hp:run>`;
         totalText += '\n';
       } else {
-        const text = (run.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '  ');
+        const text = (run.text || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\t/g, '  ');
         const charId = this._getCharPrId(run, styleMap);
         runContent += `<hp:run charPrIDRef="${charId}"><hp:t>${text}</hp:t></hp:run>`;
         totalText += run.text || '';
@@ -2201,7 +2278,11 @@ ${bodyContent}
       let runXml = '';
       (runs || []).forEach(run => {
         if (run.type === 'linebreak') return;
-        const t = (run.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, '  ');
+        const t = (run.text || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\t/g, '  ');
         const charId = this._getCharPrId(run, styleMap);
         runXml += `<hp:run charPrIDRef="${charId}"><hp:t>${t}</hp:t></hp:run>`;
       });
@@ -2258,7 +2339,9 @@ ${bodyContent}
         const texts = [];
         (cell.elements || []).forEach(el => {
           if (el.runs) {
-            el.runs.forEach(r => { if (r.text) texts.push(r.text); });
+            el.runs.forEach(r => {
+              if (r.text) texts.push(r.text);
+            });
           }
         });
         return texts.join(' ');
@@ -2369,7 +2452,30 @@ ${bodyContent}
       this.cursor.destroy();
     }
 
+    // canvas-editor adapter 정리
+    if (this.canvasEditor) {
+      this.canvasEditor.destroy();
+      this.canvasEditor = null;
+    }
+
     logger.info('🗑️ Viewer destroyed');
+  }
+
+  /**
+   * canvas-editor 어댑터 마운트 (whole-document 편집 모드)
+   * 현재 state.document를 canvas-editor IEditorData로 변환하여 마운트한다.
+   *
+   * @param {HTMLElement} container - canvas-editor를 띄울 컨테이너
+   * @param {Object} [options] - canvas-editor IEditorOption overrides
+   * @returns {Promise<import('./features/canvas-editor-adapter.js').CanvasEditorAdapter>}
+   */
+  async mountCanvasEditor(container, options = {}) {
+    const { CanvasEditorAdapter } = await import('./features/canvas-editor-adapter.js');
+    if (!this.canvasEditor) {
+      this.canvasEditor = new CanvasEditorAdapter(this);
+    }
+    await this.canvasEditor.mount(container, this.state.document, options);
+    return this.canvasEditor;
   }
 
   /**

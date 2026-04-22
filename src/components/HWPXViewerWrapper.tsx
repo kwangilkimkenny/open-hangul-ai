@@ -43,6 +43,8 @@ interface HWPXViewerWrapperProps {
   enableAI?: boolean;
   showAIPanel?: boolean;
   onToggleAI?: () => void;
+  /** 'inline' (default — cell-level editing) | 'canvas' (whole-document via canvas-editor) */
+  editorType?: 'inline' | 'canvas';
 }
 
 export function HWPXViewerWrapper({
@@ -53,6 +55,7 @@ export function HWPXViewerWrapper({
   enableAI = true,
   showAIPanel: showAIPanelProp,
   onToggleAI,
+  editorType = 'inline',
 }: HWPXViewerWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HWPXViewerInstance | null>(null);
@@ -96,6 +99,7 @@ export function HWPXViewerWrapper({
       const viewer = new HWPXViewer({
         container: containerRef.current,
         enableAI,
+        editorType,
         useWorker: true, // ES Module Worker (Vite 호환)
         onLoad: (doc: any) => {
           devLog('✅ Document loaded:', doc);

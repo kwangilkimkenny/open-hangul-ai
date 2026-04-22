@@ -74,6 +74,9 @@ export { formatFileSize, formatDate } from './vanilla/utils/format.js';
 
 // ✅ 기능 모듈
 export { InlineEditor } from './vanilla/features/inline-editor.js';
+export { CanvasEditorAdapter } from './vanilla/features/canvas-editor-adapter.js';
+export { hwpxToCanvasEditor } from './vanilla/core/hwpx-to-canvas-editor.js';
+export { canvasEditorToHwpx } from './vanilla/core/canvas-editor-to-hwpx.js';
 export { TableEditor } from './vanilla/features/table-editor.js';
 export { AdvancedSearch } from './vanilla/features/advanced-search.js';
 export { BookmarkManager } from './vanilla/features/bookmark-manager.js';
@@ -157,6 +160,7 @@ export type { RAGDocument, RAGChunk, RAGExtractorOptions, LangChainDoc } from '.
 // ✅ UI 컴포넌트 — Diff / OCR
 export { default as DiffViewer } from '../components/DiffViewer';
 export { default as OCRDialog } from '../components/OCRDialog';
+export { default as CanvasEditorPanel } from '../components/CanvasEditorPanel';
 
 // ✅ Vertex AI — 장문 컨텍스트 초안 생성 (v5)
 export { VertexClient, parseSSEEvent } from './ai/vertex-client';

@@ -86,6 +86,7 @@
     "security:check": "node scripts/security-check.mjs"
   },
   "dependencies": {
+    "@hufe921/canvas-editor": "^0.9.131",
     "@supabase/supabase-js": "^2.103.0",
     "@tosspayments/payment-sdk": "^1.9.2",
     "docx": "^9.6.1",
