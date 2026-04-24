@@ -828,8 +828,9 @@ export function HWPXViewerWrapper({
               height: '100%',
               position: 'relative',
               overflow: 'auto',
-              // canvas 모드에서는 vanilla 렌더러 출력을 숨긴다 (canvas-editor가 위에 덮음)
-              visibility: editorType === 'canvas' && documentReady ? 'hidden' : 'visible',
+              // canvas 모드 + 문서 로드 완료 시 vanilla 출력을 레이아웃에서 제외.
+              // canvas-editor 가 자체 캔버스에 그리므로 vanilla DOM 페인트는 낭비.
+              display: editorType === 'canvas' && documentReady ? 'none' : 'block',
             }}
           />
           {editorType === 'canvas' && (

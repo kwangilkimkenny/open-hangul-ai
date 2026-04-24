@@ -751,7 +751,7 @@ export class HWPXViewer {
    */
   async render(document) {
     // canvas-editor 모드에서는 vanilla DOM 렌더링을 건너뛴다.
-    // (canvas-editor 가 자체 캔버스에 그리고, vanilla 출력은 어차피 visibility:hidden 으로 가려짐)
+    // (canvas-editor 가 자체 캔버스에 그리고, vanilla 컨테이너는 display:none 으로 레이아웃에서 제외됨)
     if (this.options.editorType === 'canvas') {
       logger.info(
         `⏭️  canvas-editor mode — skipping vanilla DOM render (${document.sections?.length || 0} sections)`
