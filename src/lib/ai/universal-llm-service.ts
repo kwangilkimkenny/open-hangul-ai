@@ -44,9 +44,17 @@ import { LLMError } from './errors';
 export class UniversalLLMService {
   private providers = new Map<LLMProvider, LLMProviderInterface>();
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
-    this.initializeProviders();
+    this.initPromise = this.initializeProviders();
+  }
+
+  /**
+   * 초기화가 끝날 때까지 기다린다 (테스트에서 동기 진입점 보호용).
+   */
+  async ready(): Promise<void> {
+    if (this.initPromise) await this.initPromise;
   }
 
   private async initializeProviders(): Promise<void> {
@@ -421,7 +429,8 @@ export class UniversalLLMService {
         break;
 
       case 'best':
-        if (estimatedTokens > 100000) {
+        // 약 40K chars (=10K tokens) 이상이면 Claude 의 긴 컨텍스트 우선
+        if (estimatedTokens > 10000) {
           return {
             provider: 'claude',
             model: 'claude-3-5-sonnet-20241022',

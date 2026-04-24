@@ -69,7 +69,13 @@ export class TruthAnchorClient {
 
         this._lastHealthCheck = Date.now();
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json().catch(() => ({}));
+          // Vite proxy stub은 200 + {available:false}를 반환하므로 본문도 확인
+          if (data && data.available === false) {
+            this._available = false;
+            logger.info('TruthAnchor server not available, using offline mode');
+            return { available: false, mode: 'offline' };
+          }
           this._available = true;
           logger.info('TruthAnchor server available (online mode)');
           return { available: true, mode: 'online', version: data.version || 'unknown' };

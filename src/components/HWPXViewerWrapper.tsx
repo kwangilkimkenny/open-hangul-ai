@@ -43,7 +43,7 @@ interface HWPXViewerWrapperProps {
   enableAI?: boolean;
   showAIPanel?: boolean;
   onToggleAI?: () => void;
-  /** 'inline' (default — cell-level editing) | 'canvas' (whole-document via canvas-editor) */
+  /** 'canvas' (default — whole-document via canvas-editor) | 'inline' (legacy cell-level editing) */
   editorType?: 'inline' | 'canvas';
 }
 
@@ -55,11 +55,13 @@ export function HWPXViewerWrapper({
   enableAI = true,
   showAIPanel: showAIPanelProp,
   onToggleAI,
-  editorType = 'inline',
+  editorType = 'canvas',
 }: HWPXViewerWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HWPXViewerInstance | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [documentReady, setDocumentReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -104,6 +106,7 @@ export function HWPXViewerWrapper({
         onLoad: (doc: any) => {
           devLog('✅ Document loaded:', doc);
           setIsLoading(false);
+          setDocumentReady(true);
           toast.success('문서 로드 완료!');
           // ❌ Document 객체가 아니라 Viewer 인스턴스를 전달해야 함
         },
@@ -170,8 +173,9 @@ export function HWPXViewerWrapper({
 
     try {
       setIsLoading(true);
+      setDocumentReady(false);
 
-      const fileToLoad = file;
+      const fileToLoad: File = file;
 
       // DOCX 파일인 경우 문서 데이터로 직접 변환
       if (file.name.toLowerCase().endsWith('.docx')) {
@@ -349,6 +353,7 @@ export function HWPXViewerWrapper({
       }
 
       // HWP 파일인 경우 HWPX로 변환
+      let fileToLoadFinal: File = fileToLoad;
       if (file.name.toLowerCase().endsWith('.hwp')) {
         toast.loading('HWP → HWPX 변환 중...', { id: 'loading' });
         try {
@@ -375,7 +380,15 @@ export function HWPXViewerWrapper({
             return;
           }
 
-          throw new Error('HWP 형식은 현재 지원되지 않습니다. HWPX 로 변환 후 다시 시도해 주세요.');
+          const { Hwp2Hwpx } = await import('hwp2hwpx-js');
+          const hwpxBinary = await Hwp2Hwpx.convert(uint8Array);
+          fileToLoadFinal = new File(
+            [new Uint8Array(hwpxBinary)],
+            file.name.replace(/\.hwp$/i, '.hwpx'),
+            { type: 'application/hwp+zip' }
+          );
+          toast.dismiss('loading');
+          toast.success('HWP → HWPX 변환 완료');
         } catch (convertError: any) {
           toast.dismiss('loading');
           devError('❌ HWP conversion failed:', convertError);
@@ -386,7 +399,7 @@ export function HWPXViewerWrapper({
       }
 
       toast.loading('문서 로드 중...', { id: 'loading' });
-      await viewerRef.current.loadFile(fileToLoad);
+      await viewerRef.current.loadFile(fileToLoadFinal);
 
       toast.dismiss('loading');
     } catch (error) {
@@ -433,6 +446,97 @@ export function HWPXViewerWrapper({
     requestAnimationFrame(() => {
       initAI();
     });
+  }, [showAIPanel, isInitialized]);
+
+  // ✅ canvas-editor 마운트 — editorType==='canvas' + 문서 로드 완료 시
+  useEffect(() => {
+    if (editorType !== 'canvas') return;
+    if (!documentReady || !viewerRef.current || !canvasContainerRef.current) return;
+
+    let cancelled = false;
+    let adapter: any = null;
+    const v = viewerRef.current as any;
+
+    (async () => {
+      try {
+        adapter = await v.mountCanvasEditor(canvasContainerRef.current, {});
+        if (cancelled && adapter) adapter.destroy();
+      } catch (err) {
+        devError('❌ canvas-editor mount failed:', err);
+        toast.error(`캔바스 편집기 로드 실패: ${(err as any)?.message ?? err}`);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (adapter) {
+        try {
+          adapter.destroy();
+        } catch (e) {
+          devWarn('canvas-editor destroy threw:', e);
+        }
+      }
+    };
+  }, [editorType, documentReady]);
+
+  // ✅ AI 패널의 레퍼런스 파일 드롭존 — 클릭/드래그 모두 handleFileOpen으로 라우팅
+  useEffect(() => {
+    if (!showAIPanel || !isInitialized) return;
+
+    let cleanup: (() => void) | null = null;
+
+    const wire = () => {
+      const dropzone = document.getElementById('ai-ref-dropzone');
+      const fileInput = document.getElementById('ai-ref-file-input') as HTMLInputElement | null;
+      if (!dropzone || !fileInput) return;
+
+      const openPicker = () => fileInput.click();
+      const onChange = () => {
+        const f = fileInput.files?.[0];
+        if (f) {
+          devLog('📂 AI ref file selected:', f.name);
+          handleFileOpen(f);
+        }
+        fileInput.value = '';
+      };
+      const onDragOver = (e: DragEvent) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      };
+      const onDragLeave = () => dropzone.classList.remove('dragover');
+      const onDrop = (e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+        const f = e.dataTransfer?.files?.[0];
+        if (f) {
+          devLog('📂 AI ref file dropped:', f.name);
+          handleFileOpen(f);
+        }
+      };
+
+      dropzone.addEventListener('click', openPicker);
+      fileInput.addEventListener('change', onChange);
+      dropzone.addEventListener('dragover', onDragOver);
+      dropzone.addEventListener('dragleave', onDragLeave);
+      dropzone.addEventListener('drop', onDrop);
+
+      cleanup = () => {
+        dropzone.removeEventListener('click', openPicker);
+        fileInput.removeEventListener('change', onChange);
+        dropzone.removeEventListener('dragover', onDragOver);
+        dropzone.removeEventListener('dragleave', onDragLeave);
+        dropzone.removeEventListener('drop', onDrop);
+      };
+    };
+
+    const raf = requestAnimationFrame(wire);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      cleanup?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAIPanel, isInitialized]);
 
   // ✅ 파일 prop 변경 시 자동 로드
@@ -704,20 +808,45 @@ export function HWPXViewerWrapper({
       <div style={{ display: 'flex', width: '100%', height: '100%' }}>
         {/* Viewer Container with Drag & Drop */}
         <div
-          ref={containerRef}
-          id="hwpx-viewer-root"
-          className={`hwpx-viewer-wrapper ${className} ${isDragging ? 'dragging' : ''}`}
           style={{
             flex: 1,
             height: '100%',
             position: 'relative',
-            overflow: 'auto',
+            overflow: 'hidden',
           }}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-        />
+        >
+          <div
+            ref={containerRef}
+            id="hwpx-viewer-root"
+            className={`hwpx-viewer-wrapper ${className} ${isDragging ? 'dragging' : ''}`}
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'relative',
+              overflow: 'auto',
+              // canvas 모드에서는 vanilla 렌더러 출력을 숨긴다 (canvas-editor가 위에 덮음)
+              visibility: editorType === 'canvas' && documentReady ? 'hidden' : 'visible',
+            }}
+          />
+          {editorType === 'canvas' && (
+            <div
+              ref={canvasContainerRef}
+              id="canvas-editor-root"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: '#fff',
+                overflow: 'auto',
+                zIndex: 5,
+                display: documentReady ? 'block' : 'none',
+              }}
+            />
+          )}
+        </div>
 
         {/* Track Changes Panel */}
         {showTrackChanges && viewerRef.current && (

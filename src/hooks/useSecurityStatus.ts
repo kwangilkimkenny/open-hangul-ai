@@ -60,7 +60,11 @@ async function checkTruthAnchorHealth(): Promise<{
     });
     const latencyMs = Math.round(performance.now() - start);
     if (res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}) as { available?: boolean; version?: string });
+      // Vite proxy stub은 200 + {available:false}를 반환하므로 본문도 확인
+      if (data && data.available === false) {
+        return { available: false, version: null, latencyMs };
+      }
       return { available: true, version: data.version || null, latencyMs };
     }
     return { available: false, version: null, latencyMs };
@@ -71,7 +75,11 @@ async function checkTruthAnchorHealth(): Promise<{
 
 function checkAegisReady(): boolean {
   try {
-    const viewer = (window as any).__hwpxViewer;
+    const viewer = (
+      window as unknown as {
+        __hwpxViewer?: { aiController?: { securityGateway?: { _ready?: boolean } } };
+      }
+    ).__hwpxViewer;
     const gw = viewer?.aiController?.securityGateway;
     return gw?._ready === true;
   } catch {
@@ -91,9 +99,7 @@ export function useSecurityStatus() {
     // AEGIS
     const aegisEnabled = getAegisEnabled();
     const aegisReady = aegisEnabled ? checkAegisReady() : false;
-    const aegisState: ServiceState = !aegisEnabled
-      ? 'disabled'
-      : aegisReady ? 'online' : 'error';
+    const aegisState: ServiceState = !aegisEnabled ? 'disabled' : aegisReady ? 'online' : 'error';
 
     // TruthAnchor — 비활성이면 fetch 자체를 하지 않음
     const taEnabled = getTruthAnchorEnabled();
@@ -120,7 +126,12 @@ export function useSecurityStatus() {
 
     setStatus({
       aegis: { state: aegisState, ready: aegisReady },
-      truthAnchor: { state: taState, version: taVersion, latencyMs: taLatency, lastCheckAt: taLastCheck },
+      truthAnchor: {
+        state: taState,
+        version: taVersion,
+        latencyMs: taLatency,
+        lastCheckAt: taLastCheck,
+      },
     });
   }, []);
 

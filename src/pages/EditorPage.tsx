@@ -9,6 +9,7 @@ import HWPXViewerWrapper from '../components/HWPXViewerWrapper';
 import CommandPalette, { type CommandItem } from '../components/CommandPalette';
 import DraftAIModal from '../components/DraftAIModal';
 import OCRDialog from '../components/OCRDialog';
+import CanvasSearchBar from '../components/CanvasSearchBar';
 import type { HWPXViewerInstance } from '../types/viewer';
 import type { HWPXDocument } from '../types/hwpx';
 import { devLog, devError } from '../utils/logger';
@@ -43,76 +44,94 @@ export function EditorPage() {
   // 에디터 페이지에서만 body에 editor-mode 클래스 추가 (스크롤 잠금)
   useEffect(() => {
     document.body.classList.add('editor-mode');
-    return () => { document.body.classList.remove('editor-mode'); };
+    return () => {
+      document.body.classList.remove('editor-mode');
+    };
   }, []);
 
-  const handleDraftComplete = useCallback(async (doc: HWPXDocument) => {
-    devLog('[Draft] AI 초안 완성 — 뷰어 로드:', doc.sections.length, 'sections');
-    if (!viewerInstance) {
-      devError('[Draft] viewer 인스턴스 없음');
-      return;
-    }
-    try {
-      await viewerInstance.loadDocument(doc, { sourceName: 'AI 초안' });
-    } catch (e) {
-      devError('[Draft] 뷰어 주입 실패:', e);
-    }
-  }, [viewerInstance]);
+  const handleDraftComplete = useCallback(
+    async (doc: HWPXDocument) => {
+      devLog('[Draft] AI 초안 완성 — 뷰어 로드:', doc.sections.length, 'sections');
+      if (!viewerInstance) {
+        devError('[Draft] viewer 인스턴스 없음');
+        return;
+      }
+      try {
+        await viewerInstance.loadDocument(doc, { sourceName: 'AI 초안' });
+      } catch (e) {
+        devError('[Draft] 뷰어 주입 실패:', e);
+      }
+    },
+    [viewerInstance]
+  );
 
-  const commands: CommandItem[] = useMemo(() => [
-    {
-      id: 'ai-draft',
-      label: 'AI 초안 생성',
-      description: 'Vertex AI (Gemini 2.5 Pro · 2M 토큰) 로 문서 초안 작성',
-      shortcut: 'Ctrl+⇧+A',
-      group: 'AI',
-      icon: '✨',
-      keywords: ['ai', '초안', '생성', 'draft', 'vertex', 'gemini'],
-      action: () => { setDraftInitialPrompt(''); setDraftModalOpen(true); },
-    },
-    {
-      id: 'ai-toggle-panel',
-      label: 'AI 패널 토글',
-      description: '기존 AI 어시스턴트 패널 열기/닫기',
-      shortcut: 'Ctrl+⇧+P',
-      group: 'AI',
-      icon: '💬',
-      keywords: ['panel', 'assistant', '어시스턴트'],
-      action: () => setShowAIPanel(v => !v),
-    },
-    {
-      id: 'ocr',
-      label: 'OCR — 이미지/PDF 텍스트 추출',
-      description: '스캔본 PDF 또는 이미지에서 한국어 + 영어 텍스트 인식',
-      group: '도구',
-      icon: '🔤',
-      keywords: ['ocr', 'image', 'pdf', 'scan', '스캔', '인식'],
-      action: () => setOcrOpen(true),
-    },
-    {
-      id: 'open-file',
-      label: '파일 열기',
-      description: 'HWP · HWPX · DOCX · PDF 불러오기',
-      shortcut: 'Ctrl+O',
-      group: '파일',
-      icon: '📂',
-      keywords: ['open', 'file', '열기'],
-      action: () => document.getElementById('hidden-file-input')?.click(),
-    },
-    {
-      id: 'find',
-      label: '찾기',
-      description: '문서 내 텍스트 검색',
-      shortcut: 'Ctrl+F',
-      group: '편집',
-      icon: '🔍',
-      keywords: ['find', 'search', '찾기'],
-      action: () => {
-        const viewer = viewerInstance as HWPXViewerInstance & { openSearch?: () => void };
-        viewer?.openSearch?.();
+  const commands: CommandItem[] = useMemo(
+    () => [
+      {
+        id: 'ai-draft',
+        label: 'AI 초안 생성',
+        description: 'Vertex AI (Gemini 2.5 Pro · 2M 토큰) 로 문서 초안 작성',
+        shortcut: 'Ctrl+⇧+A',
+        group: 'AI',
+        icon: '✨',
+        keywords: ['ai', '초안', '생성', 'draft', 'vertex', 'gemini'],
+        action: () => {
+          setDraftInitialPrompt('');
+          setDraftModalOpen(true);
+        },
       },
-    },
-  ], [viewerInstance]);
+      {
+        id: 'ai-toggle-panel',
+        label: 'AI 패널 토글',
+        description: '기존 AI 어시스턴트 패널 열기/닫기',
+        shortcut: 'Ctrl+⇧+P',
+        group: 'AI',
+        icon: '💬',
+        keywords: ['panel', 'assistant', '어시스턴트'],
+        action: () => setShowAIPanel(v => !v),
+      },
+      {
+        id: 'ocr',
+        label: 'OCR — 이미지/PDF 텍스트 추출',
+        description: '스캔본 PDF 또는 이미지에서 한국어 + 영어 텍스트 인식',
+        group: '도구',
+        icon: '🔤',
+        keywords: ['ocr', 'image', 'pdf', 'scan', '스캔', '인식'],
+        action: () => setOcrOpen(true),
+      },
+      {
+        id: 'open-file',
+        label: '파일 열기',
+        description: 'HWP · HWPX · DOCX · PDF 불러오기',
+        shortcut: 'Ctrl+O',
+        group: '파일',
+        icon: '📂',
+        keywords: ['open', 'file', '열기'],
+        action: () => document.getElementById('hidden-file-input')?.click(),
+      },
+      {
+        id: 'find',
+        label: '찾기',
+        description: '문서 내 텍스트 검색',
+        shortcut: 'Ctrl+F',
+        group: '편집',
+        icon: '🔍',
+        keywords: ['find', 'search', '찾기'],
+        action: () => {
+          const v = viewerInstance as {
+            searchDialog?: { show?: (mode: string) => void };
+            openSearch?: () => void;
+          } | null;
+          if (v?.searchDialog?.show) {
+            v.searchDialog.show('find');
+          } else {
+            v?.openSearch?.();
+          }
+        },
+      },
+    ],
+    [viewerInstance]
+  );
 
   const handleAIPrompt = useCallback((prompt: string) => {
     setDraftInitialPrompt(prompt);
@@ -121,7 +140,9 @@ export function EditorPage() {
 
   return (
     <div className="app-container">
-      <a href="#hwpx-viewer-root" className="skip-to-content">{t('msg.skipToContent')}</a>
+      <a href="#hwpx-viewer-root" className="skip-to-content">
+        {t('msg.skipToContent')}
+      </a>
 
       <HangulStyleToolbar
         viewer={viewerInstance}
@@ -138,7 +159,10 @@ export function EditorPage() {
         enableAI={true}
         showAIPanel={showAIPanel}
         onToggleAI={handleToggleAI}
+        editorType="canvas"
       />
+
+      <CanvasSearchBar viewer={viewerInstance} />
 
       <HangulStatusBar viewer={viewerInstance} />
 
@@ -154,7 +178,7 @@ export function EditorPage() {
       <OCRDialog
         isOpen={ocrOpen}
         onClose={() => setOcrOpen(false)}
-        onExtracted={(text) => {
+        onExtracted={text => {
           setDraftInitialPrompt(`다음 내용을 정리해 한컴 문서로 작성해 주세요:\n\n${text}`);
           setOcrOpen(false);
           setDraftModalOpen(true);

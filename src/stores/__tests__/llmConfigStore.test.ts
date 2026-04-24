@@ -81,7 +81,14 @@ describe('LLM Config Store', () => {
 
     it('should limit recent providers to 5', () => {
       const { setActiveProvider } = useLLMConfigStore.getState();
-      const providers: LLMProvider[] = ['claude', 'grok', 'vertex', 'azure-openai', 'cohere', 'local'];
+      const providers: LLMProvider[] = [
+        'claude',
+        'grok',
+        'vertex',
+        'azure-openai',
+        'cohere',
+        'local',
+      ];
 
       providers.forEach(setActiveProvider);
 
@@ -294,8 +301,11 @@ describe('LLM Config Store', () => {
 
       updateConfig('openai', { apiKey: 'sensitive-key' });
 
-      // In real implementation, this would be called by the persistence middleware
-      expect(sessionStorageMock.setItem).not.toHaveBeenCalled(); // Not called in test environment
+      // persist 미들웨어의 setItem 어댑터가 API 키를 sessionStorage 로 분리 저장한다.
+      expect(sessionStorageMock.setItem).toHaveBeenCalledWith(
+        'llm-api-key-openai',
+        'sensitive-key'
+      );
     });
 
     it('should handle missing sessionStorage gracefully', () => {
@@ -329,10 +339,7 @@ describe('LLM Config Store', () => {
     });
 
     it('should provide utility functions', async () => {
-      const {
-        getApiKey,
-        checkProviderHealth,
-      } = await import('../llmConfigStore');
+      const { getApiKey, checkProviderHealth } = await import('../llmConfigStore');
 
       expect(getApiKey).toBeDefined();
       expect(checkProviderHealth).toBeDefined();

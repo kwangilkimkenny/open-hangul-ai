@@ -13,6 +13,7 @@ import type { ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 import type { HWPXViewerInstance } from '../types/viewer';
 import { markdownToDocument } from '../lib/vanilla/utils/markdown-to-document';
+import { useCanvasEditorRangeStyle } from '../hooks/useCanvasEditorRangeStyle';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -42,7 +43,13 @@ type RibbonTab = 'home' | 'insert' | 'format' | 'tools' | 'view' | 'ai';
 // MenuBar
 // ============================================================================
 
-function MenuBar({ viewer, onFileSelect }: { viewer?: HWPXViewerInstance | null; onFileSelect?: (file: File) => void }) {
+function MenuBar({
+  viewer,
+  onFileSelect,
+}: {
+  viewer?: HWPXViewerInstance | null;
+  onFileSelect?: (file: File) => void;
+}) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
   // showBenchmark removed — 벤치마크는 SecurityTestPanel의 FULL BENCHMARK 탭으로 통합됨
@@ -514,24 +521,27 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
     v.updateDocument(helpDocument);
     toast.success('도움말 문서가 로드되었습니다');
     document.body.classList.add('global-edit-mode');
-  }, []);
+  }, [viewer]);
 
   const handleFileOpen = useCallback(() => {
     fileInputRef.current?.click();
     setActiveMenu(null);
   }, []);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.name.toLowerCase().match(/\.(hwpx|hwp|md|xlsx|xls|docx)$/i)) {
-        toast.error('HWP/HWPX/MD/Excel/DOCX 파일만 지원됩니다');
-        return;
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        if (!file.name.toLowerCase().match(/\.(hwpx|hwp|md|xlsx|xls|docx)$/i)) {
+          toast.error('HWP/HWPX/MD/Excel/DOCX 파일만 지원됩니다');
+          return;
+        }
+        onFileSelect?.(file);
       }
-      onFileSelect?.(file);
-    }
-    e.target.value = '';
-  }, [onFileSelect]);
+      e.target.value = '';
+    },
+    [onFileSelect]
+  );
 
   const handleSave = useCallback(async () => {
     setActiveMenu(null);
@@ -574,21 +584,31 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
     setActiveMenu(null);
     try {
       toast.loading('PDF 생성 중...', { id: 'pdf' });
-      const { PDFExporter } = await import('../lib/vanilla/export/pdf-exporter.js');
-      const exporter = new PDFExporter();
-      await exporter.exportDocument('.hwp-page-container');
+      const v = viewer as any;
+      if (v?.canvasEditor?.exportPDF) {
+        await v.canvasEditor.exportPDF('문서.pdf');
+      } else {
+        const { PDFExporter } = await import('../lib/vanilla/export/pdf-exporter.js');
+        const exporter = new PDFExporter();
+        await exporter.exportDocument('.hwp-page-container');
+      }
       toast.dismiss('pdf');
       toast.success('PDF 내보내기 완료');
     } catch (err: any) {
       toast.dismiss('pdf');
       toast.error(`PDF 내보내기 실패: ${err?.message}`);
     }
-  }, []);
+  }, [viewer]);
 
   const handlePrint = useCallback(() => {
     setActiveMenu(null);
-    if (viewer && (viewer as any).printDocument) {
-      (viewer as any).printDocument();
+    const v = viewer as any;
+    if (v?.canvasEditor?.print) {
+      v.canvasEditor.print().catch(() => window.print());
+      return;
+    }
+    if (v?.printDocument) {
+      v.printDocument();
     } else {
       window.print();
     }
@@ -603,28 +623,30 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
     }
     // 빈 A4 문서 생성
     const emptyDocument = {
-      sections: [{
-        elements: [
-          {
-            type: 'paragraph',
-            runs: [{ text: '', style: {} }],
-            text: '',
-            style: { textAlign: 'left', lineHeight: '1.6' }
-          }
-        ],
-        pageSettings: {
-          width: '794px',
-          height: '1123px',
-          marginLeft: '85px',
-          marginRight: '85px',
-          marginTop: '71px',
-          marginBottom: '57px',
+      sections: [
+        {
+          elements: [
+            {
+              type: 'paragraph',
+              runs: [{ text: '', style: {} }],
+              text: '',
+              style: { textAlign: 'left', lineHeight: '1.6' },
+            },
+          ],
+          pageSettings: {
+            width: '794px',
+            height: '1123px',
+            marginLeft: '85px',
+            marginRight: '85px',
+            marginTop: '71px',
+            marginBottom: '57px',
+          },
+          pageWidth: 794,
+          pageHeight: 1123,
+          headers: { both: null, odd: null, even: null },
+          footers: { both: null, odd: null, even: null },
         },
-        pageWidth: 794,
-        pageHeight: 1123,
-        headers: { both: null, odd: null, even: null },
-        footers: { both: null, odd: null, even: null },
-      }],
+      ],
       images: new Map(),
       borderFills: new Map(),
       metadata: {
@@ -632,7 +654,7 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
         sectionsCount: 1,
         imagesCount: 0,
         borderFillsCount: 0,
-      }
+      },
     };
     try {
       await v.createNewDocument(emptyDocument);
@@ -643,6 +665,8 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
     }
   }, [viewer]);
 
+  const getCmd = () => (viewer as any)?.canvasEditor?.commands || (viewer as any)?.command;
+  const isCanvasMode = () => !!(viewer as any)?.canvasEditor;
   const menus: Record<string, MenuItem[]> = {
     '파일(F)': [
       { label: '새 문서', shortcut: 'Ctrl+N', action: handleNewDocument },
@@ -652,437 +676,910 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
       { label: '다른 이름으로 저장', shortcut: 'Ctrl+Shift+S', action: handleSaveAs },
       { label: '', divider: true },
       { label: 'PDF로 내보내기', action: handleExportPDF },
-      { label: 'Word(DOCX)로 내보내기', action: async () => {
-        setActiveMenu(null);
-        const v = (viewer || (window as any).__hwpxViewer) as any;
-        if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
-        try {
-          const doc = v.getDocument?.();
-          if (!doc) { toast.error('내보낼 문서가 없습니다'); return; }
-          toast.loading('DOCX 내보내기 중...', { id: 'docx-export' });
-          const { downloadDocx } = await import('../lib/docx/parser');
-          await downloadDocx(doc);
-          toast.dismiss('docx-export');
-          toast.success('DOCX 내보내기 완료');
-        } catch (err: any) {
-          toast.dismiss('docx-export');
-          toast.error(`DOCX 내보내기 실패: ${err?.message}`);
-        }
-      }},
-      { label: 'Excel로 내보내기', action: async () => {
-        setActiveMenu(null);
-        const v = (viewer || (window as any).__hwpxViewer) as any;
-        if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
-        try {
-          const doc = v.getDocument?.();
-          if (!doc) { toast.error('내보낼 문서가 없습니다'); return; }
-          toast.loading('Excel 내보내기 중...', { id: 'excel-export' });
-          const { downloadExcel } = await import('../lib/excel/parser');
-          await downloadExcel(doc);
-          toast.dismiss('excel-export');
-          toast.success('Excel 내보내기 완료');
-        } catch (err: any) {
-          toast.dismiss('excel-export');
-          toast.error(`Excel 내보내기 실패: ${err?.message}`);
-        }
-      }},
-      { label: 'Markdown으로 내보내기', action: async () => {
-        setActiveMenu(null);
-        const v = (viewer || (window as any).__hwpxViewer) as any;
-        if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
-        const defaultName = (v.state?.currentFile?.name || '문서').replace(/\.(hwpx|hwp|docx|md)$/i, '');
-        const inputName = window.prompt('Markdown 파일명을 입력하세요:', defaultName);
-        if (inputName === null) return;
-        const fileName = (inputName.trim() || '문서').endsWith('.md')
-          ? (inputName.trim() || '문서')
-          : `${inputName.trim() || '문서'}.md`;
-        toast.loading('Markdown 내보내기 중...', { id: 'md-export' });
-        try {
-          if (typeof v._syncDocumentFromDOM === 'function') v._syncDocumentFromDOM();
-          const doc = v.getDocument?.();
-          if (!doc || !doc.sections || doc.sections.length === 0) {
-            toast.dismiss('md-export');
-            toast.error('내보낼 문서가 없습니다');
+      {
+        label: 'Word(DOCX)로 내보내기',
+        action: async () => {
+          setActiveMenu(null);
+          const v = (viewer || (window as any).__hwpxViewer) as any;
+          if (!v) {
+            toast.error('뷰어가 초기화되지 않았습니다');
             return;
           }
-          const { exportToMarkdown } = await import('../lib/markdown/parser');
-          const md = exportToMarkdown(doc);
-          if (!md || md.trim().length === 0) {
-            toast.dismiss('md-export');
-            toast.error('문서 내용이 비어 있습니다');
+          try {
+            const doc = v.getDocument?.();
+            if (!doc) {
+              toast.error('내보낼 문서가 없습니다');
+              return;
+            }
+            toast.loading('DOCX 내보내기 중...', { id: 'docx-export' });
+            const { downloadDocx } = await import('../lib/docx/parser');
+            await downloadDocx(doc);
+            toast.dismiss('docx-export');
+            toast.success('DOCX 내보내기 완료');
+          } catch (err: any) {
+            toast.dismiss('docx-export');
+            toast.error(`DOCX 내보내기 실패: ${err?.message}`);
+          }
+        },
+      },
+      {
+        label: 'Excel로 내보내기',
+        action: async () => {
+          setActiveMenu(null);
+          const v = (viewer || (window as any).__hwpxViewer) as any;
+          if (!v) {
+            toast.error('뷰어가 초기화되지 않았습니다');
             return;
           }
-          const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = fileName;
-          a.rel = 'noopener';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-          toast.dismiss('md-export');
-          toast.success(`${fileName} 저장 완료`);
-        } catch (err: any) {
-          toast.dismiss('md-export');
-          toast.error(`Markdown 내보내기 실패: ${err?.message || err}`);
-          // TODO: Replace with proper logging system
-          console.error('[MD Export] failed:', err);
-        }
-      }},
+          try {
+            const doc = v.getDocument?.();
+            if (!doc) {
+              toast.error('내보낼 문서가 없습니다');
+              return;
+            }
+            toast.loading('Excel 내보내기 중...', { id: 'excel-export' });
+            const { downloadExcel } = await import('../lib/excel/parser');
+            await downloadExcel(doc);
+            toast.dismiss('excel-export');
+            toast.success('Excel 내보내기 완료');
+          } catch (err: any) {
+            toast.dismiss('excel-export');
+            toast.error(`Excel 내보내기 실패: ${err?.message}`);
+          }
+        },
+      },
+      {
+        label: 'Markdown으로 내보내기',
+        action: async () => {
+          setActiveMenu(null);
+          const v = (viewer || (window as any).__hwpxViewer) as any;
+          if (!v) {
+            toast.error('뷰어가 초기화되지 않았습니다');
+            return;
+          }
+          const defaultName = (v.state?.currentFile?.name || '문서').replace(
+            /\.(hwpx|hwp|docx|md)$/i,
+            ''
+          );
+          const inputName = window.prompt('Markdown 파일명을 입력하세요:', defaultName);
+          if (inputName === null) return;
+          const fileName = (inputName.trim() || '문서').endsWith('.md')
+            ? inputName.trim() || '문서'
+            : `${inputName.trim() || '문서'}.md`;
+          toast.loading('Markdown 내보내기 중...', { id: 'md-export' });
+          try {
+            if (typeof v._syncDocumentFromDOM === 'function') v._syncDocumentFromDOM();
+            const doc = v.getDocument?.();
+            if (!doc || !doc.sections || doc.sections.length === 0) {
+              toast.dismiss('md-export');
+              toast.error('내보낼 문서가 없습니다');
+              return;
+            }
+            const { exportToMarkdown } = await import('../lib/markdown/parser');
+            const md = exportToMarkdown(doc);
+            if (!md || md.trim().length === 0) {
+              toast.dismiss('md-export');
+              toast.error('문서 내용이 비어 있습니다');
+              return;
+            }
+            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            toast.dismiss('md-export');
+            toast.success(`${fileName} 저장 완료`);
+          } catch (err: any) {
+            toast.dismiss('md-export');
+            toast.error(`Markdown 내보내기 실패: ${err?.message || err}`);
+            // TODO: Replace with proper logging system
+            console.error('[MD Export] failed:', err);
+          }
+        },
+      },
       { label: '인쇄', shortcut: 'Ctrl+P', action: handlePrint },
       { label: '', divider: true },
-      { label: '문서 정보', action: () => { setActiveMenu(null); const doc = (viewer as any)?.getDocument?.(); const meta = doc?.metadata; if (meta) { toast(`섹션: ${meta.sectionsCount || 0}개, 이미지: ${meta.imagesCount || 0}개\n파싱: ${meta.parsedAt || '-'}`, { duration: 4000 }); } else { toast('문서가 로드되지 않았습니다'); } } },
+      {
+        label: '문서 정보',
+        action: () => {
+          setActiveMenu(null);
+          const doc = (viewer as any)?.getDocument?.();
+          const meta = doc?.metadata;
+          if (meta) {
+            toast(
+              `섹션: ${meta.sectionsCount || 0}개, 이미지: ${meta.imagesCount || 0}개\n파싱: ${meta.parsedAt || '-'}`,
+              { duration: 4000 }
+            );
+          } else {
+            toast('문서가 로드되지 않았습니다');
+          }
+        },
+      },
     ],
     '편집(E)': [
-      { label: '실행 취소', shortcut: 'Ctrl+Z', action: () => { setActiveMenu(null); (viewer as any)?.historyManager?.undo(); } },
-      { label: '다시 실행', shortcut: 'Ctrl+Y', action: () => { setActiveMenu(null); (viewer as any)?.historyManager?.redo(); } },
+      {
+        label: '실행 취소',
+        shortcut: 'Ctrl+Z',
+        action: () => {
+          setActiveMenu(null);
+          (viewer as any)?.historyManager?.undo();
+        },
+      },
+      {
+        label: '다시 실행',
+        shortcut: 'Ctrl+Y',
+        action: () => {
+          setActiveMenu(null);
+          (viewer as any)?.historyManager?.redo();
+        },
+      },
       { label: '', divider: true },
-      { label: '잘라내기', shortcut: 'Ctrl+X', action: () => { setActiveMenu(null); document.execCommand('cut'); } },
-      { label: '복사', shortcut: 'Ctrl+C', action: () => { setActiveMenu(null); document.execCommand('copy'); } },
-      { label: '붙여넣기', shortcut: 'Ctrl+V', action: () => { setActiveMenu(null); document.execCommand('paste'); } },
+      {
+        label: '잘라내기',
+        shortcut: 'Ctrl+X',
+        action: () => {
+          setActiveMenu(null);
+          document.execCommand('cut');
+        },
+      },
+      {
+        label: '복사',
+        shortcut: 'Ctrl+C',
+        action: () => {
+          setActiveMenu(null);
+          document.execCommand('copy');
+        },
+      },
+      {
+        label: '붙여넣기',
+        shortcut: 'Ctrl+V',
+        action: () => {
+          setActiveMenu(null);
+          document.execCommand('paste');
+        },
+      },
       { label: '', divider: true },
-      { label: '찾기', shortcut: 'Ctrl+F', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.show?.(); } },
-      { label: '찾아 바꾸기', shortcut: 'Ctrl+H', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.show?.('replace'); } },
+      {
+        label: '찾기',
+        shortcut: 'Ctrl+F',
+        action: () => {
+          setActiveMenu(null);
+          (viewer as any)?.searchDialog?.show?.();
+        },
+      },
+      {
+        label: '찾아 바꾸기',
+        shortcut: 'Ctrl+H',
+        action: () => {
+          setActiveMenu(null);
+          (viewer as any)?.searchDialog?.show?.('replace');
+        },
+      },
     ],
     '보기(V)': [
-      { label: '확대', shortcut: 'Ctrl++', action: () => { setActiveMenu(null); const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>; pages.forEach(p => { const cur = parseFloat(p.style.transform?.replace(/scale\(([^)]+)\)/, '$1') || '1'); p.style.transform = `scale(${Math.min(4, cur + 0.25)})`; p.style.transformOrigin = 'top center'; }); } },
-      { label: '축소', shortcut: 'Ctrl+-', action: () => { setActiveMenu(null); const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>; pages.forEach(p => { const cur = parseFloat(p.style.transform?.replace(/scale\(([^)]+)\)/, '$1') || '1'); p.style.transform = `scale(${Math.max(0.25, cur - 0.25)})`; p.style.transformOrigin = 'top center'; }); } },
-      { label: '100%', shortcut: 'Ctrl+0', action: () => { setActiveMenu(null); const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>; pages.forEach(p => { p.style.transform = 'scale(1)'; }); } },
+      {
+        label: '확대',
+        shortcut: 'Ctrl++',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) {
+            (viewer as any).canvasEditor.editor.command?.executePageScaleAdd?.();
+            return;
+          }
+          const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
+          pages.forEach(p => {
+            const cur = parseFloat(p.style.transform?.replace(/scale\(([^)]+)\)/, '$1') || '1');
+            p.style.transform = `scale(${Math.min(4, cur + 0.25)})`;
+            p.style.transformOrigin = 'top center';
+          });
+        },
+      },
+      {
+        label: '축소',
+        shortcut: 'Ctrl+-',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) {
+            (viewer as any).canvasEditor.editor.command?.executePageScaleMinus?.();
+            return;
+          }
+          const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
+          pages.forEach(p => {
+            const cur = parseFloat(p.style.transform?.replace(/scale\(([^)]+)\)/, '$1') || '1');
+            p.style.transform = `scale(${Math.max(0.25, cur - 0.25)})`;
+            p.style.transformOrigin = 'top center';
+          });
+        },
+      },
+      {
+        label: '100%',
+        shortcut: 'Ctrl+0',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) {
+            (viewer as any).canvasEditor.editor.command?.executePageScaleRecovery?.();
+            return;
+          }
+          const pages = document.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
+          pages.forEach(p => {
+            p.style.transform = 'scale(1)';
+          });
+        },
+      },
       { label: '', divider: true },
-      { label: '다크 모드 전환', action: () => { setActiveMenu(null); const isDark = document.documentElement.getAttribute('data-theme') === 'dark'; document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark'); (viewer as any)?.themeManager?.setTheme?.(isDark ? 'light' : 'dark'); } },
-      { label: '고대비 모드 (접근성)', action: () => {
-        setActiveMenu(null);
-        const v = viewer as any;
-        if (v?.accessibilityManager) {
-          v.accessibilityManager.applyHighContrast();
-          toast.success('고대비 모드 전환됨');
-        } else {
-          toast.error('접근성 관리자가 초기화되지 않았습니다');
-        }
-      }},
+      {
+        label: '다크 모드 전환',
+        action: () => {
+          setActiveMenu(null);
+          const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+          document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+          (viewer as any)?.themeManager?.setTheme?.(isDark ? 'light' : 'dark');
+        },
+      },
+      {
+        label: '고대비 모드 (접근성)',
+        action: () => {
+          setActiveMenu(null);
+          const v = viewer as any;
+          if (v?.accessibilityManager) {
+            v.accessibilityManager.applyHighContrast();
+            toast.success('고대비 모드 전환됨');
+          } else {
+            toast.error('접근성 관리자가 초기화되지 않았습니다');
+          }
+        },
+      },
     ],
     '삽입(I)': [
-      { label: '표 삽입 (3x3)', action: () => { setActiveMenu(null); (viewer as any)?.commandAdapt?.executeInsertTable(3, 3); } },
-      { label: '그림 삽입', action: () => {
-        setActiveMenu(null);
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = async (ev: any) => {
-          const file = ev.target?.files?.[0];
-          if (file) {
+      {
+        label: '표 삽입 (3x3)',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) getCmd()?.insertTable(3, 3);
+          else (viewer as any)?.commandAdapt?.executeInsertTable(3, 3);
+        },
+      },
+      {
+        label: '그림 삽입',
+        action: () => {
+          setActiveMenu(null);
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = async (ev: any) => {
+            const file = ev.target?.files?.[0];
+            if (!file) return;
             const url = URL.createObjectURL(file);
-            await (viewer as any)?.commandAdapt?.executeInsertImage(url, { width: 300 });
+            if (isCanvasMode()) await getCmd()?.insertImage(url, { width: 300, height: 200 });
+            else await (viewer as any)?.commandAdapt?.executeInsertImage(url, { width: 300 });
+          };
+          input.click();
+        },
+      },
+      {
+        label: '특수 문자',
+        shortcut: 'Ctrl+F10',
+        action: () => {
+          setActiveMenu(null);
+          (viewer as any)?.specialCharPicker?.open?.();
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: '글머리 기호',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) {
+            getCmd()?.bulletList('bullet');
+            return;
           }
-        };
-        input.click();
-      }},
-      { label: '특수 문자', shortcut: 'Ctrl+F10', action: () => { setActiveMenu(null); (viewer as any)?.specialCharPicker?.open?.(); } },
+          const ec = (viewer as any)?.inlineEditor?.editingCell;
+          if (ec) {
+            ec.focus();
+            setTimeout(() => document.execCommand('insertUnorderedList', false), 0);
+          } else {
+            getCmd()?.bulletList('bullet');
+          }
+        },
+      },
+      {
+        label: '번호 매기기',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) {
+            getCmd()?.numberedList('decimal');
+            return;
+          }
+          const ec = (viewer as any)?.inlineEditor?.editingCell;
+          if (ec) {
+            ec.focus();
+            setTimeout(() => document.execCommand('insertOrderedList', false), 0);
+          } else {
+            getCmd()?.numberedList('decimal');
+          }
+        },
+      },
+      {
+        label: '목록 제거',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) {
+            getCmd()?.removeList?.();
+            return;
+          }
+          const ec = (viewer as any)?.inlineEditor?.editingCell;
+          if (ec) {
+            ec.focus();
+            setTimeout(() => {
+              document.execCommand('removeFormat', false);
+              const lists = ec.querySelectorAll('ul, ol');
+              lists.forEach((l: Element) => {
+                const items = l.querySelectorAll('li');
+                const frag = document.createDocumentFragment();
+                items.forEach((li: Element) => {
+                  const div = document.createElement('div');
+                  div.innerHTML = li.innerHTML;
+                  frag.appendChild(div);
+                });
+                l.replaceWith(frag);
+              });
+            }, 0);
+          } else {
+            getCmd()?.removeList?.();
+          }
+        },
+      },
       { label: '', divider: true },
-      { label: '글머리 기호', action: () => { setActiveMenu(null); const ec = (viewer as any)?.inlineEditor?.editingCell; if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertUnorderedList', false), 0); } else { (viewer as any)?.command?.bulletList('bullet'); } } },
-      { label: '번호 매기기', action: () => { setActiveMenu(null); const ec = (viewer as any)?.inlineEditor?.editingCell; if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertOrderedList', false), 0); } else { (viewer as any)?.command?.numberedList('decimal'); } } },
-      { label: '목록 제거', action: () => { setActiveMenu(null); const ec = (viewer as any)?.inlineEditor?.editingCell; if (ec) { ec.focus(); setTimeout(() => { document.execCommand('removeFormat', false); const lists = ec.querySelectorAll('ul, ol'); lists.forEach((l: Element) => { const items = l.querySelectorAll('li'); const frag = document.createDocumentFragment(); items.forEach((li: Element) => { const div = document.createElement('div'); div.innerHTML = li.innerHTML; frag.appendChild(div); }); l.replaceWith(frag); }); }, 0); } else { (viewer as any)?.command?.removeList?.(); } } },
+      {
+        label: '페이지 나누기',
+        action: () => {
+          setActiveMenu(null);
+          const v = viewer as any;
+          if (!v) return;
+          const doc = v.getDocument?.();
+          if (!doc) {
+            toast.error('문서가 없습니다');
+            return;
+          }
+          const newSection = {
+            elements: [
+              {
+                type: 'paragraph',
+                runs: [{ text: '', style: {} }],
+                style: { textAlign: 'left', lineHeight: '1.6' },
+              },
+            ],
+            pageSettings: doc.sections[0]?.pageSettings || {},
+            pageWidth: doc.sections[0]?.pageWidth || 794,
+            pageHeight: doc.sections[0]?.pageHeight || 1123,
+            headers: { both: null, odd: null, even: null },
+            footers: { both: null, odd: null, even: null },
+          };
+          doc.sections.push(newSection);
+          doc.metadata.sectionsCount = doc.sections.length;
+          v.updateDocument(doc);
+          toast.success(`페이지 ${doc.sections.length} 추가됨`);
+        },
+      },
+      {
+        label: '머리글 편집',
+        action: () => {
+          setActiveMenu(null);
+          const v = viewer as any;
+          const doc = v?.getDocument?.();
+          if (!doc?.sections?.[0]) {
+            toast.error('문서가 없습니다');
+            return;
+          }
+          const text = window.prompt(
+            '머리글 텍스트를 입력하세요',
+            doc.sections[0].headers?.both?.elements?.[0]?.runs?.[0]?.text || ''
+          );
+          if (text === null) return;
+          doc.sections.forEach((s: any) => {
+            s.headers = {
+              both: text ? { elements: [{ type: 'paragraph', runs: [{ text }] }] } : null,
+              odd: null,
+              even: null,
+            };
+          });
+          v.updateDocument(doc);
+          toast.success(text ? '머리글이 설정되었습니다' : '머리글이 제거되었습니다');
+        },
+      },
+      {
+        label: '바닥글 편집',
+        action: () => {
+          setActiveMenu(null);
+          const v = viewer as any;
+          const doc = v?.getDocument?.();
+          if (!doc?.sections?.[0]) {
+            toast.error('문서가 없습니다');
+            return;
+          }
+          const text = window.prompt(
+            '바닥글 텍스트를 입력하세요',
+            doc.sections[0].footers?.both?.elements?.[0]?.runs?.[0]?.text || ''
+          );
+          if (text === null) return;
+          doc.sections.forEach((s: any) => {
+            s.footers = {
+              both: text ? { elements: [{ type: 'paragraph', runs: [{ text }] }] } : null,
+              odd: null,
+              even: null,
+            };
+          });
+          v.updateDocument(doc);
+          toast.success(text ? '바닥글이 설정되었습니다' : '바닥글이 제거되었습니다');
+        },
+      },
       { label: '', divider: true },
-      { label: '페이지 나누기', action: () => {
-        setActiveMenu(null);
-        const v = viewer as any;
-        if (!v) return;
-        const doc = v.getDocument?.();
-        if (!doc) { toast.error('문서가 없습니다'); return; }
-        const newSection = { elements: [{ type: 'paragraph', runs: [{ text: '', style: {} }], style: { textAlign: 'left', lineHeight: '1.6' } }], pageSettings: doc.sections[0]?.pageSettings || {}, pageWidth: doc.sections[0]?.pageWidth || 794, pageHeight: doc.sections[0]?.pageHeight || 1123, headers: { both: null, odd: null, even: null }, footers: { both: null, odd: null, even: null } };
-        doc.sections.push(newSection);
-        doc.metadata.sectionsCount = doc.sections.length;
-        v.updateDocument(doc);
-        toast.success(`페이지 ${doc.sections.length} 추가됨`);
-      }},
-      { label: '머리글 편집', action: () => {
-        setActiveMenu(null);
-        const v = viewer as any;
-        const doc = v?.getDocument?.();
-        if (!doc?.sections?.[0]) { toast.error('문서가 없습니다'); return; }
-        const text = window.prompt('머리글 텍스트를 입력하세요', doc.sections[0].headers?.both?.elements?.[0]?.runs?.[0]?.text || '');
-        if (text === null) return;
-        doc.sections.forEach((s: any) => { s.headers = { both: text ? { elements: [{ type: 'paragraph', runs: [{ text }] }] } : null, odd: null, even: null }; });
-        v.updateDocument(doc);
-        toast.success(text ? '머리글이 설정되었습니다' : '머리글이 제거되었습니다');
-      }},
-      { label: '바닥글 편집', action: () => {
-        setActiveMenu(null);
-        const v = viewer as any;
-        const doc = v?.getDocument?.();
-        if (!doc?.sections?.[0]) { toast.error('문서가 없습니다'); return; }
-        const text = window.prompt('바닥글 텍스트를 입력하세요', doc.sections[0].footers?.both?.elements?.[0]?.runs?.[0]?.text || '');
-        if (text === null) return;
-        doc.sections.forEach((s: any) => { s.footers = { both: text ? { elements: [{ type: 'paragraph', runs: [{ text }] }] } : null, odd: null, even: null }; });
-        v.updateDocument(doc);
-        toast.success(text ? '바닥글이 설정되었습니다' : '바닥글이 제거되었습니다');
-      }},
-      { label: '', divider: true },
-      { label: '각주 삽입', action: () => {
-        setActiveMenu(null);
-        const sel = window.getSelection();
-        const node = sel?.anchorNode instanceof HTMLElement ? sel.anchorNode : sel?.anchorNode?.parentElement;
-        const editable = node?.closest('[contenteditable="true"]');
-        if (!editable) { toast.error('편집 중인 텍스트에 커서를 놓으세요'); return; }
-        const noteText = window.prompt('각주 내용을 입력하세요');
-        if (!noteText) return;
-        const sup = document.createElement('sup');
-        sup.textContent = '*';
-        sup.title = noteText;
-        sup.style.color = '#2b579a';
-        sup.style.cursor = 'help';
-        if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          range.collapse(false);
-          range.insertNode(sup);
-          range.setStartAfter(sup);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-        toast.success('각주가 삽입되었습니다');
-      }},
+      {
+        label: '각주 삽입',
+        action: () => {
+          setActiveMenu(null);
+          const sel = window.getSelection();
+          const node =
+            sel?.anchorNode instanceof HTMLElement
+              ? sel.anchorNode
+              : sel?.anchorNode?.parentElement;
+          const editable = node?.closest('[contenteditable="true"]');
+          if (!editable) {
+            toast.error('편집 중인 텍스트에 커서를 놓으세요');
+            return;
+          }
+          const noteText = window.prompt('각주 내용을 입력하세요');
+          if (!noteText) return;
+          const sup = document.createElement('sup');
+          sup.textContent = '*';
+          sup.title = noteText;
+          sup.style.color = '#2b579a';
+          sup.style.cursor = 'help';
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            range.collapse(false);
+            range.insertNode(sup);
+            range.setStartAfter(sup);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+          toast.success('각주가 삽입되었습니다');
+        },
+      },
     ],
     '서식(O)': [
-      { label: '굵게', shortcut: 'Ctrl+B', action: () => { setActiveMenu(null); (viewer as any)?.command?.bold(); } },
-      { label: '기울임', shortcut: 'Ctrl+I', action: () => { setActiveMenu(null); (viewer as any)?.command?.italic(); } },
-      { label: '밑줄', shortcut: 'Ctrl+U', action: () => { setActiveMenu(null); (viewer as any)?.command?.underline(); } },
-      { label: '취소선', action: () => { setActiveMenu(null); (viewer as any)?.command?.strikethrough(); } },
+      {
+        label: '굵게',
+        shortcut: 'Ctrl+B',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.bold();
+        },
+      },
+      {
+        label: '기울임',
+        shortcut: 'Ctrl+I',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.italic();
+        },
+      },
+      {
+        label: '밑줄',
+        shortcut: 'Ctrl+U',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.underline();
+        },
+      },
+      {
+        label: '취소선',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.strikethrough();
+        },
+      },
       { label: '', divider: true },
-      { label: '왼쪽 정렬', action: () => { setActiveMenu(null); (viewer as any)?.command?.alignLeft(); } },
-      { label: '가운데 정렬', action: () => { setActiveMenu(null); (viewer as any)?.command?.alignCenter(); } },
-      { label: '오른쪽 정렬', action: () => { setActiveMenu(null); (viewer as any)?.command?.alignRight(); } },
-      { label: '양쪽 정렬', action: () => { setActiveMenu(null); (viewer as any)?.command?.alignJustify(); } },
+      {
+        label: '왼쪽 정렬',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.alignLeft();
+        },
+      },
+      {
+        label: '가운데 정렬',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.alignCenter();
+        },
+      },
+      {
+        label: '오른쪽 정렬',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.alignRight();
+        },
+      },
+      {
+        label: '양쪽 정렬',
+        action: () => {
+          setActiveMenu(null);
+          getCmd()?.alignJustify();
+        },
+      },
       { label: '', divider: true },
-      { label: '줄 간격 160%', action: () => { setActiveMenu(null); (viewer as any)?.commandAdapt?.executeLineSpacing(1.6); } },
-      { label: '줄 간격 200%', action: () => { setActiveMenu(null); (viewer as any)?.commandAdapt?.executeLineSpacing(2.0); } },
+      {
+        label: '줄 간격 160%',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) getCmd()?.lineSpacing?.(1.6);
+          else (viewer as any)?.commandAdapt?.executeLineSpacing(1.6);
+        },
+      },
+      {
+        label: '줄 간격 200%',
+        action: () => {
+          setActiveMenu(null);
+          if (isCanvasMode()) getCmd()?.lineSpacing?.(2.0);
+          else (viewer as any)?.commandAdapt?.executeLineSpacing(2.0);
+        },
+      },
     ],
     '검토(R)': [
-      { label: '변경 추적 시작/중지', action: () => {
-        setActiveMenu(null);
-        const v = viewer as any;
-        const tracker = v?.changeTracker;
-        if (!tracker) { toast.error('변경추적 모듈이 초기화되지 않았습니다'); return; }
-        if (tracker.isTracking) {
-          tracker.disable();
-          toast.success('변경 추적 중지');
-        } else {
-          const author = window.prompt('작성자 이름을 입력하세요', '사용자');
-          if (author) { tracker.enable(author); toast.success(`변경 추적 시작 (${author})`); }
-        }
-      }},
-      { label: '변경 추적 패널', action: () => {
-        setActiveMenu(null);
-        window.dispatchEvent(new CustomEvent('toggle-track-changes-panel'));
-      }},
+      {
+        label: '변경 추적 시작/중지',
+        action: () => {
+          setActiveMenu(null);
+          const v = viewer as any;
+          const tracker = v?.changeTracker;
+          if (!tracker) {
+            toast.error('변경추적 모듈이 초기화되지 않았습니다');
+            return;
+          }
+          if (tracker.isTracking) {
+            tracker.disable();
+            toast.success('변경 추적 중지');
+          } else {
+            const author = window.prompt('작성자 이름을 입력하세요', '사용자');
+            if (author) {
+              tracker.enable(author);
+              toast.success(`변경 추적 시작 (${author})`);
+            }
+          }
+        },
+      },
+      {
+        label: '변경 추적 패널',
+        action: () => {
+          setActiveMenu(null);
+          window.dispatchEvent(new CustomEvent('toggle-track-changes-panel'));
+        },
+      },
       { label: '', divider: true },
-      { label: '모든 변경 수락', action: () => {
-        setActiveMenu(null);
-        const count = (viewer as any)?.changeTracker?.acceptAll();
-        toast.success(`${count || 0}개 변경 수락됨`);
-      }},
-      { label: '모든 변경 거부', action: () => {
-        setActiveMenu(null);
-        const count = (viewer as any)?.changeTracker?.rejectAll();
-        toast.success(`${count || 0}개 변경 거부됨`);
-      }},
+      {
+        label: '모든 변경 수락',
+        action: () => {
+          setActiveMenu(null);
+          const count = (viewer as any)?.changeTracker?.acceptAll();
+          toast.success(`${count || 0}개 변경 수락됨`);
+        },
+      },
+      {
+        label: '모든 변경 거부',
+        action: () => {
+          setActiveMenu(null);
+          const count = (viewer as any)?.changeTracker?.rejectAll();
+          toast.success(`${count || 0}개 변경 거부됨`);
+        },
+      },
       { label: '', divider: true },
-      { label: '댓글 패널', action: () => {
-        setActiveMenu(null);
-        window.dispatchEvent(new CustomEvent('toggle-comments-panel'));
-      }},
-      { label: '댓글 추가', action: () => {
-        setActiveMenu(null);
-        const v = viewer as any;
-        if (!v?.annotationManager) { toast.error('댓글 모듈이 초기화되지 않았습니다'); return; }
+      {
+        label: '댓글 패널',
+        action: () => {
+          setActiveMenu(null);
+          window.dispatchEvent(new CustomEvent('toggle-comments-panel'));
+        },
+      },
+      {
+        label: '댓글 추가',
+        action: () => {
+          setActiveMenu(null);
+          const v = viewer as any;
+          if (!v?.annotationManager) {
+            toast.error('댓글 모듈이 초기화되지 않았습니다');
+            return;
+          }
 
-        // 사용자 선택 위치에서 앵커 계산
-        const sel = window.getSelection();
-        let anchor = { sectionIndex: 0, elementIndex: 0 };
-        if (sel && sel.anchorNode && v.container) {
-          const node = sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
-          const target = node?.closest('.hwp-paragraph, .hwp-table td, .hwp-table th');
-          if (target) {
-            const pages = v.container.querySelectorAll('.hwp-page-container, .hwp-page');
-            for (let si = 0; si < pages.length; si++) {
-              const elements = pages[si].querySelectorAll('.hwp-paragraph, .hwp-table');
-              for (let ei = 0; ei < elements.length; ei++) {
-                if (elements[ei] === target || elements[ei].contains(target)) {
-                  anchor = { sectionIndex: si, elementIndex: ei };
-                  break;
+          // 사용자 선택 위치에서 앵커 계산
+          const sel = window.getSelection();
+          let anchor = { sectionIndex: 0, elementIndex: 0 };
+          if (sel && sel.anchorNode && v.container) {
+            const node =
+              sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
+            const target = node?.closest('.hwp-paragraph, .hwp-table td, .hwp-table th');
+            if (target) {
+              const pages = v.container.querySelectorAll('.hwp-page-container, .hwp-page');
+              for (let si = 0; si < pages.length; si++) {
+                const elements = pages[si].querySelectorAll('.hwp-paragraph, .hwp-table');
+                for (let ei = 0; ei < elements.length; ei++) {
+                  if (elements[ei] === target || elements[ei].contains(target)) {
+                    anchor = { sectionIndex: si, elementIndex: ei };
+                    break;
+                  }
                 }
               }
             }
           }
-        }
 
-        const text = window.prompt('댓글 내용을 입력하세요');
-        if (!text) return;
-        const author = window.prompt('작성자 이름', '사용자') || '사용자';
-        try {
-          v.annotationManager.addComment(anchor, text, author);
-          toast.success('댓글이 추가되었습니다');
-          window.dispatchEvent(new CustomEvent('toggle-comments-panel'));
-        } catch (err: any) {
-          toast.error(`댓글 추가 실패: ${err?.message}`);
-        }
-      }},
+          const text = window.prompt('댓글 내용을 입력하세요');
+          if (!text) return;
+          const author = window.prompt('작성자 이름', '사용자') || '사용자';
+          try {
+            v.annotationManager.addComment(anchor, text, author);
+            toast.success('댓글이 추가되었습니다');
+            window.dispatchEvent(new CustomEvent('toggle-comments-panel'));
+          } catch (err: any) {
+            toast.error(`댓글 추가 실패: ${err?.message}`);
+          }
+        },
+      },
     ],
     '도구(T)': [
-      { label: '찾아 바꾸기', shortcut: 'Ctrl+H', action: () => { setActiveMenu(null); (viewer as any)?.searchDialog?.show?.('replace'); } },
+      {
+        label: '찾아 바꾸기',
+        shortcut: 'Ctrl+H',
+        action: () => {
+          setActiveMenu(null);
+          (viewer as any)?.searchDialog?.show?.('replace');
+        },
+      },
       { label: '', divider: true },
-      { label: '문서 검증', action: () => {
-        setActiveMenu(null);
-        const doc = (viewer as any)?.getDocument?.();
-        if (!doc?.sections) { toast.error('문서가 없습니다'); return; }
-        let chars = 0, paras = 0, tables = 0, images = 0, emptyParas = 0;
-        doc.sections.forEach((s: any) => {
-          (s.elements || []).forEach((el: any) => {
-            if (el.type === 'paragraph') {
-              paras++;
-              const text = (el.runs || []).map((r: any) => r.text || '').join('');
-              chars += text.length;
-              if (!text.trim()) emptyParas++;
-            } else if (el.type === 'table') {
-              tables++;
-              (el.rows || []).forEach((row: any) => (row.cells || []).forEach((cell: any) => (cell.elements || []).forEach((ce: any) => { if (ce.runs) chars += ce.runs.map((r: any) => r.text || '').join('').length; })));
-            } else if (el.type === 'image') { images++; }
-          });
-        });
-        toast(`문서 검증 결과:\n페이지: ${doc.sections.length}  단락: ${paras}  표: ${tables}  이미지: ${images}\n총 글자수: ${chars}  빈 단락: ${emptyParas}`, { duration: 5000 });
-      }},
-      { label: '', divider: true },
-      { label: 'OCR (이미지→텍스트)', action: () => {
-        setActiveMenu(null);
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = async (ev: any) => {
-          const file = ev.target?.files?.[0];
-          if (!file) return;
-          const v = (viewer || (window as any).__hwpxViewer) as any;
-          if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
-          toast.loading('OCR 처리 중... (한국어+영어)', { id: 'ocr' });
-          try {
-            const { ocrToDocument } = await import('../lib/ocr/pipeline');
-            const ocrDoc = await ocrToDocument(file, file.name, {
-              language: 'kor+eng',
-              onProgress: (p: any) => toast.loading(`OCR: ${p.status} (${Math.round(p.progress * 100)}%)`, { id: 'ocr' }),
+      {
+        label: '문서 검증',
+        action: () => {
+          setActiveMenu(null);
+          const doc = (viewer as any)?.getDocument?.();
+          if (!doc?.sections) {
+            toast.error('문서가 없습니다');
+            return;
+          }
+          let chars = 0,
+            paras = 0,
+            tables = 0,
+            images = 0,
+            emptyParas = 0;
+          doc.sections.forEach((s: any) => {
+            (s.elements || []).forEach((el: any) => {
+              if (el.type === 'paragraph') {
+                paras++;
+                const text = (el.runs || []).map((r: any) => r.text || '').join('');
+                chars += text.length;
+                if (!text.trim()) emptyParas++;
+              } else if (el.type === 'table') {
+                tables++;
+                (el.rows || []).forEach((row: any) =>
+                  (row.cells || []).forEach((cell: any) =>
+                    (cell.elements || []).forEach((ce: any) => {
+                      if (ce.runs) chars += ce.runs.map((r: any) => r.text || '').join('').length;
+                    })
+                  )
+                );
+              } else if (el.type === 'image') {
+                images++;
+              }
             });
-            await v.updateDocument(ocrDoc);
-            toast.dismiss('ocr');
-            toast.success('OCR 완료');
-            document.body.classList.add('global-edit-mode');
-          } catch (err: any) {
-            toast.dismiss('ocr');
-            toast.error(`OCR 실패: ${err?.message}`);
-          }
-        };
-        input.click();
-      }},
-      { label: '문서 비교 (Diff)', action: async () => {
-        setActiveMenu(null);
-        const v = (viewer || (window as any).__hwpxViewer) as any;
-        if (!v) { toast.error('뷰어가 초기화되지 않았습니다'); return; }
-        const currentDoc = v.getDocument?.();
-        if (!currentDoc) { toast.error('현재 문서가 없습니다. 먼저 문서를 열어주세요.'); return; }
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.hwpx,.docx,.md,.txt';
-        input.onchange = async (ev: any) => {
-          const file = ev.target?.files?.[0];
-          if (!file) return;
-          toast.loading('비교 문서 로드 중...', { id: 'diff' });
-          try {
-            let compareDoc: any;
-            if (file.name.endsWith('.docx')) {
-              const { parseDocx } = await import('../lib/docx/parser');
-              compareDoc = await parseDocx(await file.arrayBuffer(), file.name);
-            } else if (file.name.endsWith('.hwpx')) {
-              toast.dismiss('diff');
-              toast.error('HWPX 비교는 뷰어에 로드된 문서끼리만 가능합니다');
+          });
+          toast(
+            `문서 검증 결과:\n페이지: ${doc.sections.length}  단락: ${paras}  표: ${tables}  이미지: ${images}\n총 글자수: ${chars}  빈 단락: ${emptyParas}`,
+            { duration: 5000 }
+          );
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'OCR (이미지→텍스트)',
+        action: () => {
+          setActiveMenu(null);
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = async (ev: any) => {
+            const file = ev.target?.files?.[0];
+            if (!file) return;
+            const v = (viewer || (window as any).__hwpxViewer) as any;
+            if (!v) {
+              toast.error('뷰어가 초기화되지 않았습니다');
               return;
+            }
+            toast.loading('OCR 처리 중... (한국어+영어)', { id: 'ocr' });
+            try {
+              const { ocrToDocument } = await import('../lib/ocr/pipeline');
+              const ocrDoc = await ocrToDocument(file, file.name, {
+                language: 'kor+eng',
+                onProgress: (p: any) =>
+                  toast.loading(`OCR: ${p.status} (${Math.round(p.progress * 100)}%)`, {
+                    id: 'ocr',
+                  }),
+              });
+              await v.updateDocument(ocrDoc);
+              toast.dismiss('ocr');
+              toast.success('OCR 완료');
+              document.body.classList.add('global-edit-mode');
+            } catch (err: any) {
+              toast.dismiss('ocr');
+              toast.error(`OCR 실패: ${err?.message}`);
+            }
+          };
+          input.click();
+        },
+      },
+      {
+        label: '문서 비교 (Diff)',
+        action: async () => {
+          setActiveMenu(null);
+          const v = (viewer || (window as any).__hwpxViewer) as any;
+          if (!v) {
+            toast.error('뷰어가 초기화되지 않았습니다');
+            return;
+          }
+          const currentDoc = v.getDocument?.();
+          if (!currentDoc) {
+            toast.error('현재 문서가 없습니다. 먼저 문서를 열어주세요.');
+            return;
+          }
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.hwpx,.docx,.md,.txt';
+          input.onchange = async (ev: any) => {
+            const file = ev.target?.files?.[0];
+            if (!file) return;
+            toast.loading('비교 문서 로드 중...', { id: 'diff' });
+            try {
+              let compareDoc: any;
+              if (file.name.endsWith('.docx')) {
+                const { parseDocx } = await import('../lib/docx/parser');
+                compareDoc = await parseDocx(await file.arrayBuffer(), file.name);
+              } else if (file.name.endsWith('.hwpx')) {
+                toast.dismiss('diff');
+                toast.error('HWPX 비교는 뷰어에 로드된 문서끼리만 가능합니다');
+                return;
+              } else {
+                // 텍스트 파일
+                const text = await file.text();
+                compareDoc = {
+                  sections: [
+                    {
+                      elements: text
+                        .split('\n')
+                        .map((line: string) => ({ type: 'paragraph', runs: [{ text: line }] })),
+                    },
+                  ],
+                };
+              }
+              const { diffDocuments, renderDiffHTML } = await import('../lib/diff/document-diff');
+              const result = diffDocuments(currentDoc, compareDoc);
+              const html = renderDiffHTML(result);
+              const win = window.open('', '_blank', 'width=900,height=700');
+              if (win) {
+                win.document.write(
+                  `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>문서 비교 결과</title></head><body style="font-family:-apple-system,sans-serif;padding:20px;">${html}</body></html>`
+                );
+                win.document.close();
+              }
+              toast.dismiss('diff');
+              toast.success(`비교 완료 — 유사도 ${result.stats.similarity}%`);
+            } catch (err: any) {
+              toast.dismiss('diff');
+              toast.error(`비교 실패: ${err?.message}`);
+            }
+          };
+          input.click();
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: '키보드 단축키',
+        action: () => {
+          setActiveMenu(null);
+          const shortcuts = [
+            'Ctrl+N: 새 문서',
+            'Ctrl+O: 열기',
+            'Ctrl+S: 저장',
+            'Ctrl+P: 인쇄',
+            'Ctrl+Z: 실행취소',
+            'Ctrl+Y: 다시실행',
+            'Ctrl+B: 굵게',
+            'Ctrl+I: 기울임',
+            'Ctrl+U: 밑줄',
+            'Ctrl+F: 찾기',
+            'Ctrl+H: 바꾸기',
+            'Ctrl+F10: 특수문자',
+            'Enter: 줄바꿈(단락)/다음셀(표)',
+            'Escape: 편집 종료',
+            'Tab: 다음 요소',
+            'Shift+Tab: 이전 요소',
+          ];
+          alert('키보드 단축키\n\n' + shortcuts.join('\n'));
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: '클라우드 동기화',
+        action: () => {
+          setActiveMenu(null);
+          const v = viewer as any;
+          if (v?.autoSaveManager) {
+            const sessions = v.autoSaveManager.getSavedSessions?.();
+            if (sessions && sessions.length > 0) {
+              toast(
+                `자동저장 세션 ${sessions.length}개 존재\n클라우드 동기화는 Google API 키 설정이 필요합니다.`,
+                { duration: 4000 }
+              );
             } else {
-              // 텍스트 파일
-              const text = await file.text();
-              compareDoc = { sections: [{ elements: text.split('\n').map((line: string) => ({ type: 'paragraph', runs: [{ text: line }] })) }] };
+              toast('자동저장된 세션이 없습니다');
             }
-            const { diffDocuments, renderDiffHTML } = await import('../lib/diff/document-diff');
-            const result = diffDocuments(currentDoc, compareDoc);
-            const html = renderDiffHTML(result);
-            const win = window.open('', '_blank', 'width=900,height=700');
-            if (win) {
-              win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>문서 비교 결과</title></head><body style="font-family:-apple-system,sans-serif;padding:20px;">${html}</body></html>`);
-              win.document.close();
-            }
-            toast.dismiss('diff');
-            toast.success(`비교 완료 — 유사도 ${result.stats.similarity}%`);
-          } catch (err: any) {
-            toast.dismiss('diff');
-            toast.error(`비교 실패: ${err?.message}`);
-          }
-        };
-        input.click();
-      }},
-      { label: '', divider: true },
-      { label: '키보드 단축키', action: () => {
-        setActiveMenu(null);
-        const shortcuts = [
-          'Ctrl+N: 새 문서', 'Ctrl+O: 열기', 'Ctrl+S: 저장',
-          'Ctrl+P: 인쇄', 'Ctrl+Z: 실행취소', 'Ctrl+Y: 다시실행',
-          'Ctrl+B: 굵게', 'Ctrl+I: 기울임', 'Ctrl+U: 밑줄',
-          'Ctrl+F: 찾기', 'Ctrl+H: 바꾸기', 'Ctrl+F10: 특수문자',
-          'Enter: 줄바꿈(단락)/다음셀(표)', 'Escape: 편집 종료',
-          'Tab: 다음 요소', 'Shift+Tab: 이전 요소',
-        ];
-        alert('키보드 단축키\n\n' + shortcuts.join('\n'));
-      }},
-      { label: '', divider: true },
-      { label: '클라우드 동기화', action: () => {
-        setActiveMenu(null);
-        const v = viewer as any;
-        if (v?.autoSaveManager) {
-          const sessions = v.autoSaveManager.getSavedSessions?.();
-          if (sessions && sessions.length > 0) {
-            toast(`자동저장 세션 ${sessions.length}개 존재\n클라우드 동기화는 Google API 키 설정이 필요합니다.`, { duration: 4000 });
           } else {
-            toast('자동저장된 세션이 없습니다');
+            toast('자동저장 기능이 비활성화되어 있습니다');
           }
-        } else {
-          toast('자동저장 기능이 비활성화되어 있습니다');
-        }
-      }},
-      { label: '언어 전환 (ko/en)', action: () => {
-        setActiveMenu(null);
-        import('../lib/i18n').then(({ getLocale, setLocale }) => {
-          const next = getLocale() === 'ko' ? 'en' : 'ko';
-          setLocale(next as any);
-          toast(`언어가 ${next === 'ko' ? '한국어' : 'English'}로 변경되었습니다.\n새로고침 후 적용됩니다.`, { duration: 3000 });
-        });
-      }},
+        },
+      },
+      {
+        label: '언어 전환 (ko/en)',
+        action: () => {
+          setActiveMenu(null);
+          import('../lib/i18n').then(({ getLocale, setLocale }) => {
+            const next = getLocale() === 'ko' ? 'en' : 'ko';
+            setLocale(next as any);
+            toast(
+              `언어가 ${next === 'ko' ? '한국어' : 'English'}로 변경되었습니다.\n새로고침 후 적용됩니다.`,
+              { duration: 3000 }
+            );
+          });
+        },
+      },
       { label: '', divider: true },
-      { label: '도움말', shortcut: 'F1', action: () => {
-        setActiveMenu(null);
-        showHelpDialog();
-      }},
-      { label: '오픈한글 AI 정보', action: () => {
-        setActiveMenu(null);
-        setShowAboutModal(true);
-      }},
+      {
+        label: '도움말',
+        shortcut: 'F1',
+        action: () => {
+          setActiveMenu(null);
+          showHelpDialog();
+        },
+      },
+      {
+        label: '오픈한글 AI 정보',
+        action: () => {
+          setActiveMenu(null);
+          setShowAboutModal(true);
+        },
+      },
     ],
   };
 
   return (
     <div ref={menuRef} className="hwp-menubar">
-      <input ref={fileInputRef} type="file" accept=".hwpx,.hwp,.md,.xlsx,.xls,.docx,.pdf,.odt,.ods,.pptx" onChange={handleFileChange} style={{ display: 'none' }} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".hwpx,.hwp,.md,.xlsx,.xls,.docx,.pdf,.odt,.ods,.pptx"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
       {Object.entries(menus).map(([name, items]) => (
         <div key={name} className="hwp-menu-item-wrapper">
           <button
             className={`hwp-menu-trigger ${activeMenu === name ? 'active' : ''}`}
             onClick={() => setActiveMenu(activeMenu === name ? null : name)}
-            onMouseEnter={() => { if (activeMenu) setActiveMenu(name); }}
+            onMouseEnter={() => {
+              if (activeMenu) setActiveMenu(name);
+            }}
           >
             {name}
           </button>
@@ -1112,34 +1609,77 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
       {showAboutModal && (
         <div
           style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', zIndex: 10000,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
           }}
           onClick={() => setShowAboutModal(false)}
         >
           <div
             style={{
-              backgroundColor: '#fff', border: '1px solid #d4d4d4', borderRadius: 4,
-              width: 500, maxHeight: '80vh',
-              overflow: 'auto', boxShadow: '0 2px 16px rgba(0,0,0,0.18)',
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif",
+              backgroundColor: '#fff',
+              border: '1px solid #d4d4d4',
+              borderRadius: 4,
+              width: 500,
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 2px 16px rgba(0,0,0,0.18)',
+              fontFamily:
+                "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif",
             }}
             onClick={e => e.stopPropagation()}
           >
             {/* 헤더 */}
-            <div style={{
-              background: '#222', padding: '20px 24px', color: '#e5e5e5',
-            }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase' as const, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                background: '#222',
+                padding: '20px 24px',
+                color: '#e5e5e5',
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase' as const,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
                 오픈한글 AI
-                <span style={{
-                  fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
-                  color: '#fff', letterSpacing: '0.8px', boxShadow: '0 1px 3px rgba(245,158,11,0.4)',
-                }}>BETA</span>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: 4,
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+                    color: '#fff',
+                    letterSpacing: '0.8px',
+                    boxShadow: '0 1px 3px rgba(245,158,11,0.4)',
+                  }}
+                >
+                  BETA
+                </span>
               </h2>
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#999', fontFamily: "'SF Mono','Consolas',monospace" }}>
+              <p
+                style={{
+                  margin: '4px 0 0',
+                  fontSize: 11,
+                  color: '#999',
+                  fontFamily: "'SF Mono','Consolas',monospace",
+                }}
+              >
                 v4.0.0
               </p>
             </div>
@@ -1147,63 +1687,107 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
             {/* 본문 */}
             <div style={{ padding: '20px 24px 16px' }}>
               <p style={{ fontSize: 12.5, lineHeight: 1.75, color: '#333', margin: '0 0 14px' }}>
-                <strong>오픈한글 AI</strong>는 사람과 AI 모두 읽고 처리할 수 있는
-                구조화된 한글 문서를 만들기 위한 오픈소스 웹 편집기입니다.
+                <strong>오픈한글 AI</strong>는 사람과 AI 모두 읽고 처리할 수 있는 구조화된 한글
+                문서를 만들기 위한 오픈소스 웹 편집기입니다.
               </p>
 
-              <div style={{
-                borderLeft: '2px solid #888', padding: '10px 14px',
-                marginBottom: 16, background: '#fafafa',
-              }}>
+              <div
+                style={{
+                  borderLeft: '2px solid #888',
+                  padding: '10px 14px',
+                  marginBottom: 16,
+                  background: '#fafafa',
+                }}
+              >
                 <p style={{ fontSize: 12, color: '#555', margin: 0, lineHeight: 1.7 }}>
-                  <strong>개발 배경</strong><br />
-                  행정안전부 「AI시대 행정문서 작성 가이드라인」(2026.3)에 따라,
-                  공문서를 AI가 이해·처리할 수 있는 형태로 작성하는 것이
-                  공공 업무 혁신의 핵심 과제로 대두되었습니다.
+                  <strong>개발 배경</strong>
+                  <br />
+                  행정안전부 「AI시대 행정문서 작성 가이드라인」(2026.3)에 따라, 공문서를 AI가
+                  이해·처리할 수 있는 형태로 작성하는 것이 공공 업무 혁신의 핵심 과제로
+                  대두되었습니다.
                 </p>
               </div>
 
-              <h4 style={{
-                fontSize: 9.5, color: '#888', margin: '0 0 8px', fontWeight: 700,
-                letterSpacing: '0.8px', textTransform: 'uppercase' as const,
-              }}>
+              <h4
+                style={{
+                  fontSize: 9.5,
+                  color: '#888',
+                  margin: '0 0 8px',
+                  fontWeight: 700,
+                  letterSpacing: '0.8px',
+                  textTransform: 'uppercase' as const,
+                }}
+              >
                 핵심 목표
               </h4>
-              <ul style={{
-                fontSize: 12, lineHeight: 1.8, color: '#444',
-                margin: '0 0 14px', paddingLeft: 16,
-              }}>
-                <li style={{ marginBottom: 4 }}><strong>AI 친화 문서 작성</strong> — 주어·서술어가 명확한 서술형 문장, 셀 병합 없는 표 구조 등 AI가 정확히 인식할 수 있는 문서 작성 지원</li>
-                <li style={{ marginBottom: 4 }}><strong>문서 품질 자동 검증</strong> — AI 처리 적합도를 문장 독립성·구조 추출성·논리 연결성·표현 명확성·표 구조 5가지 기준으로 평가</li>
-                <li style={{ marginBottom: 4 }}><strong>HWP/HWPX 네이티브 지원</strong> — 한글 문서를 웹에서 직접 열고 편집·저장 (별도 프로그램 불필요)</li>
-                <li><strong>AI 안전성 연동</strong> — 할루시네이션 검증(TruthAnchor) 및 보안 게이트웨이(AEGIS) 통합으로 신뢰할 수 있는 AI 문서 생성</li>
+              <ul
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1.8,
+                  color: '#444',
+                  margin: '0 0 14px',
+                  paddingLeft: 16,
+                }}
+              >
+                <li style={{ marginBottom: 4 }}>
+                  <strong>AI 친화 문서 작성</strong> — 주어·서술어가 명확한 서술형 문장, 셀 병합
+                  없는 표 구조 등 AI가 정확히 인식할 수 있는 문서 작성 지원
+                </li>
+                <li style={{ marginBottom: 4 }}>
+                  <strong>문서 품질 자동 검증</strong> — AI 처리 적합도를 문장 독립성·구조
+                  추출성·논리 연결성·표현 명확성·표 구조 5가지 기준으로 평가
+                </li>
+                <li style={{ marginBottom: 4 }}>
+                  <strong>HWP/HWPX 네이티브 지원</strong> — 한글 문서를 웹에서 직접 열고 편집·저장
+                  (별도 프로그램 불필요)
+                </li>
+                <li>
+                  <strong>AI 안전성 연동</strong> — 할루시네이션 검증(TruthAnchor) 및 보안
+                  게이트웨이(AEGIS) 통합으로 신뢰할 수 있는 AI 문서 생성
+                </li>
               </ul>
 
-              <div style={{
-                background: '#fafafa', border: '1px solid #ddd', padding: '10px 14px',
-                fontSize: 11.5, color: '#666', lineHeight: 1.6,
-              }}>
-                <strong>비전:</strong> 보고서 꾸미기에 쓰는 시간을 줄이고,
-                AI가 읽고 활용할 수 있는 구조화 문서로 업무 방식을 전환하여
-                공공·민간의 문서 작성 혁신에 기여합니다.
+              <div
+                style={{
+                  background: '#fafafa',
+                  border: '1px solid #ddd',
+                  padding: '10px 14px',
+                  fontSize: 11.5,
+                  color: '#666',
+                  lineHeight: 1.6,
+                }}
+              >
+                <strong>비전:</strong> 보고서 꾸미기에 쓰는 시간을 줄이고, AI가 읽고 활용할 수 있는
+                구조화 문서로 업무 방식을 전환하여 공공·민간의 문서 작성 혁신에 기여합니다.
               </div>
             </div>
 
             {/* 푸터 */}
-            <div style={{
-              padding: '12px 24px', borderTop: '1px solid #ddd',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
+            <div
+              style={{
+                padding: '12px 24px',
+                borderTop: '1px solid #ddd',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
               <span style={{ fontSize: 10, color: '#aaa' }}>
                 © 2026 오픈한글 AI Project &nbsp;·&nbsp; Open Source
               </span>
               <button
                 onClick={() => setShowAboutModal(false)}
                 style={{
-                  padding: '5px 18px', fontSize: 11, fontWeight: 700,
-                  backgroundColor: '#222', color: '#fff', border: 'none',
-                  borderRadius: 2, cursor: 'pointer',
-                  letterSpacing: '0.3px', textTransform: 'uppercase' as const,
+                  padding: '5px 18px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  backgroundColor: '#222',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase' as const,
                 }}
               >
                 확인
@@ -1212,7 +1796,6 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
           </div>
         </div>
       )}
-
     </div>
   );
 }
@@ -1223,6 +1806,10 @@ AI가 문서 레이아웃 의도를 이해하고 포맷 간 변환을 수행합�
 
 function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
   const v = viewer as any;
+  const isCanvas = !!v?.canvasEditor;
+  const cmd = isCanvas ? v.canvasEditor.commands : v?.command;
+  const rangeStyle = useCanvasEditorRangeStyle(viewer);
+  const cls = (base: string, on?: boolean) => (on ? `${base} active` : base);
   const [textColor, setTextColor] = useState('#000000');
   const [highlightColor, setHighlightColor] = useState('#ffff00');
 
@@ -1238,7 +1825,10 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
     const range = savedSelectionRef.current;
     if (!range) return false;
     const sel = window.getSelection();
-    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
     savedSelectionRef.current = null;
     return true;
   }, []);
@@ -1248,152 +1838,218 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
     const anchor = sel.anchorNode;
-    const editable = anchor && (anchor instanceof HTMLElement ? anchor : anchor.parentElement)?.closest('[contenteditable="true"]');
+    const editable =
+      anchor &&
+      (anchor instanceof HTMLElement ? anchor : anchor.parentElement)?.closest(
+        '[contenteditable="true"]'
+      );
     // 선택 영역이 없어도 (커서만) contentEditable 내에 있으면 반환 (서식 적용 가능)
     return editable ? { sel, editable } : null;
   }, []);
 
   // 선택 영역을 span으로 래핑하는 헬퍼 (execCommand 대신 직접 래핑)
-  const wrapSelectionWithStyle = useCallback((style: Record<string, string>) => {
-    const ctx = getEditableSelection();
-    if (!ctx) return;
-    const range = ctx.sel.getRangeAt(0);
-    const span = document.createElement('span');
-    Object.assign(span.style, style);
-    try {
-      range.surroundContents(span);
-    } catch {
-      // 복잡한 선택(여러 노드 걸친 경우) → extractContents + wrap
-      const fragment = range.extractContents();
-      span.appendChild(fragment);
-      range.insertNode(span);
-    }
-    // 래핑 후 선택 영역 복원
-    ctx.sel.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(span);
-    ctx.sel.addRange(newRange);
-  }, [getEditableSelection]);
+  const wrapSelectionWithStyle = useCallback(
+    (style: Record<string, string>) => {
+      const ctx = getEditableSelection();
+      if (!ctx) return;
+      const range = ctx.sel.getRangeAt(0);
+      const span = document.createElement('span');
+      Object.assign(span.style, style);
+      try {
+        range.surroundContents(span);
+      } catch {
+        // 복잡한 선택(여러 노드 걸친 경우) → extractContents + wrap
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+      }
+      // 래핑 후 선택 영역 복원
+      ctx.sel.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      ctx.sel.addRange(newRange);
+    },
+    [getEditableSelection]
+  );
 
   // Bold/Italic/Underline/Strikethrough
-  const execFormat = useCallback((format: string) => {
-    const execMap: Record<string, string> = { bold: 'bold', italic: 'italic', underline: 'underline', strikethrough: 'strikeThrough' };
-    const ctx = getEditableSelection();
-    if (ctx) {
-      document.execCommand(execMap[format], false);
-    } else {
-      // rangeManager 기반 (기존 문서 편집 시)
-      const cmd = v?.command;
-      if (cmd) {
+  const execFormat = useCallback(
+    (format: string) => {
+      const callCmd = () => {
+        if (!cmd) return;
         if (format === 'bold') cmd.bold();
         else if (format === 'italic') cmd.italic();
         else if (format === 'underline') cmd.underline();
         else if (format === 'strikethrough') cmd.strikethrough();
+      };
+      if (isCanvas) {
+        callCmd();
+        return;
       }
-    }
-  }, [v, getEditableSelection]);
+      const execMap: Record<string, string> = {
+        bold: 'bold',
+        italic: 'italic',
+        underline: 'underline',
+        strikethrough: 'strikeThrough',
+      };
+      const ctx = getEditableSelection();
+      if (ctx) document.execCommand(execMap[format], false);
+      else callCmd();
+    },
+    [cmd, isCanvas, getEditableSelection]
+  );
 
   // Font family change
-  const handleFontChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    const fontFamily = e.target.value;
-    restoreSelection();
-    const ctx = getEditableSelection();
-    if (ctx) {
-      wrapSelectionWithStyle({ fontFamily });
-    } else {
-      v?.command?.setFontFamily(fontFamily);
-    }
-  }, [v, restoreSelection, getEditableSelection, wrapSelectionWithStyle]);
+  const handleFontChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const fontFamily = e.target.value;
+      if (isCanvas) {
+        cmd?.setFontFamily(fontFamily);
+        return;
+      }
+      restoreSelection();
+      const ctx = getEditableSelection();
+      if (ctx) wrapSelectionWithStyle({ fontFamily });
+      else cmd?.setFontFamily(fontFamily);
+    },
+    [cmd, isCanvas, restoreSelection, getEditableSelection, wrapSelectionWithStyle]
+  );
 
   // Font size change (span wrapping - font 태그 사용 안 함)
-  const handleSizeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    const size = e.target.value;
-    restoreSelection();
-    const ctx = getEditableSelection();
-    if (ctx) {
-      wrapSelectionWithStyle({ fontSize: `${size}pt` });
-    } else {
-      v?.command?.setFontSize(parseInt(size));
-    }
-  }, [v, restoreSelection, getEditableSelection, wrapSelectionWithStyle]);
+  const handleSizeChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const size = e.target.value;
+      if (isCanvas) {
+        cmd?.setFontSize(parseInt(size));
+        return;
+      }
+      restoreSelection();
+      const ctx = getEditableSelection();
+      if (ctx) wrapSelectionWithStyle({ fontSize: `${size}pt` });
+      else cmd?.setFontSize(parseInt(size));
+    },
+    [cmd, isCanvas, restoreSelection, getEditableSelection, wrapSelectionWithStyle]
+  );
 
   // Alignment (contentEditable 부모 요소의 textAlign 직접 변경)
-  const execAlign = useCallback((align: string) => {
-    const sel = window.getSelection();
-    if (sel && sel.anchorNode) {
-      const node = sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
-      const editable = node?.closest('[contenteditable="true"]');
-      if (editable) {
-        (editable as HTMLElement).style.textAlign = align;
+  const execAlign = useCallback(
+    (align: string) => {
+      const callCmd = () => {
+        if (!cmd) return;
+        if (align === 'left') cmd.alignLeft();
+        else if (align === 'center') cmd.alignCenter();
+        else if (align === 'right') cmd.alignRight();
+        else if (align === 'justify') cmd.alignJustify();
+      };
+      if (isCanvas) {
+        callCmd();
         return;
       }
-    }
-    const cmd = v?.command;
-    if (cmd) {
-      if (align === 'left') cmd.alignLeft();
-      else if (align === 'center') cmd.alignCenter();
-      else if (align === 'right') cmd.alignRight();
-      else if (align === 'justify') cmd.alignJustify();
-    }
-  }, [v]);
+      const sel = window.getSelection();
+      if (sel && sel.anchorNode) {
+        const node =
+          sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
+        const editable = node?.closest('[contenteditable="true"]');
+        if (editable) {
+          (editable as HTMLElement).style.textAlign = align;
+          return;
+        }
+      }
+      callCmd();
+    },
+    [cmd, isCanvas]
+  );
 
   // Line spacing (contentEditable 부모의 lineHeight 직접 변경)
-  const handleLineSpacing = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = parseInt(e.target.value) / 100;
-    restoreSelection();
-    const sel = window.getSelection();
-    if (sel && sel.anchorNode) {
-      const node = sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
-      const editable = node?.closest('[contenteditable="true"]');
-      if (editable) {
-        (editable as HTMLElement).style.lineHeight = String(value);
+  const handleLineSpacing = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = parseInt(e.target.value) / 100;
+      if (isCanvas) {
+        cmd?.lineSpacing?.(value);
         return;
       }
-    }
-    v?.command?.lineSpacing?.(value) ?? v?.commandAdapt?.executeLineSpacing(value);
-  }, [v, restoreSelection]);
+      restoreSelection();
+      const sel = window.getSelection();
+      if (sel && sel.anchorNode) {
+        const node =
+          sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
+        const editable = node?.closest('[contenteditable="true"]');
+        if (editable) {
+          (editable as HTMLElement).style.lineHeight = String(value);
+          return;
+        }
+      }
+      if (cmd?.lineSpacing) cmd.lineSpacing(value);
+      else v?.commandAdapt?.executeLineSpacing(value);
+    },
+    [v, cmd, isCanvas, restoreSelection]
+  );
 
   // Indent (contentEditable 부모의 paddingLeft 변경)
-  const handleIndent = useCallback((delta: number) => {
-    const sel = window.getSelection();
-    if (sel && sel.anchorNode) {
-      const node = sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
-      const editable = node?.closest('[contenteditable="true"]') as HTMLElement | null;
-      if (editable) {
-        const current = parseInt(editable.style.paddingLeft || '0');
-        editable.style.paddingLeft = `${Math.max(0, current + delta * 20)}px`;
+  const handleIndent = useCallback(
+    (delta: number) => {
+      if (isCanvas) {
+        if (delta > 0) cmd?.increaseIndent?.();
+        else cmd?.decreaseIndent?.();
         return;
       }
-    }
-    if (delta > 0) v?.command?.increaseIndent?.() ?? v?.commandAdapt?.executeIncreaseIndent();
-    else v?.command?.decreaseIndent?.() ?? v?.commandAdapt?.executeDecreaseIndent();
-  }, [v]);
+      const sel = window.getSelection();
+      if (sel && sel.anchorNode) {
+        const node =
+          sel.anchorNode instanceof HTMLElement ? sel.anchorNode : sel.anchorNode.parentElement;
+        const editable = node?.closest('[contenteditable="true"]') as HTMLElement | null;
+        if (editable) {
+          const current = parseInt(editable.style.paddingLeft || '0');
+          editable.style.paddingLeft = `${Math.max(0, current + delta * 20)}px`;
+          return;
+        }
+      }
+      if (delta > 0) {
+        if (cmd?.increaseIndent) cmd.increaseIndent();
+        else v?.commandAdapt?.executeIncreaseIndent();
+      } else {
+        if (cmd?.decreaseIndent) cmd.decreaseIndent();
+        else v?.commandAdapt?.executeDecreaseIndent();
+      }
+    },
+    [v, cmd, isCanvas]
+  );
 
   // Text color
-  const handleTextColor = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const color = e.target.value;
-    setTextColor(color);
-    restoreSelection();
-    const ctx = getEditableSelection();
-    if (ctx) {
-      document.execCommand('foreColor', false, color);
-    } else {
-      v?.command?.color?.(color) ?? v?.commandAdapt?.executeColor(color);
-    }
-  }, [v, restoreSelection, getEditableSelection]);
+  const handleTextColor = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const color = e.target.value;
+      setTextColor(color);
+      if (isCanvas) {
+        cmd?.color?.(color);
+        return;
+      }
+      restoreSelection();
+      const ctx = getEditableSelection();
+      if (ctx) document.execCommand('foreColor', false, color);
+      else if (cmd?.color) cmd.color(color);
+      else v?.commandAdapt?.executeColor(color);
+    },
+    [v, cmd, isCanvas, restoreSelection, getEditableSelection]
+  );
 
   // Highlight
-  const handleHighlight = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const color = e.target.value;
-    setHighlightColor(color);
-    restoreSelection();
-    const ctx = getEditableSelection();
-    if (ctx) {
-      document.execCommand('hiliteColor', false, color);
-    } else {
-      v?.command?.highlight?.(color) ?? v?.commandAdapt?.executeHighlight(color);
-    }
-  }, [v, restoreSelection, getEditableSelection]);
+  const handleHighlight = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const color = e.target.value;
+      setHighlightColor(color);
+      if (isCanvas) {
+        cmd?.highlight?.(color);
+        return;
+      }
+      restoreSelection();
+      const ctx = getEditableSelection();
+      if (ctx) document.execCommand('hiliteColor', false, color);
+      else if (cmd?.highlight) cmd.highlight(color);
+      else v?.commandAdapt?.executeHighlight(color);
+    },
+    [v, cmd, isCanvas, restoreSelection, getEditableSelection]
+  );
 
   // 리본 패널 mousedown에서 포커스 탈취 방지
   const preventFocusLoss = useCallback((e: React.MouseEvent) => {
@@ -1408,7 +2064,13 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Font Group */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <select className="hwp-font-select" defaultValue="Malgun Gothic" title="글꼴" onMouseDown={saveSelection} onChange={handleFontChange}>
+          <select
+            className="hwp-font-select"
+            defaultValue="Malgun Gothic"
+            title="글꼴"
+            onMouseDown={saveSelection}
+            onChange={handleFontChange}
+          >
             <option value="Malgun Gothic">맑은 고딕</option>
             <option value="Batang">바탕</option>
             <option value="Dotum">돋움</option>
@@ -1418,25 +2080,69 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
             <option value="Arial">Arial</option>
             <option value="Times New Roman">Times New Roman</option>
           </select>
-          <select className="hwp-size-select" defaultValue="10" title="글꼴 크기" onMouseDown={saveSelection} onChange={handleSizeChange}>
+          <select
+            className="hwp-size-select"
+            defaultValue="10"
+            title="글꼴 크기"
+            onMouseDown={saveSelection}
+            onChange={handleSizeChange}
+          >
             {[8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 36, 48, 72].map(s => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
         </div>
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn" onClick={() => execFormat('bold')} title="굵게 (Ctrl+B)"><b>B</b></button>
-          <button className="hwp-ribbon-btn" onClick={() => execFormat('italic')} title="기울임 (Ctrl+I)"><i>I</i></button>
-          <button className="hwp-ribbon-btn" onClick={() => execFormat('underline')} title="밑줄 (Ctrl+U)"><u>U</u></button>
-          <button className="hwp-ribbon-btn" onClick={() => execFormat('strikethrough')} title="취소선"><s>S</s></button>
+          <button
+            className={cls('hwp-ribbon-btn', rangeStyle?.bold)}
+            onClick={() => execFormat('bold')}
+            title="굵게 (Ctrl+B)"
+          >
+            <b>B</b>
+          </button>
+          <button
+            className={cls('hwp-ribbon-btn', rangeStyle?.italic)}
+            onClick={() => execFormat('italic')}
+            title="기울임 (Ctrl+I)"
+          >
+            <i>I</i>
+          </button>
+          <button
+            className={cls('hwp-ribbon-btn', rangeStyle?.underline)}
+            onClick={() => execFormat('underline')}
+            title="밑줄 (Ctrl+U)"
+          >
+            <u>U</u>
+          </button>
+          <button
+            className={cls('hwp-ribbon-btn', rangeStyle?.strikeout)}
+            onClick={() => execFormat('strikethrough')}
+            title="취소선"
+          >
+            <s>S</s>
+          </button>
           <span className="hwp-ribbon-sep" />
           <label className="hwp-ribbon-btn hwp-color-btn" title="글자 색">
             <span style={{ borderBottom: `3px solid ${textColor}` }}>A</span>
-            <input type="color" value={textColor} onFocus={saveSelection} onChange={handleTextColor} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
+            <input
+              type="color"
+              value={textColor}
+              onFocus={saveSelection}
+              onChange={handleTextColor}
+              style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+            />
           </label>
           <label className="hwp-ribbon-btn hwp-color-btn" title="강조 색">
             <span style={{ background: highlightColor, padding: '0 3px' }}>ab</span>
-            <input type="color" value={highlightColor} onFocus={saveSelection} onChange={handleHighlight} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
+            <input
+              type="color"
+              value={highlightColor}
+              onFocus={saveSelection}
+              onChange={handleHighlight}
+              style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+            />
           </label>
         </div>
         <div className="hwp-ribbon-group-label">글꼴</div>
@@ -1445,21 +2151,74 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Paragraph Group */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn" onClick={() => execAlign('left')} title="왼쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 2h12M1 5h8M1 8h12M1 11h6" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn', rangeStyle?.rowFlex === 'left')}
+            onClick={() => execAlign('left')}
+            title="왼쪽 정렬"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M1 2h12M1 5h8M1 8h12M1 11h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
           </button>
-          <button className="hwp-ribbon-btn" onClick={() => execAlign('center')} title="가운데 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 2h12M3 5h8M1 8h12M4 11h6" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn', rangeStyle?.rowFlex === 'center')}
+            onClick={() => execAlign('center')}
+            title="가운데 정렬"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M1 2h12M3 5h8M1 8h12M4 11h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
           </button>
-          <button className="hwp-ribbon-btn" onClick={() => execAlign('right')} title="오른쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 2h12M5 5h8M1 8h12M7 11h6" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn', rangeStyle?.rowFlex === 'right')}
+            onClick={() => execAlign('right')}
+            title="오른쪽 정렬"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M1 2h12M5 5h8M1 8h12M7 11h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
           </button>
-          <button className="hwp-ribbon-btn" onClick={() => execAlign('justify')} title="양쪽 정렬">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 2h12M1 5h12M1 8h12M1 11h12" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls(
+              'hwp-ribbon-btn',
+              rangeStyle?.rowFlex === 'justify' || rangeStyle?.rowFlex === 'alignment'
+            )}
+            onClick={() => execAlign('justify')}
+            title="양쪽 정렬"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M1 2h12M1 5h12M1 8h12M1 11h12"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
           </button>
         </div>
         <div className="hwp-ribbon-row">
-          <select className="hwp-lineheight-select" defaultValue="160" title="줄 간격" onMouseDown={saveSelection} onChange={handleLineSpacing}>
+          <select
+            className="hwp-lineheight-select"
+            defaultValue="160"
+            title="줄 간격"
+            onMouseDown={saveSelection}
+            onChange={handleLineSpacing}
+          >
             <option value="100">100%</option>
             <option value="130">130%</option>
             <option value="160">160%</option>
@@ -1468,10 +2227,24 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
             <option value="300">300%</option>
           </select>
           <button className="hwp-ribbon-btn" onClick={() => handleIndent(-1)} title="들여쓰기 감소">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 2h12M5 5h8M5 8h8M1 11h12M3 4l-2 2.5L3 9" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M1 2h12M5 5h8M5 8h8M1 11h12M3 4l-2 2.5L3 9"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+            </svg>
           </button>
           <button className="hwp-ribbon-btn" onClick={() => handleIndent(1)} title="들여쓰기 증가">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 2h12M5 5h8M5 8h8M1 11h12M1 4l2 2.5L1 9" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M1 2h12M5 5h8M5 8h8M1 11h12M1 4l2 2.5L1 9"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+            </svg>
           </button>
         </div>
         <div className="hwp-ribbon-group-label">단락</div>
@@ -1480,19 +2253,64 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Edit Group */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn" onClick={() => v?.command?.undo() ?? v?.historyManager?.undo()} title="실행 취소 (Ctrl+Z)">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 5l-2 2 2 2M1 7h8a3 3 0 0 1 0 6H7" stroke="currentColor" strokeWidth="1.4" fill="none"/></svg>
+          <button
+            className="hwp-ribbon-btn"
+            onClick={() => cmd?.undo() ?? v?.historyManager?.undo()}
+            title="실행 취소 (Ctrl+Z)"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M3 5l-2 2 2 2M1 7h8a3 3 0 0 1 0 6H7"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                fill="none"
+              />
+            </svg>
           </button>
-          <button className="hwp-ribbon-btn" onClick={() => v?.command?.redo() ?? v?.historyManager?.redo()} title="다시 실행 (Ctrl+Y)">
-            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M11 5l2 2-2 2M13 7H5a3 3 0 0 0 0 6h2" stroke="currentColor" strokeWidth="1.4" fill="none"/></svg>
+          <button
+            className="hwp-ribbon-btn"
+            onClick={() => cmd?.redo() ?? v?.historyManager?.redo()}
+            title="다시 실행 (Ctrl+Y)"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="M11 5l2 2-2 2M13 7H5a3 3 0 0 0 0 6h2"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                fill="none"
+              />
+            </svg>
           </button>
         </div>
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn" onClick={() => v?.searchDialog?.show?.()} title="찾기 (Ctrl+F)">
-            <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4" fill="none"/><path d="M9.5 9.5L13 13" stroke="currentColor" strokeWidth="1.4"/></svg>
+          <button
+            className="hwp-ribbon-btn"
+            onClick={() => v?.searchDialog?.show?.()}
+            title="찾기 (Ctrl+F)"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4" fill="none" />
+              <path d="M9.5 9.5L13 13" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
           </button>
-          <button className="hwp-ribbon-btn" onClick={() => v?.clipboardManager?.copyFormat?.()} title="서식 복사 (Alt+C)">
-            <svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="1" width="8" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M5 4h4M5 7h4M5 10h2" stroke="currentColor" strokeWidth="1"/></svg>
+          <button
+            className="hwp-ribbon-btn"
+            onClick={() => v?.clipboardManager?.copyFormat?.()}
+            title="서식 복사 (Alt+C)"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <rect
+                x="3"
+                y="1"
+                width="8"
+                height="12"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M5 4h4M5 7h4M5 10h2" stroke="currentColor" strokeWidth="1" />
+            </svg>
           </button>
         </div>
         <div className="hwp-ribbon-group-label">편집</div>
@@ -1507,10 +2325,16 @@ function RibbonHome({ viewer }: { viewer?: HWPXViewerInstance | null }) {
 
 function RibbonInsert({ viewer }: { viewer?: HWPXViewerInstance | null }) {
   const v = viewer as any;
+  const isCanvas = !!v?.canvasEditor;
+  const cmd = isCanvas ? v.canvasEditor.commands : v?.command;
 
   const handleInsertTable = useCallback(() => {
+    if (isCanvas) {
+      cmd?.insertTable(3, 3);
+      return;
+    }
     v?.commandAdapt?.executeInsertTable(3, 3);
-  }, [v]);
+  }, [v, cmd, isCanvas]);
 
   const handleInsertImage = useCallback(() => {
     const input = document.createElement('input');
@@ -1518,40 +2342,92 @@ function RibbonInsert({ viewer }: { viewer?: HWPXViewerInstance | null }) {
     input.accept = 'image/*';
     input.onchange = async (ev: any) => {
       const file = ev.target?.files?.[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        await v?.commandAdapt?.executeInsertImage(url, { width: 300 });
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      if (isCanvas) {
+        await cmd?.insertImage(url, { width: 300, height: 200 });
+        return;
       }
+      await v?.commandAdapt?.executeInsertImage(url, { width: 300 });
     };
     input.click();
-  }, [v]);
+  }, [v, cmd, isCanvas]);
 
   const handleBulletList = useCallback(() => {
+    if (isCanvas) {
+      cmd?.bulletList('bullet');
+      return;
+    }
     const ec = v?.inlineEditor?.editingCell;
-    if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertUnorderedList', false), 0); }
-    else { v?.command?.bulletList('bullet'); }
-  }, [v]);
+    if (ec) {
+      ec.focus();
+      setTimeout(() => document.execCommand('insertUnorderedList', false), 0);
+    } else {
+      cmd?.bulletList('bullet');
+    }
+  }, [v, cmd, isCanvas]);
 
   const handleNumberedList = useCallback(() => {
+    if (isCanvas) {
+      cmd?.numberedList('decimal');
+      return;
+    }
     const ec = v?.inlineEditor?.editingCell;
-    if (ec) { ec.focus(); setTimeout(() => document.execCommand('insertOrderedList', false), 0); }
-    else { v?.command?.numberedList('decimal'); }
-  }, [v]);
+    if (ec) {
+      ec.focus();
+      setTimeout(() => document.execCommand('insertOrderedList', false), 0);
+    } else {
+      cmd?.numberedList('decimal');
+    }
+  }, [v, cmd, isCanvas]);
 
   return (
     <div className="hwp-ribbon-panel">
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
           <button className="hwp-ribbon-btn-lg" onClick={handleInsertTable} title="표 삽입 (3x3)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M1 7h18M1 13h18M7 1v18M13 1v18" stroke="currentColor" strokeWidth="1"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="1"
+                y="1"
+                width="18"
+                height="18"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M1 7h18M1 13h18M7 1v18M13 1v18" stroke="currentColor" strokeWidth="1" />
+            </svg>
             <span>표</span>
           </button>
           <button className="hwp-ribbon-btn-lg" onClick={handleInsertImage} title="그림 삽입">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.2" fill="none"/><circle cx="7" cy="7" r="2" fill="currentColor"/><path d="M1 15l5-5 3 3 4-4 6 6" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="1"
+                y="1"
+                width="18"
+                height="18"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <circle cx="7" cy="7" r="2" fill="currentColor" />
+              <path d="M1 15l5-5 3 3 4-4 6 6" stroke="currentColor" strokeWidth="1.2" fill="none" />
+            </svg>
             <span>그림</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.specialCharPicker?.open?.()} title="특수 문자 (Ctrl+F10)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="5" y="16" fontSize="16" fill="currentColor">&#937;</text></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => v?.specialCharPicker?.open?.()}
+            title="특수 문자 (Ctrl+F10)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="5" y="16" fontSize="16" fill="currentColor">
+                &#937;
+              </text>
+            </svg>
             <span>특수문자</span>
           </button>
         </div>
@@ -1561,11 +2437,31 @@ function RibbonInsert({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
           <button className="hwp-ribbon-btn-lg" onClick={handleBulletList} title="글머리 기호">
-            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="4" cy="5" r="2" fill="currentColor"/><path d="M9 5h9" stroke="currentColor" strokeWidth="1.5"/><circle cx="4" cy="10" r="2" fill="currentColor"/><path d="M9 10h9" stroke="currentColor" strokeWidth="1.5"/><circle cx="4" cy="15" r="2" fill="currentColor"/><path d="M9 15h9" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="4" cy="5" r="2" fill="currentColor" />
+              <path d="M9 5h9" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="4" cy="10" r="2" fill="currentColor" />
+              <path d="M9 10h9" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="4" cy="15" r="2" fill="currentColor" />
+              <path d="M9 15h9" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
             <span>글머리</span>
           </button>
           <button className="hwp-ribbon-btn-lg" onClick={handleNumberedList} title="번호 매기기">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="2" y="7" fontSize="7" fill="currentColor">1.</text><path d="M9 5h9" stroke="currentColor" strokeWidth="1.5"/><text x="2" y="12" fontSize="7" fill="currentColor">2.</text><path d="M9 10h9" stroke="currentColor" strokeWidth="1.5"/><text x="2" y="17" fontSize="7" fill="currentColor">3.</text><path d="M9 15h9" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="2" y="7" fontSize="7" fill="currentColor">
+                1.
+              </text>
+              <path d="M9 5h9" stroke="currentColor" strokeWidth="1.5" />
+              <text x="2" y="12" fontSize="7" fill="currentColor">
+                2.
+              </text>
+              <path d="M9 10h9" stroke="currentColor" strokeWidth="1.5" />
+              <text x="2" y="17" fontSize="7" fill="currentColor">
+                3.
+              </text>
+              <path d="M9 15h9" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
             <span>번호</span>
           </button>
         </div>
@@ -1592,11 +2488,32 @@ function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAI
             onClick={onToggleAI}
             title="AI 채팅 패널 열기/닫기"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M6 11l4 4 4-4" stroke="currentColor" strokeWidth="1.2" fill="none"/><circle cx="7" cy="8" r="1" fill="currentColor"/><circle cx="13" cy="8" r="1" fill="currentColor"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="2"
+                y="3"
+                width="16"
+                height="12"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M6 11l4 4 4-4" stroke="currentColor" strokeWidth="1.2" fill="none" />
+              <circle cx="7" cy="8" r="1" fill="currentColor" />
+              <circle cx="13" cy="8" r="1" fill="currentColor" />
+            </svg>
             <span>AI 채팅</span>
           </button>
           <button className="hwp-ribbon-btn-lg" title="AI 문서 생성" disabled>
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2l2 5h5l-4 3 1.5 5L10 12l-4.5 3L7 10 3 7h5z" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M10 2l2 5h5l-4 3 1.5 5L10 12l-4.5 3L7 10 3 7h5z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+            </svg>
             <span>AI 생성</span>
           </button>
         </div>
@@ -1605,11 +2522,26 @@ function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAI
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
           <button className="hwp-ribbon-btn-lg" title="템플릿 채우기" disabled>
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M6 6h8M6 10h8M6 14h4" stroke="currentColor" strokeWidth="1"/><path d="M14 10l2 2-2 2" stroke="#2b579a" strokeWidth="1.5" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="2"
+                y="2"
+                width="16"
+                height="16"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M6 6h8M6 10h8M6 14h4" stroke="currentColor" strokeWidth="1" />
+              <path d="M14 10l2 2-2 2" stroke="#2b579a" strokeWidth="1.5" fill="none" />
+            </svg>
             <span>템플릿</span>
           </button>
           <button className="hwp-ribbon-btn-lg" title="문서 검증" disabled>
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 10l4 4 8-8" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path d="M4 10l4 4 8-8" stroke="currentColor" strokeWidth="2" fill="none" />
+            </svg>
             <span>검증</span>
           </button>
         </div>
@@ -1623,8 +2555,18 @@ function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAI
             onClick={() => setShowCompliance(true)}
           >
             <svg width="20" height="20" viewBox="0 0 20 20">
-              <path d="M10 1l2.39 4.84L18 6.76l-4 3.9.94 5.5L10 13.4l-4.94 2.76.94-5.5-4-3.9 5.61-.92z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-              <path d="M6 17v1.5a1 1 0 001 1h6a1 1 0 001-1V17" stroke="currentColor" strokeWidth="1" fill="none"/>
+              <path
+                d="M10 1l2.39 4.84L18 6.76l-4 3.9.94 5.5L10 13.4l-4.94 2.76.94-5.5-4-3.9 5.61-.92z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path
+                d="M6 17v1.5a1 1 0 001 1h6a1 1 0 001-1V17"
+                stroke="currentColor"
+                strokeWidth="1"
+                fill="none"
+              />
             </svg>
             <span>컴플라이언스</span>
           </button>
@@ -1639,20 +2581,21 @@ function RibbonAI({ onToggleAI, showAIPanel }: { onToggleAI?: () => void; showAI
             onClick={() => setShowSecurityTest(true)}
           >
             <svg width="20" height="20" viewBox="0 0 20 20">
-              <path d="M10 1L3 4v5c0 4.5 3 8.5 7 9.5 4-1 7-5 7-9.5V4z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-              <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+              <path
+                d="M10 1L3 4v5c0 4.5 3 8.5 7 9.5 4-1 7-5 7-9.5V4z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" />
             </svg>
             <span>보안 테스트</span>
           </button>
         </div>
         <div className="hwp-ribbon-group-label">보안 검증</div>
       </div>
-      {showCompliance && (
-        <ComplianceDashboardLazy onClose={() => setShowCompliance(false)} />
-      )}
-      {showSecurityTest && (
-        <SecurityTestPanelLazy onClose={() => setShowSecurityTest(false)} />
-      )}
+      {showCompliance && <ComplianceDashboardLazy onClose={() => setShowCompliance(false)} />}
+      {showSecurityTest && <SecurityTestPanelLazy onClose={() => setShowSecurityTest(false)} />}
     </div>
   );
 }
@@ -1662,7 +2605,7 @@ function ComplianceDashboardLazy({ onClose }: { onClose: () => void }) {
   const [Comp, setComp] = useState<React.ComponentType<{ onClose: () => void }> | null>(null);
 
   useEffect(() => {
-    import('./compliance/ComplianceDashboard').then((m) => {
+    import('./compliance/ComplianceDashboard').then(m => {
       setComp(() => m.default || m.ComplianceDashboard);
     });
   }, []);
@@ -1676,7 +2619,7 @@ function SecurityTestPanelLazy({ onClose }: { onClose: () => void }) {
   const [Comp, setComp] = useState<React.ComponentType<{ onClose: () => void }> | null>(null);
 
   useEffect(() => {
-    import('./SecurityTestPanel').then((m) => {
+    import('./SecurityTestPanel').then(m => {
       setComp(() => m.default || m.SecurityTestPanel);
     });
   }, []);
@@ -1691,27 +2634,84 @@ function SecurityTestPanelLazy({ onClose }: { onClose: () => void }) {
 
 function RibbonFormat({ viewer }: { viewer?: HWPXViewerInstance | null }) {
   const v = viewer as any;
-  const cmd = v?.command;
+  const isCanvas = !!v?.canvasEditor;
+  const cmd = isCanvas ? v.canvasEditor.commands : v?.command;
+  const rangeStyle = useCanvasEditorRangeStyle(viewer);
+  const cls = (base: string, on?: boolean) => (on ? `${base} active` : base);
+  const tryDom = (domCmd: string, fallback: () => void) => {
+    if (isCanvas) {
+      fallback();
+      return;
+    }
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) document.execCommand(domCmd, false);
+    else fallback();
+  };
+  const tryStyle = (prop: 'textAlign' | 'lineHeight', value: string, fallback: () => void) => {
+    if (isCanvas) {
+      fallback();
+      return;
+    }
+    const s = window.getSelection();
+    const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement;
+    const e = n?.closest('[contenteditable="true"]') as HTMLElement | null;
+    if (e) (e.style as any)[prop] = value;
+    else fallback();
+  };
 
   return (
     <div className="hwp-ribbon-panel">
       {/* Character Format */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const sel = window.getSelection(); if (sel && !sel.isCollapsed) document.execCommand('bold', false); else cmd?.bold(); }} title="굵게 (Ctrl+B)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="16" fontSize="16" fontWeight="bold" fill="currentColor">B</text></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.bold)}
+            onClick={() => tryDom('bold', () => cmd?.bold())}
+            title="굵게 (Ctrl+B)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="4" y="16" fontSize="16" fontWeight="bold" fill="currentColor">
+                B
+              </text>
+            </svg>
             <span>굵게</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const sel = window.getSelection(); if (sel && !sel.isCollapsed) document.execCommand('italic', false); else cmd?.italic(); }} title="기울임 (Ctrl+I)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="5" y="16" fontSize="16" fontStyle="italic" fill="currentColor">I</text></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.italic)}
+            onClick={() => tryDom('italic', () => cmd?.italic())}
+            title="기울임 (Ctrl+I)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="5" y="16" fontSize="16" fontStyle="italic" fill="currentColor">
+                I
+              </text>
+            </svg>
             <span>기울임</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const sel = window.getSelection(); if (sel && !sel.isCollapsed) document.execCommand('underline', false); else cmd?.underline(); }} title="밑줄 (Ctrl+U)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="14" fontSize="14" textDecoration="underline" fill="currentColor">U</text><path d="M3 18h14" stroke="currentColor" strokeWidth="1.5"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.underline)}
+            onClick={() => tryDom('underline', () => cmd?.underline())}
+            title="밑줄 (Ctrl+U)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="4" y="14" fontSize="14" textDecoration="underline" fill="currentColor">
+                U
+              </text>
+              <path d="M3 18h14" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
             <span>밑줄</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const sel = window.getSelection(); if (sel && !sel.isCollapsed) document.execCommand('strikeThrough', false); else cmd?.strikethrough(); }} title="취소선">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="15" fontSize="15" fill="currentColor">S</text><path d="M2 10h16" stroke="currentColor" strokeWidth="1.2"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.strikeout)}
+            onClick={() => tryDom('strikeThrough', () => cmd?.strikethrough())}
+            title="취소선"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="4" y="15" fontSize="15" fill="currentColor">
+                S
+              </text>
+              <path d="M2 10h16" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
             <span>취소선</span>
           </button>
         </div>
@@ -1721,12 +2721,34 @@ function RibbonFormat({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Superscript/Subscript */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const sel = window.getSelection(); if (sel && !sel.isCollapsed) document.execCommand('superscript', false); else cmd?.superscript(); }} title="위 첨자">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="2" y="16" fontSize="14" fill="currentColor">X</text><text x="13" y="9" fontSize="9" fill="currentColor">2</text></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.superscript)}
+            onClick={() => tryDom('superscript', () => cmd?.superscript())}
+            title="위 첨자"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="2" y="16" fontSize="14" fill="currentColor">
+                X
+              </text>
+              <text x="13" y="9" fontSize="9" fill="currentColor">
+                2
+              </text>
+            </svg>
             <span>위첨자</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const sel = window.getSelection(); if (sel && !sel.isCollapsed) document.execCommand('subscript', false); else cmd?.subscript(); }} title="아래 첨자">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="2" y="14" fontSize="14" fill="currentColor">X</text><text x="13" y="18" fontSize="9" fill="currentColor">2</text></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.subscript)}
+            onClick={() => tryDom('subscript', () => cmd?.subscript())}
+            title="아래 첨자"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="2" y="14" fontSize="14" fill="currentColor">
+                X
+              </text>
+              <text x="13" y="18" fontSize="9" fill="currentColor">
+                2
+              </text>
+            </svg>
             <span>아래첨자</span>
           </button>
         </div>
@@ -1736,20 +2758,67 @@ function RibbonFormat({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Paragraph Format */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const s = window.getSelection(); const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement; const e = n?.closest('[contenteditable="true"]') as HTMLElement; if (e) e.style.textAlign = 'left'; else cmd?.alignLeft(); }} title="왼쪽 정렬">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M2 8h10M2 12h16M2 16h8" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.rowFlex === 'left')}
+            onClick={() => tryStyle('textAlign', 'left', () => cmd?.alignLeft())}
+            title="왼쪽 정렬"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M2 4h16M2 8h10M2 12h16M2 16h8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
             <span>왼쪽</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const s = window.getSelection(); const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement; const e = n?.closest('[contenteditable="true"]') as HTMLElement; if (e) e.style.textAlign = 'center'; else cmd?.alignCenter(); }} title="가운데 정렬">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M5 8h10M2 12h16M6 16h8" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.rowFlex === 'center')}
+            onClick={() => tryStyle('textAlign', 'center', () => cmd?.alignCenter())}
+            title="가운데 정렬"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M2 4h16M5 8h10M2 12h16M6 16h8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
             <span>가운데</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const s = window.getSelection(); const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement; const e = n?.closest('[contenteditable="true"]') as HTMLElement; if (e) e.style.textAlign = 'right'; else cmd?.alignRight(); }} title="오른쪽 정렬">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M8 8h10M2 12h16M10 16h8" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls('hwp-ribbon-btn-lg', rangeStyle?.rowFlex === 'right')}
+            onClick={() => tryStyle('textAlign', 'right', () => cmd?.alignRight())}
+            title="오른쪽 정렬"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M2 4h16M8 8h10M2 12h16M10 16h8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
             <span>오른쪽</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const s = window.getSelection(); const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement; const e = n?.closest('[contenteditable="true"]') as HTMLElement; if (e) e.style.textAlign = 'justify'; else cmd?.alignJustify(); }} title="양쪽 정렬">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 4h16M2 8h16M2 12h16M2 16h16" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className={cls(
+              'hwp-ribbon-btn-lg',
+              rangeStyle?.rowFlex === 'justify' || rangeStyle?.rowFlex === 'alignment'
+            )}
+            onClick={() => tryStyle('textAlign', 'justify', () => cmd?.alignJustify())}
+            title="양쪽 정렬"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M2 4h16M2 8h16M2 12h16M2 16h16"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
             <span>양쪽</span>
           </button>
         </div>
@@ -1759,16 +2828,64 @@ function RibbonFormat({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Line Spacing */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const s = window.getSelection(); const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement; const e = n?.closest('[contenteditable="true"]') as HTMLElement; if (e) e.style.lineHeight = '1'; else v?.commandAdapt?.executeLineSpacing(1.0); }} title="줄 간격 100%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 4h12M4 9h12M4 14h12" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M1 3v13" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() =>
+              tryStyle('lineHeight', '1', () =>
+                (cmd?.lineSpacing ?? v?.commandAdapt?.executeLineSpacing)?.(1.0)
+              )
+            }
+            title="줄 간격 100%"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M4 4h12M4 9h12M4 14h12"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M1 3v13" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1" />
+            </svg>
             <span>1.0</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const s = window.getSelection(); const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement; const e = n?.closest('[contenteditable="true"]') as HTMLElement; if (e) e.style.lineHeight = '1.6'; else v?.commandAdapt?.executeLineSpacing(1.6); }} title="줄 간격 160%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 3h12M4 10h12M4 17h12" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M1 2v16" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() =>
+              tryStyle('lineHeight', '1.6', () =>
+                (cmd?.lineSpacing ?? v?.commandAdapt?.executeLineSpacing)?.(1.6)
+              )
+            }
+            title="줄 간격 160%"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M4 3h12M4 10h12M4 17h12"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M1 2v16" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1" />
+            </svg>
             <span>1.6</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => { const s = window.getSelection(); const n = s?.anchorNode instanceof HTMLElement ? s.anchorNode : s?.anchorNode?.parentElement; const e = n?.closest('[contenteditable="true"]') as HTMLElement; if (e) e.style.lineHeight = '2'; else v?.commandAdapt?.executeLineSpacing(2.0); }} title="줄 간격 200%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 2h12M4 10h12M4 18h12" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M1 1v18" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() =>
+              tryStyle('lineHeight', '2', () =>
+                (cmd?.lineSpacing ?? v?.commandAdapt?.executeLineSpacing)?.(2.0)
+              )
+            }
+            title="줄 간격 200%"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M4 2h12M4 10h12M4 18h12"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M1 1v18" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 1" />
+            </svg>
             <span>2.0</span>
           </button>
         </div>
@@ -1784,18 +2901,39 @@ function RibbonFormat({ viewer }: { viewer?: HWPXViewerInstance | null }) {
 
 function RibbonTools({ viewer }: { viewer?: HWPXViewerInstance | null }) {
   const v = viewer as any;
+  const cmd = v?.canvasEditor?.commands || v?.command;
 
   return (
     <div className="hwp-ribbon-panel">
       {/* Find & Replace */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.searchDialog?.show?.()} title="찾기 (Ctrl+F)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="8" cy="8" r="5" stroke="currentColor" strokeWidth="1.5" fill="none"/><path d="M12 12l5 5" stroke="currentColor" strokeWidth="2"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => v?.searchDialog?.show?.()}
+            title="찾기 (Ctrl+F)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="8" cy="8" r="5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path d="M12 12l5 5" stroke="currentColor" strokeWidth="2" />
+            </svg>
             <span>찾기</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.searchDialog?.show?.('replace')} title="찾아 바꾸기 (Ctrl+H)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="7" cy="7" r="4" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M10 10l4 4" stroke="currentColor" strokeWidth="1.5"/><path d="M12 5h5M12 8h5M12 14h5M12 17h5" stroke="currentColor" strokeWidth="1" opacity="0.5"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => v?.searchDialog?.show?.('replace')}
+            title="찾아 바꾸기 (Ctrl+H)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="7" cy="7" r="4" stroke="currentColor" strokeWidth="1.2" fill="none" />
+              <path d="M10 10l4 4" stroke="currentColor" strokeWidth="1.5" />
+              <path
+                d="M12 5h5M12 8h5M12 14h5M12 17h5"
+                stroke="currentColor"
+                strokeWidth="1"
+                opacity="0.5"
+              />
+            </svg>
             <span>바꾸기</span>
           </button>
         </div>
@@ -1805,8 +2943,16 @@ function RibbonTools({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Special Char */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.specialCharPicker?.open?.()} title="특수 문자 (Ctrl+F10)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><text x="4" y="16" fontSize="16" fill="currentColor">&#937;</text></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => v?.specialCharPicker?.open?.()}
+            title="특수 문자 (Ctrl+F10)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <text x="4" y="16" fontSize="16" fill="currentColor">
+                &#937;
+              </text>
+            </svg>
             <span>특수문자</span>
           </button>
         </div>
@@ -1816,12 +2962,46 @@ function RibbonTools({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Clipboard */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.clipboardManager?.copyFormat?.()} title="서식 복사 (Alt+C)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M7 6h6M7 9h6M7 12h3" stroke="currentColor" strokeWidth="1"/><path d="M2 7h3M2 10h3" stroke="#2b579a" strokeWidth="1.5"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => v?.clipboardManager?.copyFormat?.()}
+            title="서식 복사 (Alt+C)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="4"
+                y="2"
+                width="12"
+                height="16"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M7 6h6M7 9h6M7 12h3" stroke="currentColor" strokeWidth="1" />
+              <path d="M2 7h3M2 10h3" stroke="#2b579a" strokeWidth="1.5" />
+            </svg>
             <span>서식 복사</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.clipboardManager?.pasteFormat?.()} title="서식 붙여넣기">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M7 6h6M7 9h6M7 12h3" stroke="currentColor" strokeWidth="1"/><path d="M15 10l3 3-3 3" stroke="#2b579a" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => v?.clipboardManager?.pasteFormat?.()}
+            title="서식 붙여넣기"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="4"
+                y="2"
+                width="12"
+                height="16"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <path d="M7 6h6M7 9h6M7 12h3" stroke="currentColor" strokeWidth="1" />
+              <path d="M15 10l3 3-3 3" stroke="#2b579a" strokeWidth="1.5" fill="none" />
+            </svg>
             <span>서식 붙이기</span>
           </button>
         </div>
@@ -1831,12 +3011,34 @@ function RibbonTools({ viewer }: { viewer?: HWPXViewerInstance | null }) {
       {/* Undo / Redo */}
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.command?.undo() ?? v?.historyManager?.undo()} title="실행 취소 (Ctrl+Z)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M5 7l-3 3 3 3M2 10h11a4 4 0 0 1 0 8H9" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => cmd?.undo() ?? v?.historyManager?.undo()}
+            title="실행 취소 (Ctrl+Z)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M5 7l-3 3 3 3M2 10h11a4 4 0 0 1 0 8H9"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
             <span>실행 취소</span>
           </button>
-          <button className="hwp-ribbon-btn-lg" onClick={() => v?.command?.redo() ?? v?.historyManager?.redo()} title="다시 실행 (Ctrl+Y)">
-            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M15 7l3 3-3 3M18 10H7a4 4 0 0 0 0 8h4" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+          <button
+            className="hwp-ribbon-btn-lg"
+            onClick={() => cmd?.redo() ?? v?.historyManager?.redo()}
+            title="다시 실행 (Ctrl+Y)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d="M15 7l3 3-3 3M18 10H7a4 4 0 0 0 0 8h4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
             <span>다시 실행</span>
           </button>
         </div>
@@ -1850,21 +3052,29 @@ function RibbonTools({ viewer }: { viewer?: HWPXViewerInstance | null }) {
 // Ribbon Tab Content - View (보기)
 // ============================================================================
 
-function RibbonView({ viewer: _viewer }: { viewer?: HWPXViewerInstance | null }) {
+function RibbonView({ viewer }: { viewer?: HWPXViewerInstance | null }) {
   const [zoom, setZoom] = useState(100);
 
-  const applyZoom = useCallback((z: number) => {
-    const clamped = Math.min(400, Math.max(25, z));
-    setZoom(clamped);
-    const container = document.querySelector('.hwpx-viewer-wrapper') as HTMLElement;
-    if (container) {
-      const pages = container.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
-      pages.forEach(page => {
-        page.style.transform = `scale(${clamped / 100})`;
-        page.style.transformOrigin = 'top center';
-      });
-    }
-  }, []);
+  const applyZoom = useCallback(
+    (z: number) => {
+      const clamped = Math.min(400, Math.max(25, z));
+      setZoom(clamped);
+      const adapterCmd = (viewer as any)?.canvasEditor?.editor?.command;
+      if (adapterCmd?.executePageScale) {
+        adapterCmd.executePageScale(clamped / 100);
+        return;
+      }
+      const container = document.querySelector('.hwpx-viewer-wrapper') as HTMLElement;
+      if (container) {
+        const pages = container.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
+        pages.forEach(page => {
+          page.style.transform = `scale(${clamped / 100})`;
+          page.style.transformOrigin = 'top center';
+        });
+      }
+    },
+    [viewer]
+  );
 
   return (
     <div className="hwp-ribbon-panel">
@@ -1872,15 +3082,37 @@ function RibbonView({ viewer: _viewer }: { viewer?: HWPXViewerInstance | null })
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
           <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(zoom - 25)} title="축소">
-            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M13 13l5 5" stroke="currentColor" strokeWidth="2"/><path d="M5 8h6" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" fill="none" />
+              <path d="M13 13l5 5" stroke="currentColor" strokeWidth="2" />
+              <path d="M5 8h6" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
             <span>축소</span>
           </button>
           <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(100)} title="100%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/><text x="5" y="14" fontSize="9" fill="currentColor">100</text></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="3"
+                y="2"
+                width="14"
+                height="16"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              <text x="5" y="14" fontSize="9" fill="currentColor">
+                100
+              </text>
+            </svg>
             <span>{zoom}%</span>
           </button>
           <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(zoom + 25)} title="확대">
-            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M13 13l5 5" stroke="currentColor" strokeWidth="2"/><path d="M5 8h6M8 5v6" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" fill="none" />
+              <path d="M13 13l5 5" stroke="currentColor" strokeWidth="2" />
+              <path d="M5 8h6M8 5v6" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
             <span>확대</span>
           </button>
         </div>
@@ -1891,25 +3123,68 @@ function RibbonView({ viewer: _viewer }: { viewer?: HWPXViewerInstance | null })
       <div className="hwp-ribbon-group">
         <div className="hwp-ribbon-row">
           <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(75)} title="75%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="1" stroke="currentColor" strokeWidth="1" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="4"
+                y="3"
+                width="12"
+                height="14"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1"
+                fill="none"
+              />
+            </svg>
             <span>75%</span>
           </button>
           <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(100)} title="100%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="16" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="3"
+                y="2"
+                width="14"
+                height="16"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+              />
+            </svg>
             <span>100%</span>
           </button>
           <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(150)} title="150%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="1"
+                y="1"
+                width="18"
+                height="18"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                fill="none"
+              />
+            </svg>
             <span>150%</span>
           </button>
           <button className="hwp-ribbon-btn-lg" onClick={() => applyZoom(200)} title="200%">
-            <svg width="20" height="20" viewBox="0 0 20 20"><rect x="0" y="0" width="20" height="20" rx="1" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <rect
+                x="0"
+                y="0"
+                width="20"
+                height="20"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
             <span>200%</span>
           </button>
         </div>
         <div className="hwp-ribbon-group-label">빠른 배율</div>
       </div>
-
     </div>
   );
 }
@@ -1937,13 +3212,20 @@ export const HangulStyleToolbar = memo(function HangulStyleToolbar({
 
   const renderTabContent = (): ReactNode => {
     switch (activeTab) {
-      case 'home': return <RibbonHome viewer={viewer} />;
-      case 'insert': return <RibbonInsert viewer={viewer} />;
-      case 'ai': return <RibbonAI onToggleAI={onToggleAI} showAIPanel={showAIPanel} />;
-      case 'format': return <RibbonFormat viewer={viewer} />;
-      case 'tools': return <RibbonTools viewer={viewer} />;
-      case 'view': return <RibbonView viewer={viewer} />;
-      default: return null;
+      case 'home':
+        return <RibbonHome viewer={viewer} />;
+      case 'insert':
+        return <RibbonInsert viewer={viewer} />;
+      case 'ai':
+        return <RibbonAI onToggleAI={onToggleAI} showAIPanel={showAIPanel} />;
+      case 'format':
+        return <RibbonFormat viewer={viewer} />;
+      case 'tools':
+        return <RibbonTools viewer={viewer} />;
+      case 'view':
+        return <RibbonView viewer={viewer} />;
+      default:
+        return null;
     }
   };
 
@@ -1953,16 +3235,23 @@ export const HangulStyleToolbar = memo(function HangulStyleToolbar({
       <MenuBar viewer={viewer} onFileSelect={onFileSelect} />
 
       {/* Ribbon Tabs */}
-      <div className="hwp-ribbon-tabs" role="tablist" onKeyDown={(e) => {
-        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-          e.preventDefault();
-          const idx = tabs.findIndex(t => t.id === activeTab);
-          const next = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
-          setActiveTab(tabs[next].id);
-          (e.currentTarget.children[next] as HTMLElement)?.focus();
-        }
-      }}>
-        {tabs.map((tab) => (
+      <div
+        className="hwp-ribbon-tabs"
+        role="tablist"
+        onKeyDown={e => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            const idx = tabs.findIndex(t => t.id === activeTab);
+            const next =
+              e.key === 'ArrowRight'
+                ? (idx + 1) % tabs.length
+                : (idx - 1 + tabs.length) % tabs.length;
+            setActiveTab(tabs[next].id);
+            (e.currentTarget.children[next] as HTMLElement)?.focus();
+          }
+        }}
+      >
+        {tabs.map(tab => (
           <button
             key={tab.id}
             role="tab"
@@ -1977,9 +3266,7 @@ export const HangulStyleToolbar = memo(function HangulStyleToolbar({
       </div>
 
       {/* Ribbon Content */}
-      <div className="hwp-ribbon-content">
-        {renderTabContent()}
-      </div>
+      <div className="hwp-ribbon-content">{renderTabContent()}</div>
     </div>
   );
 });

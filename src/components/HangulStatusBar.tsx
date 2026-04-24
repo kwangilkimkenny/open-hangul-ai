@@ -51,7 +51,7 @@ const SecurityIndicator = memo(function SecurityIndicator() {
       {aegis.state !== 'disabled' && (
         <button
           className="hwp-security-badge"
-          onClick={() => setPopupOpen((p) => !p)}
+          onClick={() => setPopupOpen(p => !p)}
           title={`AEGIS: ${STATE_LABEL[aegis.state]}`}
         >
           <span className="hwp-security-dot" style={{ background: STATE_DOT[aegis.state] }} />
@@ -63,7 +63,7 @@ const SecurityIndicator = memo(function SecurityIndicator() {
       {ta.state !== 'disabled' && (
         <button
           className="hwp-security-badge"
-          onClick={() => setPopupOpen((p) => !p)}
+          onClick={() => setPopupOpen(p => !p)}
           title={`TruthAnchor: ${STATE_LABEL[ta.state]}`}
         >
           <span className="hwp-security-dot" style={{ background: STATE_DOT[ta.state] }} />
@@ -74,7 +74,10 @@ const SecurityIndicator = memo(function SecurityIndicator() {
 
       {/* 둘 다 비활성이면 간소하게 표시 */}
       {bothDisabled && (
-        <span className="hwp-security-badge hwp-security-badge--dim" title="AI 보안 비활성 (채팅 패널에서 활성화)">
+        <span
+          className="hwp-security-badge hwp-security-badge--dim"
+          title="AI 보안 비활성 (채팅 패널에서 활성화)"
+        >
           <span className="hwp-security-dot" style={{ background: '#94a3b8' }} />
           <span className="hwp-security-name">AI 보안 OFF</span>
         </span>
@@ -85,12 +88,17 @@ const SecurityIndicator = memo(function SecurityIndicator() {
         <div className="hwp-security-popup">
           <div className="hwp-security-popup__header">
             <strong>AI 보안 시스템 상태</strong>
-            <button onClick={() => setPopupOpen(false)} className="hwp-security-popup__close">&times;</button>
+            <button onClick={() => setPopupOpen(false)} className="hwp-security-popup__close">
+              &times;
+            </button>
           </div>
           <div className="hwp-security-popup__body">
             {/* AEGIS */}
             <div className="hwp-security-popup__row">
-              <span className="hwp-security-dot hwp-security-dot--lg" style={{ background: STATE_DOT[aegis.state] }} />
+              <span
+                className="hwp-security-dot hwp-security-dot--lg"
+                style={{ background: STATE_DOT[aegis.state] }}
+              />
               <div>
                 <div className="hwp-security-popup__name">AEGIS Security Gateway</div>
                 <div className="hwp-security-popup__detail">
@@ -105,7 +113,10 @@ const SecurityIndicator = memo(function SecurityIndicator() {
             </div>
             {/* TruthAnchor */}
             <div className="hwp-security-popup__row">
-              <span className="hwp-security-dot hwp-security-dot--lg" style={{ background: STATE_DOT[ta.state] }} />
+              <span
+                className="hwp-security-dot hwp-security-dot--lg"
+                style={{ background: STATE_DOT[ta.state] }}
+              />
               <div>
                 <div className="hwp-security-popup__name">TruthAnchor (HalluGuard)</div>
                 <div className="hwp-security-popup__detail">
@@ -114,9 +125,7 @@ const SecurityIndicator = memo(function SecurityIndicator() {
                   {ta.state === 'disabled' && ' — 채팅 패널에서 활성화'}
                 </div>
                 {ta.latencyMs !== null && (
-                  <div className="hwp-security-popup__detail">
-                    레이턴시: {ta.latencyMs}ms
-                  </div>
+                  <div className="hwp-security-popup__detail">레이턴시: {ta.latencyMs}ms</div>
                 )}
                 {ta.lastCheckAt && (
                   <div className="hwp-security-popup__detail">
@@ -137,7 +146,12 @@ const SecurityIndicator = memo(function SecurityIndicator() {
             </div>
           </div>
           <div className="hwp-security-popup__footer">
-            <button className="hwp-security-popup__refresh" onClick={() => { refresh(); }}>
+            <button
+              className="hwp-security-popup__refresh"
+              onClick={() => {
+                refresh();
+              }}
+            >
               상태 새로고침
             </button>
             <span className="hwp-security-popup__interval">자동 갱신: 45초</span>
@@ -158,14 +172,52 @@ export const HangulStatusBar = memo(function HangulStatusBar({ viewer }: HangulS
   const [inputMode, setInputMode] = useState<'insert' | 'overwrite'>('insert');
   const [charCount, setCharCount] = useState(0);
 
-  // Poll page info + char count from viewer
+  // canvas-editor 활성 시 이벤트 구독으로 페이지/단어 수 갱신
   useEffect(() => {
+    const v = viewer as any;
+    const adapter = v?.canvasEditor;
+    if (!adapter || typeof adapter.onPageInfoChange !== 'function') return;
+    const unsubPage = adapter.onPageInfoChange((info: { current: number; total: number }) => {
+      setPageInfo(info);
+    });
+    let cancelled = false;
+    const refreshWords = async () => {
+      try {
+        const n = await adapter.getWordCount();
+        if (!cancelled) setCharCount(typeof n === 'number' ? n : 0);
+      } catch {
+        /* noop */
+      }
+    };
+    refreshWords();
+    // canvas-editor 의 listener 는 외부 라이브러리의 mutable hook 구조라 직접 할당이 필요하다.
+    // react-hooks/immutability 는 viewer prop 변형을 막지만, 이 listener 는 React state 가 아니다.
+    const ed = adapter.editor;
+    const listener = ed?.listener as { contentChange?: () => void } | undefined;
+    let prevContentChange: (() => void) | null = null;
+    if (listener) {
+      prevContentChange = listener.contentChange ?? null;
+      // eslint-disable-next-line react-hooks/immutability -- canvas-editor 의 외부 listener hook 구조
+      listener.contentChange = () => {
+        prevContentChange?.();
+        refreshWords();
+      };
+    }
+    return () => {
+      cancelled = true;
+      unsubPage?.();
+      if (listener) listener.contentChange = prevContentChange ?? undefined;
+    };
+  }, [viewer]);
+
+  // 폴백: vanilla 모드에서는 기존 폴링
+  useEffect(() => {
+    const v = viewer as any;
+    if (v?.canvasEditor) return;
     const interval = setInterval(() => {
       if (!viewer) return;
-      const v = viewer as any;
       const totalPages = v.renderer?.totalPages || v.state?.document?.sections?.length || 1;
       setPageInfo(prev => ({ ...prev, total: totalPages }));
-      // 글자수 계산
       const container = document.querySelector('.hwpx-viewer-wrapper');
       if (container) {
         const text = container.textContent || '';
@@ -179,26 +231,33 @@ export const HangulStatusBar = memo(function HangulStatusBar({ viewer }: HangulS
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Insert') {
-        setInputMode(prev => prev === 'insert' ? 'overwrite' : 'insert');
+        setInputMode(prev => (prev === 'insert' ? 'overwrite' : 'insert'));
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleZoomChange = useCallback((newZoom: number) => {
-    const clamped = Math.min(400, Math.max(25, newZoom));
-    setZoom(clamped);
-    // Apply zoom to viewer
-    const container = document.querySelector('.hwpx-viewer-wrapper') as HTMLElement;
-    if (container) {
-      const pages = container.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
-      pages.forEach(page => {
-        page.style.transform = `scale(${clamped / 100})`;
-        page.style.transformOrigin = 'top center';
-      });
-    }
-  }, []);
+  const handleZoomChange = useCallback(
+    (newZoom: number) => {
+      const clamped = Math.min(400, Math.max(25, newZoom));
+      setZoom(clamped);
+      const adapterCmd = (viewer as any)?.canvasEditor?.editor?.command;
+      if (adapterCmd?.executePageScale) {
+        adapterCmd.executePageScale(clamped / 100);
+        return;
+      }
+      const container = document.querySelector('.hwpx-viewer-wrapper') as HTMLElement;
+      if (container) {
+        const pages = container.querySelectorAll('.hwp-page-container') as NodeListOf<HTMLElement>;
+        pages.forEach(page => {
+          page.style.transform = `scale(${clamped / 100})`;
+          page.style.transformOrigin = 'top center';
+        });
+      }
+    },
+    [viewer]
+  );
 
   return (
     <div className="hwp-statusbar">
@@ -206,11 +265,15 @@ export const HangulStatusBar = memo(function HangulStatusBar({ viewer }: HangulS
       <div className="hwp-statusbar-left">
         <span className="hwp-statusbar-item">
           <span className="hwp-statusbar-label">{t('status.page')}</span>
-          <span className="hwp-statusbar-value">{pageInfo.current} / {pageInfo.total}</span>
+          <span className="hwp-statusbar-value">
+            {pageInfo.current} / {pageInfo.total}
+          </span>
         </span>
         <span className="hwp-statusbar-sep" />
         <span className="hwp-statusbar-item">
-          <span className="hwp-statusbar-value">{inputMode === 'insert' ? t('status.insert') : t('status.overwrite')}</span>
+          <span className="hwp-statusbar-value">
+            {inputMode === 'insert' ? t('status.insert') : t('status.overwrite')}
+          </span>
         </span>
         <span className="hwp-statusbar-sep" />
         <span className="hwp-statusbar-item">
@@ -250,7 +313,11 @@ export const HangulStatusBar = memo(function HangulStatusBar({ viewer }: HangulS
         >
           +
         </button>
-        <span className="hwp-statusbar-zoom-value" onClick={() => handleZoomChange(100)} title="100%로 초기화">
+        <span
+          className="hwp-statusbar-zoom-value"
+          onClick={() => handleZoomChange(100)}
+          title="100%로 초기화"
+        >
           {zoom}%
         </span>
       </div>

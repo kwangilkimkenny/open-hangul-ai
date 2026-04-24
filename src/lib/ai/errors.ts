@@ -18,7 +18,7 @@ export const LLMErrorType = {
   UNKNOWN: 'unknown',
 } as const;
 
-export type LLMErrorType = typeof LLMErrorType[keyof typeof LLMErrorType];
+export type LLMErrorType = (typeof LLMErrorType)[keyof typeof LLMErrorType];
 
 export class LLMError extends Error {
   readonly type: LLMErrorType;
@@ -27,6 +27,7 @@ export class LLMError extends Error {
   readonly originalError?: Error;
   readonly retryable: boolean;
   readonly suggestedAction?: string;
+  readonly originalMessage: string;
 
   constructor(
     message: string,
@@ -45,11 +46,29 @@ export class LLMError extends Error {
     this.originalError = originalError;
     this.retryable = retryable;
     this.suggestedAction = suggestedAction;
+    this.originalMessage = message || '';
+
+    // 사용자 친화적인 한국어 메시지로 .message를 덮어쓴다.
+    // (서버 원본 메시지는 originalMessage 에 보존)
+    this.message = this.composeMessage();
 
     // Stack trace 정리
     if (originalError && originalError.stack) {
       this.stack = originalError.stack;
     }
+  }
+
+  /**
+   * provider prefix + 사용자 친화적 메시지 + (있다면) 원본 메시지 를 합쳐서 .message 로 사용.
+   * 원본 메시지를 함께 보존해 디버깅 + 테스트 단언 (예: 'Provider not available') 도 통과시킨다.
+   */
+  private composeMessage(): string {
+    const providerName = this.getProviderDisplayName();
+    const userMessage = this.getUserMessage();
+    if (this.originalMessage && !userMessage.includes(this.originalMessage)) {
+      return `${providerName} 오류: ${userMessage} (${this.originalMessage})`;
+    }
+    return `${providerName} 오류: ${userMessage}`;
   }
 
   /**
@@ -69,6 +88,9 @@ export class LLMError extends Error {
         return `${providerName} API 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.`;
 
       case LLMErrorType.TIMEOUT:
+        if (this.originalError?.name === 'AbortError') {
+          return `${providerName} 요청이 취소되었습니다. 다시 시도해주세요.`;
+        }
         return `${providerName} 응답 시간이 초과되었습니다. 요청을 간단히 하거나 다시 시도해주세요.`;
 
       case LLMErrorType.NETWORK:
@@ -93,7 +115,7 @@ export class LLMError extends Error {
         return `입력 값이 올바르지 않습니다. 설정을 확인해주세요.`;
 
       default:
-        return `${providerName}에서 오류가 발생했습니다: ${this.message}`;
+        return `${providerName}에서 오류가 발생했습니다: ${this.originalMessage || ''}`;
     }
   }
 
@@ -166,14 +188,14 @@ export class LLMError extends Error {
 export function createLLMErrorFromResponse(
   response: Response,
   provider: string,
-  errorData?: any
+  errorData?: { error?: { message?: string }; message?: string } | null
 ): LLMError {
   const status = response.status;
   const statusText = response.statusText;
 
   let type: LLMErrorType;
   let retryable = false;
-  let message = errorData?.error?.message || errorData?.message || statusText;
+  const message = errorData?.error?.message || errorData?.message || statusText;
 
   switch (status) {
     case 401:
@@ -216,36 +238,36 @@ export function createLLMErrorFromResponse(
       type = LLMErrorType.UNKNOWN;
   }
 
-  return new LLMError(
-    message,
-    type,
-    provider,
-    status,
-    undefined,
-    retryable
-  );
+  return new LLMError(message, type, provider, status, undefined, retryable);
 }
 
 /**
  * 네트워크 에러에서 LLM 에러 생성
  */
 export function createLLMErrorFromNetworkError(
-  error: Error,
+  error: { name?: string; code?: string; message?: string } | unknown,
   provider: string
 ): LLMError {
+  const err = (error || {}) as { name?: string; code?: string; message?: string };
   let type: LLMErrorType;
   let retryable = false;
 
-  if (error.name === 'AbortError' || error.message.includes('aborted')) {
+  const name = err.name || '';
+  const code = err.code || '';
+  const message = err.message || '';
+
+  if (name === 'AbortError' || message.includes('aborted')) {
     type = LLMErrorType.TIMEOUT;
   } else if (
-    error.message.includes('ENOTFOUND') ||
-    error.message.includes('ECONNREFUSED') ||
-    error.message.includes('fetch')
+    code === 'ENOTFOUND' ||
+    code === 'ECONNREFUSED' ||
+    message.includes('ENOTFOUND') ||
+    message.includes('ECONNREFUSED') ||
+    message.includes('fetch')
   ) {
     type = LLMErrorType.NETWORK;
     retryable = true;
-  } else if (error.message.includes('timeout')) {
+  } else if (message.includes('timeout')) {
     type = LLMErrorType.TIMEOUT;
     retryable = true;
   } else {
@@ -253,11 +275,11 @@ export function createLLMErrorFromNetworkError(
   }
 
   return new LLMError(
-    error.message,
+    message,
     type,
     provider,
     undefined,
-    error,
+    error instanceof Error ? error : undefined,
     retryable
   );
 }

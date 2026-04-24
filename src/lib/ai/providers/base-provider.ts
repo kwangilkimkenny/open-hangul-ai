@@ -13,6 +13,7 @@ import type {
 } from '../../../types/universal-llm';
 import {
   LLMError,
+  LLMErrorType,
   createLLMErrorFromResponse,
   createLLMErrorFromNetworkError,
   DefaultErrorRecoveryStrategy,
@@ -63,7 +64,7 @@ export abstract class BaseProvider implements LLMProviderInterface {
     if (!apiKey || apiKey.trim() === '') {
       throw new LLMError(
         'API 키가 설정되지 않았습니다',
-        'validation' as any,
+        LLMErrorType.VALIDATION,
         this.name,
         undefined,
         undefined,
@@ -90,16 +91,11 @@ export abstract class BaseProvider implements LLMProviderInterface {
   }
 
   /**
-   * Provider별 헤더 커스터마이징 (오버라이드 가능)
-   */
-  protected customizeHeaders(headers: Record<string, string>, _config: LLMConfig): Record<string, string> {
-    return headers;
-  }
-
-  /**
    * 공통 메시지 변환 (OpenAI 형식으로)
    */
-  protected convertToOpenAIMessages(messages: LLMMessage[]): any[] {
+  protected convertToOpenAIMessages(
+    messages: LLMMessage[]
+  ): Array<{ role: string; content: string }> {
     return messages.map(msg => ({
       role: msg.role,
       content: msg.content,
@@ -109,17 +105,25 @@ export abstract class BaseProvider implements LLMProviderInterface {
   /**
    * 향상된 에러 처리
    */
-  protected handleError(error: any, response?: Response, errorData?: any): never {
+  protected handleError(
+    error: unknown,
+    response?: Response,
+    errorData?: { error?: { message?: string }; message?: string } | null
+  ): never {
     let llmError: LLMError;
+    const err = (error || {}) as { code?: string; message?: string };
 
     if (response && !response.ok) {
       llmError = createLLMErrorFromResponse(response, this.name, errorData);
-    } else if (error instanceof Error) {
+    } else if (
+      error instanceof Error ||
+      (error && (typeof err.code === 'string' || typeof err.message === 'string'))
+    ) {
       llmError = createLLMErrorFromNetworkError(error, this.name);
     } else {
       llmError = new LLMError(
-        error.message || '알 수 없는 오류',
-        'unknown' as any,
+        err.message || '알 수 없는 오류',
+        LLMErrorType.UNKNOWN,
         this.name,
         undefined,
         error instanceof Error ? error : new Error(String(error))
@@ -144,13 +148,16 @@ export abstract class BaseProvider implements LLMProviderInterface {
       try {
         return await operation();
       } catch (error) {
-        lastError = error instanceof LLMError ? error : new LLMError(
-          (error as any)?.message || '요청 실패',
-          'unknown' as any,
-          this.name,
-          undefined,
-          error instanceof Error ? error : new Error(String(error))
-        );
+        lastError =
+          error instanceof LLMError
+            ? error
+            : new LLMError(
+                (error as { message?: string })?.message || '요청 실패',
+                LLMErrorType.UNKNOWN,
+                this.name,
+                undefined,
+                error instanceof Error ? error : new Error(String(error))
+              );
 
         attemptCount++;
 
@@ -159,7 +166,9 @@ export abstract class BaseProvider implements LLMProviderInterface {
         }
 
         const delay = this.recoveryStrategy.getRetryDelay(lastError, attemptCount);
-        console.log(`[${this.name}] ${context} 재시도 ${attemptCount}/${this.recoveryStrategy.getMaxRetries(lastError)} (${delay}ms 대기)`);
+        console.log(
+          `[${this.name}] ${context} 재시도 ${attemptCount}/${this.recoveryStrategy.getMaxRetries(lastError)} (${delay}ms 대기)`
+        );
         await this.sleep(delay);
       }
     }
@@ -206,13 +215,13 @@ export abstract class BaseProvider implements LLMProviderInterface {
   /**
    * 응답 JSON 파싱 (에러 처리 포함)
    */
-  protected async parseResponseJSON(response: Response): Promise<any> {
+  protected async parseResponseJSON(response: Response): Promise<unknown> {
     try {
       const text = await response.text();
       if (!text.trim()) {
         throw new LLMError(
           '서버에서 빈 응답을 받았습니다',
-          'server_error' as any,
+          LLMErrorType.SERVER_ERROR,
           this.name,
           response.status
         );
@@ -224,7 +233,7 @@ export abstract class BaseProvider implements LLMProviderInterface {
       }
       throw new LLMError(
         '응답 파싱 실패: 유효하지 않은 JSON',
-        'server_error' as any,
+        LLMErrorType.SERVER_ERROR,
         this.name,
         response.status,
         error instanceof Error ? error : new Error(String(error))
@@ -235,7 +244,7 @@ export abstract class BaseProvider implements LLMProviderInterface {
   /**
    * 스트림 이벤트 파싱
    */
-  protected parseSSEEvent(eventString: string): any | null {
+  protected parseSSEEvent(eventString: string): unknown {
     const lines = eventString.trim().split('\n');
     let data = '';
 
@@ -262,14 +271,14 @@ export abstract class BaseProvider implements LLMProviderInterface {
    */
   protected async *processStream(
     response: Response,
-    parseChunk: (data: any) => LLMStreamChunk | null,
+    parseChunk: (data: unknown) => LLMStreamChunk | null,
     options: LLMGenerateOptions = {}
   ): AsyncGenerator<LLMStreamChunk> {
     const reader = response.body?.getReader();
     if (!reader) {
       throw new LLMError(
         '스트림을 읽을 수 없습니다',
-        'server_error' as any,
+        LLMErrorType.SERVER_ERROR,
         this.name,
         response.status
       );
@@ -315,7 +324,10 @@ export abstract class BaseProvider implements LLMProviderInterface {
 
     // 영어와 한국어 혼합 텍스트 고려
     const koreanChars = (text.match(/[\u3131-\uD79D]/g) || []).length;
-    const englishWords = text.replace(/[\u3131-\uD79D]/g, '').split(/\s+/).filter(w => w.length > 0).length;
+    const englishWords = text
+      .replace(/[\u3131-\uD79D]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 0).length;
 
     // 한국어는 토큰당 평균 1.5자, 영어는 토큰당 평균 4자
     return Math.ceil(koreanChars / 1.5 + englishWords);
@@ -331,7 +343,12 @@ export abstract class BaseProvider implements LLMProviderInterface {
     outputCostPer1K?: number
   ): number {
     if (!inputCostPer1K || !outputCostPer1K) return 0;
-    return Number(((promptTokens / 1000) * inputCostPer1K + (completionTokens / 1000) * outputCostPer1K).toFixed(6));
+    return Number(
+      (
+        (promptTokens / 1000) * inputCostPer1K +
+        (completionTokens / 1000) * outputCostPer1K
+      ).toFixed(6)
+    );
   }
 
   /**
@@ -340,7 +357,7 @@ export abstract class BaseProvider implements LLMProviderInterface {
   protected async testConnection(config: LLMConfig): Promise<boolean> {
     try {
       const testMessages: LLMMessage[] = [
-        { role: 'user', content: 'Test connection. Reply with "OK".' }
+        { role: 'user', content: 'Test connection. Reply with "OK".' },
       ];
 
       const response = await this.generateText(testMessages, {
@@ -351,7 +368,10 @@ export abstract class BaseProvider implements LLMProviderInterface {
 
       return response.content.toLowerCase().includes('ok');
     } catch (error) {
-      console.debug(`[${this.name}] Connection test failed:`, (error as any)?.message);
+      console.debug(
+        `[${this.name}] Connection test failed:`,
+        (error as { message?: string })?.message
+      );
       return false;
     }
   }
@@ -388,27 +408,19 @@ export abstract class BaseProvider implements LLMProviderInterface {
    */
   protected validateSettings(config: LLMConfig): void {
     if (config.temperature < 0 || config.temperature > 2) {
-      throw new LLMError(
-        'Temperature must be between 0 and 2',
-        'validation' as any,
-        this.name
-      );
+      throw new LLMError('Temperature must be between 0 and 2', LLMErrorType.VALIDATION, this.name);
     }
 
     if (config.maxTokens <= 0 || config.maxTokens > 100000) {
       throw new LLMError(
         'Max tokens must be between 1 and 100000',
-        'validation' as any,
+        LLMErrorType.VALIDATION,
         this.name
       );
     }
 
     if (config.topP && (config.topP <= 0 || config.topP > 1)) {
-      throw new LLMError(
-        'Top P must be between 0 and 1',
-        'validation' as any,
-        this.name
-      );
+      throw new LLMError('Top P must be between 0 and 1', LLMErrorType.VALIDATION, this.name);
     }
   }
 }

@@ -10,13 +10,13 @@
 import { HWPXConstants } from './core/constants.js';
 import { SimpleHWPXParser } from './core/parser.js';
 import { WorkerManager } from './core/worker-manager.js';
-import { DocumentRenderer } from './core/renderer.js';
+// DocumentRenderer / InlineEditor are vanilla-only; lazy-loaded for canvas-default builds
+// to keep ~3000 lines out of the canvas bundle. Loaded on demand by _ensureVanillaCore().
 // AI features - lazy loaded dynamically when needed
 // import { AIDocumentController } from './ai/ai-controller.js';
 // import { ChatPanel } from './ui/chat-panel.js';
 import { ContextMenu } from './ui/context-menu.js';
 import { SearchDialog } from './ui/search-dialog.js';
-import { InlineEditor } from './features/inline-editor.js';
 // HistoryManager v1 제거 - v2로 통합 (2026-01-09)
 // import { HistoryManager } from './features/history-manager.js';
 import { HistoryManagerV2 } from './features/history-manager-v2.js';
@@ -99,7 +99,7 @@ export class HWPXViewer {
       onProgress: options.onProgress || null,
       useWorker: options.useWorker !== false, // 기본값: Worker 사용
       enableAI: options.enableAI !== false, // AI 기능 활성화 (기본값: true)
-      editorType: options.editorType || 'inline', // 'inline' (default) | 'canvas'
+      editorType: options.editorType || 'canvas', // 'canvas' (default) | 'inline' (legacy vanilla)
       parserOptions: options.parserOptions || {},
     };
 
@@ -119,11 +119,20 @@ export class HWPXViewer {
     // 파서 생성
     this.parser = new SimpleHWPXParser(this.options.parserOptions);
 
-    // 렌더러 생성
-    this.renderer = new DocumentRenderer(this.container, {
-      enableAutoPagination: options.enableAutoPagination !== false,
-      enableLazyLoading: options.enableLazyLoading !== false,
-    });
+    // 렌더러 / InlineEditor — vanilla('inline') 모드에서만 동적 로드
+    // canvas 모드에서는 construct 자체를 생략해 초기화 시간/번들 비용을 제거한다.
+    this.renderer = null;
+    this._vanillaCorePromise = null;
+    if (this.options.editorType !== 'canvas') {
+      // 동기적으로 즉시 로드(파일 로드보다 먼저 준비되어야 함)
+      this._vanillaCorePromise = import('./core/renderer.js').then(({ DocumentRenderer }) => {
+        this.renderer = new DocumentRenderer(this.container, {
+          enableAutoPagination: options.enableAutoPagination !== false,
+          enableLazyLoading: options.enableLazyLoading !== false,
+        });
+        return this.renderer;
+      });
+    }
 
     // Exporter는 AI Controller가 처리 (lazy loading으로 최적화됨)
     // this.fullExporter = new HwpxExporter(); // 사용하지 않는 코드 제거
@@ -235,38 +244,37 @@ export class HWPXViewer {
       this.searchDialog = new SearchDialog(this);
       logger.info('✅ SearchDialog initialized');
 
-      this.inlineEditor = new InlineEditor(this);
+      // InlineEditor — vanilla 모드 전용. canvas 모드에서는 캔버스 자체가 편집 표면이므로 불필요.
+      if (this.options.editorType !== 'canvas') {
+        import('./features/inline-editor.js')
+          .then(({ InlineEditor }) => {
+            this.inlineEditor = new InlineEditor(this);
 
-      // ✅ Phase 4 Senior Upgrade: Debounced Pagination Check
-      // Debounce helper to reduce layout thrashing during rapid typing
-      const debounce = (fn, delay) => {
-        let timeoutId;
-        return (...args) => {
-          clearTimeout(timeoutId);
-          timeoutId = setTimeout(() => fn.apply(this, args), delay);
-        };
-      };
+            const debounce = (fn, delay) => {
+              let timeoutId;
+              return (...args) => {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => fn.apply(this, args), delay);
+              };
+            };
+            const debouncedPaginationCheck = debounce(page => {
+              if (this.renderer) this.renderer.checkPagination(page);
+            }, 300);
 
-      // Debounced pagination function (300ms delay after user stops typing)
-      const debouncedPaginationCheck = debounce(page => {
-        if (this.renderer) {
-          this.renderer.checkPagination(page);
-        }
-      }, 300);
+            this.inlineEditor.onChange(() => {
+              const cell = this.inlineEditor.editingCell;
+              if (cell) {
+                const page = cell.closest('.hwp-page-container');
+                if (page) debouncedPaginationCheck(page);
+              }
+            });
 
-      // ✅ 편집 발생 시 자동 페이지 나누기 체크
-      this.inlineEditor.onChange(e => {
-        const cell = this.inlineEditor.editingCell;
-        if (cell) {
-          const page = cell.closest('.hwp-page-container');
-          if (page) {
-            // 페이지 오버플로우 체크 (Debounced)
-            debouncedPaginationCheck(page);
-          }
-        }
-      });
-
-      logger.info('✅ InlineEditor initialized');
+            logger.info('✅ InlineEditor initialized (vanilla mode)');
+          })
+          .catch(err => logger.warn('InlineEditor 로드 실패:', err));
+      } else {
+        logger.info('🎨 canvas mode — InlineEditor skipped');
+      }
 
       this.editModeManager = new EditModeManager(this.inlineEditor);
       logger.info('✅ EditModeManager initialized');
@@ -649,8 +657,8 @@ export class HWPXViewer {
       // 렌더링
       await this.render(document);
 
-      // ✅ 편집 기능 활성화 (렌더링 후 약간의 딜레이를 두고 실행)
-      if (this.inlineEditor) {
+      // ✅ 편집 기능 활성화 (vanilla DOM 기반 — canvas 모드에서는 불필요)
+      if (this.inlineEditor && this.options.editorType !== 'canvas') {
         setTimeout(() => {
           this._enableEditingFeatures();
         }, 100);
@@ -742,6 +750,23 @@ export class HWPXViewer {
    * @private
    */
   async render(document) {
+    // canvas-editor 모드에서는 vanilla DOM 렌더링을 건너뛴다.
+    // (canvas-editor 가 자체 캔버스에 그리고, vanilla 출력은 어차피 visibility:hidden 으로 가려짐)
+    if (this.options.editorType === 'canvas') {
+      logger.info(
+        `⏭️  canvas-editor mode — skipping vanilla DOM render (${document.sections?.length || 0} sections)`
+      );
+      return;
+    }
+
+    // 렌더러 동적 로드 대기
+    if (!this.renderer && this._vanillaCorePromise) {
+      await this._vanillaCorePromise;
+    }
+    if (!this.renderer) {
+      throw new Error('DocumentRenderer not available (failed to load)');
+    }
+
     // DocumentRenderer를 사용하여 완전한 렌더링 수행
     // (페이지 컨테이너, 헤더, 푸터, 페이지 번호, 자동 페이지 나누기 등)
     const totalPages = await this.renderer.render(document);
@@ -766,10 +791,29 @@ export class HWPXViewer {
 
   /**
    * 현재 문서 가져오기
+   * canvas-editor 가 마운트되어 있으면 그쪽의 편집 결과를 우선 반환한다.
+   * (이미지 / borderFills 같은 HWPX 전용 필드는 원본 state.document 에서 보존)
    * @returns {Object|null} 현재 문서
    */
   getDocument() {
-    return this.state.document;
+    const base = this.state.document;
+    const adapter = this.canvasEditor;
+    if (adapter && adapter.editor) {
+      try {
+        const edited = adapter.getDocument();
+        if (edited) {
+          return {
+            ...edited,
+            images: base?.images || edited.images || new Map(),
+            borderFills: base?.borderFills || edited.borderFills || new Map(),
+            metadata: { ...(base?.metadata || {}), ...(edited.metadata || {}) },
+          };
+        }
+      } catch (err) {
+        logger.warn('canvas-editor getDocument failed, falling back to vanilla state:', err);
+      }
+    }
+    return base;
   }
 
   /**
@@ -1398,7 +1442,8 @@ export class HWPXViewer {
    * @returns {number} 총 페이지 수
    */
   getTotalPages() {
-    return this.renderer.getTotalPages();
+    if (this.canvasEditor?.getPageInfo) return this.canvasEditor.getPageInfo().total;
+    return this.renderer ? this.renderer.getTotalPages() : 0;
   }
 
   /**
@@ -1568,18 +1613,25 @@ export class HWPXViewer {
     logger.info(`  - isNewDocument: ${!!this.state.isNewDocument}`);
     logger.info(`  - aiController: ${!!this.aiController}`);
 
-    // ✅ 1단계: 현재 편집 중인 셀 강제 저장
-    if (this.inlineEditor && this.inlineEditor.isEditing()) {
-      logger.info('💾 Saving currently editing cell...');
-      this.inlineEditor.finishEditing();
-    }
+    // canvas-editor 모드: 편집 상태가 어댑터에 보관되므로 vanilla DOM sync 단계를 건너뛴다.
+    const canvasMode = !!(this.canvasEditor && this.canvasEditor.editor);
 
-    // ✅ 2단계: DOM의 모든 변경사항을 document에 강제 동기화
-    logger.info('🔄 Syncing ALL changes from DOM to document...');
-    const syncResult = this._syncDocumentFromDOM();
-    logger.info(
-      `✅ Sync complete: ${syncResult.updatedCells} cells, ${syncResult.updatedParagraphs} paragraphs updated`
-    );
+    if (!canvasMode) {
+      // ✅ 1단계: 현재 편집 중인 셀 강제 저장
+      if (this.inlineEditor && this.inlineEditor.isEditing()) {
+        logger.info('💾 Saving currently editing cell...');
+        this.inlineEditor.finishEditing();
+      }
+
+      // ✅ 2단계: DOM의 모든 변경사항을 document에 강제 동기화
+      logger.info('🔄 Syncing ALL changes from DOM to document...');
+      const syncResult = this._syncDocumentFromDOM();
+      logger.info(
+        `✅ Sync complete: ${syncResult.updatedCells} cells, ${syncResult.updatedParagraphs} paragraphs updated`
+      );
+    } else {
+      logger.info('🎨 canvas-editor mode — skipping vanilla DOM sync; using adapter.getDocument()');
+    }
 
     // ✅ 디버그: document 상태 확인
     const doc = this.getDocument();
@@ -1636,9 +1688,13 @@ export class HWPXViewer {
     if (filename && filename.toLowerCase().endsWith('.pdf')) {
       logger.info('📄 Exporting as PDF...');
       try {
-        const { exportToPDF } = await import('../pdf/exporter');
         const targetName = filename || '문서.pdf';
-        await exportToPDF(this.container, { fileName: targetName });
+        if (canvasMode && this.canvasEditor.exportPDF) {
+          await this.canvasEditor.exportPDF(targetName);
+        } else {
+          const { exportToPDF } = await import('../pdf/exporter');
+          await exportToPDF(this.container, { fileName: targetName });
+        }
         logger.info('✅ PDF 파일 저장 완료');
         showToast('success', 'PDF 저장', 'PDF 파일이 저장되었습니다.');
         return { success: true, filename: targetName };
@@ -2409,7 +2465,7 @@ ${bodyContent}
    * 뷰어 리셋
    */
   reset() {
-    this.renderer.reset();
+    this.renderer?.reset();
     this.state.document = null;
     this.state.currentFile = null;
     this.parser.reset();

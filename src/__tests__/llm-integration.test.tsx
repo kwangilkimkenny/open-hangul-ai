@@ -3,26 +3,36 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { UniversalLLMService } from '../lib/ai/universal-llm-service';
+import { metricsCollector, validationCache } from '../lib/ai/performance';
 import { useLLMConfigStore } from '../stores/llmConfigStore';
 import type { LLMConfig } from '../types/universal-llm';
 
+interface ConfigModalMockProps {
+  isOpen: boolean;
+  onConfigSave: (config: LLMConfig) => void;
+}
+interface SelectorMockProps {
+  onConfigOpen: () => void;
+}
+
 // Mock the UI components since we're focusing on integration
 vi.mock('../components/LLMConfigModal', () => ({
-  default: ({ isOpen, onConfigSave }: any) => {
+  default: ({ isOpen, onConfigSave }: ConfigModalMockProps) => {
     if (!isOpen) return null;
     return (
       <div data-testid="llm-config-modal">
         <button
-          onClick={() => onConfigSave({
-            provider: 'openai',
-            model: 'gpt-4o',
-            apiKey: 'test-key',
-            temperature: 0.7,
-            maxTokens: 1000,
-          })}
+          onClick={() =>
+            onConfigSave({
+              provider: 'openai',
+              model: 'gpt-4o',
+              apiKey: 'test-key',
+              temperature: 0.7,
+              maxTokens: 1000,
+            })
+          }
           data-testid="save-config"
         >
           Save Config
@@ -33,7 +43,7 @@ vi.mock('../components/LLMConfigModal', () => ({
 }));
 
 vi.mock('../components/LLMSelector', () => ({
-  default: ({ onConfigOpen }: any) => (
+  default: ({ onConfigOpen }: SelectorMockProps) => (
     <div data-testid="llm-selector">
       <button onClick={onConfigOpen} data-testid="open-config">
         Configure LLM
@@ -44,14 +54,19 @@ vi.mock('../components/LLMSelector', () => ({
 
 // Mock fetch for API calls
 global.fetch = vi.fn();
-const mockFetch = fetch as any;
+const mockFetch = fetch as unknown as ReturnType<typeof vi.fn>;
 
 describe('LLM Integration Tests', () => {
   let service: UniversalLLMService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    // 싱글톤 모듈 상태 초기화 — 이전 테스트가 남긴 메트릭/캐시가
+    // recommendation/health 결정성을 깨뜨리지 않도록 한다.
+    metricsCollector.reset();
+    validationCache.invalidate();
     service = new UniversalLLMService();
+    await service.ready();
     useLLMConfigStore.getState().resetAll();
   });
 
@@ -69,11 +84,14 @@ describe('LLM Integration Tests', () => {
       // Mock successful API response
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          choices: [{ message: { content: 'Hello! How can I help you today?' }, finish_reason: 'stop' }],
-          usage: { prompt_tokens: 10, completion_tokens: 15, total_tokens: 25 },
-          model: 'gpt-4o',
-        }),
+        json: () =>
+          Promise.resolve({
+            choices: [
+              { message: { content: 'Hello! How can I help you today?' }, finish_reason: 'stop' },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 15, total_tokens: 25 },
+            model: 'gpt-4o',
+          }),
       });
 
       // 2. Update store configuration
@@ -119,19 +137,16 @@ describe('LLM Integration Tests', () => {
         .mockRejectedValueOnce(new Error('OpenAI service unavailable'))
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({
-            content: [{ type: 'text', text: 'Hello from Claude!' }],
-            usage: { input_tokens: 8, output_tokens: 12 },
-            model: 'claude-3-5-sonnet-20241022',
-          }),
+          json: () =>
+            Promise.resolve({
+              content: [{ type: 'text', text: 'Hello from Claude!' }],
+              usage: { input_tokens: 8, output_tokens: 12 },
+              model: 'claude-3-5-sonnet-20241022',
+            }),
         });
 
       const messages = [{ role: 'user' as const, content: 'Hello!' }];
-      const result = await service.generateWithFallback(
-        messages,
-        openaiConfig,
-        [claudeConfig]
-      );
+      const result = await service.generateWithFallback(messages, openaiConfig, [claudeConfig]);
 
       expect(result.usedProvider).toBe('claude');
       expect(result.attempts).toBe(2);
@@ -139,24 +154,27 @@ describe('LLM Integration Tests', () => {
     });
 
     it('should switch between providers dynamically', async () => {
-      const store = useLLMConfigStore.getState();
+      // zustand getState() 는 스냅샷이므로 액션 후에는 다시 호출해 최신 상태를 읽는다.
+      const { setActiveProvider } = useLLMConfigStore.getState();
 
       // Start with OpenAI
-      expect(store.activeProvider).toBe('openai');
+      expect(useLLMConfigStore.getState().activeProvider).toBe('openai');
 
       // Switch to Claude
-      store.setActiveProvider('claude');
-      expect(store.activeProvider).toBe('claude');
-      expect(store.recentProviders[0]).toBe('claude');
+      setActiveProvider('claude');
+      let state = useLLMConfigStore.getState();
+      expect(state.activeProvider).toBe('claude');
+      expect(state.recentProviders[0]).toBe('claude');
 
       // Switch to local model
-      store.setActiveProvider('local');
-      expect(store.activeProvider).toBe('local');
-      expect(store.recentProviders).toEqual(['local', 'claude', 'openai']);
+      setActiveProvider('local');
+      state = useLLMConfigStore.getState();
+      expect(state.activeProvider).toBe('local');
+      expect(state.recentProviders).toEqual(['local', 'claude', 'openai']);
 
       // Each provider should have correct default config
-      expect(store.configs.local.endpoint).toBe('http://localhost:11434/v1/chat/completions');
-      expect(store.configs.claude.model).toBe('claude-3-5-sonnet-20241022');
+      expect(state.configs.local.endpoint).toBe('http://localhost:11434/v1/chat/completions');
+      expect(state.configs.claude.model).toBe('claude-3-5-sonnet-20241022');
     });
 
     it('should handle multi-provider generation', async () => {
@@ -181,19 +199,21 @@ describe('LLM Integration Tests', () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({
-            choices: [{ message: { content: 'OpenAI response' } }],
-            usage: { prompt_tokens: 5, completion_tokens: 10, total_tokens: 15 },
-            model: 'gpt-4o',
-          }),
+          json: () =>
+            Promise.resolve({
+              choices: [{ message: { content: 'OpenAI response' } }],
+              usage: { prompt_tokens: 5, completion_tokens: 10, total_tokens: 15 },
+              model: 'gpt-4o',
+            }),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({
-            content: [{ type: 'text', text: 'Claude response' }],
-            usage: { input_tokens: 5, output_tokens: 12 },
-            model: 'claude-3-5-sonnet-20241022',
-          }),
+          json: () =>
+            Promise.resolve({
+              content: [{ type: 'text', text: 'Claude response' }],
+              usage: { input_tokens: 5, output_tokens: 12 },
+              model: 'claude-3-5-sonnet-20241022',
+            }),
         });
 
       const messages = [{ role: 'user' as const, content: 'Hello!' }];
@@ -241,8 +261,9 @@ describe('LLM Integration Tests', () => {
 
       const messages = [{ role: 'user' as const, content: 'Hello!' }];
 
-      await expect(service.generateText(messages, config))
-        .rejects.toThrow('서버에 연결할 수 없습니다');
+      await expect(service.generateText(messages, config)).rejects.toThrow(
+        '서버에 연결할 수 없습니다'
+      );
     });
 
     it('should handle rate limiting', async () => {
@@ -258,15 +279,17 @@ describe('LLM Integration Tests', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 429,
-        json: () => Promise.resolve({
-          error: { message: 'Rate limit exceeded' }
-        }),
+        json: () =>
+          Promise.resolve({
+            error: { message: 'Rate limit exceeded' },
+          }),
       });
 
       const messages = [{ role: 'user' as const, content: 'Hello!' }];
 
-      await expect(service.generateText(messages, config))
-        .rejects.toThrow('사용량 한도를 초과했습니다');
+      await expect(service.generateText(messages, config)).rejects.toThrow(
+        '사용량 한도를 초과했습니다'
+      );
     });
 
     it('should validate configurations before use', async () => {
@@ -287,14 +310,15 @@ describe('LLM Integration Tests', () => {
 
   describe('Performance and Monitoring', () => {
     it('should track usage statistics', () => {
-      const store = useLLMConfigStore.getState();
+      const { addUsage } = useLLMConfigStore.getState();
 
       // Add some usage data
-      store.addUsage('openai', 1000, 0.02, true);
-      store.addUsage('openai', 500, 0.01, false);
-      store.addUsage('claude', 800, 0.015, true);
+      addUsage('openai', 1000, 0.02, true);
+      addUsage('openai', 500, 0.01, false);
+      addUsage('claude', 800, 0.015, true);
 
-      const stats = store.usageStats;
+      // 액션 후에는 최신 스냅샷을 다시 읽어야 한다.
+      const stats = useLLMConfigStore.getState().usageStats;
 
       // OpenAI stats
       expect(stats.openai.totalRequests).toBe(2);
@@ -310,15 +334,12 @@ describe('LLM Integration Tests', () => {
     });
 
     it('should provide health check capabilities', async () => {
-      // Mock health check responses
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({
-            choices: [{ message: { content: 'OK' } }],
-          }),
-        })
-        .mockRejectedValueOnce(new Error('Service unavailable'));
+      // 실제 provider.validateConfig 는 apiKey 가 비어 있으면 fetch 도 가지 않고 false 를 반환한다.
+      // 통합 테스트에서는 fetch 모킹 대신 provider 의 validateConfig 자체를 spy 한다.
+      const openai = service.getProvider('openai');
+      const claude = service.getProvider('claude');
+      vi.spyOn(openai!, 'validateConfig').mockResolvedValue(true);
+      vi.spyOn(claude!, 'validateConfig').mockRejectedValue(new Error('Service unavailable'));
 
       const health = await service.checkProviderHealth();
 
@@ -329,36 +350,39 @@ describe('LLM Integration Tests', () => {
 
   describe('Data Persistence', () => {
     it('should persist and restore configuration', () => {
-      const store = useLLMConfigStore.getState();
+      const { setActiveProvider, updateConfig, exportConfigs, resetAll, importConfigs } =
+        useLLMConfigStore.getState();
 
       // Modify configuration
-      store.setActiveProvider('claude');
-      store.updateConfig('openai', { apiKey: 'test-key', temperature: 0.5 });
+      setActiveProvider('claude');
+      updateConfig('openai', { apiKey: 'test-key', temperature: 0.5 });
 
       // Export configuration
-      const exported = store.exportConfigs();
+      const exported = exportConfigs();
       expect(exported).toBeTruthy();
 
       // Reset and import
-      store.resetAll();
-      expect(store.activeProvider).toBe('openai');
+      resetAll();
+      expect(useLLMConfigStore.getState().activeProvider).toBe('openai');
 
-      store.importConfigs(exported);
-      expect(store.activeProvider).toBe('claude');
-      expect(store.configs.openai.apiKey).toBe('test-key');
-      expect(store.configs.openai.temperature).toBe(0.5);
+      importConfigs(exported);
+      const state = useLLMConfigStore.getState();
+      expect(state.activeProvider).toBe('claude');
+      expect(state.configs.openai.apiKey).toBe('test-key');
+      expect(state.configs.openai.temperature).toBe(0.5);
     });
 
     it('should handle corrupted persistence data', () => {
-      const store = useLLMConfigStore.getState();
+      const { importConfigs } = useLLMConfigStore.getState();
 
       expect(() => {
-        store.importConfigs('invalid json data');
+        importConfigs('invalid json data');
       }).toThrow('유효하지 않은 설정 파일입니다');
 
       // Store should remain in valid state
-      expect(store.activeProvider).toBe('openai');
-      expect(store.configs.openai).toBeDefined();
+      const state = useLLMConfigStore.getState();
+      expect(state.activeProvider).toBe('openai');
+      expect(state.configs.openai).toBeDefined();
     });
   });
 
@@ -368,18 +392,16 @@ describe('LLM Integration Tests', () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({
-            data: [
-              { id: 'qwen2.5:7b' },
-              { id: 'llama3.2:3b' }
-            ]
-          }),
+          json: () =>
+            Promise.resolve({
+              data: [{ id: 'qwen2.5:7b' }, { id: 'llama3.2:3b' }],
+            }),
         })
         .mockRejectedValue(new Error('Connection refused'));
 
       const localProvider = service.getProvider('local');
       if (localProvider) {
-        // @ts-ignore - Access private method for testing
+        // @ts-expect-error - Access private method for testing
         const servers = await localProvider.detectLocalServers();
 
         const ollamaServer = servers.find(s => s.name === 'ollama');
@@ -393,10 +415,12 @@ describe('LLM Integration Tests', () => {
     it('should provide model installation instructions', () => {
       const localProvider = service.getProvider('local');
       if (localProvider) {
-        // @ts-ignore - Access method for testing
+        // @ts-expect-error - Access method for testing
         const qwenInstructions = localProvider.getModelInstallInstructions('qwen2.5:7b');
         expect(qwenInstructions.length).toBeGreaterThan(0);
-        expect(qwenInstructions.some((inst: any) => inst.platform === 'Ollama')).toBe(true);
+        expect(
+          qwenInstructions.some((inst: { platform: string }) => inst.platform === 'Ollama')
+        ).toBe(true);
       }
     });
   });

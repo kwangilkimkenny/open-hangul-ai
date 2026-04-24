@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
         '@hanview/aegis-enterprise': path.resolve(__dirname, 'src/lib/mocks/aegis-noop.ts'),
       },
     },
+    optimizeDeps: {
+      // hwp2hwpx-js / hwplib-js의 dist는 CommonJS이므로 Vite가 ESM으로 변환하도록 강제
+      include: ['hwp2hwpx-js', 'hwplib-js'],
+    },
     server: {
       port: 5090, // 고정 포트
       strictPort: true, // 포트 사용 중이면 에러 발생 (자동 변경 안 함)
@@ -39,9 +43,20 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:8200',
           changeOrigin: true,
         },
+        // /health: 백엔드가 안 떠 있으면 (OSS 기본 상태) 200 + {available:false}로 응답해
+        // 브라우저 네트워크 탭에 5xx 에러가 빨갛게 쌓이지 않도록 한다.
+        // 클라이언트는 응답 본문의 available 필드를 보고 모드를 결정한다.
         '/health': {
           target: 'http://localhost:8200',
           changeOrigin: true,
+          configure: proxy => {
+            proxy.on('error', (_err, _req, res) => {
+              if (res && !res.headersSent && typeof res.writeHead === 'function') {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ available: false, mode: 'offline' }));
+              }
+            });
+          },
         },
         // OpenAI API 프록시 - CORS 우회 + API 키 서버사이드 관리
         '/api/ai/chat': {
@@ -152,7 +167,16 @@ export default defineConfig(({ mode }) => {
               return 'feature-ui-editors';
             }
 
-            // Vanilla JS 코어 (viewer, renderer, parser)
+            // Legacy vanilla 렌더러 + InlineEditor + 그 의존 sub-renderer 들 (canvas-default 빌드에서는 lazy-load)
+            if (
+              id.includes('/lib/vanilla/core/renderer.js') ||
+              id.includes('/lib/vanilla/renderers/') ||
+              id.includes('/lib/vanilla/features/inline-editor.js')
+            ) {
+              return 'legacy-vanilla-renderer';
+            }
+
+            // Vanilla JS 코어 (viewer, parser)
             if (
               id.includes('/lib/vanilla/core/') ||
               id.includes('/lib/vanilla/viewer.js') ||

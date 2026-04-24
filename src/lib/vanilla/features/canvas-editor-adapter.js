@@ -14,6 +14,7 @@
 
 import { hwpxToCanvasEditor } from '../core/hwpx-to-canvas-editor.js';
 import { canvasEditorToHwpx } from '../core/canvas-editor-to-hwpx.js';
+import { CanvasEditorCommands } from './canvas-editor-commands.js';
 import { getLogger } from '../utils/logger.js';
 
 const logger = getLogger('CanvasEditorAdapter');
@@ -32,8 +33,47 @@ export class CanvasEditorAdapter {
     this.onChangeCallback = null;
     this.changeDebounceTimer = null;
     this._loaded = false;
+    this.commands = new CanvasEditorCommands(this);
+    this._rangeStyleListeners = new Set();
+    this._pageInfoListeners = new Set();
+    this._pageInfo = { current: 1, total: 1 };
 
     logger.info('🎨 CanvasEditorAdapter initialized');
+  }
+
+  /**
+   * canvas-editor 의 selection 변경 이벤트를 구독한다.
+   * @param {(style: object) => void} cb
+   * @returns {() => void} unsubscribe
+   */
+  onRangeStyleChange(cb) {
+    if (typeof cb !== 'function') return () => {};
+    this._rangeStyleListeners.add(cb);
+    return () => this._rangeStyleListeners.delete(cb);
+  }
+
+  /**
+   * 페이지 정보(현재/전체) 변경 구독.
+   * @param {(info: { current: number, total: number }) => void} cb
+   * @returns {() => void} unsubscribe
+   */
+  onPageInfoChange(cb) {
+    if (typeof cb !== 'function') return () => {};
+    this._pageInfoListeners.add(cb);
+    cb(this._pageInfo);
+    return () => this._pageInfoListeners.delete(cb);
+  }
+
+  getPageInfo() {
+    return { ...this._pageInfo };
+  }
+
+  async getWordCount() {
+    try {
+      return (await this.editor?.command?.getWordCount?.()) || 0;
+    } catch {
+      return 0;
+    }
   }
 
   onChange(callback) {
@@ -66,10 +106,48 @@ export class CanvasEditorAdapter {
 
     if (this.editor.listener) {
       this.editor.listener.contentChange = () => this._handleContentChange();
+      this.editor.listener.rangeStyleChange = style => this._handleRangeStyleChange(style);
+      this.editor.listener.pageSizeChange = total => this._handlePageSizeChange(total);
+      this.editor.listener.intersectionPageNoChange = current =>
+        this._handleIntersectionPageNo(current);
     }
 
     logger.info('✅ canvas-editor mounted');
     return this.editor;
+  }
+
+  _handleRangeStyleChange(style) {
+    for (const cb of this._rangeStyleListeners) {
+      try {
+        cb(style);
+      } catch (err) {
+        logger.warn('rangeStyleChange listener threw:', err);
+      }
+    }
+  }
+
+  _emitPageInfo() {
+    const snapshot = { ...this._pageInfo };
+    for (const cb of this._pageInfoListeners) {
+      try {
+        cb(snapshot);
+      } catch (err) {
+        logger.warn('pageInfo listener threw:', err);
+      }
+    }
+  }
+
+  _handlePageSizeChange(total) {
+    if (typeof total !== 'number' || total < 1) return;
+    this._pageInfo = { ...this._pageInfo, total };
+    this._emitPageInfo();
+  }
+
+  _handleIntersectionPageNo(current) {
+    if (typeof current !== 'number') return;
+    // canvas-editor pageNo 는 0-base — UI 는 1-base
+    this._pageInfo = { ...this._pageInfo, current: current + 1 };
+    this._emitPageInfo();
   }
 
   /**
@@ -108,6 +186,43 @@ export class CanvasEditorAdapter {
     this.editor.command.executeMode(readonly ? 'readonly' : 'edit');
   }
 
+  /**
+   * canvas-editor 의 페이지 이미지(PNG data URL 배열)를 jsPDF 로 묶어 PDF 다운로드.
+   * @param {string} [filename]
+   */
+  async exportPDF(filename = '문서.pdf') {
+    if (!this.editor?.command?.getImage) throw new Error('canvas-editor not ready');
+    const images = await this.editor.command.getImage({ pixelRatio: 2 });
+    if (!images || images.length === 0) throw new Error('렌더된 페이지가 없습니다');
+
+    const { jsPDF } = await import('jspdf');
+    const opts = this.editor.command.getOptions?.();
+    const paperWidth = opts?.width ?? 794; // px
+    const paperHeight = opts?.height ?? 1123; // px
+    const orientation = paperWidth > paperHeight ? 'landscape' : 'portrait';
+    const pdf = new jsPDF({
+      unit: 'px',
+      format: [paperWidth, paperHeight],
+      orientation,
+      hotfixes: ['px_scaling'],
+    });
+
+    for (let i = 0; i < images.length; i += 1) {
+      if (i > 0) pdf.addPage([paperWidth, paperHeight], orientation);
+      pdf.addImage(images[i], 'PNG', 0, 0, paperWidth, paperHeight, undefined, 'FAST');
+    }
+    pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+    return true;
+  }
+
+  /**
+   * 브라우저 인쇄 다이얼로그 — canvas-editor 내장 print 사용.
+   */
+  async print() {
+    if (!this.editor?.command?.print) throw new Error('canvas-editor not ready');
+    return this.editor.command.print();
+  }
+
   destroy() {
     if (this.changeDebounceTimer) {
       clearTimeout(this.changeDebounceTimer);
@@ -123,6 +238,8 @@ export class CanvasEditorAdapter {
     this.editor = null;
     this.container = null;
     this._loaded = false;
+    this._rangeStyleListeners.clear();
+    this._pageInfoListeners.clear();
   }
 
   _handleContentChange() {

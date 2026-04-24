@@ -15,81 +15,107 @@ const Sidebar = memo(function Sidebar({ viewer, file, isOpen = true, width = 280
   const [imageCount, setImageCount] = useState(0);
   const [activePage, setActivePage] = useState(1);
 
-  // 문서 정보 업데이트 함수 (useEffect보다 먼저 선언)
-  const updateInfo = useCallback(() => {
-    if (viewer && viewer.renderer) {
-      setTotalPages(viewer.renderer.totalPages || 0);
-
-      // 파서 정보 접근 (비공개 속성일 수 있으므로 안전하게 접근)
-      try {
-        const viewerWithParser = viewer as HWPXViewerInstance & {
-          parser?: { doc?: { sections?: unknown[]; images?: Record<string, unknown> } };
+  // 파서 메타정보(섹션/이미지) 갱신
+  const updateMeta = useCallback(() => {
+    if (!viewer) return;
+    try {
+      const v = viewer as HWPXViewerInstance & {
+        parser?: {
+          doc?: { sections?: unknown[]; images?: Record<string, unknown> | Map<string, unknown> };
         };
-        const doc = viewerWithParser.parser?.doc;
-        if (doc) {
-          setSectionCount(doc.sections?.length || 0);
-          setImageCount(Object.keys(doc.images || {}).length);
-        }
-      } catch {
-        // 무시
+      };
+      const doc = v.parser?.doc;
+      if (doc) {
+        setSectionCount(doc.sections?.length || 0);
+        const imgs = doc.images;
+        setImageCount(imgs instanceof Map ? imgs.size : Object.keys(imgs || {}).length);
       }
+    } catch {
+      /* noop */
     }
   }, [viewer]);
 
-  // 문서 정보 업데이트
   useEffect(() => {
-    if (viewer) {
-      // 초기 정보 설정 (requestAnimationFrame으로 다음 프레임에서 실행)
-      const rafId = requestAnimationFrame(() => {
-        updateInfo();
-      });
+    if (!viewer) return;
+    const rafId = requestAnimationFrame(updateMeta);
+    const interval = setInterval(updateMeta, 2000);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearInterval(interval);
+    };
+  }, [viewer, updateMeta]);
 
-      // 페이지 스크롤 감지하여 현재 페이지 업데이트
-      const container = viewer.container;
-      const handleScroll = () => {
-        if (!container) return;
-
-        // 현재 뷰포트 중앙에 위치한 페이지 찾기
-        const containerRect = container.getBoundingClientRect();
-        const center = containerRect.top + containerRect.height / 2;
-
-        const pages = container.querySelectorAll('.hwp-page-container');
-        let current = 1;
-
-        pages.forEach((page: Element) => {
-          const rect = page.getBoundingClientRect();
-          if (rect.top <= center && rect.bottom >= center) {
-            current = parseInt(page.getAttribute('data-page-number') || '1', 10);
-          }
-        });
-
-        setActivePage(current);
+  // 페이지 정보: canvas-editor 활성 시 어댑터 구독, 아니면 vanilla renderer + DOM 스크롤
+  useEffect(() => {
+    if (!viewer) return;
+    const v = viewer as HWPXViewerInstance & {
+      canvasEditor?: {
+        onPageInfoChange: (cb: (i: { current: number; total: number }) => void) => () => void;
       };
-
-      container.addEventListener('scroll', handleScroll);
-
-      // 주기적으로 정보 업데이트 (렌더링 완료 대기)
-      const interval = setInterval(updateInfo, 1000);
-
+      renderer?: { totalPages?: number };
+      container: HTMLElement;
+    };
+    const adapter = v.canvasEditor;
+    if (adapter?.onPageInfoChange) {
+      const unsub = adapter.onPageInfoChange(info => {
+        setTotalPages(info.total);
+        setActivePage(info.current);
+      });
       return () => {
-        cancelAnimationFrame(rafId);
-        container.removeEventListener('scroll', handleScroll);
-        clearInterval(interval);
+        unsub?.();
       };
     }
-  }, [viewer, updateInfo]);
 
-  const handlePageClick = useCallback((pageNum: number) => {
-    if (viewer && viewer.container) {
-      const pageEl = viewer.container.querySelector(
+    // setInterval 의 첫 tick 으로 totalPages 가 채워지므로 effect 본문에서 직접 setState 하지 않는다.
+    // (cascading render 회피)
+    queueMicrotask(() => setTotalPages(v.renderer?.totalPages || 0));
+    const container = v.container;
+    const handleScroll = () => {
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+      const center = containerRect.top + containerRect.height / 2;
+      const pages = container.querySelectorAll('.hwp-page-container');
+      let current = 1;
+      pages.forEach((page: Element) => {
+        const rect = page.getBoundingClientRect();
+        if (rect.top <= center && rect.bottom >= center) {
+          current = parseInt(page.getAttribute('data-page-number') || '1', 10);
+        }
+      });
+      setActivePage(current);
+    };
+    container?.addEventListener('scroll', handleScroll);
+    const tick = setInterval(() => setTotalPages(v.renderer?.totalPages || 0), 1000);
+    return () => {
+      container?.removeEventListener('scroll', handleScroll);
+      clearInterval(tick);
+    };
+  }, [viewer]);
+
+  const handlePageClick = useCallback(
+    (pageNum: number) => {
+      if (!viewer) return;
+      const v = viewer as HWPXViewerInstance & { container: HTMLElement };
+      // canvas-editor: 페이지 캔버스가 #canvas-editor-root 안에 순서대로 그려진다.
+      const canvasRoot =
+        v.container?.querySelector('[data-canvas-editor-root="true"], .ce-page-list') ||
+        v.container?.querySelector('canvas')?.parentElement;
+      const canvases = canvasRoot?.querySelectorAll('canvas');
+      if (canvases && canvases.length >= pageNum) {
+        canvases[pageNum - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActivePage(pageNum);
+        return;
+      }
+      const pageEl = v.container?.querySelector(
         `.hwp-page-container[data-page-number="${pageNum}"]`
       );
       if (pageEl) {
         pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         setActivePage(pageNum);
       }
-    }
-  }, [viewer]);
+    },
+    [viewer]
+  );
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -310,7 +336,12 @@ const Sidebar = memo(function Sidebar({ viewer, file, isOpen = true, width = 280
                 tabIndex={0}
                 aria-label={`페이지 ${pageNum}${isActive ? ' (현재 페이지)' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePageClick(pageNum); } }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handlePageClick(pageNum);
+                  }
+                }}
                 style={{
                   backgroundColor: isActive ? '#eef2ff' : '#fff',
                   border: `1px solid ${isActive ? '#667eea' : '#e0e0e0'}`,

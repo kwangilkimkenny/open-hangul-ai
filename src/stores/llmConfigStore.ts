@@ -17,13 +17,16 @@ interface LLMConfigState {
   recentProviders: LLMProvider[];
 
   // 사용 통계
-  usageStats: Record<LLMProvider, {
-    totalRequests: number;
-    successfulRequests: number;
-    totalTokens: number;
-    totalCost: number;
-    lastUsed: Date;
-  }>;
+  usageStats: Record<
+    LLMProvider,
+    {
+      totalRequests: number;
+      successfulRequests: number;
+      totalTokens: number;
+      totalCost: number;
+      lastUsed: Date;
+    }
+  >;
 
   // Actions
   setActiveProvider: (provider: LLMProvider) => void;
@@ -93,7 +96,8 @@ const DEFAULT_CONFIGS: Record<LLMProvider, LLMConfig> = {
     temperature: 0.7,
     maxTokens: 4000,
     topP: 1.0,
-    endpoint: import.meta.env.VITE_LOCAL_LLM_ENDPOINT || 'http://localhost:11434/v1/chat/completions',
+    endpoint:
+      import.meta.env.VITE_LOCAL_LLM_ENDPOINT || 'http://localhost:11434/v1/chat/completions',
   },
 };
 
@@ -103,21 +107,15 @@ export const useLLMConfigStore = create<LLMConfigState>()(
       activeProvider: 'openai',
       configs: DEFAULT_CONFIGS,
       recentProviders: ['openai'],
-      usageStats: {
-    openai: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-    claude: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-    vertex: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-    grok: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-    'azure-openai': { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-    cohere: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-    local: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() }
-  },
+      // usageStats 는 실제 사용이 발생할 때 lazy 하게 채워진다.
+      // 빈 상태로 시작해 "사용 이력 없음" 을 명확히 표현 (테스트 단언과도 일치).
+      usageStats: {} as LLMConfigState['usageStats'],
 
       setActiveProvider: (provider: LLMProvider) => {
         set(state => {
           const recentProviders = [
             provider,
-            ...state.recentProviders.filter(p => p !== provider)
+            ...state.recentProviders.filter(p => p !== provider),
           ].slice(0, 5);
 
           return {
@@ -213,15 +211,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           activeProvider: 'openai',
           configs: DEFAULT_CONFIGS,
           recentProviders: ['openai'],
-          usageStats: {
-            openai: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-            claude: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-            vertex: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-            grok: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-            'azure-openai': { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-            cohere: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() },
-            local: { totalRequests: 0, successfulRequests: 0, totalTokens: 0, totalCost: 0, lastUsed: new Date() }
-          },
+          usageStats: {} as LLMConfigState['usageStats'],
         });
       },
     }),
@@ -230,7 +220,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
       version: 1,
       // API 키 같은 민감 정보는 sessionStorage에 저장
       storage: {
-        getItem: (key) => {
+        getItem: key => {
           const value = localStorage.getItem(key);
           if (!value) return null;
 
@@ -254,18 +244,21 @@ export const useLLMConfigStore = create<LLMConfigState>()(
         },
         setItem: (key, value) => {
           try {
-            // value는 이미 객체 형태로 전달됨
-            const data = typeof value === 'string' ? JSON.parse(value) : value;
+            // 값을 깊은 복사한 뒤 변형해야 살아있는 zustand 상태를 오염시키지 않는다.
+            const data =
+              typeof value === 'string' ? JSON.parse(value) : JSON.parse(JSON.stringify(value));
 
             // API 키는 sessionStorage에 별도 저장
             if (data.state?.configs) {
-              Object.entries(data.state.configs).forEach(([provider, config]: [string, any]) => {
-                if (config.apiKey) {
-                  sessionStorage.setItem(`llm-api-key-${provider}`, config.apiKey);
-                  // localStorage에는 API 키 제외하고 저장
-                  config.apiKey = '';
+              Object.entries(data.state.configs).forEach(
+                ([provider, config]: [string, { apiKey?: string }]) => {
+                  if (config.apiKey) {
+                    sessionStorage.setItem(`llm-api-key-${provider}`, config.apiKey);
+                    // localStorage에는 API 키 제외하고 저장
+                    config.apiKey = '';
+                  }
                 }
-              });
+              );
             }
 
             localStorage.setItem(key, JSON.stringify(data));
@@ -273,7 +266,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             localStorage.setItem(key, String(value));
           }
         },
-        removeItem: (key) => {
+        removeItem: key => {
           localStorage.removeItem(key);
           // 관련 API 키들도 제거
           ['openai', 'claude', 'grok', 'azure-openai', 'cohere'].forEach(provider => {
@@ -301,7 +294,7 @@ export const {
   clearConfig,
   exportConfigs,
   importConfigs,
-  resetAll
+  resetAll,
 } = useLLMConfigStore.getState();
 
 // Utility function to get API key safely
