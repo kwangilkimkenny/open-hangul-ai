@@ -10,6 +10,7 @@ import CommandPalette, { type CommandItem } from '../components/CommandPalette';
 import DraftAIModal from '../components/DraftAIModal';
 import OCRDialog from '../components/OCRDialog';
 import CanvasSearchBar from '../components/CanvasSearchBar';
+import InlineAIAssistant from '../components/InlineAIAssistant';
 import type { HWPXViewerInstance } from '../types/viewer';
 import type { HWPXDocument } from '../types/hwpx';
 import { devLog, devError } from '../utils/logger';
@@ -163,6 +164,8 @@ export function EditorPage() {
       />
 
       <CanvasSearchBar viewer={viewerInstance} />
+
+      <InlineAIAssistant viewer={viewerInstance} />
 
       <HangulStatusBar viewer={viewerInstance} />
 

@@ -183,6 +183,85 @@ describe('CanvasEditorAdapter', () => {
     });
   });
 
+  describe('selection API', () => {
+    it('getRangeText returns empty string when editor missing', () => {
+      expect(adapter.getRangeText()).toBe('');
+    });
+
+    it('getRangeText delegates to canvas-editor command', () => {
+      adapter.editor = makeFakeEditor();
+      adapter.editor.command.getRangeText = vi.fn(() => '선택된 텍스트');
+      expect(adapter.getRangeText()).toBe('선택된 텍스트');
+    });
+
+    it('getRangeContext returns null when no selection', () => {
+      adapter.editor = makeFakeEditor();
+      adapter.editor.command.getRangeContext = vi.fn(() => null);
+      expect(adapter.getRangeContext()).toBeNull();
+    });
+
+    it('getRangeBoundingRect returns null when collapsed', () => {
+      adapter.editor = makeFakeEditor();
+      adapter.editor.command.getRangeContext = vi.fn(() => ({
+        isCollapsed: true,
+        rangeRects: [],
+      }));
+      expect(adapter.getRangeBoundingRect()).toBeNull();
+    });
+
+    it('getRangeBoundingRect projects canvas-editor rects to viewport', () => {
+      const fakeCanvas = {
+        width: 800,
+        height: 1000,
+        getBoundingClientRect: () => ({ left: 100, top: 50, width: 400, height: 500 }),
+      };
+      adapter.container = {
+        querySelectorAll: sel => (sel === 'canvas' ? [fakeCanvas, fakeCanvas] : []),
+      };
+      adapter.editor = makeFakeEditor();
+      adapter.editor.command.getRangeContext = vi.fn(() => ({
+        isCollapsed: false,
+        startPageNo: 0,
+        endPageNo: 0,
+        rangeRects: [{ x: 200, y: 100, width: 50, height: 20 }],
+      }));
+      const rect = adapter.getRangeBoundingRect();
+      // scaleX = 400/800 = 0.5, scaleY = 500/1000 = 0.5
+      expect(rect.left).toBeCloseTo(100 + 200 * 0.5);
+      expect(rect.top).toBeCloseTo(50 + 100 * 0.5);
+      expect(rect.right).toBeCloseTo(100 + (200 + 50) * 0.5);
+      expect(rect.bottom).toBeCloseTo(50 + (100 + 20) * 0.5);
+    });
+
+    it('replaceRangeText backspaces when selection exists then inserts elements', () => {
+      adapter.editor = makeFakeEditor();
+      const back = vi.fn();
+      const insert = vi.fn();
+      adapter.editor.command.getRange = vi.fn(() => ({ startIndex: 1, endIndex: 5 }));
+      adapter.editor.command.executeBackspace = back;
+      adapter.editor.command.executeInsertElementList = insert;
+      expect(adapter.replaceRangeText('hi')).toBe(true);
+      expect(back).toHaveBeenCalledOnce();
+      expect(insert).toHaveBeenCalledWith([{ value: 'h' }, { value: 'i' }]);
+    });
+
+    it('replaceRangeText skips backspace when caret is collapsed', () => {
+      adapter.editor = makeFakeEditor();
+      const back = vi.fn();
+      const insert = vi.fn();
+      adapter.editor.command.getRange = vi.fn(() => ({ startIndex: 3, endIndex: 3 }));
+      adapter.editor.command.executeBackspace = back;
+      adapter.editor.command.executeInsertElementList = insert;
+      expect(adapter.replaceRangeText('x')).toBe(true);
+      expect(back).not.toHaveBeenCalled();
+      expect(insert).toHaveBeenCalledWith([{ value: 'x' }]);
+    });
+
+    it('replaceRangeText returns false when editor not mounted', () => {
+      expect(adapter.replaceRangeText('x')).toBe(false);
+    });
+  });
+
   describe('destroy', () => {
     it('clears listeners and tears down the editor', () => {
       const cb = vi.fn();

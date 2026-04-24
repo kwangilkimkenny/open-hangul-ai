@@ -76,6 +76,83 @@ export class CanvasEditorAdapter {
     }
   }
 
+  /**
+   * 현재 선택 영역(또는 caret)의 plain-text.
+   * @returns {string}
+   */
+  getRangeText() {
+    return this.editor?.command?.getRangeText?.() || '';
+  }
+
+  /**
+   * 현재 선택 영역의 풍부한 컨텍스트(rangeRects, page/row/col 등).
+   * canvas-editor 의 RangeContext 를 그대로 노출.
+   * @returns {object|null}
+   */
+  getRangeContext() {
+    return this.editor?.command?.getRangeContext?.() || null;
+  }
+
+  /**
+   * 현재 선택 영역의 viewport 좌표 bounding box.
+   * 플로팅 UI 위치 계산용. 선택이 없거나(collapsed) 좌표 추출 실패시 null.
+   * @returns {{ left:number, top:number, right:number, bottom:number, width:number, height:number }|null}
+   */
+  getRangeBoundingRect() {
+    const ctx = this.getRangeContext();
+    if (!ctx || ctx.isCollapsed || !ctx.rangeRects?.length) return null;
+    const pageCanvases = this.container?.querySelectorAll('canvas');
+    if (!pageCanvases?.length) return null;
+
+    // canvas-editor RangeRect.{x,y,width,height} 는 페이지 캔버스 내부 좌표.
+    // startPageNo/endPageNo 는 0-base.
+    const startPage = pageCanvases[ctx.startPageNo];
+    const endPage = pageCanvases[ctx.endPageNo] || startPage;
+    if (!startPage) return null;
+
+    const startRect = startPage.getBoundingClientRect();
+    const endRect = endPage.getBoundingClientRect();
+    const scaleX = startRect.width / startPage.width;
+    const scaleY = startRect.height / startPage.height;
+
+    const first = ctx.rangeRects[0];
+    const last = ctx.rangeRects[ctx.rangeRects.length - 1];
+    const left = startRect.left + first.x * scaleX;
+    const top = startRect.top + first.y * scaleY;
+    const right = endRect.left + (last.x + last.width) * scaleX;
+    const bottom = endRect.top + (last.y + last.height) * scaleY;
+    return {
+      left,
+      top,
+      right,
+      bottom,
+      width: right - left,
+      height: bottom - top,
+    };
+  }
+
+  /**
+   * 현재 선택을 plain-text 로 교체. collapsed 면 caret 위치에 삽입.
+   * 한 줄 안의 \n 은 별도 element 로 분리해 줄바꿈을 보존한다.
+   * @param {string} text
+   * @returns {boolean} 성공 여부
+   */
+  replaceRangeText(text) {
+    const cmd = this.editor?.command;
+    if (!cmd) return false;
+    const range = cmd.getRange?.();
+    if (!range) return false;
+    if (range.startIndex !== range.endIndex && typeof cmd.executeBackspace === 'function') {
+      cmd.executeBackspace();
+    }
+    if (typeof cmd.executeInsertElementList !== 'function') return false;
+    const elementList = String(text)
+      .split('')
+      .map(ch => ({ value: ch }));
+    cmd.executeInsertElementList(elementList);
+    return true;
+  }
+
   onChange(callback) {
     this.onChangeCallback = callback;
   }
