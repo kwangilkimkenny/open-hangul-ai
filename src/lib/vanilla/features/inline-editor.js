@@ -122,34 +122,43 @@ export class InlineEditor {
     }
     if (this._compositionHandlers) {
       cellElement.removeEventListener('compositionstart', this._compositionHandlers.start);
+      cellElement.removeEventListener('compositionupdate', this._compositionHandlers.update);
       cellElement.removeEventListener('compositionend', this._compositionHandlers.end);
     }
 
     // ✅ IME Composition 상태 추적
     this.isComposing = false;
+    this.lastCompositionData = '';
 
-    const compositionStartHandler = () => {
+    const compositionStartHandler = e => {
       this.isComposing = true;
+      this.lastCompositionData = e.data || '';
       logger.debug('🎌 IME composition started');
     };
 
-    const compositionEndHandler = e => {
-      logger.debug('🎌 IME composition ended:', e.data);
+    const compositionUpdateHandler = e => {
+      // 일부 IME (특히 한글) 는 update 이벤트로 부분 조합 상태를 알린다.
+      // 이 시점에 isComposing 이 떨어지면 keydown guard 가 풀려 중복 입력이 발생할 수 있다.
+      this.isComposing = true;
+      this.lastCompositionData = e.data || '';
+    };
 
-      // ✅ 조합 완료 후 10ms 안정화 대기
-      // 일부 브라우저에서 compositionend 직후 keydown 이벤트가 즉시 발생할 수 있음
-      setTimeout(() => {
-        this.isComposing = false;
-        logger.debug('🎌 IME composition stabilized');
-      }, 10);
+    const compositionEndHandler = e => {
+      // compositionend 직후 즉시 isComposing 을 풀어 setTimeout 경합을 제거한다.
+      // 이전 setTimeout(10ms) 구현은 빠른 입력 시 다음 키를 삼키는 문제가 있었다.
+      this.isComposing = false;
+      this.lastCompositionData = '';
+      logger.debug('🎌 IME composition ended:', e.data);
     };
 
     cellElement.addEventListener('compositionstart', compositionStartHandler);
+    cellElement.addEventListener('compositionupdate', compositionUpdateHandler);
     cellElement.addEventListener('compositionend', compositionEndHandler);
 
     // ✅ Cleanup을 위해 핸들러 저장
     this._compositionHandlers = {
       start: compositionStartHandler,
+      update: compositionUpdateHandler,
       end: compositionEndHandler,
     };
 
@@ -171,7 +180,10 @@ export class InlineEditor {
 
     // 이미지 드래그 앤 드롭
     this.dropHandler = this._handleDrop.bind(this);
-    this.dragoverHandler = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+    this.dragoverHandler = e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    };
     cellElement.addEventListener('drop', this.dropHandler);
     cellElement.addEventListener('dragover', this.dragoverHandler);
   }
@@ -187,8 +199,16 @@ export class InlineEditor {
     // ✅ Phase 1 P0: IME Composition Guard (개선)
     // Korean/Japanese/Chinese input methods use composition events.
     // During composition, ignore ALL key events to prevent double-characters or broken input.
-    if (this.isComposing) {
+    // e.isComposing 은 일부 IME 에서 compositionstart 보다 먼저 keydown 을 보낼 때 필요하다.
+    if (this.isComposing || e.isComposing) {
       logger.debug('⏸️  Ignored key during IME composition:', e.key);
+      return;
+    }
+
+    // 한글 IME 에서 조합이 끝나기 전 마지막 keydown 이 keyCode 229 로 도착한다.
+    // Chrome/Edge/Safari 모두 이 패턴을 따른다 — 단축키 처리 전에 차단해야 한다.
+    if (e.keyCode === 229) {
+      logger.debug('⏸️  Ignored IME pending key (keyCode 229)');
       return;
     }
 
@@ -350,17 +370,17 @@ export class InlineEditor {
 
       // 현재 포커스된 요소가 툴바/리본/패널이면 편집 모드 유지
       const activeEl = document.activeElement;
-      const isToolbarClick = activeEl && (
-        activeEl.closest('.hwp-ribbon-panel') ||
-        activeEl.closest('.hwp-menubar') ||
-        activeEl.closest('.hwp-ribbon-tabs') ||
-        activeEl.closest('.hwp-toolbar') ||
-        activeEl.closest('.ai-chat-panel') ||
-        activeEl.closest('.color-picker') ||
-        activeEl.closest('[role="dialog"]') ||
-        activeEl.closest('select') ||
-        activeEl.closest('button')
-      );
+      const isToolbarClick =
+        activeEl &&
+        (activeEl.closest('.hwp-ribbon-panel') ||
+          activeEl.closest('.hwp-menubar') ||
+          activeEl.closest('.hwp-ribbon-tabs') ||
+          activeEl.closest('.hwp-toolbar') ||
+          activeEl.closest('.ai-chat-panel') ||
+          activeEl.closest('.color-picker') ||
+          activeEl.closest('[role="dialog"]') ||
+          activeEl.closest('select') ||
+          activeEl.closest('button'));
       if (isToolbarClick) {
         // blur 리스너를 다시 등록 (once이므로)
         this.editingCell.addEventListener('blur', this.blurHandler, { once: true });
@@ -372,48 +392,170 @@ export class InlineEditor {
   }
 
   /**
-   * Paste 이벤트 처리 - Plain text만 허용
-   * ✅ Phase 1 P1: Plain Text 모드 강제
+   * Paste 이벤트 처리
+   * - text/html 가 있으면 안전하게 sanitize 한 뒤 서식을 보존하여 삽입
+   * - text/plain fallback 은 줄바꿈을 <br> 로 변환하여 삽입
    * @private
    */
   _handlePaste(e) {
     e.preventDefault();
 
-    // 클립보드에서 plain text 추출
-    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    const clipboard = e.clipboardData || window.clipboardData;
+    if (!clipboard) {
+      logger.debug('⚠️ No clipboardData available');
+      return;
+    }
 
-    if (!text) {
+    const html = clipboard.getData('text/html');
+    const text = clipboard.getData('text/plain');
+
+    if (!html && !text) {
       logger.debug('⚠️ No text in clipboard');
       return;
     }
 
-    logger.debug(`📋 Pasting plain text: ${text.length} characters`);
-
-    // 현재 커서 위치에 삽입
     const selection = window.getSelection();
     if (!selection.rangeCount) return;
 
     const range = selection.getRangeAt(0);
     range.deleteContents();
 
-    // ✅ 줄바꿈을 <br>로 변환하여 삽입
+    if (html) {
+      this._insertSanitizedHtml(range, html);
+      logger.debug(`✅ Pasted sanitized HTML (${html.length} chars source)`);
+    } else {
+      this._insertPlainText(range, text);
+      logger.debug(`✅ Pasted ${text.split(/\r?\n/).length} lines as plain text`);
+    }
+
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  /**
+   * HTML 클립보드 데이터를 안전하게 정화하여 range 에 삽입한다.
+   * Word/Google Docs 등의 mso-* 스타일은 제거하고 인라인 스타일은 화이트리스트만 유지한다.
+   * @private
+   */
+  _insertSanitizedHtml(range, html) {
+    // 1. Word fragment 추출 — Office 는 <!--StartFragment--> ~ <!--EndFragment--> 로 감싼다.
+    const startMarker = html.indexOf('<!--StartFragment-->');
+    const endMarker = html.indexOf('<!--EndFragment-->');
+    let body = html;
+    if (startMarker !== -1 && endMarker !== -1) {
+      body = html.slice(startMarker + '<!--StartFragment-->'.length, endMarker);
+    }
+
+    // 2. sanitizeHTML 로 위험 태그/속성 제거 (paste 허용 태그 화이트리스트)
+    const safe = sanitizeHTML(body, {
+      allowedTags: [
+        'p',
+        'span',
+        'div',
+        'br',
+        'b',
+        'strong',
+        'i',
+        'em',
+        'u',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'ul',
+        'ol',
+        'li',
+        'a',
+      ],
+    });
+
+    // 3. 임시 컨테이너에 파싱하여 추가 정리 — Word/Google Docs 의 잡음 제거
+    const container = document.createElement('div');
+    container.innerHTML = safe;
+    this._cleanupPastedNode(container);
+
+    // 4. 노드들을 순서대로 range 에 삽입
+    const fragment = document.createDocumentFragment();
+    while (container.firstChild) {
+      fragment.appendChild(container.firstChild);
+    }
+
+    if (!fragment.childNodes.length) return;
+
+    const lastChild = fragment.lastChild;
+    range.insertNode(fragment);
+    range.setStartAfter(lastChild);
+  }
+
+  /**
+   * 붙여넣은 노드 트리에서 mso-* 스타일, 빈 wrapper, class 잔존물을 제거한다.
+   * @private
+   */
+  _cleanupPastedNode(root) {
+    const ALLOWED_STYLES = new Set([
+      'font-weight',
+      'font-style',
+      'text-decoration',
+      'text-align',
+      'color',
+      'background-color',
+    ]);
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+
+    nodes.forEach(node => {
+      // class 는 외부 CSS 와 충돌 가능성이 있어 제거
+      node.removeAttribute('class');
+
+      // style 화이트리스트 적용
+      const style = node.getAttribute('style');
+      if (style) {
+        const filtered = style
+          .split(';')
+          .map(rule => rule.trim())
+          .filter(rule => {
+            const [prop] = rule.split(':');
+            if (!prop) return false;
+            const name = prop.trim().toLowerCase();
+            // mso-* 와 화이트리스트에 없는 속성은 모두 제거
+            if (name.startsWith('mso-')) return false;
+            return ALLOWED_STYLES.has(name);
+          })
+          .join('; ');
+        if (filtered) {
+          node.setAttribute('style', filtered);
+        } else {
+          node.removeAttribute('style');
+        }
+      }
+    });
+  }
+
+  /**
+   * Plain text 를 줄바꿈을 <br> 로 변환하며 range 에 삽입한다.
+   * @private
+   */
+  _insertPlainText(range, text) {
     const lines = text.split(/\r?\n/);
     lines.forEach((line, idx) => {
       if (idx > 0) {
-        // 줄바꿈 추가
         const br = document.createElement('br');
         range.insertNode(br);
         range.setStartAfter(br);
       }
       if (line) {
-        // 텍스트 추가
         const textNode = document.createTextNode(line);
         range.insertNode(textNode);
         range.setStartAfter(textNode);
       }
     });
 
-    // ✅ 커서 위치 정규화 (마지막에 <br>이 있으면 zero-width space 추가)
+    // 커서 위치 정규화 (마지막에 <br>이 있으면 zero-width space 추가)
     if (lines[lines.length - 1] === '' || lines.length > 1) {
       const lastNode = range.startContainer;
       if (lastNode.nodeType === Node.ELEMENT_NODE && lastNode.lastChild?.nodeName === 'BR') {
@@ -422,12 +564,6 @@ export class InlineEditor {
         range.setStart(textNode, 1);
       }
     }
-
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-
-    logger.debug(`✅ Pasted ${lines.length} lines as plain text`);
   }
 
   /**
@@ -534,13 +670,16 @@ export class InlineEditor {
 
     if (prevAvailable < contentHeight - 50) return; // 여유 공간 부족
 
-    logger.info(`📄 Page merge: page ${pageIndex + 1} → page ${pageIndex} (content ${contentHeight}px, available ${prevAvailable}px)`);
+    logger.info(
+      `📄 Page merge: page ${pageIndex + 1} → page ${pageIndex} (content ${contentHeight}px, available ${prevAvailable}px)`
+    );
 
     // 현재 페이지의 본문 요소를 이전 페이지로 이동
-    const bodyElements = Array.from(pageDiv.children).filter(el =>
-      !el.classList.contains('hwp-page-header') &&
-      !el.classList.contains('hwp-page-footer') &&
-      !el.classList.contains('hwp-page-number')
+    const bodyElements = Array.from(pageDiv.children).filter(
+      el =>
+        !el.classList.contains('hwp-page-header') &&
+        !el.classList.contains('hwp-page-footer') &&
+        !el.classList.contains('hwp-page-number')
     );
 
     bodyElements.forEach(el => {
@@ -553,7 +692,9 @@ export class InlineEditor {
     // 편집 중인 셀 업데이트 (이동된 요소에서 계속 편집)
     if (this.editingCell && !this.editingCell.isConnected) {
       // 편집 셀이 제거된 경우 이전 페이지에서 마지막 편집 가능 요소 찾기
-      const lastEditable = prevPage.querySelector('.editable-paragraph:last-child, [contenteditable="true"]:last-child');
+      const lastEditable = prevPage.querySelector(
+        '.editable-paragraph:last-child, [contenteditable="true"]:last-child'
+      );
       if (lastEditable) {
         this.editingCell = lastEditable;
       }
@@ -618,13 +759,14 @@ export class InlineEditor {
     let splitIndex = -1;
     for (let i = 0; i < childNodes.length; i++) {
       const node = childNodes[i];
-      const rect = node.nodeType === Node.ELEMENT_NODE
-        ? node.getBoundingClientRect()
-        : (() => {
-            const range = document.createRange();
-            range.selectNode(node);
-            return range.getBoundingClientRect();
-          })();
+      const rect =
+        node.nodeType === Node.ELEMENT_NODE
+          ? node.getBoundingClientRect()
+          : (() => {
+              const range = document.createRange();
+              range.selectNode(node);
+              return range.getBoundingClientRect();
+            })();
 
       if (rect.bottom > pageBottom) {
         splitIndex = i;
@@ -696,7 +838,7 @@ export class InlineEditor {
     if (!newPara.closest('.hwp-table')) {
       newPara.classList.add('editable-paragraph');
       newPara.style.cursor = 'text';
-      newPara.addEventListener('click', (e) => {
+      newPara.addEventListener('click', e => {
         if (window.editModeManager && !window.editModeManager.isGlobalEditMode) return;
         if (this.editingCell === newPara) return;
         this.enableEditMode(newPara, newPara._paraData);
@@ -708,7 +850,9 @@ export class InlineEditor {
       this.viewer.renderer.totalPages = container.querySelectorAll('.hwp-page-container').length;
     }
 
-    logger.info(`📄 Page split complete: new page ${nextPageNum} created with ${newPara.childNodes.length} nodes`);
+    logger.info(
+      `📄 Page split complete: new page ${nextPageNum} created with ${newPara.childNodes.length} nodes`
+    );
   }
 
   /**
@@ -744,13 +888,13 @@ export class InlineEditor {
 
     // 서식 태그 → <span style="..."> 변환 (서식 보존)
     const formatMap = {
-      'B': 'font-weight:bold',
-      'STRONG': 'font-weight:bold',
-      'I': 'font-style:italic',
-      'EM': 'font-style:italic',
-      'U': 'text-decoration:underline',
-      'STRIKE': 'text-decoration:line-through',
-      'S': 'text-decoration:line-through',
+      B: 'font-weight:bold',
+      STRONG: 'font-weight:bold',
+      I: 'font-style:italic',
+      EM: 'font-style:italic',
+      U: 'text-decoration:underline',
+      STRIKE: 'text-decoration:line-through',
+      S: 'text-decoration:line-through',
     };
     temp.querySelectorAll('b, strong, i, em, u, strike, s').forEach(el => {
       const style = formatMap[el.tagName];
@@ -768,7 +912,15 @@ export class InlineEditor {
       if (font.face) span.style.fontFamily = font.face;
       if (font.color) span.style.color = font.color;
       if (font.size) {
-        const sizeMap = { '1': '8pt', '2': '10pt', '3': '12pt', '4': '14pt', '5': '18pt', '6': '24pt', '7': '36pt' };
+        const sizeMap = {
+          1: '8pt',
+          2: '10pt',
+          3: '12pt',
+          4: '14pt',
+          5: '18pt',
+          6: '24pt',
+          7: '36pt',
+        };
         span.style.fontSize = sizeMap[font.size] || `${font.size}pt`;
       }
       span.innerHTML = font.innerHTML;
@@ -1017,6 +1169,7 @@ export class InlineEditor {
     // ✅ IME composition 이벤트 제거
     if (this._compositionHandlers) {
       this.editingCell.removeEventListener('compositionstart', this._compositionHandlers.start);
+      this.editingCell.removeEventListener('compositionupdate', this._compositionHandlers.update);
       this.editingCell.removeEventListener('compositionend', this._compositionHandlers.end);
       this._compositionHandlers = null;
     }
@@ -1040,6 +1193,7 @@ export class InlineEditor {
     this.pasteHandler = null;
     this.inputHandler = null;
     this.isComposing = false;
+    this.lastCompositionData = '';
   }
 
   /**
@@ -1074,7 +1228,7 @@ export class InlineEditor {
     if (!element) return [];
     const runs = [];
 
-    const walk = (node) => {
+    const walk = node => {
       if (node.nodeType === Node.TEXT_NODE) {
         let text = node.textContent || '';
         text = text.replace(/\u200B/g, ''); // zero-width space 제거
@@ -1085,10 +1239,18 @@ export class InlineEditor {
         let parent = node.parentElement;
         while (parent && parent !== element) {
           const cs = parent.style;
-          if (cs.fontWeight === 'bold' || parent.tagName === 'B' || parent.tagName === 'STRONG') style.bold = true;
-          if (cs.fontStyle === 'italic' || parent.tagName === 'I' || parent.tagName === 'EM') style.italic = true;
-          if (cs.textDecoration?.includes('underline') || parent.tagName === 'U') style.underline = true;
-          if (cs.textDecoration?.includes('line-through') || parent.tagName === 'STRIKE' || parent.tagName === 'S') style.strikethrough = true;
+          if (cs.fontWeight === 'bold' || parent.tagName === 'B' || parent.tagName === 'STRONG')
+            style.bold = true;
+          if (cs.fontStyle === 'italic' || parent.tagName === 'I' || parent.tagName === 'EM')
+            style.italic = true;
+          if (cs.textDecoration?.includes('underline') || parent.tagName === 'U')
+            style.underline = true;
+          if (
+            cs.textDecoration?.includes('line-through') ||
+            parent.tagName === 'STRIKE' ||
+            parent.tagName === 'S'
+          )
+            style.strikethrough = true;
           if (cs.fontSize) style.fontSize = cs.fontSize;
           if (cs.fontFamily) style.fontFamily = cs.fontFamily;
           if (cs.color) style.color = cs.color;
@@ -1155,10 +1317,12 @@ export class InlineEditor {
     if (data.elements) {
       // 테이블 셀
       const firstPara = data.elements.find(e => e.type === 'paragraph');
-      const styleProps = firstPara ? {
-        paraShapeId: firstPara.paraShapeId,
-        styleId: firstPara.styleId,
-      } : {};
+      const styleProps = firstPara
+        ? {
+            paraShapeId: firstPara.paraShapeId,
+            styleId: firstPara.styleId,
+          }
+        : {};
 
       data.elements = data.elements.filter(e => e.type !== 'paragraph');
       data.elements.push({
@@ -1381,7 +1545,9 @@ export class InlineEditor {
             if (rows[rowIndex]) {
               const cellElements = rows[rowIndex].querySelectorAll('td, th');
               if (cellElements[colIndex]) {
-                logger.debug(`✅ Found cell via document position: table ${tableIndex}, row ${rowIndex}, col ${colIndex}`);
+                logger.debug(
+                  `✅ Found cell via document position: table ${tableIndex}, row ${rowIndex}, col ${colIndex}`
+                );
                 return cellElements[colIndex];
               }
             }
@@ -1393,7 +1559,9 @@ export class InlineEditor {
       if (data.runs !== undefined) {
         const position = this._findParagraphPositionInDocument(document, data);
         if (position !== null) {
-          const paragraphElements = this.viewer.container.querySelectorAll('.hwp-paragraph:not(.hwp-table .hwp-paragraph)');
+          const paragraphElements = this.viewer.container.querySelectorAll(
+            '.hwp-paragraph:not(.hwp-table .hwp-paragraph)'
+          );
           if (paragraphElements[position]) {
             logger.debug(`✅ Found paragraph via document position: index ${position}`);
             return paragraphElements[position];

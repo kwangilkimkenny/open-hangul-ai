@@ -137,3 +137,98 @@ describe('canvasEditorToHwpx', () => {
     expect(table.rows[1].cells[0].colSpan).toBe(2);
   });
 });
+
+describe('shape round-trip', () => {
+  const inlineShape = {
+    type: 'shape',
+    shapeType: 'rectangle',
+    treatAsChar: true,
+    width: 80,
+    height: 40,
+    borderRadius: 5,
+    style: {
+      backgroundColor: '#ffeb3b',
+      borderColor: '#000000',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+    },
+    position: { textWrap: 'INLINE' },
+    drawText: null,
+  };
+  const standaloneShape = {
+    type: 'shape',
+    shapeType: 'ellipse',
+    width: 120,
+    height: 80,
+    style: { backgroundColor: '#03a9f4' },
+    position: { textWrap: 'SQUARE' },
+    drawText: null,
+  };
+  const docWithShapes = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [
+              { text: '도형: ', style: {} },
+              { text: '', hasShape: true, style: {} },
+              { text: ' 끝', style: {} },
+            ],
+            shapes: [inlineShape],
+          },
+          standaloneShape,
+        ],
+      },
+    ],
+  };
+
+  it('preserves inline shape through hwpx → canvas-editor', () => {
+    const data = hwpxToCanvasEditor(docWithShapes);
+    const shapeEl = data.main.find(el => el.type === 'hwpxShape');
+    expect(shapeEl).toBeDefined();
+    expect(shapeEl._shape).toBe(inlineShape);
+    expect(shapeEl.width).toBe(80);
+    expect(shapeEl.height).toBe(40);
+  });
+
+  it('preserves standalone shape through hwpx → canvas-editor', () => {
+    const data = hwpxToCanvasEditor(docWithShapes);
+    const shapeEls = data.main.filter(el => el.type === 'hwpxShape');
+    expect(shapeEls.length).toBe(2);
+    expect(shapeEls[1]._shape.shapeType).toBe('ellipse');
+  });
+
+  it('round-trips inline shapes back into a paragraph with hasShape run', () => {
+    const data = hwpxToCanvasEditor(docWithShapes);
+    const hwpx = canvasEditorToHwpx(data);
+
+    const paras = hwpx.sections[0].elements.filter(e => e.type === 'paragraph');
+    const paraWithShape = paras.find(p => p.shapes && p.shapes.length > 0);
+    expect(paraWithShape).toBeDefined();
+    expect(paraWithShape.shapes[0].shapeType).toBe('rectangle');
+    expect(paraWithShape.shapes[0].borderRadius).toBe(5);
+    expect(paraWithShape.shapes[0].style.backgroundColor).toBe('#ffeb3b');
+
+    const shapeRun = paraWithShape.runs.find(r => r.hasShape);
+    expect(shapeRun).toBeDefined();
+  });
+
+  it('round-trips standalone shapes back as section-level shape', () => {
+    const data = hwpxToCanvasEditor(docWithShapes);
+    const hwpx = canvasEditorToHwpx(data);
+
+    const shapes = hwpx.sections[0].elements.filter(e => e.type === 'shape');
+    expect(shapes.length).toBe(1);
+    expect(shapes[0].shapeType).toBe('ellipse');
+    expect(shapes[0].style.backgroundColor).toBe('#03a9f4');
+  });
+
+  it('does not corrupt the source shape on round-trip', () => {
+    const data = hwpxToCanvasEditor(docWithShapes);
+    canvasEditorToHwpx(data);
+    // 원본 inlineShape 의 treatAsChar 가 변형되지 않아야 한다.
+    expect(inlineShape.treatAsChar).toBe(true);
+  });
+});

@@ -5,13 +5,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../utils/logger.js', () => ({
   getLogger: () => ({
-    info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), time: vi.fn(), timeEnd: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    time: vi.fn(),
+    timeEnd: vi.fn(),
   }),
 }));
 
-vi.mock('../utils/ui.js', () => ({
-  sanitizeHTML: vi.fn((html) => html),
-}));
+vi.mock('../utils/ui.js', async () => {
+  // sanitizeHTML 의 실제 구현이 paste 정화 테스트에서 필수다.
+  // 다른 호출자는 spy 가능하도록 vi.fn 래퍼로 감싼다.
+  const actual = await vi.importActual('../utils/ui.js');
+  return {
+    sanitizeHTML: vi.fn((html, options) => actual.sanitizeHTML(html, options)),
+  };
+});
 
 import { InlineEditor } from './inline-editor.js';
 import { sanitizeHTML } from '../utils/ui.js';
@@ -438,7 +448,7 @@ describe('InlineEditor', () => {
     // Create a mock paste event
     const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
     pasteEvent.clipboardData = {
-      getData: vi.fn((type) => {
+      getData: vi.fn(type => {
         if (type === 'text/plain') return 'Pasted text';
         return '';
       }),
@@ -475,5 +485,189 @@ describe('InlineEditor', () => {
     expect(result).not.toBeNull();
     expect(result.textContent).toBe('Deep text');
     expect(result.nodeType).toBe(Node.TEXT_NODE);
+  });
+
+  // 26. compositionstart sets isComposing immediately
+  it('should set isComposing on compositionstart', () => {
+    const cell = createCell('Hello');
+    editor.enableEditMode(cell, createCellData());
+
+    const event = new CompositionEvent('compositionstart', { data: '' });
+    cell.dispatchEvent(event);
+
+    expect(editor.isComposing).toBe(true);
+  });
+
+  // 27. compositionupdate keeps isComposing true and tracks data
+  it('should track partial composition data on compositionupdate', () => {
+    const cell = createCell('Hello');
+    editor.enableEditMode(cell, createCellData());
+
+    cell.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }));
+    // 한글 자모: ㅎ → 하 → 한
+    cell.dispatchEvent(new CompositionEvent('compositionupdate', { data: 'ㅎ' }));
+    expect(editor.isComposing).toBe(true);
+    expect(editor.lastCompositionData).toBe('ㅎ');
+
+    cell.dispatchEvent(new CompositionEvent('compositionupdate', { data: '한' }));
+    expect(editor.isComposing).toBe(true);
+    expect(editor.lastCompositionData).toBe('한');
+  });
+
+  // 28. compositionend clears isComposing immediately (no setTimeout race)
+  it('should clear isComposing immediately on compositionend (no race)', () => {
+    const cell = createCell('Hello');
+    editor.enableEditMode(cell, createCellData());
+
+    cell.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }));
+    expect(editor.isComposing).toBe(true);
+
+    cell.dispatchEvent(new CompositionEvent('compositionend', { data: '한' }));
+
+    // 핵심: setTimeout 을 거치지 않고 즉시 false 가 되어야 다음 키 입력이 막히지 않는다.
+    expect(editor.isComposing).toBe(false);
+    expect(editor.lastCompositionData).toBe('');
+  });
+
+  // 29. keyCode 229 (IME pending) is ignored even if isComposing is false
+  it('should ignore keydown with keyCode 229 (IME pending)', () => {
+    const cell = createCell('Hello');
+    editor.enableEditMode(cell, createCellData());
+
+    const saveSpy = vi.spyOn(editor, 'saveChanges');
+    const event = new KeyboardEvent('keydown', {
+      key: 'Process',
+      keyCode: 229,
+      bubbles: true,
+      cancelable: true,
+    });
+    cell.dispatchEvent(event);
+
+    // Escape 가 아니더라도 IME pending 키는 단축키 분기 전에 차단되어야 한다.
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
+  // 30. e.isComposing flag also blocks shortcuts
+  it('should ignore keydown when KeyboardEvent.isComposing is true', () => {
+    const cell = createCell('Hello');
+    editor.enableEditMode(cell, createCellData());
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'b',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    // 일부 브라우저는 compositionstart 보다 먼저 keydown 을 보내며 e.isComposing=true 를 세팅한다.
+    Object.defineProperty(event, 'isComposing', { value: true });
+    cell.dispatchEvent(event);
+
+    expect(mockTextFormatter.toggleBold).not.toHaveBeenCalled();
+  });
+
+  // 31. _disableEditMode cleans up compositionupdate listener
+  it('should remove compositionupdate listener on disable', () => {
+    const cell = createCell('Hello');
+    editor.enableEditMode(cell, createCellData());
+
+    expect(editor._compositionHandlers).toBeDefined();
+    expect(editor._compositionHandlers.update).toBeInstanceOf(Function);
+
+    editor._disableEditMode();
+    expect(editor._compositionHandlers).toBeNull();
+    expect(editor.isComposing).toBe(false);
+    expect(editor.lastCompositionData).toBe('');
+  });
+
+  // 32. Paste text/html is sanitized but preserves bold/italic
+  it('should sanitize HTML paste while preserving safe formatting', () => {
+    const cell = createCell('');
+    editor.enableEditMode(cell, createCellData());
+    cell.focus();
+
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    pasteEvent.clipboardData = {
+      getData: vi.fn(type => {
+        if (type === 'text/html') {
+          return '<p><b>안녕</b> <script>alert(1)</script><i>하세요</i></p>';
+        }
+        if (type === 'text/plain') return '안녕 하세요';
+        return '';
+      }),
+    };
+    pasteEvent.preventDefault = vi.fn();
+
+    cell.dispatchEvent(pasteEvent);
+
+    expect(pasteEvent.preventDefault).toHaveBeenCalled();
+    const html = cell.innerHTML;
+    expect(html).toContain('<b>안녕</b>');
+    expect(html).toContain('<i>하세요</i>');
+    expect(html).not.toContain('<script>');
+  });
+
+  // 33. Paste from Word strips mso-* styles and class attributes
+  it('should strip mso-* styles and class attributes from Word paste', () => {
+    const cell = createCell('');
+    editor.enableEditMode(cell, createCellData());
+
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const wordHtml =
+      '<!--StartFragment--><p class="MsoNormal" style="mso-pagination:none; color:red;">' +
+      'Word text</p><!--EndFragment-->';
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    pasteEvent.clipboardData = {
+      getData: vi.fn(type => (type === 'text/html' ? wordHtml : 'Word text')),
+    };
+    pasteEvent.preventDefault = vi.fn();
+
+    cell.dispatchEvent(pasteEvent);
+
+    const html = cell.innerHTML;
+    expect(html).not.toContain('mso-');
+    expect(html).not.toContain('MsoNormal');
+    expect(html).not.toContain('class=');
+    // color 는 화이트리스트에 있으므로 보존
+    expect(html).toContain('color');
+    expect(html).toContain('Word text');
+  });
+
+  // 34. Paste falls back to plain text when text/html is empty
+  it('should fall back to plain text when HTML clipboard is empty', () => {
+    const cell = createCell('');
+    editor.enableEditMode(cell, createCellData());
+
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    pasteEvent.clipboardData = {
+      getData: vi.fn(type => (type === 'text/plain' ? 'line1\nline2' : '')),
+    };
+    pasteEvent.preventDefault = vi.fn();
+
+    cell.dispatchEvent(pasteEvent);
+
+    const html = cell.innerHTML;
+    expect(html).toContain('line1');
+    expect(html).toContain('line2');
+    expect(html).toContain('<br>');
   });
 });

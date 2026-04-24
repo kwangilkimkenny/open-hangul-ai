@@ -72,6 +72,23 @@ function imageToElement(image) {
   };
 }
 
+/**
+ * 도형(shape) 라운드트립을 위한 캔버스-에디터 요소.
+ * canvas-editor 가 'hwpxShape' 타입을 모르더라도 우리 컨버터 페어가
+ * _shape 메타를 이용해 HWPX 모델로 복원할 수 있도록 한다.
+ */
+function shapeToElement(shape) {
+  const width = parseLengthPx(shape.width, 100);
+  const height = parseLengthPx(shape.height, 60);
+  return {
+    type: 'hwpxShape',
+    value: '',
+    width,
+    height,
+    _shape: shape,
+  };
+}
+
 function pushTextRun(out, text, baseAttrs) {
   for (const ch of String(text)) {
     out.push({ value: ch, ...baseAttrs });
@@ -95,6 +112,9 @@ function pushParagraph(out, para) {
   const breakAttrs = flex ? { rowFlex: flex } : {};
 
   const runs = para.runs || [];
+  // parser.js 는 hasShape 런에 shapeIndex 를 달지 않고 등장 순서대로 para.shapes 에 push 한다.
+  // 같은 순서 가정으로 카운터를 사용해 짝을 맞춘다.
+  let shapeCursor = 0;
   for (const run of runs) {
     if (!run) continue;
 
@@ -123,6 +143,11 @@ function pushParagraph(out, para) {
       continue;
     }
     if (run.hasShape) {
+      const shape = para.shapes && para.shapes[shapeCursor];
+      shapeCursor++;
+      if (shape) {
+        out.push(shapeToElement(shape));
+      }
       continue;
     }
 
@@ -151,6 +176,9 @@ function cellElements(cell) {
       out.push({ value: '\n' });
     } else if (elem.type === 'image') {
       out.push(imageToElement(elem));
+      out.push({ value: '\n' });
+    } else if (elem.type === 'shape') {
+      out.push(shapeToElement(elem));
       out.push({ value: '\n' });
     }
   }
@@ -226,6 +254,10 @@ export function hwpxToCanvasEditor(doc) {
         main.push({ value: '\n' });
       } else if (elem.type === 'image') {
         main.push(imageToElement(elem));
+        main.push({ value: '\n' });
+      } else if (elem.type === 'shape') {
+        // 섹션 레벨에 떠있는 standalone shape 도 보존한다.
+        main.push(shapeToElement(elem));
         main.push({ value: '\n' });
       }
     }
