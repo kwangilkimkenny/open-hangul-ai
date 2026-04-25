@@ -50,6 +50,9 @@ coverage/
 # MCP server (separate project)
 hanview-mcp/
 
+# HWP→HWPX local converter (external tool, ~200MB with node_modules)
+hwpTohwpx/
+
 # Claude Code
 .claude/
 .mcp.json
