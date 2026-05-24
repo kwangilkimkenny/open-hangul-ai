@@ -250,15 +250,16 @@ export const useLLMConfigStore = create<LLMConfigState>()(
 
             // API 키는 sessionStorage에 별도 저장
             if (data.state?.configs) {
-              Object.entries(data.state.configs).forEach(
-                ([provider, config]: [string, { apiKey?: string }]) => {
-                  if (config.apiKey) {
-                    sessionStorage.setItem(`llm-api-key-${provider}`, config.apiKey);
-                    // localStorage에는 API 키 제외하고 저장
-                    config.apiKey = '';
-                  }
+              const configEntries = Object.entries(data.state.configs) as Array<
+                [string, { apiKey?: string }]
+              >;
+              configEntries.forEach(([provider, config]) => {
+                if (config.apiKey) {
+                  sessionStorage.setItem(`llm-api-key-${provider}`, config.apiKey);
+                  // localStorage에는 API 키 제외하고 저장
+                  config.apiKey = '';
                 }
-              );
+              });
             }
 
             localStorage.setItem(key, JSON.stringify(data));

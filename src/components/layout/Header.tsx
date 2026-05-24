@@ -142,11 +142,7 @@ export function Header({ className }: HeaderProps) {
         filename: inputName,
       });
 
-      if (result.method === 'print') {
-        showToast('info', 'PDF 내보내기', '인쇄 대화상자에서 "PDF로 저장"을 선택하세요.');
-      } else {
-        showToast('success', 'PDF 완료', `${result.filename} 파일이 저장되었습니다.`);
-      }
+      showToast('success', 'PDF 완료', `${result.filename} 파일이 저장되었습니다.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'PDF 내보내기에 실패했습니다.';
       showToast('error', '내보내기 실패', message);
@@ -166,7 +162,7 @@ export function Header({ className }: HeaderProps) {
     setIsSavingMd(true);
     try {
       const { exportToMarkdown } = await import('../../lib/markdown/parser');
-      const md = exportToMarkdown(document as any);
+      const md = exportToMarkdown(document as Parameters<typeof exportToMarkdown>[0]);
       const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = window.document.createElement('a');
@@ -298,7 +294,11 @@ export function Header({ className }: HeaderProps) {
                 <FileDown className="btn-icon" size={18} />
               )}
               <span className="btn-text">HWPX 저장</span>
-              {isDirty && <span className="dirty-indicator" aria-label="저장되지 않은 변경사항 있음">●</span>}
+              {isDirty && (
+                <span className="dirty-indicator" aria-label="저장되지 않은 변경사항 있음">
+                  ●
+                </span>
+              )}
             </button>
 
             <button

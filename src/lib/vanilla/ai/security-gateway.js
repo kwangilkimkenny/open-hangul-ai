@@ -2,12 +2,16 @@
  * AEGIS Security Gateway
  * AI 보안 래퍼 - 프롬프트 인젝션, PII 보호, 출력 필터링
  *
+ * AEGIS SDK가 번들된 빌드에서는 상업용 엔진을 사용하고,
+ * OSS 빌드(SDK 없음)에서는 oss-security-engine.js의 경량 엔진으로 fallback.
+ *
  * @module ai/security-gateway
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import { getLogger } from '../utils/logger.js';
 import { AIConfig } from '../config/ai-config.js';
+import { OssSecurityEngine, OssPiiProxy } from './oss-security-engine.js';
 
 const logger = getLogger('SecurityGateway');
 
@@ -15,13 +19,15 @@ let AegisClass = null;
 let PiiProxyClass = null;
 
 /**
- * AEGIS SDK 래퍼 - 오프라인 모드로 동작
+ * AEGIS SDK 래퍼 - 오프라인 모드로 동작.
+ * SDK 미존재 시 OSS 엔진으로 자동 fallback.
  */
 export class SecurityGateway {
   constructor() {
     this.aegis = null;
     this.piiProxy = null;
     this._ready = false;
+    this._engine = 'none'; // 'aegis' | 'oss' | 'none'
     this._initPromise = this._initialize();
   }
 
@@ -35,18 +41,37 @@ export class SecurityGateway {
       this.aegis = new AegisClass(config);
       this.piiProxy = new PiiProxyClass();
       this._ready = true;
+      this._engine = 'aegis';
       logger.info('AEGIS SecurityGateway initialized (offline mode)');
     } catch (error) {
       // Expected on the OSS build — proprietary AEGIS SDK is not bundled.
       // Downgraded from error to info so dev consoles aren't alarmed.
-      logger.info('AEGIS SDK unavailable, security features running in no-op mode:', error.message);
-      this._ready = false;
+      logger.info('AEGIS SDK unavailable, falling back to OSS security engine:', error.message);
+      try {
+        this.aegis = new OssSecurityEngine();
+        this.piiProxy = new OssPiiProxy();
+        this._ready = true;
+        this._engine = 'oss';
+        logger.info('OSS SecurityGateway initialized (regex-based heuristic engine)');
+      } catch (ossError) {
+        logger.error('OSS security engine init failed:', ossError);
+        this._ready = false;
+        this._engine = 'none';
+      }
     }
   }
 
   async ensureReady() {
     if (!this._ready) await this._initPromise;
     return this._ready;
+  }
+
+  /**
+   * 현재 활성화된 엔진 이름 반환.
+   * @returns {'aegis'|'oss'|'none'}
+   */
+  getEngine() {
+    return this._engine;
   }
 
   isEnabled() {

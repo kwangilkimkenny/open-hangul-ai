@@ -22,8 +22,13 @@ interface NavigateInfo {
 
 interface CanvasEditorAdapter {
   commands?: {
+    // canvas-editor-commands.js 어댑터가 실제로 노출하는 검색/치환 API
+    find?: (text: string | null) => void;
+    findNext?: () => void;
+    findPrevious?: () => void;
     search?: (query: string) => void;
     replace?: (newText: string, options?: { all?: boolean }) => void;
+    replaceAll?: (searchText: string, replaceText: string) => void;
     clearSearch?: () => void;
   };
   editor?: {
@@ -35,8 +40,17 @@ interface CanvasEditorAdapter {
   };
 }
 
+interface SearchDialogShim {
+  show?: (mode?: Mode) => void;
+}
+
+type ViewerWithCanvasEditor = {
+  canvasEditor?: CanvasEditorAdapter;
+  searchDialog?: SearchDialogShim;
+};
+
 export function CanvasSearchBar({ viewer }: Props) {
-  const v = viewer as { canvasEditor?: CanvasEditorAdapter } | null;
+  const v = viewer as ViewerWithCanvasEditor | null;
   const adapter = v?.canvasEditor;
   const cmd = adapter?.commands;
   const editor = adapter?.editor;
@@ -60,7 +74,7 @@ export function CanvasSearchBar({ viewer }: Props) {
   const runSearch = useCallback(
     (value: string) => {
       if (!cmd) return;
-      cmd.find(value || null);
+      cmd.find?.(value || null);
       // canvas-editor 는 search 결과 갱신이 비동기 렌더 후 반영되므로 다음 tick 에 읽는다
       setTimeout(refreshInfo, 0);
     },

@@ -51,7 +51,9 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           configure: proxy => {
             proxy.on('error', (_err, _req, res) => {
-              if (res && !res.headersSent && typeof res.writeHead === 'function') {
+              // res 는 Socket | ServerResponse 의 유니온이므로
+              // ServerResponse 쪽 분기에서만 HTTP 응답을 직접 만든다.
+              if (res && 'writeHead' in res && !res.headersSent) {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ available: false, mode: 'offline' }));
               }

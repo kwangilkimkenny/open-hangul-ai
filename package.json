@@ -92,6 +92,7 @@
     "docx": "^9.6.1",
     "exceljs": "^4.4.0",
     "html2canvas": "^1.4.1",
+    "hwp2hwpx-js": "file:./hwpTohwpx/hpw2hwpx_converter/hwp2hwpx-js",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "katex": "^0.16.45",

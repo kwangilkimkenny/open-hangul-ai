@@ -161,11 +161,7 @@ export function Toolbar() {
         filename: inputName,
       });
 
-      if (result.method === 'print') {
-        showToast('info', 'PDF 내보내기', '인쇄 대화상자에서 "PDF로 저장"을 선택하세요.');
-      } else {
-        showToast('success', 'PDF 완료', `${result.filename} 파일이 저장되었습니다.`);
-      }
+      showToast('success', 'PDF 완료', `${result.filename} 파일이 저장되었습니다.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'PDF 내보내기에 실패했습니다.';
       showToast('error', '내보내기 실패', message);
@@ -257,7 +253,9 @@ export function Toolbar() {
           <ZoomOut size={20} />
         </button>
 
-        <span className="zoom-level" aria-live="polite" aria-atomic="true">{zoom}%</span>
+        <span className="zoom-level" aria-live="polite" aria-atomic="true">
+          {zoom}%
+        </span>
 
         <button className="toolbar-btn" onClick={zoomIn} title="확대">
           <ZoomIn size={20} />
