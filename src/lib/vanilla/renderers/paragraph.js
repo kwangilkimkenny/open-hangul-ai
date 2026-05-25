@@ -430,6 +430,10 @@ export function renderParagraph(para) {
                 wrapper.textContent = '[차트 렌더 실패]';
             }
             targetContainer.appendChild(wrapper);
+        } else if (run.type === 'ole') {
+            // ✅ OLE 임베드 객체 (Excel/Word/PowerPoint) — 미리보기 또는 placeholder
+            const oleEl = renderOleEmbed(run);
+            if (oleEl) targetContainer.appendChild(oleEl);
         } else if (run.type === 'memo') {
             // ✅ Phase 5: 메모 마커 — 본문에 작은 아이콘과 함께 노출
             const marker = document.createElement('span');
@@ -877,6 +881,99 @@ function renderEquation(run) {
         // mathml 도 없는 경우 한컴 스크립트를 monospace 폴백 표시
         wrapper.textContent = run.mathScript || run.text || '{수식}';
         wrapper.style.fontFamily = 'monospace';
+    }
+
+    if (run.style) applyRunStyle(wrapper, run.style);
+    return wrapper;
+}
+
+/**
+ * OLE 임베드 객체 렌더링
+ *
+ * 우선순위
+ *  1. previewUrl (Blob URL, parser 가 생성) → <img>
+ *  2. previewImage (Uint8Array) → 즉석 Blob URL 생성 후 <img>
+ *  3. fallback → placeholder div [Excel 객체] 등
+ *
+ * 보안: OLE 원본 바이트는 절대 실행하지 않는다. 미리보기 이미지만 렌더하며,
+ * 매크로/스크립트는 metadata 표시 외에는 사용되지 않는다.
+ *
+ * @param {Object} run
+ * @param {Object} [run.oleData]
+ * @param {string} [run.oleData.type]
+ * @param {Uint8Array|null} [run.oleData.previewImage]
+ * @param {string|null} [run.oleData.previewMimeType]
+ * @param {string|null} [run.oleData.previewUrl]
+ * @param {Object} [run.oleData.metadata]
+ * @returns {HTMLElement|null}
+ * @private
+ */
+function renderOleEmbed(run) {
+    const oleData = run?.oleData || null;
+    const type = oleData?.type || 'unknown';
+    const typeLabels = {
+        excel: 'Excel 객체',
+        word: 'Word 객체',
+        powerpoint: 'PowerPoint 객체',
+        unknown: 'OLE 객체'
+    };
+    const label = typeLabels[type] || typeLabels.unknown;
+
+    // 미리보기 이미지 URL 결정
+    let previewUrl = oleData?.previewUrl || null;
+    if (!previewUrl && oleData?.previewImage instanceof Uint8Array && oleData.previewImage.length > 0) {
+        try {
+            const mime = oleData.previewMimeType || 'application/octet-stream';
+            previewUrl = URL.createObjectURL(new Blob([oleData.previewImage], { type: mime }));
+        } catch (err) {
+            logger.warn?.('[Paragraph Renderer] OLE preview blob creation failed:', err?.message || err);
+        }
+    }
+
+    const wrapper = document.createElement('span');
+    wrapper.className = `hwp-ole hwp-ole-${type}`;
+    wrapper.setAttribute('data-ole-type', type);
+    wrapper.style.display = 'inline-block';
+    wrapper.style.verticalAlign = 'middle';
+
+    // metadata 툴팁
+    const meta = oleData?.metadata || {};
+    const tooltipParts = [
+        `Type: ${label}`,
+        meta.className ? `Class: ${meta.className}` : null,
+        meta.userType ? `User: ${meta.userType}` : null,
+        meta.originalName ? `File: ${meta.originalName}` : null,
+        meta.fileSize ? `Size: ${meta.fileSize} bytes` : null
+    ].filter(Boolean);
+    if (tooltipParts.length > 0) {
+        wrapper.setAttribute('title', tooltipParts.join('\n'));
+    }
+
+    if (previewUrl) {
+        const img = document.createElement('img');
+        img.className = 'hwp-ole-preview';
+        img.src = previewUrl;
+        img.alt = label;
+        if (run.width) img.style.width = `${run.width}px`;
+        if (run.height) img.style.height = `${run.height}px`;
+        img.style.maxWidth = '100%';
+        img.style.objectFit = 'contain';
+        wrapper.appendChild(img);
+    } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = `hwp-ole-placeholder hwp-ole-placeholder-${type}`;
+        placeholder.textContent = `[${label}]`;
+        placeholder.style.display = 'inline-block';
+        placeholder.style.padding = '8px 12px';
+        placeholder.style.border = '1px dashed #999';
+        placeholder.style.borderRadius = '4px';
+        placeholder.style.color = '#666';
+        placeholder.style.fontSize = '0.85em';
+        placeholder.style.fontFamily = 'system-ui, sans-serif';
+        placeholder.style.backgroundColor = '#f5f5f5';
+        if (run.width) placeholder.style.minWidth = `${run.width}px`;
+        if (run.height) placeholder.style.minHeight = `${run.height}px`;
+        wrapper.appendChild(placeholder);
     }
 
     if (run.style) applyRunStyle(wrapper, run.style);

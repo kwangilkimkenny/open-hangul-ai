@@ -22,6 +22,7 @@ import { HWPXConstants } from './constants.js';
 import { hancomToMathML as _convertHancomToMathML } from '../math/hancom-math-converter.js';
 import { parseChart } from '../chart/chart-parser.js';
 import { parseFormControl, isFormControlTag } from '../features/form-controls.js';
+import { parseOle, isOleBinData } from '../ole/ole-parser.js';
 
 const logger = getLogger();
 
@@ -224,6 +225,7 @@ export class SimpleHWPXParser {
         // Internal state
         this.entries = new Map();
         this.images = new Map();
+        this.oleObjects = new Map(); // BinData OLE 임베드 (Excel/Word/PowerPoint 등)
         this.styles = new Map();
         this.borderFills = new Map();
         this.paraProperties = new Map();
@@ -274,12 +276,14 @@ export class SimpleHWPXParser {
             const document = {
                 sections: content.sections || [],
                 images: this.images,
+                oleObjects: this.oleObjects,
                 borderFills: this.borderFills,
                 rawHeaderXml,
                 metadata: {
                     parsedAt: new Date().toISOString(),
                     sectionsCount: content.sections?.length || 0,
                     imagesCount: this.images.size,
+                    oleObjectsCount: this.oleObjects.size,
                     borderFillsCount: this.borderFills.size,
                     parserVersion: '3.0.0'
                 }
@@ -329,10 +333,49 @@ export class SimpleHWPXParser {
 
         logger.debug('🖼️  Loading binary data...');
         let imageCount = 0;
+        let oleCount = 0;
 
         for (const [path, data] of this.entries) {
             if (path.startsWith('BinData/')) {
                 const ext = path.split('.').pop().toLowerCase();
+                const filename = path.split('/').pop();
+                const id = filename.replace(/\.[^.]+$/, '');
+
+                // OLE 임베드 객체 (.ole/.olexml/.xlsx/.docx/.pptx 등) → 별도 파서
+                // 단, .emf/.wmf 는 이미지 미리보기로도 자주 쓰이므로 images 에도 함께 등록한다.
+                const isOle = isOleBinData(path);
+                const isMetafile = ext === 'emf' || ext === 'wmf';
+
+                if (isOle && !isMetafile) {
+                    try {
+                        const oleData = parseOle(data, filename);
+                        if (oleData) {
+                            // 미리보기 이미지가 있으면 이미지 Blob URL 도 생성
+                            let previewUrl = null;
+                            if (oleData.previewImage && oleData.previewMimeType) {
+                                const blob = new Blob([oleData.previewImage], {
+                                    type: oleData.previewMimeType
+                                });
+                                previewUrl = URL.createObjectURL(blob);
+                            }
+                            this.oleObjects.set(id, {
+                                id,
+                                path,
+                                filename,
+                                size: data.length,
+                                ...oleData,
+                                previewUrl
+                            });
+                            oleCount++;
+                            continue;
+                        }
+                    } catch (err) {
+                        logger.warn?.('⚠️  OLE parse failed:', filename, err?.message || err);
+                        // OLE 파싱 실패 시 이미지로도 폴백하지 않음 (실행 위험 차단)
+                        continue;
+                    }
+                }
+
                 const mimeTypes = {
                     'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
                     'png': 'image/png', 'gif': 'image/gif',
@@ -345,15 +388,13 @@ export class SimpleHWPXParser {
                 const mimeType = mimeTypes[ext] || 'application/octet-stream';
                 const blob = new Blob([data], { type: mimeType });
                 const url = URL.createObjectURL(blob);
-                const filename = path.split('/').pop();
-                const id = filename.replace(/\.[^.]+$/, '');
 
                 this.images.set(id, { id, url, path, mimeType, size: data.length, filename });
                 imageCount++;
             }
         }
 
-        logger.debug(`✅ Loaded ${imageCount} images`);
+        logger.debug(`✅ Loaded ${imageCount} images, ${oleCount} OLE objects`);
     }
 
     // ========================================================================
@@ -1658,6 +1699,13 @@ export class SimpleHWPXParser {
                             });
                         }
                     }
+                    // ★ OLE embedded objects (<hp:ole> / <ole binDataRef="..."/>)
+                    else if (tag === 'ole') {
+                        const oleRun = this._parseOleElement(child, charPrId);
+                        if (oleRun) {
+                            para.runs.push(oleRun);
+                        }
+                    }
                     // Text
                     else if (tag === 't') {
                         this._parseTextElement(child, charPrId, para);
@@ -1974,6 +2022,74 @@ export class SimpleHWPXParser {
         }
 
         return field;
+    }
+
+    /**
+     * <hp:ole> 처리 — BinData 의 OLE 객체와 연결하여 run.type='ole' 을 만든다.
+     *
+     * 처리 규칙
+     *  - binDataRef / binDataIDRef / src 어트리뷰트로 BinData id 결정
+     *  - this.oleObjects 에 해당 id 가 있으면 oleData 를 첨부
+     *  - 사이즈 (sz/width/height) 는 있을 때만 적용
+     *
+     * 보안: 본 모듈은 OLE 바이트를 읽어들이는 일 외에 절대로 실행하지 않는다.
+     * 매크로/스크립트 evaluation 은 발생하지 않으며 oleData.metadata 만 노출한다.
+     *
+     * @param {Element} oleElem
+     * @param {string|null} charPrId
+     * @returns {Object|null} run-like 객체
+     */
+    _parseOleElement(oleElem, charPrId) {
+        if (!oleElem || typeof oleElem.getAttribute !== 'function') return null;
+
+        const binDataRef =
+            oleElem.getAttribute('binDataRef') ||
+            oleElem.getAttribute('binDataIDRef') ||
+            oleElem.getAttribute('src') ||
+            oleElem.getAttribute('href') ||
+            '';
+
+        // id 는 일반적으로 BIN0001 형태이거나 BinData/BIN0001.ole 형태
+        let id = binDataRef;
+        if (id.includes('/')) id = id.split('/').pop();
+        if (id.includes('.')) id = id.replace(/\.[^.]+$/, '');
+
+        const oleData = (id && this.oleObjects.has(id))
+            ? this.oleObjects.get(id)
+            : null;
+
+        // 크기 파싱 (sz/width,height)
+        const szElem = qs(oleElem, 'sz');
+        let width = 0, height = 0;
+        if (szElem) {
+            const w = parseInt(szElem.getAttribute('width'), 10);
+            const h = parseInt(szElem.getAttribute('height'), 10);
+            if (Number.isFinite(w)) width = HWPXConstants.hwpuToPxUnscaled(w);
+            if (Number.isFinite(h)) height = HWPXConstants.hwpuToPxUnscaled(h);
+        } else {
+            const w = parseInt(oleElem.getAttribute('width'), 10);
+            const h = parseInt(oleElem.getAttribute('height'), 10);
+            if (Number.isFinite(w)) width = w;
+            if (Number.isFinite(h)) height = h;
+        }
+
+        const run = {
+            type: 'ole',
+            text: '',
+            binDataRef,
+            oleData: oleData || null,
+            width: width || undefined,
+            height: height || undefined,
+            style: {},
+            treatAsChar: true
+        };
+
+        if (charPrId && this.charProperties.has(charPrId)) {
+            run.style = { ...this.charProperties.get(charPrId) };
+            run.charPrIDRef = charPrId;
+        }
+
+        return run;
     }
 
     /**
