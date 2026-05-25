@@ -19,6 +19,7 @@
 import JSZip from 'jszip';
 import { getLogger } from '../utils/logger.js';
 import { HWPXConstants } from './constants.js';
+import { hancomToMathML as _convertHancomToMathML } from '../math/hancom-math-converter.js';
 
 const logger = getLogger();
 
@@ -1530,6 +1531,18 @@ export class SimpleHWPXParser {
                         return;
                     }
 
+                    // ★ Equation (수식) — Phase 5
+                    //   - <hp:equation>script</hp:equation>
+                    //   - <equation script="..."/>
+                    //   - <hp:eqedit> / <hp:eq> 변형
+                    if (tag === 'equation' || tag === 'eqedit' || tag === 'eq') {
+                        const eqRun = this._parseEquationElement(child, charPrId);
+                        if (eqRun) {
+                            para.runs.push(eqRun);
+                        }
+                        return;
+                    }
+
                     // Inline images
                     if (tag === 'pic') {
                         const image = this.parseImage(child);
@@ -1739,6 +1752,86 @@ export class SimpleHWPXParser {
             text: mainText,
             rubyText,
             style: {}
+        };
+        if (charPrId && this.charProperties.has(charPrId)) {
+            run.style = { ...this.charProperties.get(charPrId) };
+        }
+        return run;
+    }
+
+    /**
+     * 수식(Equation) 파싱 — Phase 5
+     * 지원 형태:
+     *   1. <hp:equation script="..."/> 또는 속성 mathScript / value / src
+     *   2. <hp:equation>스크립트 텍스트</hp:equation>
+     *   3. <hp:eqedit>...</hp:eqedit>, <hp:eq>...</hp:eq>
+     *   4. <mathml><math>...</math></mathml> 또는 <math> 직접 포함
+     *
+     * 산출 run:
+     *   {
+     *     type: 'equation',
+     *     mathScript: '<한컴 표기>',
+     *     mathml:     '<math ...>...</math>',
+     *     text:       '{수식}'    // 폴백 표시 텍스트
+     *   }
+     *
+     * 한컴 → MathML 변환은 hancom-math-converter 의 hancomToMathML 사용.
+     * MathML 이 직접 임베드 된 경우는 그대로 보존하고 한컴 표기 역변환 시도.
+     */
+    _parseEquationElement(eqElem, charPrId) {
+        // 1) 한컴 스크립트 추출
+        let script =
+            eqElem.getAttribute('script') ||
+            eqElem.getAttribute('mathScript') ||
+            eqElem.getAttribute('value') ||
+            eqElem.getAttribute('src') ||
+            '';
+
+        // 자식 <hp:script> 또는 <script> 텍스트
+        if (!script) {
+            const scriptElem = qs(eqElem, 'script');
+            if (scriptElem) script = scriptElem.textContent || '';
+        }
+
+        // 2) MathML 직접 임베드 여부 확인
+        let mathml = '';
+        const mathElem = qs(eqElem, 'math');
+        if (mathElem) {
+            try {
+                // outerHTML 우선 (jsdom 지원), 없으면 직렬화 폴백
+                mathml = mathElem.outerHTML || '';
+                if (!mathml && typeof XMLSerializer !== 'undefined') {
+                    mathml = new XMLSerializer().serializeToString(mathElem);
+                }
+            } catch {
+                mathml = '';
+            }
+        }
+
+        // 3) 스크립트가 없고 텍스트만 있다면 textContent 폴백
+        if (!script && !mathml) {
+            script = (eqElem.textContent || '').trim();
+        }
+
+        // 4) 한컴 스크립트 → MathML 변환 (필요한 경우)
+        if (script && !mathml) {
+            try {
+                // 동기 require 가 불가능 — lazy import 후 try/catch
+                // ESM 환경에서는 정적 import 로 대체 (아래 import 참조)
+                mathml = _convertHancomToMathML(script);
+            } catch {
+                mathml = '';
+            }
+        }
+
+        if (!script && !mathml) return null;
+
+        const run = {
+            type: 'equation',
+            mathScript: script || '',
+            mathml: mathml || '',
+            text: '{수식}',
+            style: {},
         };
         if (charPrId && this.charProperties.has(charPrId)) {
             run.style = { ...this.charProperties.get(charPrId) };

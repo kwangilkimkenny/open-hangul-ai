@@ -407,6 +407,10 @@ export function renderParagraph(para) {
             // ✅ Phase 2-4: Ruby (덧말/발음 표기) → <ruby>본문<rt>읽는법</rt></ruby>
             const rubyEl = renderRuby(run);
             targetContainer.appendChild(rubyEl);
+        } else if (run.type === 'equation') {
+            // ✅ Phase 5: 수식 (Hancom Equation Script ↔ MathML)
+            const eqEl = renderEquation(run);
+            targetContainer.appendChild(eqEl);
         } else {
             // Text run
             const span = document.createElement('span');
@@ -742,6 +746,65 @@ function renderRuby(run) {
     }
 
     return ruby;
+}
+
+/**
+ * ✅ Phase 5: 수식(Equation) 마크업 생성
+ *  - run.mathml 이 있으면 그대로 삽입 (브라우저 native MathML 렌더)
+ *  - 추가로 KaTeX 비동기 렌더를 시도(가능하면 더 보기 좋게 교체)
+ *  - mathml 이 없으면 한컴 스크립트 텍스트를 폴백 표시
+ *
+ * @param {Object} run - equation run 객체 (mathml?, mathScript?, text?)
+ * @returns {HTMLElement} 수식 컨테이너
+ * @private
+ */
+function renderEquation(run) {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'hwp-equation';
+    wrapper.setAttribute('data-equation', '1');
+    if (run.mathScript) {
+        wrapper.setAttribute('data-math-script', run.mathScript);
+    }
+
+    // 1) MathML 직접 삽입 (가장 안전한 폴백)
+    if (run.mathml) {
+        // jsdom / 일부 환경에서는 innerHTML 로 MathML XML 파싱이 까다로움
+        // → template 으로 안전하게 fragment 생성
+        try {
+            const tpl = document.createElement('template');
+            tpl.innerHTML = run.mathml;
+            if (tpl.content && tpl.content.firstChild) {
+                wrapper.appendChild(tpl.content.cloneNode(true));
+            } else {
+                // 폴백: 텍스트로 보존 (실수로 HTML 이스케이프 안 되게 textContent)
+                wrapper.textContent = run.text || '{수식}';
+            }
+        } catch {
+            wrapper.textContent = run.text || '{수식}';
+        }
+
+        // 2) KaTeX 로 보강 렌더 — 가능하면 동기 자리 그대로 치환
+        try {
+            import('../math/mathml-katex-bridge.js')
+                .then(({ renderKaTeXFromMathML }) =>
+                    renderKaTeXFromMathML(run.mathml)
+                )
+                .then((html) => {
+                    if (html && typeof html === 'string' && html.startsWith('<span')) {
+                        wrapper.innerHTML = html;
+                        wrapper.classList.add('hwp-equation-katex');
+                    }
+                })
+                .catch(() => { /* native MathML 폴백 그대로 유지 */ });
+        } catch { /* dynamic import 실패 무시 */ }
+    } else {
+        // mathml 도 없는 경우 한컴 스크립트를 monospace 폴백 표시
+        wrapper.textContent = run.mathScript || run.text || '{수식}';
+        wrapper.style.fontFamily = 'monospace';
+    }
+
+    if (run.style) applyRunStyle(wrapper, run.style);
+    return wrapper;
 }
 
 /**
