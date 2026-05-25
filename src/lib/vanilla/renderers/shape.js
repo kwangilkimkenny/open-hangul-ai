@@ -1,7 +1,7 @@
 /**
  * Shape Renderer
  * HWPX 도형을 HTML 요소로 렌더링
- * 
+ *
  * @module renderers/shape
  * @version 2.0.0
  */
@@ -10,8 +10,49 @@ import { HWPXConstants } from '../core/constants.js';
 import { renderParagraph } from './paragraph.js';
 import { renderTable } from './table.js';
 import { getLogger } from '../utils/logger.js';
+import { renderSVGShape } from './svg-shape.js';
+import { buildShapePath } from './shape-path-builder.js';
 
 const logger = getLogger('ShapeRenderer');
+
+// ✅ v3.1: 새 SVG 렌더러로 위임할 도형 타입
+// rect/ellipse/circle/line은 기존 div 기반 동작을 유지(외부 테스트 호환).
+// polygon/curve/arc/freeform/polyline은 SVG 위임.
+const SVG_NATIVE_TYPES = new Set(['polygon', 'polyline', 'curve', 'arc', 'freeform']);
+
+// ✅ v3.1: wrap 모드 중 새로 지원하는 값들. 발견 시 SVG 렌더러로 위임.
+const ADVANCED_WRAP_MODES = new Set([
+  'IN_FRONT_OF_TEXT',
+  'SQUARE',
+  'TIGHT',
+  'TOP_AND_BOTTOM',
+  'THROUGH',
+]);
+
+/**
+ * 도형이 SVG 렌더러로 위임돼야 하는지 판단.
+ * - polygon/curve/arc 등 path가 필요한 타입
+ * - 그라데이션, 그림자, 회전, 3D bevel 같은 고급 효과
+ * - 자식 도형 그룹(container)
+ * - 새 wrap 모드
+ * @param {Object} shape
+ * @returns {boolean}
+ */
+function shouldDelegateToSVG(shape) {
+  const type = (shape.shapeType || shape.type || '').toLowerCase();
+  if (SVG_NATIVE_TYPES.has(type)) return true;
+
+  const wrap = shape.position?.textWrap;
+  if (wrap && ADVANCED_WRAP_MODES.has(wrap)) return true;
+
+  if (shape.fill?.gradientCSS || shape.style?.gradientCSS || shape.gradientCSS) return true;
+  if (shape.shadow) return true;
+  if (shape.rotation || shape.style?.rotation) return true;
+  if (shape.effect?.bevel || shape.bevel) return true;
+  if (Array.isArray(shape.children) && shape.children.length > 0) return true;
+
+  return false;
+}
 
 /**
  * 🆕 Line 렌더링 (SVG)
@@ -19,64 +60,64 @@ const logger = getLogger('ShapeRenderer');
  * @returns {SVGElement} SVG line 요소
  */
 function renderLine(line) {
-    // SVG 컨테이너 생성
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'hwp-shape-line');
+  // SVG 컨테이너 생성
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'hwp-shape-line');
 
-    // 좌표 추출
-    const x0 = line.x0 || line.start?.x || 0;
-    const y0 = line.y0 || line.start?.y || 0;
-    const x1 = line.x1 || line.end?.x || 100;
-    const y1 = line.y1 || line.end?.y || 0;
+  // 좌표 추출
+  const x0 = line.x0 || line.start?.x || 0;
+  const y0 = line.y0 || line.start?.y || 0;
+  const x1 = line.x1 || line.end?.x || 100;
+  const y1 = line.y1 || line.end?.y || 0;
 
-    // SVG 크기 계산
-    const minX = Math.min(x0, x1);
-    const minY = Math.min(y0, y1);
-    const maxX = Math.max(x0, x1);
-    const maxY = Math.max(y0, y1);
-    const width = maxX - minX || 100;
-    const height = maxY - minY || 10;
+  // SVG 크기 계산
+  const minX = Math.min(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxX = Math.max(x0, x1);
+  const maxY = Math.max(y0, y1);
+  const width = maxX - minX || 100;
+  const height = maxY - minY || 10;
 
-    svg.setAttribute('width', width);
-    svg.setAttribute('height', height);
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    svg.style.display = 'block';
-    svg.style.overflow = 'visible';
+  svg.setAttribute('width', width);
+  svg.setAttribute('height', height);
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.style.display = 'block';
+  svg.style.overflow = 'visible';
 
-    // 위치 설정
-    if (line.position) {
-        svg.style.position = 'absolute';
-        if (line.position.x !== undefined) {
-            svg.style.left = `${line.position.x}px`;
-        }
-        if (line.position.y !== undefined) {
-            svg.style.top = `${line.position.y}px`;
-        }
+  // 위치 설정
+  if (line.position) {
+    svg.style.position = 'absolute';
+    if (line.position.x !== undefined) {
+      svg.style.left = `${line.position.x}px`;
     }
-
-    // Line 요소 생성
-    const lineElem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    lineElem.setAttribute('x1', x0 - minX);
-    lineElem.setAttribute('y1', y0 - minY);
-    lineElem.setAttribute('x2', x1 - minX);
-    lineElem.setAttribute('y2', y1 - minY);
-
-    // 스타일 적용
-    const color = line.strokeColor || line.color || '#000000';
-    const width_stroke = line.strokeWidth || line.width || 1;
-
-    lineElem.setAttribute('stroke', color);
-    lineElem.setAttribute('stroke-width', width_stroke);
-    lineElem.setAttribute('stroke-linecap', 'round');
-
-    // 투명도
-    if (line.opacity !== undefined) {
-        lineElem.setAttribute('opacity', line.opacity);
+    if (line.position.y !== undefined) {
+      svg.style.top = `${line.position.y}px`;
     }
+  }
 
-    svg.appendChild(lineElem);
+  // Line 요소 생성
+  const lineElem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  lineElem.setAttribute('x1', x0 - minX);
+  lineElem.setAttribute('y1', y0 - minY);
+  lineElem.setAttribute('x2', x1 - minX);
+  lineElem.setAttribute('y2', y1 - minY);
 
-    return svg;
+  // 스타일 적용
+  const color = line.strokeColor || line.color || '#000000';
+  const width_stroke = line.strokeWidth || line.width || 1;
+
+  lineElem.setAttribute('stroke', color);
+  lineElem.setAttribute('stroke-width', width_stroke);
+  lineElem.setAttribute('stroke-linecap', 'round');
+
+  // 투명도
+  if (line.opacity !== undefined) {
+    lineElem.setAttribute('opacity', line.opacity);
+  }
+
+  svg.appendChild(lineElem);
+
+  return svg;
 }
 
 /**
@@ -86,306 +127,336 @@ function renderLine(line) {
  * @returns {HTMLElement} 렌더링된 도형
  */
 export function renderShape(shape, images = null) {
-    // ✅ images가 Map이 아닐 경우 빈 Map으로 대체
-    if (images && !(images instanceof Map)) {
-        images = new Map();
+  // ✅ images가 Map이 아닐 경우 빈 Map으로 대체
+  if (images && !(images instanceof Map)) {
+    images = new Map();
+  }
+
+  const shapeType = shape.shapeType || shape.type || 'unknown';
+
+  // 🆕 Line 처리 - SVG로 렌더링 (외부 테스트 호환 유지)
+  if (shapeType === 'line') {
+    return renderLine(shape);
+  }
+
+  // ✅ v3.1: 고급 도형/효과는 SVG 렌더러에 위임
+  if (shouldDelegateToSVG(shape)) {
+    try {
+      return renderSVGShape(shape, {
+        renderParagraph,
+        renderTable,
+        images,
+      });
+    } catch (err) {
+      logger.warn('[Shape Renderer] SVG delegation failed, falling back to div:', err);
     }
+  }
 
-    const shapeType = shape.shapeType || shape.type || 'unknown';
+  const wrapper = document.createElement('div');
+  wrapper.className = `hwp-shape hwp-shape-${shapeType}`;
 
-    // 🆕 Line 처리 - SVG로 렌더링
-    if (shapeType === 'line') {
-        return renderLine(shape);
+  // ✅ v2.2.14: Mark inline shapes (treatAsChar) with data attribute for CSS targeting
+  if (shape.treatAsChar || shape.position?.treatAsChar) {
+    wrapper.setAttribute('data-inline', 'true');
+  }
+
+  // ✅ v2.2.7g: 기본 text-align 제거 (paragraph 정렬 우선)
+  wrapper.style.textAlign = 'initial';
+
+  // ✅ v2.2.14: Dimensions - 원본 크기 강제 유지 (!important로 CSS override 방지)
+  if (shape.width) {
+    const widthPx = typeof shape.width === 'number' ? `${shape.width}px` : shape.width;
+
+    // ✅ v2.2.14: Add data attribute for debugging
+    wrapper.setAttribute('data-expected-width', widthPx);
+
+    // Use setProperty with !important to override CSS rules
+    wrapper.style.setProperty('width', widthPx, 'important');
+    wrapper.style.setProperty('min-width', widthPx, 'important');
+    wrapper.style.setProperty('max-width', widthPx, 'important');
+    wrapper.style.setProperty('box-sizing', 'border-box', 'important');
+    wrapper.style.setProperty('flex-shrink', '0', 'important');
+    wrapper.style.setProperty('flex-grow', '0', 'important');
+
+    // Debug log for small shapes (like buttons)
+    if (shape.width < 200) {
+      logger.debug(
+        `[Shape Renderer] Small shape: width=${widthPx}, height=${shape.height}px, bg=${shape.style?.backgroundColor || shape.fillColor || 'none'}`
+      );
+      logger.debug(`[Shape Renderer] cssText: ${wrapper.style.cssText?.substring(0, 300)}`);
     }
+  }
+  if (shape.height) {
+    const heightPx = typeof shape.height === 'number' ? `${shape.height}px` : shape.height;
+    wrapper.style.setProperty('height', heightPx, 'important');
+    wrapper.style.setProperty('min-height', heightPx, 'important');
+  }
 
-    const wrapper = document.createElement('div');
-    wrapper.className = `hwp-shape hwp-shape-${shapeType}`;
+  // Positioning
+  if (shape.position) {
+    // ✅ v2.2.10: BEHIND_TEXT(배경) 도형은 항상 절대 위치로 배치
+    if (shape.isBackground || shape.position.textWrap === 'BEHIND_TEXT') {
+      wrapper.style.position = 'absolute';
+      wrapper.style.zIndex = '-1'; // 다른 요소 뒤에 배치
+      wrapper.style.pointerEvents = 'none'; // 클릭 불가
 
-    // ✅ v2.2.14: Mark inline shapes (treatAsChar) with data attribute for CSS targeting
-    if (shape.treatAsChar || shape.position?.treatAsChar) {
-        wrapper.setAttribute('data-inline', 'true');
-    }
+      // 위치 적용
+      if (shape.position.x !== undefined && shape.position.x !== null) {
+        wrapper.style.left = `${shape.position.x}px`;
+      } else {
+        wrapper.style.left = '0';
+      }
+      if (shape.position.y !== undefined && shape.position.y !== null) {
+        wrapper.style.top = `${shape.position.y}px`;
+      } else {
+        wrapper.style.top = '0';
+      }
 
-    // ✅ v2.2.7g: 기본 text-align 제거 (paragraph 정렬 우선)
-    wrapper.style.textAlign = 'initial';
+      logger.debug(
+        `[Shape Renderer] Background shape positioned at (${wrapper.style.left}, ${wrapper.style.top})`
+      );
+    } else if (shape.position.treatAsChar || shape.treatAsChar) {
+      // ✅ 인라인 Shape - 원본 크기 유지, 내용물 보이기
+      wrapper.style.display = 'inline-block';
+      wrapper.style.verticalAlign = 'middle';
+      wrapper.style.overflow = 'visible'; // 이미지가 보이도록
+    } else {
+      // ✅ 절대 위치 Shape - 페이지 폭 제한
+      wrapper.style.maxWidth = '100%';
+      wrapper.style.setProperty('max-width', '100%', 'important');
+      wrapper.style.overflow = 'hidden';
+      wrapper.style.position = 'absolute';
 
+      // ✅ FIX: Prevent abnormal position values (max 10000px)
+      // Values like 33554432px are CSS overflow bugs
+      const MAX_POSITION = 10000;
 
-    // ✅ v2.2.14: Dimensions - 원본 크기 강제 유지 (!important로 CSS override 방지)
-    if (shape.width) {
-        const widthPx = typeof shape.width === 'number' ? `${shape.width}px` : shape.width;
-
-        // ✅ v2.2.14: Add data attribute for debugging
-        wrapper.setAttribute('data-expected-width', widthPx);
-
-        // Use setProperty with !important to override CSS rules
-        wrapper.style.setProperty('width', widthPx, 'important');
-        wrapper.style.setProperty('min-width', widthPx, 'important');
-        wrapper.style.setProperty('max-width', widthPx, 'important');
-        wrapper.style.setProperty('box-sizing', 'border-box', 'important');
-        wrapper.style.setProperty('flex-shrink', '0', 'important');
-        wrapper.style.setProperty('flex-grow', '0', 'important');
-
-        // Debug log for small shapes (like buttons)
-        if (shape.width < 200) {
-            logger.debug(`[Shape Renderer] Small shape: width=${widthPx}, height=${shape.height}px, bg=${shape.style?.backgroundColor || shape.fillColor || 'none'}`);
-            logger.debug(`[Shape Renderer] cssText: ${wrapper.style.cssText?.substring(0, 300)}`);
+      if (shape.position.x !== undefined && shape.position.x !== null) {
+        const x =
+          typeof shape.position.x === 'number' ? shape.position.x : parseFloat(shape.position.x);
+        if (x < MAX_POSITION && x > -MAX_POSITION) {
+          wrapper.style.left = `${x}px`;
         }
-    }
-    if (shape.height) {
-        const heightPx = typeof shape.height === 'number' ? `${shape.height}px` : shape.height;
-        wrapper.style.setProperty('height', heightPx, 'important');
-        wrapper.style.setProperty('min-height', heightPx, 'important');
-    }
+      }
 
-    // Positioning
-    if (shape.position) {
-        // ✅ v2.2.10: BEHIND_TEXT(배경) 도형은 항상 절대 위치로 배치
-        if (shape.isBackground || shape.position.textWrap === 'BEHIND_TEXT') {
-            wrapper.style.position = 'absolute';
-            wrapper.style.zIndex = '-1'; // 다른 요소 뒤에 배치
-            wrapper.style.pointerEvents = 'none'; // 클릭 불가
+      if (shape.position.y !== undefined && shape.position.y !== null) {
+        let y =
+          typeof shape.position.y === 'number' ? shape.position.y : parseFloat(shape.position.y);
 
-            // 위치 적용
-            if (shape.position.x !== undefined && shape.position.x !== null) {
-                wrapper.style.left = `${shape.position.x}px`;
-            } else {
-                wrapper.style.left = '0';
-            }
-            if (shape.position.y !== undefined && shape.position.y !== null) {
-                wrapper.style.top = `${shape.position.y}px`;
-            } else {
-                wrapper.style.top = '0';
-            }
+        // ✅ Special adjustment for small number boxes (e.g. "1", "2", "3" in circles)
+        // These need to be moved up slightly to align with image center
+        const isSmallNumberBox =
+          shape.width < 50 &&
+          shape.height < 50 &&
+          shape.drawText &&
+          shape.drawText.paragraphs &&
+          shape.drawText.paragraphs.length === 1 &&
+          shape.drawText.paragraphs[0].text &&
+          shape.drawText.paragraphs[0].text.trim().length <= 2;
 
-            logger.debug(`[Shape Renderer] Background shape positioned at (${wrapper.style.left}, ${wrapper.style.top})`);
-        } else if (shape.position.treatAsChar || shape.treatAsChar) {
-            // ✅ 인라인 Shape - 원본 크기 유지, 내용물 보이기
-            wrapper.style.display = 'inline-block';
-            wrapper.style.verticalAlign = 'middle';
-            wrapper.style.overflow = 'visible'; // 이미지가 보이도록
-        } else {
-            // ✅ 절대 위치 Shape - 페이지 폭 제한
-            wrapper.style.maxWidth = '100%';
-            wrapper.style.setProperty('max-width', '100%', 'important');
-            wrapper.style.overflow = 'hidden';
-            wrapper.style.position = 'absolute';
-
-            // ✅ FIX: Prevent abnormal position values (max 10000px)
-            // Values like 33554432px are CSS overflow bugs
-            const MAX_POSITION = 10000;
-
-            if (shape.position.x !== undefined && shape.position.x !== null) {
-                const x = typeof shape.position.x === 'number' ? shape.position.x : parseFloat(shape.position.x);
-                if (x < MAX_POSITION && x > -MAX_POSITION) {
-                    wrapper.style.left = `${x}px`;
-                }
-            }
-
-            if (shape.position.y !== undefined && shape.position.y !== null) {
-                let y = typeof shape.position.y === 'number' ? shape.position.y : parseFloat(shape.position.y);
-
-                // ✅ Special adjustment for small number boxes (e.g. "1", "2", "3" in circles)
-                // These need to be moved up slightly to align with image center
-                const isSmallNumberBox = shape.width < 50 && shape.height < 50 &&
-                    shape.drawText && shape.drawText.paragraphs &&
-                    shape.drawText.paragraphs.length === 1 &&
-                    shape.drawText.paragraphs[0].text &&
-                    shape.drawText.paragraphs[0].text.trim().length <= 2;
-
-                if (isSmallNumberBox) {
-                    y = y - 7; // Move up 7px to center with image
-                }
-
-                if (y < MAX_POSITION && y > -MAX_POSITION) {
-                    wrapper.style.top = `${y}px`;
-                }
-            }
-        }
-    }
-
-
-    // Fill color - check multiple sources
-    if (shape.fillColor || shape.style?.backgroundColor) {
-        wrapper.style.backgroundColor = shape.fillColor || shape.style.backgroundColor;
-
-        // ✅ Apply opacity if specified
-        if (shape.style?.opacity !== undefined) {
-            wrapper.style.opacity = shape.style.opacity;
-        }
-    }
-
-    // ✅ Shape-specific styling
-    if (shapeType === 'ellipse' || shapeType === 'circle') {
-        // Make it circular
-        wrapper.style.borderRadius = '50%';
-    } else if (shapeType === 'rect' || shapeType === 'rectangle') {
-        // ✅ ratio 속성에 따른 동적 border-radius 계산
-        // HWPX ratio는 0-100 범위, 도형 단변의 ratio% 만큼 둥글게
-        if (shape.borderRadius && shape.borderRadius > 0) {
-            const width = parseFloat(shape.width) || 100;
-            const height = parseFloat(shape.height) || 100;
-            const minDimension = Math.min(width, height);
-            // ✅ v2.2.12: 원본과 유사하게 0.7배 적용
-            const radius = (shape.borderRadius / 100) * minDimension * 0.7;
-            wrapper.style.borderRadius = `${radius}px`;
-        } else {
-            // 기본값: 약간의 둥근 모서리
-            wrapper.style.borderRadius = '2px';
-        }
-    }
-
-
-    // Border (check both legacy and new style properties)
-    // ✅ Only render border if BOTH color AND width are explicitly defined
-    // This prevents unwanted default borders on shapes
-    const borderColor = shape.strokeColor || shape.style?.borderColor;
-    const borderWidth = shape.strokeWidth || shape.style?.borderWidth;
-    const borderStyle = shape.style?.borderStyle || 'solid';
-
-    if (borderColor && borderWidth) {
-        const width = typeof borderWidth === 'string' ? borderWidth : `${borderWidth || 1}px`;
-        wrapper.style.border = `${width} ${borderStyle} ${borderColor}`;
-        // Don't override shape-specific border-radius
-        if (!shapeType || shapeType === 'unknown') {
-            if (HWPXConstants.SHAPE_BORDER_RADIUS) {
-                wrapper.style.borderRadius = `${HWPXConstants.SHAPE_BORDER_RADIUS}px`;
-            }
-        }
-    }
-
-    // ✅ DrawText (text inside shape)
-    if (shape.drawText && shape.drawText.paragraphs) {
-
-        const textContainer = document.createElement('div');
-        textContainer.className = 'hwp-shape-drawtext';
-        textContainer.style.width = '100%';
-        textContainer.style.height = '100%';
-        textContainer.style.maxWidth = '100%'; // 🔧 Prevent overflow
-        textContainer.style.boxSizing = 'border-box';
-        textContainer.style.overflow = 'visible'; // ✅ 이미지가 보이도록 변경
-        textContainer.style.display = 'flex';
-        textContainer.style.flexDirection = 'column';
-
-        // ✅ v2.2.7g: textAlign 초기화 (paragraph 정렬 우선)
-        textContainer.style.textAlign = 'initial';
-        textContainer.style.alignItems = 'stretch'; // flex item이 전체 폭 사용
-
-        // ✅ Apply vertical alignment from drawText
-        const vertAlign = shape.drawText.vertAlign || 'TOP';
-        if (vertAlign === 'CENTER') {
-            textContainer.style.justifyContent = 'center';
-        } else if (vertAlign === 'BOTTOM') {
-            textContainer.style.justifyContent = 'flex-end';
-        } else {
-            textContainer.style.justifyContent = 'flex-start';
+        if (isSmallNumberBox) {
+          y = y - 7; // Move up 7px to center with image
         }
 
-        // ✅ v2.2.11: Apply textMargin (padding) - margin 속성명 사용
-        // Note: For vertAlign=CENTER, we reduce top padding to move text up
-        if (shape.drawText.margin) {
-            const m = shape.drawText.margin;
-            // Don't apply top padding when vertically centered - it pushes text down
-            // if (m.top !== undefined) textContainer.style.paddingTop = `${m.top}px`;
-            if (m.right !== undefined) textContainer.style.paddingRight = `${m.right}px`;
-            if (m.bottom !== undefined) textContainer.style.paddingBottom = `${m.bottom}px`;
-            if (m.left !== undefined) textContainer.style.paddingLeft = `${m.left}px`;
+        if (y < MAX_POSITION && y > -MAX_POSITION) {
+          wrapper.style.top = `${y}px`;
         }
+      }
+    }
+  }
 
-        textContainer.style.boxSizing = 'border-box';
+  // Fill color - check multiple sources
+  if (shape.fillColor || shape.style?.backgroundColor) {
+    wrapper.style.backgroundColor = shape.fillColor || shape.style.backgroundColor;
 
-        shape.drawText.paragraphs.forEach((para, idx) => {
-            // ✅ Mark paragraph as inside shape for special styling
-            para._insideShape = true;
+    // ✅ Apply opacity if specified
+    if (shape.style?.opacity !== undefined) {
+      wrapper.style.opacity = shape.style.opacity;
+    }
+  }
 
-            const paraElem = renderParagraph(para);
+  // ✅ Shape-specific styling
+  if (shapeType === 'ellipse' || shapeType === 'circle') {
+    // Make it circular
+    wrapper.style.borderRadius = '50%';
+  } else if (shapeType === 'rect' || shapeType === 'rectangle') {
+    // ✅ ratio 속성에 따른 동적 border-radius 계산
+    // HWPX ratio는 0-100 범위, 도형 단변의 ratio% 만큼 둥글게
+    if (shape.borderRadius && shape.borderRadius > 0) {
+      const width = parseFloat(shape.width) || 100;
+      const height = parseFloat(shape.height) || 100;
+      const minDimension = Math.min(width, height);
+      // ✅ v2.2.12: 원본과 유사하게 0.7배 적용
+      const radius = (shape.borderRadius / 100) * minDimension * 0.7;
+      wrapper.style.borderRadius = `${radius}px`;
+    } else {
+      // 기본값: 약간의 둥근 모서리
+      wrapper.style.borderRadius = '2px';
+    }
+  }
 
-            // ✅ v2.2.13: Replace inline table placeholders with actual tables
-            // Tables inside drawText paragraphs are rendered as placeholders by paragraph.js
-            const tablePlaceholders = paraElem.querySelectorAll('.hwp-inline-table-placeholder');
-            if (tablePlaceholders.length > 0) {
-                logger.debug(`[Shape Renderer] Found ${tablePlaceholders.length} table placeholder(s) in drawText paragraph`);
-                tablePlaceholders.forEach(placeholder => {
-                    const tableData = placeholder._tableData;
-                    if (tableData) {
-                        const tableElem = renderTable(tableData, images);
-                        // Apply shape-specific table styling
-                        tableElem.style.width = '100%';
-                        tableElem.style.maxWidth = '100%';
-                        placeholder.replaceWith(tableElem);
-                        logger.debug(`  → Replaced table placeholder with actual table (${tableData.rows?.length || 0} rows)`);
-                    }
-                });
-            }
+  // Border (check both legacy and new style properties)
+  // ✅ Only render border if BOTH color AND width are explicitly defined
+  // This prevents unwanted default borders on shapes
+  const borderColor = shape.strokeColor || shape.style?.borderColor;
+  const borderWidth = shape.strokeWidth || shape.style?.borderWidth;
+  const borderStyle = shape.style?.borderStyle || 'solid';
 
-            // ✅ v2.2.7g: Shape 안 paragraph 스타일 강화
-            paraElem.style.lineHeight = '1.0';
-            paraElem.style.margin = '0';
-            paraElem.style.padding = '0';
-            paraElem.style.boxSizing = 'border-box';
-            paraElem.style.maxWidth = '100%'; // ✅ Shape 폭 제한
-            paraElem.style.width = '100%'; // ✅ 전체 폭 사용
+  if (borderColor && borderWidth) {
+    const width = typeof borderWidth === 'string' ? borderWidth : `${borderWidth || 1}px`;
+    wrapper.style.border = `${width} ${borderStyle} ${borderColor}`;
+    // Don't override shape-specific border-radius
+    if (!shapeType || shapeType === 'unknown') {
+      if (HWPXConstants.SHAPE_BORDER_RADIUS) {
+        wrapper.style.borderRadius = `${HWPXConstants.SHAPE_BORDER_RADIUS}px`;
+      }
+    }
+  }
 
-            // ✅ v2.2.7g: paragraph의 text-align을 강제로 우선 적용
-            if (para.style?.textAlign) {
-                paraElem.style.setProperty('text-align', para.style.textAlign, 'important');
-            }
+  // ✅ DrawText (text inside shape)
+  if (shape.drawText && shape.drawText.paragraphs) {
+    const textContainer = document.createElement('div');
+    textContainer.className = 'hwp-shape-drawtext';
+    textContainer.style.width = '100%';
+    textContainer.style.height = '100%';
+    textContainer.style.maxWidth = '100%'; // 🔧 Prevent overflow
+    textContainer.style.boxSizing = 'border-box';
+    textContainer.style.overflow = 'visible'; // ✅ 이미지가 보이도록 변경
+    textContainer.style.display = 'flex';
+    textContainer.style.flexDirection = 'column';
 
-            textContainer.appendChild(paraElem);
+    // ✅ v2.2.7g: textAlign 초기화 (paragraph 정렬 우선)
+    textContainer.style.textAlign = 'initial';
+    textContainer.style.alignItems = 'stretch'; // flex item이 전체 폭 사용
+
+    // ✅ Apply vertical alignment from drawText
+    const vertAlign = shape.drawText.vertAlign || 'TOP';
+    if (vertAlign === 'CENTER') {
+      textContainer.style.justifyContent = 'center';
+    } else if (vertAlign === 'BOTTOM') {
+      textContainer.style.justifyContent = 'flex-end';
+    } else {
+      textContainer.style.justifyContent = 'flex-start';
+    }
+
+    // ✅ v2.2.11: Apply textMargin (padding) - margin 속성명 사용
+    // Note: For vertAlign=CENTER, we reduce top padding to move text up
+    if (shape.drawText.margin) {
+      const m = shape.drawText.margin;
+      // Don't apply top padding when vertically centered - it pushes text down
+      // if (m.top !== undefined) textContainer.style.paddingTop = `${m.top}px`;
+      if (m.right !== undefined) textContainer.style.paddingRight = `${m.right}px`;
+      if (m.bottom !== undefined) textContainer.style.paddingBottom = `${m.bottom}px`;
+      if (m.left !== undefined) textContainer.style.paddingLeft = `${m.left}px`;
+    }
+
+    textContainer.style.boxSizing = 'border-box';
+
+    shape.drawText.paragraphs.forEach((para, idx) => {
+      // ✅ Mark paragraph as inside shape for special styling
+      para._insideShape = true;
+
+      const paraElem = renderParagraph(para);
+
+      // ✅ v2.2.13: Replace inline table placeholders with actual tables
+      // Tables inside drawText paragraphs are rendered as placeholders by paragraph.js
+      const tablePlaceholders = paraElem.querySelectorAll('.hwp-inline-table-placeholder');
+      if (tablePlaceholders.length > 0) {
+        logger.debug(
+          `[Shape Renderer] Found ${tablePlaceholders.length} table placeholder(s) in drawText paragraph`
+        );
+        tablePlaceholders.forEach(placeholder => {
+          const tableData = placeholder._tableData;
+          if (tableData) {
+            const tableElem = renderTable(tableData, images);
+            // Apply shape-specific table styling
+            tableElem.style.width = '100%';
+            tableElem.style.maxWidth = '100%';
+            placeholder.replaceWith(tableElem);
+            logger.debug(
+              `  → Replaced table placeholder with actual table (${tableData.rows?.length || 0} rows)`
+            );
+          }
         });
+      }
 
-        wrapper.appendChild(textContainer);
-    }
+      // ✅ v2.2.7g: Shape 안 paragraph 스타일 강화
+      paraElem.style.lineHeight = '1.0';
+      paraElem.style.margin = '0';
+      paraElem.style.padding = '0';
+      paraElem.style.boxSizing = 'border-box';
+      paraElem.style.maxWidth = '100%'; // ✅ Shape 폭 제한
+      paraElem.style.width = '100%'; // ✅ 전체 폭 사용
 
-    // ✅ Phase 1.6: 도형 회전 (rotation)
-    // 90/180/270 등 임의 각도를 단순 transform 으로 처리한다.
-    if (typeof shape.rotation === 'number' && shape.rotation !== 0) {
-        wrapper.style.transform = `rotate(${shape.rotation}deg)`;
-        wrapper.style.transformOrigin = 'center center';
-    }
+      // ✅ v2.2.7g: paragraph의 text-align을 강제로 우선 적용
+      if (para.style?.textAlign) {
+        paraElem.style.setProperty('text-align', para.style.textAlign, 'important');
+      }
 
-    // ✅ v2.2.14: FINAL enforcement of width/height at the very end
-    // This ensures no subsequent operations override the critical dimensions
-    if (shape.width && shape.width < 500) {
-        const finalWidth = typeof shape.width === 'number' ? `${shape.width}px` : shape.width;
-        const finalHeight = shape.height ? (typeof shape.height === 'number' ? `${shape.height}px` : shape.height) : 'auto';
+      textContainer.appendChild(paraElem);
+    });
 
-        // Build the complete style string
-        const styleProps = [
-            `width: ${finalWidth} !important`,
-            `min-width: ${finalWidth} !important`,
-            `max-width: ${finalWidth} !important`,
-            `height: ${finalHeight} !important`,
-            `min-height: ${finalHeight} !important`,
-            `box-sizing: border-box !important`,
-            `flex-shrink: 0 !important`,
-            `flex-grow: 0 !important`,
-            `display: inline-block !important`
-        ];
+    wrapper.appendChild(textContainer);
+  }
 
-        // Get existing styles that we want to preserve
-        const bgColor = wrapper.style.backgroundColor;
-        const borderRadius = wrapper.style.borderRadius;
-        const textAlign = wrapper.style.textAlign;
-        const border = wrapper.style.border;
-        const transform = wrapper.style.transform;
-        const transformOrigin = wrapper.style.transformOrigin;
+  // ✅ Phase 1.6: 도형 회전 (rotation)
+  // FINAL enforcement 가 transform 을 보존하도록 그 전에 설정한다.
+  if (typeof shape.rotation === 'number' && shape.rotation !== 0) {
+    wrapper.style.transform = `rotate(${shape.rotation}deg)`;
+    wrapper.style.transformOrigin = 'center center';
+  }
 
-        if (bgColor) styleProps.push(`background-color: ${bgColor}`);
-        if (borderRadius) styleProps.push(`border-radius: ${borderRadius}`);
-        if (textAlign) styleProps.push(`text-align: ${textAlign}`);
-        if (border) styleProps.push(`border: ${border}`);
-        // ✅ Phase 1.6: rotation 보존
-        if (transform) styleProps.push(`transform: ${transform}`);
-        if (transformOrigin) styleProps.push(`transform-origin: ${transformOrigin}`);
+  // ✅ v2.2.14: FINAL enforcement of width/height at the very end
+  // This ensures no subsequent operations override the critical dimensions
+  if (shape.width && shape.width < 500) {
+    const finalWidth = typeof shape.width === 'number' ? `${shape.width}px` : shape.width;
+    const finalHeight = shape.height
+      ? typeof shape.height === 'number'
+        ? `${shape.height}px`
+        : shape.height
+      : 'auto';
 
-        // Set the final style attribute
-        wrapper.setAttribute('style', styleProps.join('; '));
+    // Build the complete style string
+    const styleProps = [
+      `width: ${finalWidth} !important`,
+      `min-width: ${finalWidth} !important`,
+      `max-width: ${finalWidth} !important`,
+      `height: ${finalHeight} !important`,
+      `min-height: ${finalHeight} !important`,
+      `box-sizing: border-box !important`,
+      `flex-shrink: 0 !important`,
+      `flex-grow: 0 !important`,
+      `display: inline-block !important`,
+    ];
 
-        logger.debug(`[Shape Renderer] FINAL style attribute for small shape: ${wrapper.getAttribute('style')}`);
-    }
+    // Get existing styles that we want to preserve
+    const bgColor = wrapper.style.backgroundColor;
+    const borderRadius = wrapper.style.borderRadius;
+    const textAlign = wrapper.style.textAlign;
+    const border = wrapper.style.border;
+    const transform = wrapper.style.transform;
+    const transformOrigin = wrapper.style.transformOrigin;
 
-    return wrapper;
+    if (bgColor) styleProps.push(`background-color: ${bgColor}`);
+    if (borderRadius) styleProps.push(`border-radius: ${borderRadius}`);
+    if (textAlign) styleProps.push(`text-align: ${textAlign}`);
+    if (border) styleProps.push(`border: ${border}`);
+    // ✅ Phase 1.6: rotation 보존
+    if (transform) styleProps.push(`transform: ${transform}`);
+    if (transformOrigin) styleProps.push(`transform-origin: ${transformOrigin}`);
+
+    // Set the final style attribute
+    wrapper.setAttribute('style', styleProps.join('; '));
+
+    logger.debug(
+      `[Shape Renderer] FINAL style attribute for small shape: ${wrapper.getAttribute('style')}`
+    );
+  }
+
+  return wrapper;
 }
 
-export default { renderShape };
+// ✅ v3.1: 새 SVG 렌더러 / path 빌더 재노출
+export { renderSVGShape, buildShapePath };
 
+export default { renderShape, renderSVGShape, buildShapePath };
