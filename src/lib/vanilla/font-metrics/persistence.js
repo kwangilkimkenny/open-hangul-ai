@@ -9,78 +9,104 @@
  *   - variant: weight + style (예: "400-normal", "700-italic")
  *   - version: 버전 문자열(없으면 'v1')
  *
- * IndexedDB 가 없는 환경(jsdom / SSR)에서는 모듈 스코프 메모리 Map 으로
- * 폴백한다 — 데이터는 프로세스 종료 시 사라진다.
+ * IndexedDB 가 없는 환경(jsdom / SSR)에서는 `idb-factory` 가 제공하는
+ * 공유 메모리 폴백(`getMemoryFallback(STORE_NAME)`)으로 자동 폴백한다.
+ *
+ * **마이그레이션 노트**
+ *   - 1.x: 자체 `openDB()` 로 `OpenHangulAI` DB 를 열고 모듈 내부 `Map`
+ *     으로 메모리 폴백을 구현했다.
+ *   - 2.x: KK 트랙의 통합 `idb-factory` 로 위임 — DB 핸들/메모리 폴백/
+ *     스키마 등록을 모두 팩토리가 관리한다. 외부 API 시그니처는 100%
+ *     유지된다.
  *
  * @module font-metrics/persistence
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-const DB_NAME = 'OpenHangulAI';
-const DB_VERSION = 1;
-const STORE_NAME = 'font-metrics';
+import {
+  registerStore,
+  getStore,
+  hasIndexedDB,
+  getMemoryFallback,
+  promisifyRequest,
+  awaitTransaction,
+} from '../../storage/idb-factory.ts';
 
-/** @type {Map<string, any>} */
-const memoryStore = new Map();
+/** Object Store 이름 — idb-factory 의 단일 `OpenHangulAI` DB 내부 스토어 */
+export const STORE_NAME = 'font-metrics';
 
 /**
- * IndexedDB 사용 가능 여부 검사.
+ * jsdom 등 IDB stub 환경에서 `idb-factory.openAppDB()` 가 무한 대기하는
+ * 케이스를 보호하기 위한 짧은 타임아웃(ms). 한 번 timeout 으로 실패하면
+ * 이후 호출은 메모리 전용으로 전환된다.
+ */
+const IDB_OP_TIMEOUT_MS = 250;
+
+// 모듈 로드 시 자신의 스토어를 팩토리에 등록한다.
+// (다른 모듈의 registerStore 와 동일한 `OpenHangulAI` DB 로 통합되어
+//  onupgradeneeded 시 일괄 생성된다.)
+registerStore(STORE_NAME, { keyPath: 'key' });
+
+/**
+ * IDB 가 한 번이라도 timeout/실패하면 영구히 메모리 전용으로 전환.
+ * 테스트 환경(jsdom)에서 stub `indexedDB.open` 이 콜백을 호출하지 않아
+ * 무한 대기하는 사고를 막는다.
+ */
+let _idbDisabled = false;
+
+/**
+ * Promise 에 timeout 을 부여한다. 시간 안에 끝나지 않으면 fallback 값을
+ * 반환한다(reject 하지 않음 — 호출자가 메모리 경로로 진행할 수 있게).
  *
- * jsdom 도 indexedDB 객체를 노출하지만 실제 트랜잭션은 작동 안 한다.
- * 따라서 `open` 함수 존재 + 호출 시 객체 반환까지 확인한다.
+ * @template T
+ * @param {Promise<T>} p
+ * @param {T} fallback
+ * @returns {Promise<T>}
+ */
+function withTimeout(p, fallback) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      _idbDisabled = true;
+      resolve(fallback);
+    }, IDB_OP_TIMEOUT_MS);
+    p.then(
+      (v) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(v);
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
+/**
+ * IDB 가 사용 가능하고 비활성화되지 않았는지 검사.
  *
  * @returns {boolean}
  */
-function hasIndexedDB() {
-  try {
-    if (typeof globalThis === 'undefined') return false;
-    const idb = /** @type {any} */ (globalThis).indexedDB;
-    return Boolean(idb && typeof idb.open === 'function');
-  } catch (_e) {
-    return false;
-  }
+function idbActive() {
+  return !_idbDisabled && hasIndexedDB();
 }
 
 /**
- * IDBRequest → Promise 헬퍼.
+ * write-through 캐시로 사용하는 공유 메모리 Map.
+ * - `idb-factory` 가 등록 스토어별로 lazy 하게 생성/반환한다.
+ * - IDB 사용 가능 환경에서도 hot-path 가속을 위해 항상 읽고/쓴다.
  *
- * @template T
- * @param {IDBRequest<T>} req
- * @returns {Promise<T>}
+ * @returns {Map<string, any>}
  */
-function reqToPromise(req) {
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error || new Error('IDBRequest failed'));
-  });
-}
-
-/**
- * DB open + store 보장.
- *
- * @returns {Promise<IDBDatabase|null>}
- */
-async function openDB() {
-  if (!hasIndexedDB()) return null;
-  return await new Promise((resolve) => {
-    let req;
-    try {
-      req = /** @type {any} */ (globalThis).indexedDB.open(DB_NAME, DB_VERSION);
-    } catch (_e) {
-      resolve(null);
-      return;
-    }
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (db && db.objectStoreNames && !db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'key' });
-      }
-    };
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => resolve(null);
-    // jsdom 등에서 콜백이 호출되지 않을 수 있어 짧은 타임아웃으로 보호
-    setTimeout(() => resolve(req.result || null), 0);
-  });
+function memMap() {
+  return /** @type {Map<string, any>} */ (getMemoryFallback(STORE_NAME));
 }
 
 /**
@@ -98,52 +124,101 @@ export function buildCacheKey(familyName, variant = '400-normal', version = 'v1'
 }
 
 /**
- * 캐시에서 메트릭을 읽는다.
+ * 캐시에서 메트릭을 읽는다. 우선순위: 메모리 → IDB.
  *
  * @param {string} key
  * @returns {Promise<any|null>}
  */
 export async function readMetrics(key) {
-  if (memoryStore.has(key)) {
-    return memoryStore.get(key);
+  const mem = memMap();
+  if (mem.has(key)) {
+    return mem.get(key);
   }
-  const db = await openDB();
-  if (!db) return null;
+  if (!idbActive()) return null;
+  const store = await withTimeout(getStore(STORE_NAME, 'readonly'), null);
+  if (!store) return null;
   try {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const got = await reqToPromise(store.get(key));
-    db.close();
+    const got = await withTimeout(promisifyRequest(store.get(key)), null);
     if (got && typeof got === 'object' && 'metrics' in got) {
-      return /** @type {any} */ (got).metrics;
+      const metrics = /** @type {any} */ (got).metrics;
+      // IDB 히트는 메모리에도 채워 다음 호출을 가속
+      mem.set(key, metrics);
+      return metrics;
     }
     return null;
   } catch (_e) {
-    try { db.close(); } catch (__) { /* ignore */ }
     return null;
   }
 }
 
 /**
- * 캐시에 메트릭을 저장한다.
+ * 캐시에 메트릭을 저장한다. 메모리에는 항상, IDB 에는 사용 가능할 때 기록.
  *
  * @param {string} key
  * @param {any} metrics
  * @returns {Promise<boolean>}
  */
 export async function writeMetrics(key, metrics) {
-  memoryStore.set(key, metrics);
-  const db = await openDB();
-  if (!db) return false;
+  memMap().set(key, metrics);
+  if (!idbActive()) return false;
+  const store = await withTimeout(getStore(STORE_NAME, 'readwrite'), null);
+  if (!store) return false;
   try {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    await reqToPromise(store.put({ key, metrics, savedAt: Date.now() }));
-    db.close();
-    return true;
+    store.put({ key, metrics, savedAt: Date.now() });
+    const ok = await withTimeout(
+      awaitTransaction(store.transaction).then(() => true),
+      false,
+    );
+    return ok;
   } catch (_e) {
-    try { db.close(); } catch (__) { /* ignore */ }
     return false;
+  }
+}
+
+/**
+ * 캐시 단일 항목 삭제.
+ *
+ * @param {string} key
+ * @returns {Promise<boolean>}
+ */
+export async function deleteMetrics(key) {
+  const mem = memMap();
+  mem.delete(key);
+  if (!idbActive()) return false;
+  const store = await withTimeout(getStore(STORE_NAME, 'readwrite'), null);
+  if (!store) return false;
+  try {
+    store.delete(key);
+    const ok = await withTimeout(
+      awaitTransaction(store.transaction).then(() => true),
+      false,
+    );
+    return ok;
+  } catch (_e) {
+    return false;
+  }
+}
+
+/**
+ * 캐시 전체 키 목록(메모리 + IDB 머지).
+ *
+ * @returns {Promise<Array<string>>}
+ */
+export async function listMetrics() {
+  const set = new Set(memMap().keys());
+  if (!idbActive()) return Array.from(set);
+  const store = await withTimeout(getStore(STORE_NAME, 'readonly'), null);
+  if (!store) return Array.from(set);
+  try {
+    const keys = await withTimeout(promisifyRequest(store.getAllKeys()), null);
+    if (Array.isArray(keys)) {
+      for (const k of keys) {
+        if (typeof k === 'string') set.add(k);
+      }
+    }
+    return Array.from(set);
+  } catch (_e) {
+    return Array.from(set);
   }
 }
 
@@ -153,16 +228,15 @@ export async function writeMetrics(key, metrics) {
  * @returns {Promise<void>}
  */
 export async function clearCache() {
-  memoryStore.clear();
-  const db = await openDB();
-  if (!db) return;
+  memMap().clear();
+  if (!idbActive()) return;
+  const store = await withTimeout(getStore(STORE_NAME, 'readwrite'), null);
+  if (!store) return;
   try {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    await reqToPromise(store.clear());
-    db.close();
+    store.clear();
+    await withTimeout(awaitTransaction(store.transaction), undefined);
   } catch (_e) {
-    try { db.close(); } catch (__) { /* ignore */ }
+    /* ignore */
   }
 }
 
@@ -172,13 +246,15 @@ export async function clearCache() {
  * @returns {number}
  */
 export function memoryCacheSize() {
-  return memoryStore.size;
+  return memMap().size;
 }
 
 export default {
   buildCacheKey,
   readMetrics,
   writeMetrics,
+  deleteMetrics,
+  listMetrics,
   clearCache,
   memoryCacheSize,
 };
