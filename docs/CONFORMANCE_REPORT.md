@@ -1,56 +1,56 @@
 # HWPX Conformance Report
 
-> spec: `KS X 6101 + HWPML 2011 (Hancom)` · generated: `2026-05-22`
+> spec: `KS X 6101 + HWPML 2011 (Hancom)` · generated: `2026-05-25`
 
 ## Summary
 
 | Dimension | Score | Max | Percent |
 | --- | ---: | ---: | ---: |
-| parser | 15.0 | 41 | 36.6% |
-| renderer | 12.0 | 41 | 29.3% |
-| roundtrip | 5.0 | 41 | 12.2% |
-| **overall** | **32.0** | **123** | **26.0%** |
+| parser | 32.5 | 41 | 79.3% |
+| renderer | 28.0 | 41 | 68.3% |
+| roundtrip | 17.0 | 41 | 41.5% |
+| **overall** | **77.5** | **123** | **63.0%** |
 
 ## Text
 
 | Feature | Parser | Renderer | Round-trip | Priority | Golden |
 | --- | --- | --- | --- | :---: | --- |
-| Plain paragraph | 🟢 supported | 🟢 supported | 🟡 partial | P0 | `01-paragraph` |
-| Paragraph alignment (left/center/right/justify/distribute) | 🟢 supported | 🟢 supported | 🟡 partial | P0 | `01-paragraph` |
-| Paragraph indent & spacing | 🟡 partial | 🟡 partial | 🟡 partial | P0 | `01-paragraph` |
-| Line height / line spacing | 🟡 partial | 🟡 partial | 🔴 missing | P1 | `01-paragraph` |
-| Inline run formatting (bold/italic/underline/strike) | 🟢 supported | 🟢 supported | 🟡 partial | P0 | `01-paragraph` |
-| Font color & highlight | 🟢 supported | 🟢 supported | 🟡 partial | P0 | `01-paragraph` |
-| Font family & size (한글/영문 별도) | 🟡 partial | 🟡 partial | 🟡 partial | P1 | `01-paragraph` |
-| Superscript / subscript | 🟡 partial | 🟡 partial | 🔴 missing | P2 | - |
-| Tab stops (정의 + 정렬) | 🔴 missing | 🔴 missing | 🔴 missing | P2 | - |
+| Plain paragraph | 🟢 supported | 🟢 supported | 🟢 supported | P0 | `01-paragraph` |
+| Paragraph alignment (left/center/right/justify/distribute) | 🟢 supported | 🟢 supported | 🟢 supported | P0 | `01-paragraph` |
+| Paragraph indent & spacing | 🟢 supported | 🟢 supported | 🟡 partial | P0 | `01-paragraph` |
+| Line height / line spacing | 🟢 supported | 🟡 partial | 🟡 partial | P1 | `01-paragraph` |
+| Inline run formatting (bold/italic/underline/strike) | 🟢 supported | 🟢 supported | 🟢 supported | P0 | `01-paragraph` |
+| Font color & highlight | 🟢 supported | 🟢 supported | 🟢 supported | P0 | `01-paragraph` |
+| Font family & size (한글/영문 별도) | 🟢 supported | 🟡 partial | 🟡 partial | P1 | `01-paragraph` |
+| Superscript / subscript | 🟢 supported | 🟢 supported | 🟡 partial | P2 | - |
+| Tab stops (정의 + 정렬) | 🟡 partial | 🟡 partial | 🔴 missing | P2 | - |
 | 한자 변환 (Hanja conversion) | 🔴 missing | 🔴 missing | 🔴 missing | P3 | - |
 
 ## Layout
 
 | Feature | Parser | Renderer | Round-trip | Priority | Golden |
 | --- | --- | --- | --- | :---: | --- |
-| Page size / orientation / margins | 🟢 supported | 🟡 partial | 🟡 partial | P0 | - |
-| Multi-column layout | 🟡 partial | 🔴 missing | 🔴 missing | P1 | `08-multi-column` |
-| Header / footer (odd/even/first split) | 🟡 partial | 🔴 missing | 🔴 missing | P1 | `06-header-footer` |
-| Section break / different section properties | 🟡 partial | 🔴 missing | 🔴 missing | P1 | - |
-| Page numbering field | 🟡 partial | 🟡 partial | 🔴 missing | P1 | `07-field` |
-| Watermark | 🔴 missing | 🔴 missing | 🔴 missing | P3 | - |
+| Page size / orientation / margins | 🟢 supported | 🟢 supported | 🟡 partial | P0 | - |
+| Multi-column layout | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `08-multi-column` |
+| Header / footer (odd/even/first split) | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `06-header-footer` |
+| Section break / different section properties | 🟢 supported | 🟡 partial | 🟡 partial | P1 | - |
+| Page numbering field | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `07-field` |
+| Watermark | 🟢 supported | 🟡 partial | 🔴 missing | P3 | - |
 
 ## Object
 
 | Feature | Parser | Renderer | Round-trip | Priority | Golden |
 | --- | --- | --- | --- | :---: | --- |
-| Table (rows/cols, merge) | 🟢 supported | 🟡 partial | 🟡 partial | P0 | `02-table` |
-| Table header repeat across pages | 🔴 missing | 🔴 missing | 🔴 missing | P2 | `02-table` |
-| Table cell borders / shading | 🟡 partial | 🟡 partial | 🔴 missing | P1 | `02-table` |
-| Image inline & floating + wrap | 🟡 partial | 🟡 partial | 🟡 partial | P0 | `03-image` |
-| Image rotation / flip / crop | 🔴 missing | 🔴 missing | 🔴 missing | P2 | `03-image` |
-| Shape (rect/ellipse/line/freeform) | 🟡 partial | 🟡 partial | 🔴 missing | P1 | `04-shape` |
-| Shape gradient / shadow | 🔴 missing | 🔴 missing | 🔴 missing | P2 | `04-shape` |
-| Shape grouping (z-order) | 🔴 missing | 🔴 missing | 🔴 missing | P2 | `04-shape` |
-| Text box (도형 내 텍스트) | 🟡 partial | 🔴 missing | 🔴 missing | P1 | - |
-| Math equation (수식) | 🔴 missing | 🔴 missing | 🔴 missing | P2 | - |
+| Table (rows/cols, merge) | 🟢 supported | 🟢 supported | 🟡 partial | P0 | `02-table` |
+| Table header repeat across pages | 🟢 supported | 🟡 partial | 🟡 partial | P2 | `02-table` |
+| Table cell borders / shading | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `02-table` |
+| Image inline & floating + wrap | 🟢 supported | 🟢 supported | 🟡 partial | P0 | `03-image` |
+| Image rotation / flip / crop | 🟢 supported | 🟢 supported | 🟡 partial | P2 | `03-image` |
+| Shape (rect/ellipse/line/freeform) | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `04-shape` |
+| Shape gradient / shadow | 🟢 supported | 🟢 supported | 🟡 partial | P2 | `04-shape` |
+| Shape grouping (z-order) | 🟡 partial | 🟡 partial | 🔴 missing | P2 | `04-shape` |
+| Text box (도형 내 텍스트) | 🟢 supported | 🟢 supported | 🟡 partial | P1 | - |
+| Math equation (수식) | 🟡 partial | 🔴 missing | 🔴 missing | P2 | - |
 | Chart (차트) | 🔴 missing | 🔴 missing | 🔴 missing | P3 | - |
 | OLE embed / linked object | 🔴 missing | 🔴 missing | 🔴 missing | P3 | - |
 
@@ -58,23 +58,23 @@
 
 | Feature | Parser | Renderer | Round-trip | Priority | Golden |
 | --- | --- | --- | --- | :---: | --- |
-| Footnote / endnote | 🔴 missing | 🔴 missing | 🔴 missing | P1 | `05-footnote` |
-| Hyperlink (external / mailto / internal) | 🟡 partial | 🟡 partial | 🔴 missing | P1 | `11-hyperlink` |
-| Bookmark | 🔴 missing | 🔴 missing | 🔴 missing | P1 | `12-bookmark` |
-| Cross-reference | 🔴 missing | 🔴 missing | 🔴 missing | P2 | `12-bookmark` |
-| Table of contents (목차) | 🔴 missing | 🔴 missing | 🔴 missing | P2 | - |
-| Numbered / bulleted lists (다단계) | 🟡 partial | 🟡 partial | 🔴 missing | P1 | `09-numbering` |
-| Ruby (한자 음/훈 표시) | 🔴 missing | 🔴 missing | 🔴 missing | P2 | `10-ruby` |
+| Footnote / endnote | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `05-footnote` |
+| Hyperlink (external / mailto / internal) | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `11-hyperlink` |
+| Bookmark | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `12-bookmark` |
+| Cross-reference | 🟡 partial | 🟡 partial | 🔴 missing | P2 | `12-bookmark` |
+| Table of contents (목차) | 🟡 partial | 🔴 missing | 🔴 missing | P2 | - |
+| Numbered / bulleted lists (다단계) | 🟢 supported | 🟢 supported | 🟡 partial | P1 | `09-numbering` |
+| Ruby (한자 음/훈 표시) | 🟢 supported | 🟢 supported | 🟡 partial | P2 | `10-ruby` |
 | Index (색인) | 🔴 missing | 🔴 missing | 🔴 missing | P3 | - |
 
 ## Document
 
 | Feature | Parser | Renderer | Round-trip | Priority | Golden |
 | --- | --- | --- | --- | :---: | --- |
-| Document metadata (title/author/keywords) | 🟢 supported | 🟢 supported | 🟡 partial | P0 | - |
-| Custom styles & character styles | 🟡 partial | 🟡 partial | 🔴 missing | P1 | - |
+| Document metadata (title/author/keywords) | 🟢 supported | 🟢 supported | 🟢 supported | P0 | - |
+| Custom styles & character styles | 🟢 supported | 🟡 partial | 🟡 partial | P1 | - |
 | Track changes (변경 내용) | 🔴 missing | 🔴 missing | 🔴 missing | P3 | - |
-| Comments / annotations (메모) | 🟡 partial | 🟡 partial | 🔴 missing | P2 | - |
+| Comments / annotations (메모) | 🟢 supported | 🟡 partial | 🟡 partial | P2 | - |
 | Document password / encryption | 🔴 missing | 🔴 missing | 🔴 missing | P3 | - |
 
 ---
