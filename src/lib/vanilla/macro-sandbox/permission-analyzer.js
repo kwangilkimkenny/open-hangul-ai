@@ -106,8 +106,16 @@ export const PERMISSION_CATALOG = {
  * @param {string} name
  * @returns {string[]} 매칭된 권한 ID 목록 (없으면 빈 배열)
  */
+// 정규식 매칭 결과 메모이즈 — 대규모 매크로 (500+ 식별자) 에서 동일 식별자가
+// 여러 번 등장할 때 80+회 정규식 테스트를 반복하던 비용 제거.
+const _matchPermissionCache = new Map();
+const MATCH_CACHE_LIMIT = 5000;
+
 function matchPermission(name) {
   if (!name || typeof name !== 'string') return [];
+  const cached = _matchPermissionCache.get(name);
+  if (cached !== undefined) return cached;
+
   const hits = [];
   for (const [permId, def] of Object.entries(PERMISSION_CATALOG)) {
     for (const pat of def.patterns) {
@@ -117,6 +125,13 @@ function matchPermission(name) {
       }
     }
   }
+
+  // 단순 LRU — 한계 초과 시 첫 항목 제거
+  if (_matchPermissionCache.size >= MATCH_CACHE_LIMIT) {
+    const firstKey = _matchPermissionCache.keys().next().value;
+    _matchPermissionCache.delete(firstKey);
+  }
+  _matchPermissionCache.set(name, hits);
   return hits;
 }
 

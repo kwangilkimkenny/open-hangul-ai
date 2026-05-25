@@ -140,54 +140,67 @@ export async function openOleEditDialog(opts) {
     decoded = { type: 'unsupported', message: `Decode failed: ${err?.message || err}` };
   }
 
+  // 타입별 렌더 디스패처 — 새 타입 추가 시 이 객체에만 한 줄 추가.
+  // null 반환 = 편집 불가 (저장 버튼 숨김).
+  const EDITOR_FACTORIES = {
+    excel: (b, d) => {
+      const ed = new ExcelEditor({ container: b, dataModel: d });
+      ed.render();
+      return ed;
+    },
+    word: (b, d) => {
+      const ed = new WordEditor({ container: b, dataModel: d });
+      ed.render();
+      return ed;
+    },
+    powerpoint: (b, d) => {
+      const list = document.createElement('div');
+      list.className = `${DIALOG_CLASS}__viewer`;
+      for (const slide of d.slides || []) {
+        const sl = document.createElement('section');
+        sl.className = `${DIALOG_CLASS}__slide`;
+        if (slide.title) {
+          const h = document.createElement('h4');
+          h.textContent = slide.title;
+          sl.appendChild(h);
+        }
+        for (const line of slide.body || []) {
+          const p = document.createElement('p');
+          p.textContent = line;
+          sl.appendChild(p);
+        }
+        list.appendChild(sl);
+      }
+      b.appendChild(list);
+      return null; // read-only viewer
+    },
+  };
+
+  const renderUnsupported = (message) => {
+    state = 'unsupported';
+    body.innerHTML = '';
+    const note = document.createElement('div');
+    note.className = `${DIALOG_CLASS}__unsupported`;
+    note.textContent = message;
+    body.appendChild(note);
+    saveBtn.disabled = true;
+    saveBtn.style.display = 'none';
+  };
+
   if (!decoded || decoded.type === 'unsupported') {
-    state = 'unsupported';
-    body.innerHTML = '';
-    const note = document.createElement('div');
-    note.className = `${DIALOG_CLASS}__unsupported`;
-    note.textContent =
-      decoded?.message || '이 OLE 객체는 브라우저 인플레이스 편집을 지원하지 않습니다.';
-    body.appendChild(note);
-    saveBtn.disabled = true;
-    saveBtn.style.display = 'none';
-  } else if (decoded.type === 'excel') {
-    editor = new ExcelEditor({ container: body, dataModel: decoded });
-    editor.render();
-  } else if (decoded.type === 'word') {
-    editor = new WordEditor({ container: body, dataModel: decoded });
-    editor.render();
-  } else if (decoded.type === 'powerpoint') {
-    state = 'unsupported';
-    body.innerHTML = '';
-    const list = document.createElement('div');
-    list.className = `${DIALOG_CLASS}__viewer`;
-    for (const slide of decoded.slides || []) {
-      const sl = document.createElement('section');
-      sl.className = `${DIALOG_CLASS}__slide`;
-      if (slide.title) {
-        const h = document.createElement('h4');
-        h.textContent = slide.title;
-        sl.appendChild(h);
-      }
-      for (const line of slide.body || []) {
-        const p = document.createElement('p');
-        p.textContent = line;
-        sl.appendChild(p);
-      }
-      list.appendChild(sl);
+    renderUnsupported(
+      decoded?.message || '이 OLE 객체는 브라우저 인플레이스 편집을 지원하지 않습니다.'
+    );
+  } else if (EDITOR_FACTORIES[decoded.type]) {
+    editor = EDITOR_FACTORIES[decoded.type](body, decoded);
+    if (!editor) {
+      // viewer-only (powerpoint)
+      state = 'unsupported';
+      saveBtn.disabled = true;
+      saveBtn.style.display = 'none';
     }
-    body.appendChild(list);
-    saveBtn.disabled = true;
-    saveBtn.style.display = 'none';
   } else {
-    state = 'unsupported';
-    body.innerHTML = '';
-    const note = document.createElement('div');
-    note.className = `${DIALOG_CLASS}__unsupported`;
-    note.textContent = `미지원 타입: ${decoded.type}`;
-    body.appendChild(note);
-    saveBtn.disabled = true;
-    saveBtn.style.display = 'none';
+    renderUnsupported(`미지원 타입: ${decoded.type}`);
   }
 
   if (opts.readOnly) {

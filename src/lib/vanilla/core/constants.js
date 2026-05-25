@@ -168,6 +168,21 @@ export const HWPXConstants = {
     },
 
     /**
+     * 밀리미터를 PDF 포인트로 변환 (72pt = 1 inch).
+     * PDF user space 좌표계 (cmyk-pdf, pdf-lib) 에서 사용.
+     */
+    mmToPt(mm) {
+        return mm * 72 / 25.4;
+    },
+
+    /**
+     * PDF 포인트를 밀리미터로 변환.
+     */
+    ptToMm(pt) {
+        return pt * 25.4 / 72;
+    },
+
+    /**
      * 픽셀을 포인트로 변환
      * @param {number} px - 픽셀 값
      * @returns {number} 포인트 값

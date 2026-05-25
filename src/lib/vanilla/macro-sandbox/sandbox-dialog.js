@@ -10,7 +10,7 @@
  * @module macro-sandbox/sandbox-dialog
  */
 
-import { escapeHtml } from '../security/macro-detector.js';
+import { escapeHtml } from '../../utils/html-escape.js';
 import { getRiskBadge } from './simulation-report.js';
 import { getPermissionMeta, groupDetailsByType } from './permission-analyzer.js';
 

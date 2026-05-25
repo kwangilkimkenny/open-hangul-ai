@@ -138,10 +138,30 @@ function detectStyle(os2) {
  * @returns {Promise<FontMetrics>}
  * @throws 잘못된 폰트이거나 opentype.js 가 로드 불가하면 Error
  */
+// 같은 폰트 buffer 가 여러 번 들어와도 opentype.parse 는 1회만.
+// 키는 byteLength + 첫 32B 의 fnv-1a 해시 (같은 파일이면 같은 키).
+const _parsedMetricsCache = new Map();
+const PARSED_CACHE_LIMIT = 32;
+
+function bufferKey(buffer) {
+  const view = new Uint8Array(buffer, 0, Math.min(32, buffer.byteLength));
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < view.length; i++) {
+    hash ^= view[i];
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${buffer.byteLength}:${hash >>> 0}`;
+}
+
 export async function extractFontMetrics(buffer) {
   if (!buffer || !(buffer instanceof ArrayBuffer) || buffer.byteLength === 0) {
     throw new Error('extractFontMetrics: invalid buffer');
   }
+
+  const key = bufferKey(buffer);
+  const cached = _parsedMetricsCache.get(key);
+  if (cached) return cached;
+
   const opentype = await loadOpenType();
   if (!opentype || typeof opentype.parse !== 'function') {
     throw new Error('extractFontMetrics: opentype.js unavailable');
@@ -205,7 +225,7 @@ export async function extractFontMetrics(buffer) {
     glyphCount = font.numGlyphs;
   }
 
-  return {
+  const metrics = {
     familyName,
     fullName,
     postScriptName,
@@ -223,6 +243,13 @@ export async function extractFontMetrics(buffer) {
     hasLigatures: detectLigatures(font),
     source: 'opentype',
   };
+
+  if (_parsedMetricsCache.size >= PARSED_CACHE_LIMIT) {
+    const firstKey = _parsedMetricsCache.keys().next().value;
+    _parsedMetricsCache.delete(firstKey);
+  }
+  _parsedMetricsCache.set(key, metrics);
+  return metrics;
 }
 
 /**

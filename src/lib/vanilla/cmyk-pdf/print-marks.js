@@ -39,9 +39,8 @@ const ZERO_ROT = {
   ySkew: degrees(0),
 };
 
-/**
- * 1mm 를 PDF 포인트로 환산.
- */
+// PDF user space 좌표계 — 72pt = 1 inch = 25.4mm.
+// HWPXConstants.mmToPt() 와 동일 값. 모듈 상수로 유지해 hot path 에서 함수 호출 회피.
 export const MM_TO_PT = 72 / 25.4; // ≈ 2.8346456693
 
 /**
