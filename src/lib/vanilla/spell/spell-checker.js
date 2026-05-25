@@ -17,6 +17,9 @@
 
 import { getAllRules } from './spell-rules.js';
 import { isIgnored } from './user-dictionary.js';
+import { createAIDebouncer } from './ai-debounce.js';
+import { checkTextWithAI } from './ai-spell-checker.js';
+import { assertQuota, recordUsage, checkQuota } from './ai-quota.js';
 
 /**
  * @typedef {Object} SpellIssue
@@ -267,12 +270,143 @@ export function autoFix(text, options) {
   return { fixed, issues };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Hybrid (정규식 + AI) 검사                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * AI 결과를 SpellIssue 모양으로 변환.
+ * (오버레이/팝업이 기존 필드명을 사용하므로 호환되게 매핑)
+ * @param {import('./ai-spell-checker.js').AIIssue} ai
+ * @returns {SpellIssue & { aiGenerated:true, reason:string }}
+ */
+function _aiToSpellIssue(ai) {
+  return {
+    ruleId: `ai:${ai.severity}:${ai.start}-${ai.end}`,
+    start: ai.start,
+    end: ai.end,
+    text: ai.original,
+    replacement: ai.suggestion,
+    severity: ai.severity === 'error' ? 'error' : 'warning',
+    category: ai.category && ['spelling','spacing','foreign','particle'].includes(ai.category)
+      ? ai.category
+      : 'spelling',
+    hint: ai.reason || 'AI 추천 수정',
+    aiGenerated: true,
+    reason: ai.reason || 'AI 추천 수정',
+  };
+}
+
+/** 인스턴스 단위 디바운서 (모듈 전역 공유 — 단일 활성 입력 가정) */
+let _sharedDebouncer = null;
+function _getDebouncer(options) {
+  const delay = options && Number.isFinite(options.aiDelayMs) ? options.aiDelayMs : undefined;
+  if (!_sharedDebouncer || (delay !== undefined && _sharedDebouncer._delay !== delay)) {
+    _sharedDebouncer = createAIDebouncer({ delay });
+    _sharedDebouncer._delay = delay;
+  }
+  return _sharedDebouncer;
+}
+
+/**
+ * 두 이슈 배열을 병합. 같은 (start,end) 가 충돌하면 AI 결과 우선.
+ * @param {Array<SpellIssue>} ruleIssues
+ * @param {Array<SpellIssue & {aiGenerated?:boolean}>} aiIssues
+ * @returns {Array<SpellIssue & {aiGenerated?:boolean}>}
+ */
+export function mergeIssues(ruleIssues, aiIssues) {
+  const map = new Map();
+  for (const it of Array.isArray(ruleIssues) ? ruleIssues : []) {
+    if (!it) continue;
+    map.set(`${it.start}:${it.end}`, it);
+  }
+  for (const it of Array.isArray(aiIssues) ? aiIssues : []) {
+    if (!it) continue;
+    map.set(`${it.start}:${it.end}`, it); // AI 우선
+  }
+  return Array.from(map.values()).sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+/**
+ * Hybrid 검사: 1차 정규식(동기) + 2차 AI(비동기, 옵션).
+ *
+ * @param {string} text
+ * @param {CheckOptions & {
+ *   enableAI?:boolean,
+ *   aiOptions?:import('./ai-spell-checker.js').AICheckOptions,
+ *   aiDelayMs?:number,
+ *   aiLimit?:number,
+ * }} [options]
+ * @returns {{
+ *   ruleIssues: Array<SpellIssue>,
+ *   aiPromise: Promise<Array<SpellIssue & {aiGenerated?:boolean}>>,
+ *   mergedPromise: Promise<Array<SpellIssue & {aiGenerated?:boolean}>>,
+ *   cancel: () => void,
+ * }}
+ */
+export function checkTextHybrid(text, options = {}) {
+  const ruleIssues = checkText(text, options);
+  const enableAI = !!options.enableAI;
+
+  if (!enableAI || typeof text !== 'string' || text.trim().length === 0) {
+    return {
+      ruleIssues,
+      aiPromise: Promise.resolve([]),
+      mergedPromise: Promise.resolve(ruleIssues),
+      cancel: () => {},
+    };
+  }
+
+  const debouncer = _getDebouncer(options);
+  const aiLimit = options.aiLimit;
+
+  // Quota 사전 체크 — 초과 시 AI 단계 skip
+  if (!checkQuota({ limit: aiLimit })) {
+    return {
+      ruleIssues,
+      aiPromise: Promise.resolve([]),
+      mergedPromise: Promise.resolve(ruleIssues),
+      cancel: () => {},
+    };
+  }
+
+  const aiPromise = debouncer.schedule(text, async ({ signal }) => {
+    // 호출 직전 마지막 quota 확인
+    try {
+      assertQuota({ limit: aiLimit });
+    } catch (_e) {
+      return [];
+    }
+    let raw;
+    try {
+      raw = await checkTextWithAI(text, { ...(options.aiOptions || {}), signal });
+    } catch (_e) {
+      return [];
+    }
+    // 호출 성공으로 간주되면 사용량 기록 (raw 가 빈 배열이어도 호출은 발생함)
+    try { recordUsage({ limit: aiLimit }); } catch (_e) { /* ignore */ }
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    return raw.map(_aiToSpellIssue);
+  }).catch(() => []); // 디바운스 취소/오류는 빈 배열로 흡수
+
+  const mergedPromise = aiPromise.then((aiIssues) => mergeIssues(ruleIssues, aiIssues));
+
+  return {
+    ruleIssues,
+    aiPromise,
+    mergedPromise,
+    cancel: () => debouncer.cancel(),
+  };
+}
+
 export default {
   checkText,
+  checkTextHybrid,
   applyFix,
   applyAllFixes,
   getStats,
   autoFix,
   hasHangul,
   isHangulSyllable,
+  mergeIssues,
 };
