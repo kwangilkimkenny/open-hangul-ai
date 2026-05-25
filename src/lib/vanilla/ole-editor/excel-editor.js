@@ -17,6 +17,8 @@
  */
 
 import { evaluateFormula } from '../table-formula/formula-engine.js';
+import { BaseEditor } from '../core/base-editor.js';
+import { ExcelFormulaGraph, cellKey } from './excel-formula-graph.js';
 
 // ---------------------------------------------------------------------------
 // Address helpers
@@ -204,7 +206,7 @@ const DEFAULT_MIN_COLS = 6;
  *   editor.render();
  *   const updated = editor.getDataModel();
  */
-export class ExcelEditor {
+export class ExcelEditor extends BaseEditor {
   /**
    * @param {object} opts
    * @param {HTMLElement} opts.container
@@ -213,15 +215,23 @@ export class ExcelEditor {
    * @param {number} [opts.minCols]
    */
   constructor({ container, dataModel, minRows = DEFAULT_MIN_ROWS, minCols = DEFAULT_MIN_COLS }) {
-    if (!container) throw new Error('ExcelEditor: container is required');
-    this.container = container;
-    this.dataModel = normalizeDataModel(dataModel);
+    super({ container, dataModel });
     this.minRows = minRows;
     this.minCols = minCols;
     this.activeSheet = this.dataModel.activeSheet;
     /** @type {{row:number, col:number}|null} */
     this.selection = null;
     this._editingInput = null;
+    /** @type {ExcelFormulaGraph|null} */
+    this._formulaGraph = null;
+  }
+
+  /**
+   * BaseEditor 훅 — dataModel 정규화.
+   * @param {*} m
+   */
+  _normalizeModel(m) {
+    return normalizeDataModel(m);
   }
 
   // -------------------------------------------------------------------------
@@ -229,7 +239,8 @@ export class ExcelEditor {
   // -------------------------------------------------------------------------
 
   getDataModel() {
-    // 깊은 복사 없이 안전한 모델만 반환 (소비자가 직렬화에 사용)
+    // 셀 별 얕은 복사 + 시트 메타. typed-array 가 없어 JSON 직렬화도 가능하지만
+    // formula 의 undefined 키 제거를 위해 명시적으로 dump 한다.
     return {
       type: 'excel',
       sheets: this.dataModel.sheets.map(s => ({
@@ -286,10 +297,66 @@ export class ExcelEditor {
         setCell(sheet, row, col, { value: patch.value, formula: undefined });
         const r = sheet.rows[row - 1];
         if (r && r[col - 1]) delete r[col - 1].formula;
+        this._ensureGraph(sheet);
+        this._formulaGraph?.updateCell(row, col, undefined);
+        this._markDirty();
+        this._emit('cell-change', { row, col });
         return;
       }
     }
     setCell(sheet, row, col, patch);
+    this._ensureGraph(sheet);
+    this._formulaGraph?.updateCell(row, col, patch.formula);
+    this._markDirty();
+    this._emit('cell-change', { row, col });
+  }
+
+  /**
+   * 첫 호출 시 또는 시트 교체 후 의존성 그래프를 새로 빌드한다.
+   * @param {object} sheet
+   * @protected
+   */
+  _ensureGraph(sheet) {
+    if (!this._formulaGraph) {
+      this._formulaGraph = new ExcelFormulaGraph();
+      this._formulaGraph.build(sheet);
+    }
+  }
+
+  /**
+   * 셀 변경 시 영향받는 셀들의 closure 를 계산한다 (그래프 forward).
+   * @param {number} row 1-based
+   * @param {number} col 1-based
+   * @returns {Set<string>} dirty cellKey 집합
+   */
+  getAffectedCells(row, col) {
+    const sheet = this.getActiveSheet();
+    if (!sheet) return new Set();
+    this._ensureGraph(sheet);
+    return this._formulaGraph.getDirtyCells(cellKey(row, col));
+  }
+
+  /**
+   * dirty 셀만 evaluator 로 재평가한다 (전체 render 없이 td 단위 업데이트용).
+   * @param {Set<string>} dirtyCells
+   * @returns {Map<string, {value:any, error?:string}>}
+   */
+  recomputeAffected(dirtyCells) {
+    const sheet = this.getActiveSheet();
+    if (!sheet || !this._formulaGraph) return new Map();
+    return this._formulaGraph.recomputeDirty(sheet, dirtyCells, (s, r, c) => {
+      const d = computeDisplay(s, r, c);
+      return d.display;
+    });
+  }
+
+  /**
+   * 현재 그래프에서 사이클에 속한 셀 키 집합.
+   * @returns {Set<string>}
+   */
+  getCycleCells() {
+    if (!this._formulaGraph) return new Set();
+    return this._formulaGraph.detectCycles();
   }
 
   // -------------------------------------------------------------------------
@@ -326,6 +393,11 @@ export class ExcelEditor {
     const sheet = this.getActiveSheet();
     if (!sheet) return;
 
+    // (re)build dependency graph for the active sheet
+    this._formulaGraph = new ExcelFormulaGraph();
+    this._formulaGraph.build(sheet);
+    const cycleCells = this._formulaGraph.detectCycles();
+
     const usedRows = sheet.rows.length;
     const usedCols = sheet.rows.reduce((m, r) => Math.max(m, r.length), 0);
     const rowCount = Math.max(usedRows, this.minRows);
@@ -360,11 +432,17 @@ export class ExcelEditor {
         td.dataset.row = String(r);
         td.dataset.col = String(c);
         td.className = 'ole-excel-editor__cell';
+        const isCycle = cycleCells.has(cellKey(r, c));
         const { display, isFormula, formula } = computeDisplay(sheet, r, c);
-        td.textContent = display === null || display === undefined ? '' : String(display);
+        const shown = isCycle ? '#CYCLE!' : display;
+        td.textContent = shown === null || shown === undefined ? '' : String(shown);
         if (isFormula) {
           td.classList.add('is-formula');
           td.title = formula || '';
+        }
+        if (isCycle) {
+          td.classList.add('is-cycle');
+          td.title = `${formula || ''} (순환 참조)`;
         }
         if (this.selection && this.selection.row === r && this.selection.col === c) {
           td.classList.add('is-selected');
@@ -462,7 +540,8 @@ export class ExcelEditor {
 
   destroy() {
     this.container.removeEventListener('keydown', this._onKeyDown);
-    this.container.innerHTML = '';
+    this._formulaGraph = null;
+    super.destroy();
   }
 }
 

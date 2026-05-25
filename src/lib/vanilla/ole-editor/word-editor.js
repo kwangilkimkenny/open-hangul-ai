@@ -15,6 +15,8 @@
  * @module vanilla/ole-editor/word-editor
  */
 
+import { BaseEditor } from '../core/base-editor.js';
+
 const DEFAULT_MODEL = { type: 'word', paragraphs: [{ runs: [{ text: '' }] }] };
 
 const ALIGN_VALUES = new Set(['left', 'center', 'right', 'justify', 'both']);
@@ -27,20 +29,26 @@ const ALIGN_VALUES = new Set(['left', 'center', 'right', 'justify', 'both']);
  *   editor.render();
  *   const updated = editor.getDataModel();
  */
-export class WordEditor {
+export class WordEditor extends BaseEditor {
   /**
    * @param {object} opts
    * @param {HTMLElement} opts.container
    * @param {{type?:string, paragraphs:Array}} opts.dataModel
    */
   constructor({ container, dataModel }) {
-    if (!container) throw new Error('WordEditor: container is required');
-    this.container = container;
-    this.dataModel = normalizeWordModel(dataModel);
+    super({ container, dataModel });
     this.activeStates = { bold: false, italic: false, underline: false };
     this.activeAlign = 'left';
     /** @type {HTMLElement|null} */
     this.editorEl = null;
+  }
+
+  /**
+   * BaseEditor 훅 — dataModel 정규화.
+   * @param {*} m
+   */
+  _normalizeModel(m) {
+    return normalizeWordModel(m);
   }
 
   // -------------------------------------------------------------------------
@@ -91,6 +99,7 @@ export class WordEditor {
     }
     this.activeAlign = alignment;
     this.dataModel = this._collectModelFromDom();
+    this._markDirty();
   }
 
   /**
@@ -105,6 +114,7 @@ export class WordEditor {
       type: 'word',
       paragraphs: lines.map(line => ({ runs: [{ text: line }] })),
     };
+    this._markDirty();
     this.render();
   }
 
@@ -151,6 +161,7 @@ export class WordEditor {
     editor.addEventListener('paste', this._onPaste);
     editor.addEventListener('input', () => {
       this.dataModel = this._collectModelFromDom();
+      this._markDirty();
     });
     this.container.appendChild(editor);
     this.editorEl = editor;
@@ -161,8 +172,8 @@ export class WordEditor {
       this.editorEl.removeEventListener('keydown', this._onKeyDown);
       this.editorEl.removeEventListener('paste', this._onPaste);
     }
-    this.container.innerHTML = '';
     this.editorEl = null;
+    super.destroy();
   }
 
   // -------------------------------------------------------------------------
@@ -277,6 +288,7 @@ export class WordEditor {
     sel.addRange(newRange);
     this.activeStates[kind] = existing[kind];
     this.dataModel = this._collectModelFromDom();
+    this._markDirty();
     return this.activeStates[kind];
   }
 

@@ -188,3 +188,98 @@ describe('ExcelEditor rendering', () => {
     expect(cell.formula).toBeUndefined();
   });
 });
+
+describe('ExcelEditor — BaseEditor 통합', () => {
+  let container;
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  it('isDirty 초기 false → editCell 후 true', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.render();
+    expect(editor.isDirty()).toBe(false);
+    editor.editCell(2, 2, '99');
+    expect(editor.isDirty()).toBe(true);
+    editor.markClean();
+    expect(editor.isDirty()).toBe(false);
+  });
+
+  it('cell-change 이벤트 발화', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.render();
+    let payload = null;
+    editor.on('cell-change', p => { payload = p; });
+    editor.editCell(3, 3, 'X');
+    expect(payload).toEqual({ row: 3, col: 3 });
+  });
+
+  it('dirty 이벤트 발화', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.render();
+    let fired = 0;
+    editor.on('dirty', () => fired++);
+    editor.editCell(2, 2, '11');
+    expect(fired).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('ExcelEditor — Dependency Graph 통합', () => {
+  let container;
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  it('getAffectedCells 가 의존 셀을 반환', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.editCell(5, 2, '=SUM(B2:B3)'); // B5 = SUM(B2:B3)
+    editor.render();
+    const affected = editor.getAffectedCells(2, 2); // B2 변경
+    expect(affected.has('2:2')).toBe(true);
+    expect(affected.has('5:2')).toBe(true);
+  });
+
+  it('recomputeAffected 가 dirty 셀만 재평가', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.editCell(5, 2, '=SUM(B2:B3)');
+    editor.render();
+    const dirty = editor.getAffectedCells(2, 2);
+    const results = editor.recomputeAffected(dirty);
+    // B5 (5:2) 의 평가 결과는 SUM(B2=3 + B3=5) = 8
+    const b5 = results.get('5:2');
+    expect(b5).toBeTruthy();
+    expect(Number(b5.value)).toBe(8);
+  });
+
+  it('getCycleCells 가 순환 참조 감지', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.editCell(5, 2, '=B6');
+    editor.editCell(6, 2, '=B5');
+    editor.render();
+    const cyc = editor.getCycleCells();
+    expect(cyc.has('5:2')).toBe(true);
+    expect(cyc.has('6:2')).toBe(true);
+  });
+
+  it('순환 참조 셀은 #CYCLE! 로 렌더', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.editCell(5, 2, '=B6');
+    editor.editCell(6, 2, '=B5');
+    editor.render();
+    const td = container.querySelector('td[data-row="5"][data-col="2"]');
+    expect(td.classList.contains('is-cycle')).toBe(true);
+    expect(td.textContent).toBe('#CYCLE!');
+  });
+
+  it('체인 변경 후 affected closure 가 전이 셀 포함', () => {
+    const editor = new ExcelEditor({ container, dataModel: makeModel() });
+    editor.editCell(5, 2, '=B2');
+    editor.editCell(6, 2, '=B5*2');
+    editor.render();
+    const affected = editor.getAffectedCells(2, 2);
+    expect(affected.has('5:2')).toBe(true);
+    expect(affected.has('6:2')).toBe(true);
+  });
+});
