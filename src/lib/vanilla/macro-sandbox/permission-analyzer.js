@@ -19,6 +19,38 @@ import {
   validatePermission,
   validateSeverity,
 } from './permission-types.js';
+import { t } from '../i18n/index.js';
+
+/**
+ * 권한 ID → i18n 라벨 키 매핑.
+ *
+ * 카탈로그에는 `labelKey` 만 저장하고, 실제 라벨 조회는 `getPermissionLabel()`
+ * 또는 `getPermissionMeta()` 가 호출 시점의 locale 로 동적 해석한다.
+ */
+const PERMISSION_LABEL_KEYS = Object.freeze({
+  [Permission.FILE_IO]: 'macro.permission.file-io',
+  [Permission.NETWORK]: 'macro.permission.network',
+  [Permission.SHELL]: 'macro.permission.shell',
+  [Permission.REGISTRY]: 'macro.permission.registry',
+  [Permission.WSCRIPT]: 'macro.permission.wscript',
+  [Permission.ACTIVEX]: 'macro.permission.activex',
+  [Permission.OBFUSCATION]: 'macro.permission.obfuscation',
+  [Permission.DYNAMIC_EVAL]: 'macro.permission.dynamic-eval',
+  [Permission.HANCOM_API]: 'macro.permission.hancom-api',
+  [Permission.DOM]: 'macro.permission.dom',
+});
+
+/**
+ * 권한 ID 에 해당하는 사용자 표시용 라벨을 현재 locale 로 반환.
+ * 알 수 없는 permId 면 permId 자체 반환.
+ *
+ * @param {string} permId
+ * @returns {string}
+ */
+export function getPermissionLabel(permId) {
+  const key = PERMISSION_LABEL_KEYS[permId];
+  return key ? t(key) : String(permId);
+}
 
 /**
  * 권한 카테고리 카탈로그.
@@ -32,7 +64,7 @@ function defineCatalog() {
     [
       Permission.FILE_IO,
       {
-        label: '파일 입출력',
+        labelKey: 'macro.permission.file-io',
         severity: Severity.HIGH,
         patterns: [
           /^FileSystemObject$/i,
@@ -52,7 +84,7 @@ function defineCatalog() {
     [
       Permission.NETWORK,
       {
-        label: '네트워크',
+        labelKey: 'macro.permission.network',
         severity: Severity.CRITICAL,
         patterns: [
           /^XMLHttpRequest$/,
@@ -67,7 +99,7 @@ function defineCatalog() {
     [
       Permission.SHELL,
       {
-        label: '셸 명령 실행',
+        labelKey: 'macro.permission.shell',
         severity: Severity.CRITICAL,
         patterns: [
           /^WScript\.Shell$/i,
@@ -83,7 +115,7 @@ function defineCatalog() {
     [
       Permission.REGISTRY,
       {
-        label: '레지스트리 접근',
+        labelKey: 'macro.permission.registry',
         severity: Severity.HIGH,
         patterns: [
           /^RegRead$/i,
@@ -96,7 +128,7 @@ function defineCatalog() {
     [
       Permission.WSCRIPT,
       {
-        label: 'Windows Script Host',
+        labelKey: 'macro.permission.wscript',
         severity: Severity.MEDIUM,
         patterns: [/^WScript$/i, /^WSH$/i, /^WSH\..+/i],
       },
@@ -104,7 +136,7 @@ function defineCatalog() {
     [
       Permission.ACTIVEX,
       {
-        label: 'ActiveX / COM 객체',
+        labelKey: 'macro.permission.activex',
         severity: Severity.HIGH,
         patterns: [/^ActiveXObject$/, /^CreateObject$/, /^GetObject$/],
       },
@@ -112,7 +144,7 @@ function defineCatalog() {
     [
       Permission.DOM,
       {
-        label: '브라우저 DOM',
+        labelKey: 'macro.permission.dom',
         severity: Severity.LOW,
         patterns: [/^document$/, /^window$/, /^navigator$/, /^location$/],
       },
@@ -120,7 +152,7 @@ function defineCatalog() {
     [
       Permission.HANCOM_API,
       {
-        label: '한컴 자동화 API',
+        labelKey: 'macro.permission.hancom-api',
         severity: Severity.MEDIUM,
         patterns: [
           /^HwpCtrl$/,
@@ -135,7 +167,7 @@ function defineCatalog() {
     [
       Permission.DYNAMIC_EVAL,
       {
-        label: '동적 코드 실행',
+        labelKey: 'macro.permission.dynamic-eval',
         severity: Severity.CRITICAL,
         patterns: [/^eval$/, /^Function$/, /^setTimeout$/, /^setInterval$/, /^execScript$/i],
       },
@@ -437,13 +469,21 @@ export function groupDetailsByType(details) {
 /**
  * 카테고리 메타데이터 조회.
  *
+ * `label` 은 현재 locale 로 해석된 사용자 표시용 문자열,
+ * `labelKey` 는 i18n 카탈로그 키 (안정적인 식별자) 이다.
+ *
  * @param {string} permId
- * @returns {{label: string, severity: string} | null}
+ * @returns {{label: string, labelKey: string, severity: string} | null}
  */
 export function getPermissionMeta(permId) {
   const def = PERMISSION_CATALOG[permId];
   if (!def) return null;
-  return { label: def.label, severity: def.severity };
+  const labelKey = def.labelKey;
+  return {
+    label: labelKey ? t(labelKey) : permId,
+    labelKey: labelKey || '',
+    severity: def.severity,
+  };
 }
 
 // 테스트 / 외부 호출자 편의를 위한 re-export (단일 진입점 유지).

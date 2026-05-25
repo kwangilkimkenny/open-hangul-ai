@@ -21,6 +21,7 @@ import { decodeOle } from './ole-content-decoder.js';
 import { ExcelEditor } from './excel-editor.js';
 import { WordEditor } from './word-editor.js';
 import { reserializeOle } from './ole-reserializer.js';
+import { t } from '../i18n/index.js';
 
 const DIALOG_CLASS = 'ole-edit-dialog';
 
@@ -60,12 +61,12 @@ export async function openOleEditDialog(opts) {
   header.className = `${DIALOG_CLASS}__header`;
   const title = document.createElement('h3');
   title.className = `${DIALOG_CLASS}__title`;
-  title.textContent = opts.filename || 'OLE 객체';
+  title.textContent = opts.filename || t('ole.default.title');
   header.appendChild(title);
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = `${DIALOG_CLASS}__close`;
-  closeBtn.setAttribute('aria-label', '닫기');
+  closeBtn.setAttribute('aria-label', t('common.close'));
   closeBtn.textContent = '×';
   header.appendChild(closeBtn);
   dialog.appendChild(header);
@@ -79,11 +80,11 @@ export async function openOleEditDialog(opts) {
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
   cancelBtn.className = `${DIALOG_CLASS}__btn ${DIALOG_CLASS}__btn--cancel`;
-  cancelBtn.textContent = '취소';
+  cancelBtn.textContent = t('ole.cancel.button');
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
   saveBtn.className = `${DIALOG_CLASS}__btn ${DIALOG_CLASS}__btn--save`;
-  saveBtn.textContent = '저장';
+  saveBtn.textContent = t('ole.save.button');
   footer.appendChild(cancelBtn);
   footer.appendChild(saveBtn);
   dialog.appendChild(footer);
@@ -188,9 +189,7 @@ export async function openOleEditDialog(opts) {
   };
 
   if (!decoded || decoded.type === 'unsupported') {
-    renderUnsupported(
-      decoded?.message || '이 OLE 객체는 브라우저 인플레이스 편집을 지원하지 않습니다.'
-    );
+    renderUnsupported(decoded?.message || t('ole.unsupported.message'));
   } else if (EDITOR_FACTORIES[decoded.type]) {
     editor = EDITOR_FACTORIES[decoded.type](body, decoded);
     if (!editor) {
@@ -200,7 +199,7 @@ export async function openOleEditDialog(opts) {
       saveBtn.style.display = 'none';
     }
   } else {
-    renderUnsupported(`미지원 타입: ${decoded.type}`);
+    renderUnsupported(t('ole.unsupported.format', { type: decoded.type }));
   }
 
   if (opts.readOnly) {
@@ -210,7 +209,7 @@ export async function openOleEditDialog(opts) {
   saveBtn.addEventListener('click', async () => {
     if (!editor) return;
     saveBtn.disabled = true;
-    saveBtn.textContent = '저장 중…';
+    saveBtn.textContent = t('ole.saving.indicator');
     try {
       const dataModel = editor.getDataModel();
       // ExcelEditor.getDataModel() 은 type 을 포함하지 않으므로 디코딩 결과에서 보강
@@ -223,10 +222,10 @@ export async function openOleEditDialog(opts) {
       close();
     } catch (err) {
       saveBtn.disabled = false;
-      saveBtn.textContent = '저장';
+      saveBtn.textContent = t('ole.save.button');
       const error = document.createElement('div');
       error.className = `${DIALOG_CLASS}__error`;
-      error.textContent = `저장 실패: ${err?.message || err}`;
+      error.textContent = t('ole.save.error', { message: err?.message || err });
       body.appendChild(error);
     }
   });

@@ -13,6 +13,7 @@
 import { escapeHtml } from '../../utils/html-escape.js';
 import { getRiskBadge } from './simulation-report.js';
 import { getPermissionMeta, groupDetailsByType } from './permission-analyzer.js';
+import { t } from '../i18n/index.js';
 
 const DIALOG_CLASS = 'oha-macro-sandbox-dialog';
 const OVERLAY_CLASS = 'oha-macro-sandbox-overlay';
@@ -50,7 +51,7 @@ export function createSandboxDialog(analysis, doc) {
   overlay.className = OVERLAY_CLASS;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', '매크로 샌드박스 분석');
+  overlay.setAttribute('aria-label', t('macro.dialog.aria-label'));
   applyStyles(overlay, {
     position: 'fixed',
     inset: '0',
@@ -116,7 +117,7 @@ function renderHeader(doc, analysis) {
   applyStyles(wrap, { marginBottom: '16px' });
 
   const title = doc.createElement('h2');
-  title.textContent = '매크로 샌드박스 분석';
+  title.textContent = t('macro.dialog.title');
   applyStyles(title, {
     margin: '0 0 8px 0',
     fontSize: '20px',
@@ -125,7 +126,9 @@ function renderHeader(doc, analysis) {
   wrap.appendChild(title);
 
   const subtitle = doc.createElement('p');
-  subtitle.textContent = `언어: ${analysis.language || 'unknown'} — 이 매크로는 실행되지 않았습니다. 정적 분석 결과만 표시됩니다.`;
+  subtitle.textContent = t('macro.dialog.subtitle', {
+    language: analysis.language || 'unknown',
+  });
   applyStyles(subtitle, {
     margin: '0',
     fontSize: '13px',
@@ -147,7 +150,7 @@ function renderRiskBadge(doc, analysis) {
   const el = doc.createElement('span');
   el.setAttribute('data-testid', 'risk-badge');
   el.setAttribute('data-risk-level', analysis.riskLevel || 'low');
-  el.textContent = `위험 등급: ${badge.text}`;
+  el.textContent = `${t('macro.dialog.risk-prefix')}: ${badge.text}`;
   applyStyles(el, {
     display: 'inline-block',
     padding: '6px 14px',
@@ -170,7 +173,7 @@ function renderPermissionTree(doc, analysis) {
   applyStyles(wrap, { marginBottom: '16px' });
 
   const h = doc.createElement('h3');
-  h.textContent = '요청 권한 (정적 분석)';
+  h.textContent = t('macro.dialog.permissions.heading');
   applyStyles(h, { fontSize: '16px', margin: '0 0 8px 0' });
   wrap.appendChild(h);
 
@@ -180,7 +183,7 @@ function renderPermissionTree(doc, analysis) {
 
   if (permIds.length === 0) {
     const p = doc.createElement('p');
-    p.textContent = '감지된 위험 권한 호출이 없습니다.';
+    p.textContent = t('macro.dialog.permissions.empty');
     applyStyles(p, { fontSize: '14px', color: '#6b7280', margin: '0' });
     wrap.appendChild(p);
     return wrap;
@@ -251,12 +254,15 @@ function renderPermissionTree(doc, analysis) {
     });
     entries.slice(0, 10).forEach(e => {
       const item = doc.createElement('li');
-      item.textContent = `라인 ${e.line || '?'}: ${e.identifier}`;
+      item.textContent = t('macro.dialog.line-prefix', {
+        line: e.line || '?',
+        identifier: e.identifier,
+      });
       callList.appendChild(item);
     });
     if (entries.length > 10) {
       const more = doc.createElement('li');
-      more.textContent = `... 그 외 ${entries.length - 10}건`;
+      more.textContent = t('macro.dialog.more-count', { count: entries.length - 10 });
       applyStyles(more, { color: '#6b7280', listStyle: 'none' });
       callList.appendChild(more);
     }
@@ -277,14 +283,14 @@ function renderSimulationSection(doc, analysis) {
   applyStyles(wrap, { marginBottom: '16px' });
 
   const h = doc.createElement('h3');
-  h.textContent = '시뮬레이션 보고서';
+  h.textContent = t('macro.dialog.simulation.heading');
   applyStyles(h, { fontSize: '16px', margin: '0 0 8px 0' });
   wrap.appendChild(h);
 
   const report = analysis.report || {};
   const pre = doc.createElement('pre');
   pre.setAttribute('data-testid', 'simulation-report');
-  pre.textContent = report.text || report.markdown || '(보고서 없음)';
+  pre.textContent = report.text || report.markdown || t('macro.dialog.simulation.empty');
   applyStyles(pre, {
     background: '#f9fafb',
     border: '1px solid #e5e7eb',
@@ -309,7 +315,7 @@ function renderCodeSection(doc, analysis) {
   applyStyles(wrap, { marginBottom: '16px' });
 
   const h = doc.createElement('h3');
-  h.textContent = '매크로 원본 코드 (실행되지 않음)';
+  h.textContent = t('macro.dialog.code.heading');
   applyStyles(h, { fontSize: '16px', margin: '0 0 8px 0' });
   wrap.appendChild(h);
 
@@ -352,7 +358,7 @@ function renderFooter(doc, onClose) {
 
   const btn = doc.createElement('button');
   btn.type = 'button';
-  btn.textContent = '닫기';
+  btn.textContent = t('common.close');
   btn.setAttribute('data-testid', 'close-button');
   applyStyles(btn, {
     background: '#111827',

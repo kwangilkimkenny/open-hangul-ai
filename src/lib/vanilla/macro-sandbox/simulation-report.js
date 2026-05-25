@@ -16,20 +16,32 @@ import {
   getPermissionMeta,
 } from './permission-analyzer.js';
 import { Permission, SEVERITY_ORDER } from './permission-types.js';
+import { t } from '../i18n/index.js';
 
-const RISK_LABEL = {
-  low: '낮음',
-  medium: '보통',
-  high: '높음',
-  critical: '치명적',
-};
+/**
+ * 위험도 → i18n 키 매핑.
+ * `medium` 은 기존 호환을 위해 `보통` 라벨을 유지한다 (catalog 의 macro.severity.medium = '보통').
+ */
+const RISK_LABEL_KEYS = Object.freeze({
+  low: 'macro.severity.low',
+  medium: 'macro.severity.medium',
+  high: 'macro.severity.high',
+  critical: 'macro.severity.critical',
+});
 
-const RISK_BADGE = {
-  low: { color: '#16a34a', emoji: '안전', text: '안전' },
-  medium: { color: '#ca8a04', emoji: '주의', text: '주의' },
-  high: { color: '#ea580c', emoji: '위험', text: '위험' },
-  critical: { color: '#dc2626', emoji: '치명적', text: '치명적' },
-};
+const RISK_BADGE_KEYS = Object.freeze({
+  low: 'macro.badge.low',
+  medium: 'macro.badge.medium',
+  high: 'macro.badge.high',
+  critical: 'macro.badge.critical',
+});
+
+const RISK_BADGE_COLOR = Object.freeze({
+  low: '#16a34a',
+  medium: '#ca8a04',
+  high: '#ea580c',
+  critical: '#dc2626',
+});
 
 /**
  * 권한별 자연어 설명 템플릿.
@@ -98,7 +110,8 @@ export function generateReport(input) {
   const errors = Array.isArray(input.errors) ? input.errors : [];
 
   const riskLevel = computeRiskLevel(permissionsSet);
-  const riskLabel = RISK_LABEL[riskLevel] || riskLevel;
+  const riskLabelKey = RISK_LABEL_KEYS[riskLevel];
+  const riskLabel = riskLabelKey ? t(riskLabelKey) : riskLevel;
   const groups = groupDetailsByType(details);
 
   // 권한을 severity 순으로 정렬 (critical → high → medium → low).
@@ -146,24 +159,28 @@ export function generateReport(input) {
 
   const summary =
     permissionsSet.size === 0
-      ? `이 매크로(${language})는 분석 시점에서 위험한 시스템 호출을 발견하지 못했습니다. 위험도: ${riskLabel}.`
-      : `이 매크로(${language})가 실행되면 ${permissionsSet.size}개 카테고리의 시스템 접근이 시도됩니다. 위험도: ${riskLabel}.`;
+      ? t('macro.report.summary.empty', { language, riskLabel })
+      : t('macro.report.summary.found', {
+          language,
+          count: permissionsSet.size,
+          riskLabel,
+        });
 
   const lines = [];
-  lines.push(`# 매크로 시뮬레이션 보고서`);
+  lines.push(`# ${t('macro.report.title')}`);
   lines.push('');
-  lines.push(`> 이 보고서는 매크로 코드를 **실행하지 않고** 정적으로 분석한 결과입니다.`);
-  lines.push(`> "만약 실행된다면 어떤 일이 일어날지" 를 기술합니다.`);
+  lines.push(`> ${t('macro.report.disclaimer')}`);
+  lines.push(`> ${t('macro.report.disclaimer.subtitle')}`);
   lines.push('');
-  lines.push(`**위험 등급**: ${riskLabel} (\`${riskLevel}\`)`);
-  lines.push(`**언어**: ${language}`);
-  lines.push(`**감지된 권한 카테고리**: ${permissionsSet.size}개`);
+  lines.push(`**${t('macro.report.risk-level')}**: ${riskLabel} (\`${riskLevel}\`)`);
+  lines.push(`**${t('macro.report.language')}**: ${language}`);
+  lines.push(`**${t('macro.report.detected-count')}**: ${permissionsSet.size}개`);
   lines.push('');
-  lines.push(`## 요약`);
+  lines.push(`## ${t('macro.report.summary.heading')}`);
   lines.push(summary);
   lines.push('');
   if (actions.length > 0) {
-    lines.push(`## 시도되는 동작`);
+    lines.push(`## ${t('macro.report.actions.heading')}`);
     lines.push('');
     actions.forEach((a, i) => {
       lines.push(`${i + 1}. **${a.label}** (\`${a.permission}\`, severity: ${a.severity})`);
@@ -172,21 +189,21 @@ export function generateReport(input) {
     lines.push('');
   }
   if (warnings.length > 0) {
-    lines.push(`## 추가 경고`);
+    lines.push(`## ${t('macro.report.warnings.heading')}`);
     for (const w of warnings) {
       lines.push(`- ${w}`);
     }
     lines.push('');
   }
   if (errors.length > 0) {
-    lines.push(`## 파싱 오류`);
+    lines.push(`## ${t('macro.report.errors.heading')}`);
     for (const e of errors.slice(0, 5)) {
       lines.push(`- 라인 ${e.line || '?'}: ${e.message}`);
     }
     lines.push('');
   }
   lines.push(`---`);
-  lines.push(`*보안 보장*: 이 분석기는 \`eval\` / \`Function\` / \`setTimeout(string)\` 을 사용하지 않습니다.`);
+  lines.push(t('macro.report.security-note'));
 
   const markdown = lines.join('\n');
   // markdown 의 마크다운 마커를 제거한 plain text
@@ -209,13 +226,16 @@ export function generateReport(input) {
 }
 
 /**
- * 위험 등급 → 시각화 배지 정보.
+ * 위험 등급 → 시각화 배지 정보. 현재 locale 로 text/emoji 해석.
  *
  * @param {string} riskLevel
  * @returns {{color: string, text: string, emoji: string}}
  */
 export function getRiskBadge(riskLevel) {
-  return RISK_BADGE[riskLevel] || RISK_BADGE.low;
+  const key = RISK_BADGE_KEYS[riskLevel] || RISK_BADGE_KEYS.low;
+  const text = t(key);
+  const color = RISK_BADGE_COLOR[riskLevel] || RISK_BADGE_COLOR.low;
+  return { color, emoji: text, text };
 }
 
 export default {
