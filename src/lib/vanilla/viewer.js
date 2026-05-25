@@ -44,6 +44,9 @@ import { ClipboardManager } from './features/clipboard-manager.js';
 import { SpecialCharacterPicker } from './features/special-character-picker.js';
 import { EditingToolbar } from './ui/editing-toolbar.js';
 
+// Security
+import { renderMacroWarning } from './security/macro-warning.js';
+
 // Utils
 import { getLogger, resetLogger } from './utils/logger.js';
 import { formatFileSize, formatDate } from './utils/format.js';
@@ -656,6 +659,15 @@ export class HWPXViewer {
 
       // 렌더링
       await this.render(document);
+
+      // 🛡 매크로 감지 시 보안 경고 배너 표시 (코드는 절대 실행하지 않음)
+      try {
+        if (document?.macros?.present && this.container) {
+          renderMacroWarning(document.macros, this.container);
+        }
+      } catch (warningErr) {
+        logger.warn('⚠️ Failed to render macro warning banner:', warningErr);
+      }
 
       // ✅ 편집 기능 활성화 (vanilla DOM 기반 — canvas 모드에서는 불필요)
       if (this.inlineEditor && this.options.editorType !== 'canvas') {

@@ -23,6 +23,7 @@ import { hancomToMathML as _convertHancomToMathML } from '../math/hancom-math-co
 import { parseChart } from '../chart/chart-parser.js';
 import { parseFormControl, isFormControlTag } from '../features/form-controls.js';
 import { parseOle, isOleBinData } from '../ole/ole-parser.js';
+import { detectMacrosFromEntries } from '../security/macro-detector.js';
 
 const logger = getLogger();
 
@@ -272,6 +273,20 @@ export class SimpleHWPXParser {
                 logger.warn('⚠️  Failed to extract raw header.xml:', error);
             }
 
+            // 5b. Macro stream detection (security — does NOT execute any code)
+            let macros = null;
+            try {
+                macros = detectMacrosFromEntries(this.entries);
+                if (macros && macros.present) {
+                    logger.warn(
+                        `⚠️  Macros detected: ${macros.count} stream(s), risks: ${macros.riskHints.join(', ') || 'none'}`
+                    );
+                }
+            } catch (error) {
+                logger.warn('⚠️  Macro detection failed:', error);
+                macros = null;
+            }
+
             // 6. Build document
             const document = {
                 sections: content.sections || [],
@@ -279,13 +294,16 @@ export class SimpleHWPXParser {
                 oleObjects: this.oleObjects,
                 borderFills: this.borderFills,
                 rawHeaderXml,
+                macros: macros && macros.present ? macros : null,
                 metadata: {
                     parsedAt: new Date().toISOString(),
                     sectionsCount: content.sections?.length || 0,
                     imagesCount: this.images.size,
                     oleObjectsCount: this.oleObjects.size,
                     borderFillsCount: this.borderFills.size,
-                    parserVersion: '3.0.0'
+                    parserVersion: '3.0.0',
+                    macrosDetected: !!(macros && macros.present),
+                    macroCount: macros && macros.present ? macros.count : 0
                 }
             };
 
