@@ -25,29 +25,11 @@
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { parseOle } from '../ole/ole-parser.js';
+import { detectOleContainerFormat } from '../utils/file-format-detector.js';
 
 // ============================================================================
 // Container sniffing
 // ============================================================================
-
-function looksLikeZip(bytes) {
-  if (!bytes || bytes.length < 4) return false;
-  return bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
-}
-
-function looksLikeCfb(bytes) {
-  if (!bytes || bytes.length < 8) return false;
-  return (
-    bytes[0] === 0xd0 &&
-    bytes[1] === 0xcf &&
-    bytes[2] === 0x11 &&
-    bytes[3] === 0xe0 &&
-    bytes[4] === 0xa1 &&
-    bytes[5] === 0xb1 &&
-    bytes[6] === 0x1a &&
-    bytes[7] === 0xe1
-  );
-}
 
 function toUint8(input) {
   if (!input) return new Uint8Array(0);
@@ -60,22 +42,16 @@ function toUint8(input) {
 
 /**
  * OLE bytes 가 OOXML zip 인지, CFB 인지, raw 메타파일(EMF/WMF)인지 분류.
+ *
+ * 실제 매직넘버 매칭은 `../utils/file-format-detector.js` 의 단일 카탈로그에
+ * 위임한다. 이 함수는 OLE 콘텐츠 분기 친화적 라벨(ooxml/cfb/metafile)로
+ * 매핑하는 얇은 어댑터다.
+ *
  * @param {Uint8Array} bytes
  * @returns {'ooxml'|'cfb'|'metafile'|'unknown'}
  */
 export function detectOleContainer(bytes) {
-  if (looksLikeZip(bytes)) return 'ooxml';
-  if (looksLikeCfb(bytes)) return 'cfb';
-  // EMF: 0x01 0x00 0x00 0x00 ; WMF placeable: 0xD7 0xCD 0xC6 0x9A
-  if (
-    bytes &&
-    bytes.length >= 4 &&
-    ((bytes[0] === 0x01 && bytes[1] === 0x00 && bytes[2] === 0x00 && bytes[3] === 0x00) ||
-      (bytes[0] === 0xd7 && bytes[1] === 0xcd && bytes[2] === 0xc6 && bytes[3] === 0x9a))
-  ) {
-    return 'metafile';
-  }
-  return 'unknown';
+  return detectOleContainerFormat(bytes);
 }
 
 /**
@@ -104,57 +80,100 @@ export function sniffOleContent(input, filename) {
 // ============================================================================
 
 /**
- * exceljs 워크북을 단순 JSON 모델로 변환.
- * @param {ExcelJS.Workbook} wb
- * @returns {{sheets:Array<{name:string,rows:Array<Array<{value:any,formula?:string}>>}>, activeSheet:string}}
+ * 단일 worksheet 를 `{name, rows}` 모델로 변환.
+ *
+ * R6 후속: 시트별 변환을 외부로 노출 가능한 단위로 분리하여 lazy load 시
+ * 재사용 가능하도록 했다.
+ *
+ * @param {ExcelJS.Worksheet} ws
+ * @param {number} [fallbackIndex]
+ * @returns {{name:string, rows:Array<Array<{value:any,formula?:string}>>}}
  */
-function normalizeWorkbook(wb) {
-  const sheets = [];
-  for (const ws of wb.worksheets) {
-    const rows = [];
-    const maxRow = ws.actualRowCount || ws.rowCount || 0;
-    const maxCol = ws.actualColumnCount || ws.columnCount || 0;
-    for (let r = 1; r <= Math.max(maxRow, 1); r++) {
-      const row = [];
-      for (let c = 1; c <= Math.max(maxCol, 1); c++) {
-        const cell = ws.getCell(r, c);
-        const cellModel = { value: null };
-        const raw = cell.value;
-        if (raw && typeof raw === 'object') {
-          if (typeof raw.formula === 'string') {
-            cellModel.formula = raw.formula.startsWith('=') ? raw.formula : `=${raw.formula}`;
-            if ('result' in raw) cellModel.value = raw.result ?? null;
-          } else if ('text' in raw) {
-            cellModel.value = raw.text;
-          } else if (raw instanceof Date) {
-            cellModel.value = raw.toISOString();
-          } else {
-            cellModel.value = raw;
-          }
+export function normalizeSheet(ws, fallbackIndex = 0) {
+  const rows = [];
+  const maxRow = ws.actualRowCount || ws.rowCount || 0;
+  const maxCol = ws.actualColumnCount || ws.columnCount || 0;
+  for (let r = 1; r <= Math.max(maxRow, 1); r++) {
+    const row = [];
+    for (let c = 1; c <= Math.max(maxCol, 1); c++) {
+      const cell = ws.getCell(r, c);
+      const cellModel = { value: null };
+      const raw = cell.value;
+      if (raw && typeof raw === 'object') {
+        if (typeof raw.formula === 'string') {
+          cellModel.formula = raw.formula.startsWith('=') ? raw.formula : `=${raw.formula}`;
+          if ('result' in raw) cellModel.value = raw.result ?? null;
+        } else if ('text' in raw) {
+          cellModel.value = raw.text;
+        } else if (raw instanceof Date) {
+          cellModel.value = raw.toISOString();
         } else {
-          cellModel.value = raw === undefined ? null : raw;
+          cellModel.value = raw;
         }
-        row.push(cellModel);
+      } else {
+        cellModel.value = raw === undefined ? null : raw;
       }
-      rows.push(row);
+      row.push(cellModel);
     }
-    sheets.push({ name: ws.name || `Sheet${ws.id || sheets.length + 1}`, rows });
+    rows.push(row);
   }
-  const active = wb.worksheets.find(ws => ws.state !== 'hidden');
+  return { name: ws.name || `Sheet${ws.id || fallbackIndex + 1}`, rows };
+}
+
+/**
+ * exceljs 워크북을 단순 JSON 모델로 변환.
+ *
+ * @param {ExcelJS.Workbook} wb
+ * @param {object} [options]
+ * @param {boolean} [options.activeSheetOnly=false]  true 면 활성 시트만 normalize,
+ *                                                   나머지는 `{name, lazy:true}` 메타만 채운다.
+ * @returns {{
+ *   sheets:Array<{name:string, rows?:Array, lazy?:boolean}>,
+ *   activeSheet:string,
+ *   _totalSheets:number,
+ *   _loadedSheets:string[]
+ * }}
+ */
+function normalizeWorkbook(wb, { activeSheetOnly = false } = {}) {
+  const all = wb.worksheets;
+  const visible = all.find(ws => ws.state !== 'hidden');
+  const activeName = visible ? visible.name : all[0]?.name || 'Sheet1';
+  const sheets = [];
+  const loaded = [];
+  for (let i = 0; i < all.length; i++) {
+    const ws = all[i];
+    const name = ws.name || `Sheet${ws.id || i + 1}`;
+    if (activeSheetOnly && name !== activeName) {
+      sheets.push({ name, lazy: true });
+      continue;
+    }
+    const norm = normalizeSheet(ws, i);
+    sheets.push(norm);
+    loaded.push(norm.name);
+  }
   return {
     sheets,
-    activeSheet: active ? active.name : sheets[0]?.name || 'Sheet1',
+    activeSheet: activeName,
+    _totalSheets: all.length,
+    _loadedSheets: loaded,
   };
 }
 
 /**
  * Excel OLE 콘텐츠를 디코딩한다.
  *
+ * `options.activeSheetOnly` 가 true 면 활성 시트만 셀 모델까지 변환하고,
+ * 나머지는 `{name, lazy:true}` 자리표시로만 포함한다. 100시트 워크북의
+ * 미리보기 페이로드를 크게 줄이는 데 유용하다. 사용자가 다른 시트를
+ * 클릭하면 `loadSheet(bytes, sheetName)` 를 호출해 lazy hydrate 한다.
+ *
  * @param {Uint8Array|{data:Uint8Array, filename?:string}} oleData
  * @param {string} [filename]
+ * @param {object} [options]
+ * @param {boolean} [options.activeSheetOnly=false]
  * @returns {Promise<object>} normalized workbook or unsupported envelope
  */
-export async function decodeExcel(oleData, filename) {
+export async function decodeExcel(oleData, filename, options = {}) {
   const sniff = sniffOleContent(oleData, filename);
   if (!sniff) {
     return { type: 'unsupported', message: 'Empty OLE input' };
@@ -183,8 +202,37 @@ export async function decodeExcel(oleData, filename) {
       oleType: 'excel',
     };
   }
-  const norm = normalizeWorkbook(wb);
+  const norm = normalizeWorkbook(wb, { activeSheetOnly: !!options.activeSheetOnly });
   return { type: 'excel', ...norm };
+}
+
+/**
+ * 이미 로드된 워크북 bytes 에서 특정 시트 1개만 하이드레이트.
+ *
+ * `decodeExcel(..., { activeSheetOnly:true })` 결과의 lazy 시트를 클릭 시
+ * 호출하는 용도. 미리보기 흐름에서 100시트 중 사용자가 본 1~2개만 셀 모델을
+ * 만들고 나머지는 메타만 유지하기 위한 진입점이다.
+ *
+ * @param {Uint8Array|{data:Uint8Array, filename?:string}} oleData
+ * @param {string} sheetName
+ * @returns {Promise<{name:string, rows:Array}|null>}
+ */
+export async function loadSheet(oleData, sheetName) {
+  const sniff = sniffOleContent(oleData);
+  if (!sniff || sniff.container !== 'ooxml') return null;
+  const wb = new ExcelJS.Workbook();
+  try {
+    await wb.xlsx.load(sniff.bytes);
+  } catch {
+    return null;
+  }
+  const all = wb.worksheets;
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].name === sheetName) {
+      return normalizeSheet(all[i], i);
+    }
+  }
+  return null;
 }
 
 // ============================================================================
@@ -392,14 +440,15 @@ export async function decodePowerPoint(oleData, filename) {
  * OLE 타입을 자동 감지해 적절한 디코더로 분기한다.
  * @param {Uint8Array|{data:Uint8Array, filename?:string}} input
  * @param {string} [filename]
+ * @param {object} [options]  decodeExcel 등 하위 디코더로 전달.
  * @returns {Promise<object>}
  */
-export async function decodeOle(input, filename) {
+export async function decodeOle(input, filename, options = {}) {
   const sniff = sniffOleContent(input, filename);
   if (!sniff) return { type: 'unsupported', message: 'Empty OLE input' };
   switch (sniff.oleType) {
     case 'excel':
-      return decodeExcel(input, filename);
+      return decodeExcel(input, filename, options);
     case 'word':
       return decodeWord(input, filename);
     case 'powerpoint':

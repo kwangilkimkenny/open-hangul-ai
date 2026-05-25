@@ -108,18 +108,29 @@ export async function postProcessRgbPdf(rgbBytes, options = {}) {
   const pages = doc.getPages();
   const total = pages.length;
 
-  for (let i = 0; i < total; i++) {
-    addPrintMarks(pages[i], {
-      bleedMm: options.bleedMm ?? 3,
-      cropMarks: options.cropMarks !== false,
-      registrationMarks: options.registrationMarks !== false,
-      colorBar: options.colorBar !== false,
-      pageInfo: options.pageInfo !== false,
-      font,
-      fileName: options.fileName || 'document',
-      pageNumber: i + 1,
-      pageTotal: total,
-    });
+  // 페이지 마크 추가 — 배치 처리 + microtask yield 로 UI 블로킹 회피.
+  // pdf-lib 은 단일 스레드라 Promise.all 실제 병렬은 아니나, 큰 PDF(100+ 페이지)에서
+  // 각 페이지가 무거운 마크 그리기를 할 때 microtask 경계마다 이벤트 루프 양보.
+  const BATCH_SIZE = 10;
+  const sharedMarkOpts = {
+    bleedMm: options.bleedMm ?? 3,
+    cropMarks: options.cropMarks !== false,
+    registrationMarks: options.registrationMarks !== false,
+    colorBar: options.colorBar !== false,
+    pageInfo: options.pageInfo !== false,
+    font,
+    fileName: options.fileName || 'document',
+    pageTotal: total,
+  };
+
+  for (let start = 0; start < total; start += BATCH_SIZE) {
+    const end = Math.min(start + BATCH_SIZE, total);
+    for (let i = start; i < end; i++) {
+      addPrintMarks(pages[i], { ...sharedMarkOpts, pageNumber: i + 1 });
+    }
+    if (end < total) {
+      await new Promise(resolve => queueMicrotask(resolve));
+    }
   }
 
   applyPdfXMetadata(doc, options);

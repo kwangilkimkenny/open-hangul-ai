@@ -16,6 +16,8 @@ import {
   decodeOle,
   detectOleContainer,
   sniffOleContent,
+  loadSheet,
+  normalizeSheet,
 } from './ole-content-decoder.js';
 
 async function buildXlsxBytes() {
@@ -194,5 +196,79 @@ describe('decodeOle dispatcher', () => {
     const bytes = await buildDocxBytes();
     const result = await decodeOle(bytes, 'embed.docx');
     expect(result.type).toBe('word');
+  });
+});
+
+// ----------------------------------------------------------------------------
+// activeSheetOnly 옵션 (R6 후속)
+// ----------------------------------------------------------------------------
+
+async function buildMultiSheetXlsx(count = 5) {
+  const wb = new ExcelJS.Workbook();
+  for (let i = 1; i <= count; i++) {
+    const ws = wb.addWorksheet(`Sheet${i}`);
+    ws.getCell('A1').value = `name-${i}`;
+    ws.getCell('B1').value = i * 10;
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  return new Uint8Array(buf);
+}
+
+describe('decodeExcel activeSheetOnly 옵션', () => {
+  it('옵션 미지정(기본) 시 모든 시트를 normalize 한다 (회귀)', async () => {
+    const bytes = await buildXlsxBytes();
+    const result = await decodeExcel(bytes, 'embed.xlsx');
+    expect(result.type).toBe('excel');
+    expect(result.sheets).toHaveLength(2);
+    expect(result.sheets[0].rows).toBeDefined();
+    expect(result.sheets[1].rows).toBeDefined();
+    expect(result._totalSheets).toBe(2);
+    expect(result._loadedSheets).toEqual(['Sheet1', '두번째']);
+  });
+
+  it('activeSheetOnly=true 면 활성 시트만 rows, 나머지는 lazy 플래그', async () => {
+    const bytes = await buildMultiSheetXlsx(4);
+    const result = await decodeExcel(bytes, 'big.xlsx', { activeSheetOnly: true });
+    expect(result.type).toBe('excel');
+    expect(result.sheets).toHaveLength(4);
+    expect(result.activeSheet).toBe('Sheet1');
+    expect(result.sheets[0].rows).toBeDefined();
+    expect(result.sheets[0].lazy).toBeUndefined();
+    for (let i = 1; i < 4; i++) {
+      expect(result.sheets[i].lazy).toBe(true);
+      expect(result.sheets[i].rows).toBeUndefined();
+      expect(result.sheets[i].name).toBe(`Sheet${i + 1}`);
+    }
+  });
+
+  it('activeSheetOnly=true 결과의 메타데이터(_totalSheets/_loadedSheets) 확인', async () => {
+    const bytes = await buildMultiSheetXlsx(6);
+    const result = await decodeExcel(bytes, 'big.xlsx', { activeSheetOnly: true });
+    expect(result._totalSheets).toBe(6);
+    expect(result._loadedSheets).toEqual(['Sheet1']);
+  });
+
+  it('loadSheet 는 lazy 시트를 하이드레이트한다', async () => {
+    const bytes = await buildMultiSheetXlsx(3);
+    const result = await decodeExcel(bytes, 'big.xlsx', { activeSheetOnly: true });
+    expect(result.sheets[2].lazy).toBe(true);
+    const hydrated = await loadSheet(bytes, 'Sheet3');
+    expect(hydrated).not.toBeNull();
+    expect(hydrated.name).toBe('Sheet3');
+    expect(hydrated.rows[0][0].value).toBe('name-3');
+    expect(hydrated.rows[0][1].value).toBe(30);
+  });
+
+  it('loadSheet 는 존재하지 않는 시트면 null', async () => {
+    const bytes = await buildMultiSheetXlsx(2);
+    expect(await loadSheet(bytes, 'NoSuchSheet')).toBeNull();
+  });
+
+  it('decodeOle dispatcher 는 activeSheetOnly 옵션을 전달한다', async () => {
+    const bytes = await buildMultiSheetXlsx(3);
+    const result = await decodeOle(bytes, 'big.xlsx', { activeSheetOnly: true });
+    expect(result.type).toBe('excel');
+    expect(result._loadedSheets).toEqual(['Sheet1']);
+    expect(result.sheets[1].lazy).toBe(true);
   });
 });

@@ -75,6 +75,14 @@ export function mm(mm) {
  * @param {PrintMarkOptions} [options]
  * @returns {{ cropMarks: boolean, registrationMarks: boolean, colorBar: boolean, pageInfo: boolean }}
  */
+// 마크 타입 → 렌더러 디스패처. 새 마크 추가 시 한 줄 추가로 확장.
+const MARK_RENDERERS = Object.freeze({
+  cropMarks: addCropMarks,
+  registrationMarks: addRegistrationMarks,
+  colorBar: addColorBar,
+  pageInfo: addPageInfo,
+});
+
 export function addPrintMarks(page, options = {}) {
   const opts = {
     bleedMm: 3,
@@ -87,30 +95,15 @@ export function addPrintMarks(page, options = {}) {
     ...options,
   };
 
-  const applied = {
-    cropMarks: false,
-    registrationMarks: false,
-    colorBar: false,
-    pageInfo: false,
-  };
-
-  if (opts.cropMarks) {
-    addCropMarks(page, opts);
-    applied.cropMarks = true;
+  const applied = {};
+  for (const [markType, renderer] of Object.entries(MARK_RENDERERS)) {
+    if (opts[markType]) {
+      renderer(page, opts);
+      applied[markType] = true;
+    } else {
+      applied[markType] = false;
+    }
   }
-  if (opts.registrationMarks) {
-    addRegistrationMarks(page, opts);
-    applied.registrationMarks = true;
-  }
-  if (opts.colorBar) {
-    addColorBar(page, opts);
-    applied.colorBar = true;
-  }
-  if (opts.pageInfo) {
-    addPageInfo(page, opts);
-    applied.pageInfo = true;
-  }
-
   return applied;
 }
 
