@@ -19,6 +19,7 @@
 import JSZip from 'jszip';
 import { getLogger } from '../utils/logger.js';
 import { HWPXConstants } from './constants.js';
+import { parseChart } from '../chart/chart-parser.js';
 
 const logger = getLogger();
 
@@ -1461,7 +1462,7 @@ export class SimpleHWPXParser {
                 if (skipRemainingRuns) return;
 
                 const charPrId = runElem.getAttribute('charPrIDRef');
-                const hasInlineObject = runElem.querySelector('tbl, hp\\:tbl, pic, hp\\:pic, rect, hp\\:rect, ellipse, hp\\:ellipse');
+                const hasInlineObject = runElem.querySelector('tbl, hp\\:tbl, pic, hp\\:pic, rect, hp\\:rect, ellipse, hp\\:ellipse, chart, hp\\:chart, chartSpace');
 
                 const children = Array.from(runElem.children || []);
 
@@ -1585,6 +1586,19 @@ export class SimpleHWPXParser {
                                 text: '', hasTable: true,
                                 tableIndex: para.tables.length - 1,
                                 style: {}, charPrIDRef: charPrId
+                            });
+                        }
+                    }
+                    // ★ Phase 5: Inline charts (<hp:chart> / <chartSpace>)
+                    else if (tag === 'chart' || tag === 'chartspace') {
+                        const chartData = parseChart(child);
+                        if (chartData) {
+                            para.runs.push({
+                                type: 'chart',
+                                text: '',
+                                chartData,
+                                style: {},
+                                charPrIDRef: charPrId
                             });
                         }
                     }

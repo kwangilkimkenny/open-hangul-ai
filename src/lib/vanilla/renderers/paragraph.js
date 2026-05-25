@@ -22,6 +22,7 @@ import { renderShape } from './shape.js';
 import { renderContainer } from './container.js';
 import { renderTable } from './table.js';
 import { applyImageOptimizations, applyImageEffects } from './image.js';
+import { renderChart } from '../chart/chart-renderer.js';
 
 const logger = getLogger();
 
@@ -407,6 +408,22 @@ export function renderParagraph(para) {
             // ✅ Phase 2-4: Ruby (덧말/발음 표기) → <ruby>본문<rt>읽는법</rt></ruby>
             const rubyEl = renderRuby(run);
             targetContainer.appendChild(rubyEl);
+        } else if (run.type === 'chart' && run.chartData) {
+            // ✅ Phase 5: Chart 렌더링 (pure SVG, 외부 의존성 없음)
+            const wrapper = document.createElement('div');
+            wrapper.className = 'hwp-chart';
+            wrapper.setAttribute('data-chart-type', run.chartData.type || 'unknown');
+            wrapper.style.display = 'block';
+            wrapper.style.margin = '6px 0';
+            wrapper.style.maxWidth = '100%';
+            try {
+                const svgEl = renderChart(run.chartData);
+                if (svgEl) wrapper.appendChild(svgEl);
+            } catch (err) {
+                logger.warn('[Paragraph Renderer] Chart render failed:', err?.message || err);
+                wrapper.textContent = '[차트 렌더 실패]';
+            }
+            targetContainer.appendChild(wrapper);
         } else {
             // Text run
             const span = document.createElement('span');
