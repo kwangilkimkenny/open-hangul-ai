@@ -46,7 +46,16 @@ const SOH = String.fromCharCode(0x01);
 // ============================================================================
 
 export const OLE_EXTENSIONS = Object.freeze([
-  'ole', 'olexml', 'xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt', 'emf', 'wmf'
+  'ole',
+  'olexml',
+  'xlsx',
+  'xls',
+  'docx',
+  'doc',
+  'pptx',
+  'ppt',
+  'emf',
+  'wmf',
 ]);
 
 const CLASSNAME_TYPE_MAP = Object.freeze([
@@ -55,13 +64,16 @@ const CLASSNAME_TYPE_MAP = Object.freeze([
   { match: /^word\./i, type: 'word' },
   { match: /^msword$/i, type: 'word' },
   { match: /^powerpoint\./i, type: 'powerpoint' },
-  { match: /^mspowerpoint$/i, type: 'powerpoint' }
+  { match: /^mspowerpoint$/i, type: 'powerpoint' },
 ]);
 
 const EXTENSION_TYPE_MAP = Object.freeze({
-  xlsx: 'excel', xls: 'excel',
-  docx: 'word', doc: 'word',
-  pptx: 'powerpoint', ppt: 'powerpoint'
+  xlsx: 'excel',
+  xls: 'excel',
+  docx: 'word',
+  doc: 'word',
+  pptx: 'powerpoint',
+  ppt: 'powerpoint',
 });
 
 // ============================================================================
@@ -94,19 +106,20 @@ export function inferOleTypeFromExtension(pathOrName) {
 function looksLikeCfb(bytes) {
   if (!bytes || bytes.length < 8) return false;
   return (
-    bytes[0] === 0xd0 && bytes[1] === 0xcf &&
-    bytes[2] === 0x11 && bytes[3] === 0xe0 &&
-    bytes[4] === 0xa1 && bytes[5] === 0xb1 &&
-    bytes[6] === 0x1a && bytes[7] === 0xe1
+    bytes[0] === 0xd0 &&
+    bytes[1] === 0xcf &&
+    bytes[2] === 0x11 &&
+    bytes[3] === 0xe0 &&
+    bytes[4] === 0xa1 &&
+    bytes[5] === 0xb1 &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0xe1
   );
 }
 
 function looksLikeZip(bytes) {
   if (!bytes || bytes.length < 4) return false;
-  return (
-    bytes[0] === 0x50 && bytes[1] === 0x4b &&
-    bytes[2] === 0x03 && bytes[3] === 0x04
-  );
+  return bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 }
 
 /**
@@ -204,15 +217,14 @@ export function findPreviewStream(container) {
     { base: 'EMF', mime: 'image/x-emf' },
     { base: 'WMF', mime: 'image/x-wmf' },
     { base: 'PNG', mime: 'image/png' },
-    { base: 'Pic', mime: 'image/x-wmf' }
+    { base: 'Pic', mime: 'image/x-wmf' },
   ];
 
   for (const { base, mime } of candidates) {
     const entry = findStreamByName(container, base);
     if (entry && entry.content && entry.content.length > 0) {
-      const bytes = entry.content instanceof Uint8Array
-        ? entry.content
-        : new Uint8Array(entry.content);
+      const bytes =
+        entry.content instanceof Uint8Array ? entry.content : new Uint8Array(entry.content);
       return { bytes, mimeType: mime };
     }
   }
@@ -226,6 +238,53 @@ export function findPreviewStream(container) {
 /**
  * BinData OLE 항목 1건을 정규화된 OleData 로 변환한다.
  */
+/**
+ * OLE 매크로 스트림 감지 패턴.
+ * 코드는 절대 읽지 않고 스트림 이름/경로만 확인한다.
+ */
+const OLE_MACRO_PATTERNS = Object.freeze([
+  { pattern: /(^|\/)VBA(\/|$)/i, kind: 'vba', desc: 'VBA project storage' },
+  { pattern: /_VBA_PROJECT_CUR/i, kind: 'vba', desc: 'VBA project current' },
+  { pattern: /_VBA_PROJECT/i, kind: 'vba', desc: 'VBA project' },
+  { pattern: /vbaProject\.bin/i, kind: 'vba', desc: 'OOXML vbaProject.bin' },
+  { pattern: /(^|\/)Macros(\/|$)/i, kind: 'macros', desc: 'Macros storage' },
+  { pattern: /Excel 4\.0 Macros/i, kind: 'xl4-macros', desc: 'Excel 4.0 macro sheet' },
+  { pattern: /_Macros/i, kind: 'legacy-macros', desc: 'Legacy macro storage' },
+  { pattern: /WordDocument\/macros/i, kind: 'word-macros', desc: 'Word legacy macros' },
+  { pattern: /PPT\/macros/i, kind: 'ppt-macros', desc: 'PowerPoint macros' },
+]);
+
+/**
+ * CFB FullPaths 목록을 스캔해 매크로 스트림 존재 여부를 판단한다.
+ * 코드/콘텐츠는 절대 디코딩하지 않으며, 경로만 매칭한다.
+ *
+ * @param {string[]} fullPaths
+ * @returns {{present: boolean, streams: string[], indicators: string[]}}
+ */
+export function detectOleMacroStreams(fullPaths) {
+  const result = { present: false, streams: [], indicators: [] };
+  if (!Array.isArray(fullPaths) || fullPaths.length === 0) return result;
+
+  const indicatorSet = new Set();
+  for (const p of fullPaths) {
+    if (typeof p !== 'string') continue;
+    for (const { pattern, kind, desc } of OLE_MACRO_PATTERNS) {
+      if (pattern.test(p)) {
+        result.present = true;
+        if (!result.streams.includes(p)) {
+          result.streams.push(p);
+        }
+        if (!indicatorSet.has(kind)) {
+          indicatorSet.add(kind);
+          result.indicators.push(`${kind} (${desc})`);
+        }
+        break; // 한 경로당 하나의 indicator
+      }
+    }
+  }
+  return result;
+}
+
 export function parseOle(input, filename) {
   if (!input) return null;
 
@@ -235,9 +294,7 @@ export function parseOle(input, filename) {
     bytes = input;
     originalName = filename || '';
   } else if (typeof input === 'object' && input.data) {
-    bytes = input.data instanceof Uint8Array
-      ? input.data
-      : new Uint8Array(input.data);
+    bytes = input.data instanceof Uint8Array ? input.data : new Uint8Array(input.data);
     originalName = input.filename || input.path || filename || '';
   } else {
     return null;
@@ -253,7 +310,7 @@ export function parseOle(input, filename) {
     userType: '',
     fileSize,
     originalName,
-    streams: []
+    streams: [],
   };
 
   // Case 1: 단독 EMF/WMF 미리보기 — CFB 가 아니라 raw 메타파일
@@ -264,7 +321,8 @@ export function parseOle(input, filename) {
         type: 'unknown',
         previewImage: bytes,
         previewMimeType: 'image/x-emf',
-        metadata: baseMeta
+        macroInfo: { present: false, streams: [], indicators: [] },
+        metadata: baseMeta,
       };
     }
     if (lower.endsWith('.wmf')) {
@@ -272,7 +330,8 @@ export function parseOle(input, filename) {
         type: 'unknown',
         previewImage: bytes,
         previewMimeType: 'image/x-wmf',
-        metadata: baseMeta
+        macroInfo: { present: false, streams: [], indicators: [] },
+        metadata: baseMeta,
       };
     }
   }
@@ -283,7 +342,8 @@ export function parseOle(input, filename) {
       type: inferOleTypeFromExtension(originalName),
       previewImage: null,
       previewMimeType: null,
-      metadata: { ...baseMeta }
+      macroInfo: { present: false, streams: [], indicators: [] },
+      metadata: { ...baseMeta },
     };
   }
 
@@ -293,7 +353,8 @@ export function parseOle(input, filename) {
       type: inferOleTypeFromExtension(originalName),
       previewImage: null,
       previewMimeType: null,
-      metadata: baseMeta
+      macroInfo: { present: false, streams: [], indicators: [] },
+      metadata: baseMeta,
     };
   }
 
@@ -306,13 +367,12 @@ export function parseOle(input, filename) {
       type: inferOleTypeFromExtension(originalName),
       previewImage: null,
       previewMimeType: null,
-      metadata: baseMeta
+      macroInfo: { present: false, streams: [], indicators: [] },
+      metadata: baseMeta,
     };
   }
 
-  const streams = Array.isArray(container?.FullPaths)
-    ? container.FullPaths.slice()
-    : [];
+  const streams = Array.isArray(container?.FullPaths) ? container.FullPaths.slice() : [];
 
   let className = '';
   let userType = '';
@@ -333,18 +393,20 @@ export function parseOle(input, filename) {
   }
 
   const preview = findPreviewStream(container);
+  const macroInfo = detectOleMacroStreams(streams);
 
   return {
     type,
     previewImage: preview ? preview.bytes : null,
     previewMimeType: preview ? preview.mimeType : null,
+    macroInfo,
     metadata: {
       className,
       userType,
       fileSize,
       originalName,
-      streams
-    }
+      streams,
+    },
   };
 }
 
@@ -368,9 +430,7 @@ export function serializeOLE(oleData) {
 
   if (oleData?.previewImage && oleData.previewImage.length > 0) {
     const mime = oleData.previewMimeType || '';
-    const name = mime.includes('emf') ? '/EMF'
-      : mime.includes('wmf') ? '/WMF'
-      : '/PNG';
+    const name = mime.includes('emf') ? '/EMF' : mime.includes('wmf') ? '/WMF' : '/PNG';
     CFB.utils.cfb_add(cfb, name, oleData.previewImage);
   }
 
@@ -380,13 +440,8 @@ export function serializeOLE(oleData) {
 
 function buildCompObjBytes(userType, className) {
   const header = new Uint8Array([
-    0x01, 0x00, 0xfe, 0xff,
-    0x03, 0x0a, 0x00, 0x00,
-    0xff, 0xff, 0xff, 0xff,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00
+    0x01, 0x00, 0xfe, 0xff, 0x03, 0x0a, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   ]);
 
   const enc = str => {
@@ -409,9 +464,12 @@ function buildCompObjBytes(userType, className) {
   const total = header.length + userBytes.length + fmtBytes.length + progBytes.length;
   const buf = new Uint8Array(total);
   let off = 0;
-  buf.set(header, off); off += header.length;
-  buf.set(userBytes, off); off += userBytes.length;
-  buf.set(fmtBytes, off); off += fmtBytes.length;
+  buf.set(header, off);
+  off += header.length;
+  buf.set(userBytes, off);
+  off += userBytes.length;
+  buf.set(fmtBytes, off);
+  off += fmtBytes.length;
   buf.set(progBytes, off);
   return buf;
 }

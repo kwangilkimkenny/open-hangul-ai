@@ -19,20 +19,37 @@
 import JSZip from 'jszip';
 import { getLogger } from '../utils/logger.js';
 import { HWPXConstants } from './constants.js';
-import { hancomToMathML as _convertHancomToMathML } from '../math/hancom-math-converter.js';
-import { parseChart } from '../chart/chart-parser.js';
-import { parseFormControl, isFormControlTag } from '../features/form-controls.js';
-import { parseOle, isOleBinData } from '../ole/ole-parser.js';
-import { detectMacrosFromEntries } from '../security/macro-detector.js';
+
+// 새 외부 모듈을 import 할 때는 ./parser-extensions.js 의 barrel 에 export 만 추가하세요.
+// 본 파일의 import 블록은 의도적으로 단순하게 유지됩니다 (트랙 머지 충돌 회피).
 import {
-    detectEncryption as _hwpDetectEncryption,
-    decryptHwpxStream as _hwpDecryptStream,
-    derivePbkdf2Key as _hwpDeriveKey,
-    SALT_SIZE as _HWP_SALT_SIZE,
-    IV_SIZE as _HWP_IV_SIZE,
-    DEFAULT_PBKDF2_PARAMS as _HWP_PBKDF2_PARAMS
-} from '../security/hwp-crypto.js';
-import { promptPassword as _hwpPromptPassword } from '../security/password-dialog.js';
+  hancomToMathML,
+  parseChart,
+  parseFormControl,
+  isFormControlTag,
+  parseOle,
+  isOleBinData,
+  detectMacrosFromEntries,
+  detectMacrosInOleObjects,
+  mergeMacroResults,
+  detectEncryption,
+  decryptHwpxStream,
+  derivePbkdf2Key,
+  SALT_SIZE,
+  IV_SIZE,
+  DEFAULT_PBKDF2_PARAMS,
+  promptPassword,
+} from './parser-extensions.js';
+
+// 본문에서 쓰이는 기존 alias 보존 (sed-free 리팩터링)
+const _convertHancomToMathML = hancomToMathML;
+const _hwpDetectEncryption = detectEncryption;
+const _hwpDecryptStream = decryptHwpxStream;
+const _hwpDeriveKey = derivePbkdf2Key;
+const _HWP_SALT_SIZE = SALT_SIZE;
+const _HWP_IV_SIZE = IV_SIZE;
+const _HWP_PBKDF2_PARAMS = DEFAULT_PBKDF2_PARAMS;
+const _hwpPromptPassword = promptPassword;
 
 const logger = getLogger();
 
@@ -45,18 +62,22 @@ const logger = getLogger();
  * Handles hp:, hh:, hs:, hc: prefixes
  */
 function qsa(parent, tagName) {
-    return parent.querySelectorAll(`${tagName}, hp\\:${tagName}, hh\\:${tagName}, hc\\:${tagName}, hs\\:${tagName}`);
+  return parent.querySelectorAll(
+    `${tagName}, hp\\:${tagName}, hh\\:${tagName}, hc\\:${tagName}, hs\\:${tagName}`
+  );
 }
 
 function qs(parent, tagName) {
-    return parent.querySelector(`${tagName}, hp\\:${tagName}, hh\\:${tagName}, hc\\:${tagName}, hs\\:${tagName}`);
+  return parent.querySelector(
+    `${tagName}, hp\\:${tagName}, hh\\:${tagName}, hc\\:${tagName}, hs\\:${tagName}`
+  );
 }
 
 /**
  * Get local tag name without namespace prefix
  */
 function localName(elem) {
-    return (elem.localName || elem.tagName || '').toLowerCase().replace(/^(hp|hh|hs|hc):/, '');
+  return (elem.localName || elem.tagName || '').toLowerCase().replace(/^(hp|hh|hs|hc):/, '');
 }
 
 /**
@@ -64,18 +85,18 @@ function localName(elem) {
  * Handles unsigned-to-signed conversion and clamping
  */
 function parseOffset(value, maxOffset = 50000) {
-    if (!value) return undefined;
-    let val = parseInt(value);
-    if (isNaN(val)) return undefined;
-    // Handle 32-bit unsigned integers that represent negative numbers
-    if (val > 2147483647) {
-        val = val - 4294967296;
-    }
-    // Clamp to reasonable range
-    if (Math.abs(val) > maxOffset) {
-        return 0;
-    }
-    return HWPXConstants.hwpuToPxUnscaled(val);
+  if (!value) return undefined;
+  let val = parseInt(value);
+  if (isNaN(val)) return undefined;
+  // Handle 32-bit unsigned integers that represent negative numbers
+  if (val > 2147483647) {
+    val = val - 4294967296;
+  }
+  // Clamp to reasonable range
+  if (Math.abs(val) > maxOffset) {
+    return 0;
+  }
+  return HWPXConstants.hwpuToPxUnscaled(val);
 }
 
 /**
@@ -83,28 +104,29 @@ function parseOffset(value, maxOffset = 50000) {
  * Returns {width, height} in pixels (unscaled)
  */
 function parseSize(elem) {
-    const curSzElem = qs(elem, 'curSz');
-    const orgSzElem = qs(elem, 'orgSz');
-    const szElem = curSzElem || qs(elem, 'sz');
+  const curSzElem = qs(elem, 'curSz');
+  const orgSzElem = qs(elem, 'orgSz');
+  const szElem = curSzElem || qs(elem, 'sz');
 
-    let widthHwpu = 0, heightHwpu = 0;
+  let widthHwpu = 0,
+    heightHwpu = 0;
 
-    if (szElem) {
-        widthHwpu = parseInt(szElem.getAttribute('width')) || 0;
-        heightHwpu = parseInt(szElem.getAttribute('height')) || 0;
-    }
+  if (szElem) {
+    widthHwpu = parseInt(szElem.getAttribute('width')) || 0;
+    heightHwpu = parseInt(szElem.getAttribute('height')) || 0;
+  }
 
-    if ((widthHwpu === 0 || heightHwpu === 0) && orgSzElem) {
-        widthHwpu = parseInt(orgSzElem.getAttribute('width')) || widthHwpu;
-        heightHwpu = parseInt(orgSzElem.getAttribute('height')) || heightHwpu;
-    }
+  if ((widthHwpu === 0 || heightHwpu === 0) && orgSzElem) {
+    widthHwpu = parseInt(orgSzElem.getAttribute('width')) || widthHwpu;
+    heightHwpu = parseInt(orgSzElem.getAttribute('height')) || heightHwpu;
+  }
 
-    return {
-        width: widthHwpu > 0 ? HWPXConstants.hwpuToPxUnscaled(widthHwpu) : 0,
-        height: heightHwpu > 0 ? HWPXConstants.hwpuToPxUnscaled(heightHwpu) : 0,
-        widthHwpu,
-        heightHwpu
-    };
+  return {
+    width: widthHwpu > 0 ? HWPXConstants.hwpuToPxUnscaled(widthHwpu) : 0,
+    height: heightHwpu > 0 ? HWPXConstants.hwpuToPxUnscaled(heightHwpu) : 0,
+    widthHwpu,
+    heightHwpu,
+  };
 }
 
 /**
@@ -112,53 +134,53 @@ function parseSize(elem) {
  * Returns position object with treatAsChar, offsets, alignment
  */
 function parsePosition(elem) {
-    const posElem = qs(elem, 'pos');
-    const position = {
-        x: 0,
-        y: 0,
-        textWrap: 'inline',
-        zOrder: 0
-    };
+  const posElem = qs(elem, 'pos');
+  const position = {
+    x: 0,
+    y: 0,
+    textWrap: 'inline',
+    zOrder: 0,
+  };
 
-    if (posElem) {
-        position.treatAsChar = posElem.getAttribute('treatAsChar') === '1';
-        position.horzRelTo = posElem.getAttribute('horzRelTo') || 'COLUMN';
-        position.horzAlign = posElem.getAttribute('horzAlign') || 'LEFT';
-        position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
-        position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
+  if (posElem) {
+    position.treatAsChar = posElem.getAttribute('treatAsChar') === '1';
+    position.horzRelTo = posElem.getAttribute('horzRelTo') || 'COLUMN';
+    position.horzAlign = posElem.getAttribute('horzAlign') || 'LEFT';
+    position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
+    position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
 
-        const horzOffset = posElem.getAttribute('horzOffset');
-        const vertOffset = posElem.getAttribute('vertOffset');
+    const horzOffset = posElem.getAttribute('horzOffset');
+    const vertOffset = posElem.getAttribute('vertOffset');
 
-        if (horzOffset) position.x = parseOffset(horzOffset);
-        if (vertOffset) position.y = parseOffset(vertOffset);
-    }
+    if (horzOffset) position.x = parseOffset(horzOffset);
+    if (vertOffset) position.y = parseOffset(vertOffset);
+  }
 
-    // Fallback: offset element
-    const offsetElem = qs(elem, 'offset');
-    if (offsetElem) {
-        const x = offsetElem.getAttribute('x');
-        const y = offsetElem.getAttribute('y');
-        if (x && position.x === 0) position.x = parseOffset(x);
-        if (y && position.y === 0) position.y = parseOffset(y);
-    }
+  // Fallback: offset element
+  const offsetElem = qs(elem, 'offset');
+  if (offsetElem) {
+    const x = offsetElem.getAttribute('x');
+    const y = offsetElem.getAttribute('y');
+    if (x && position.x === 0) position.x = parseOffset(x);
+    if (y && position.y === 0) position.y = parseOffset(y);
+  }
 
-    // Text wrap
-    const textWrap = elem.getAttribute('textWrap');
-    if (textWrap) {
-        position.textWrap = textWrap;
-    }
+  // Text wrap
+  const textWrap = elem.getAttribute('textWrap');
+  if (textWrap) {
+    position.textWrap = textWrap;
+  }
 
-    return position;
+  return position;
 }
 
 /**
  * Normalize HWPX color to CSS color
  */
 function normalizeColor(color) {
-    if (!color || color === 'auto' || color === 'none') return null;
-    if (color.startsWith('#')) return color;
-    return `#${color}`;
+  if (!color || color === 'auto' || color === 'none') return null;
+  if (color.startsWith('#')) return color;
+  return `#${color}`;
 }
 
 /**
@@ -167,53 +189,52 @@ function normalizeColor(color) {
  * CSS supports: dot, circle, double-circle, triangle, sesame (+ filled/open)
  */
 function mapSymMarkToCss(type) {
-    if (!type) return null;
-    const t = String(type).toUpperCase();
-    const table = {
-        DOT: 'dot',
-        FILLED_DOT: 'filled dot',
-        OPEN_DOT: 'open dot',
-        CIRCLE: 'circle',
-        FILLED_CIRCLE: 'filled circle',
-        OPEN_CIRCLE: 'open circle',
-        DOUBLE_CIRCLE: 'double-circle',
-        TRIANGLE: 'triangle',
-        FILLED_TRIANGLE: 'filled triangle',
-        OPEN_TRIANGLE: 'open triangle',
-        SESAME: 'sesame',
-        FILLED_SESAME: 'filled sesame',
-        OPEN_SESAME: 'open sesame'
-    };
-    return table[t] || 'dot';
+  if (!type) return null;
+  const t = String(type).toUpperCase();
+  const table = {
+    DOT: 'dot',
+    FILLED_DOT: 'filled dot',
+    OPEN_DOT: 'open dot',
+    CIRCLE: 'circle',
+    FILLED_CIRCLE: 'filled circle',
+    OPEN_CIRCLE: 'open circle',
+    DOUBLE_CIRCLE: 'double-circle',
+    TRIANGLE: 'triangle',
+    FILLED_TRIANGLE: 'filled triangle',
+    OPEN_TRIANGLE: 'open triangle',
+    SESAME: 'sesame',
+    FILLED_SESAME: 'filled sesame',
+    OPEN_SESAME: 'open sesame',
+  };
+  return table[t] || 'dot';
 }
 
 /**
  * Map HWPX border type to CSS border-style
  */
 function getBorderStyle(type) {
-    const styles = {
-        'SOLID': 'solid',
-        'DASH': 'dashed',
-        'DOT': 'dotted',
-        'DASH_DOT': 'dashed',
-        'DASH_DOT_DOT': 'dashed',
-        'DOUBLE': 'double',
-        'NONE': 'none'
-    };
-    return styles[type?.toUpperCase()] || 'solid';
+  const styles = {
+    SOLID: 'solid',
+    DASH: 'dashed',
+    DOT: 'dotted',
+    DASH_DOT: 'dashed',
+    DASH_DOT_DOT: 'dashed',
+    DOUBLE: 'double',
+    NONE: 'none',
+  };
+  return styles[type?.toUpperCase()] || 'solid';
 }
 
 /**
  * Parse border width from various formats
  */
 function parseBorderWidth(width) {
-    if (!width) return 0;
-    if (typeof width === 'string' && width.includes('mm')) {
-        return parseFloat(width) * 3.7795; // 1mm = 3.7795px at 96dpi
-    }
-    return parseInt(width) / 7200 * 96; // HWPU to px
+  if (!width) return 0;
+  if (typeof width === 'string' && width.includes('mm')) {
+    return parseFloat(width) * 3.7795; // 1mm = 3.7795px at 96dpi
+  }
+  return (parseInt(width) / 7200) * 96; // HWPU to px
 }
-
 
 // ============================================================================
 // Main Parser Class
@@ -224,3130 +245,3229 @@ function parseBorderWidth(width) {
  * HWPX 파일(ZIP 형식)을 파싱하여 렌더링 가능한 문서 구조로 변환
  */
 export class SimpleHWPXParser {
-    constructor(options = {}) {
-        this.options = {
-            parseImages: options.parseImages !== false,
-            parseTables: options.parseTables !== false,
-            parseStyles: options.parseStyles !== false,
-            ...options
-        };
+  constructor(options = {}) {
+    this.options = {
+      parseImages: options.parseImages !== false,
+      parseTables: options.parseTables !== false,
+      parseStyles: options.parseStyles !== false,
+      ...options,
+    };
 
-        // Internal state
-        this.entries = new Map();
-        this.images = new Map();
-        this.oleObjects = new Map(); // BinData OLE 임베드 (Excel/Word/PowerPoint 등)
-        this.styles = new Map();
-        this.borderFills = new Map();
-        this.paraProperties = new Map();
-        this.charProperties = new Map();
-        this.fontFaces = new Map();
-        this.numberings = new Map();
-        this.bulletDefs = new Map();
-        this.tabDefs = new Map();
-        this.namedStyles = new Map();
+    // Internal state
+    this.entries = new Map();
+    this.images = new Map();
+    this.oleObjects = new Map(); // BinData OLE 임베드 (Excel/Word/PowerPoint 등)
+    this.styles = new Map();
+    this.borderFills = new Map();
+    this.paraProperties = new Map();
+    this.charProperties = new Map();
+    this.fontFaces = new Map();
+    this.numberings = new Map();
+    this.bulletDefs = new Map();
+    this.tabDefs = new Map();
+    this.namedStyles = new Map();
+  }
+
+  /**
+   * HWPX 파일 파싱
+   * @param {ArrayBuffer} buffer - HWPX 파일의 ArrayBuffer
+   * @returns {Promise<Object>} 파싱된 문서 객체
+   */
+  async parse(buffer) {
+    logger.info('📄 Starting HWPX parsing (v3.0 High Performance)...');
+    logger.time('HWPX Parse');
+
+    try {
+      // 1. Unzip HWPX file
+      await this.unzip(buffer);
+
+      // 1.5 ★ Encryption detection + optional decryption
+      //     암호화된 HWPX 인 경우 비밀번호를 받아 각 스트림을 복호화한다.
+      //     실패하면 명확한 에러를 throw 하여 상위에서 안내한다.
+      await this._decryptIfNeeded(buffer);
+
+      // 2. Load binary data (images)
+      await this.loadBinData();
+
+      // 3. ★ Single-pass header.xml parsing (v3.0 핵심 최적화)
+      await this.loadHeaderDefinitions();
+
+      // 4. Parse content (sections)
+      const content = await this.parseContent();
+
+      // 5. Extract raw header.xml for round-trip preservation
+      let rawHeaderXml = null;
+      try {
+        if (this.zip) {
+          const headerFile = this.zip.file('Contents/header.xml');
+          if (headerFile) {
+            rawHeaderXml = await headerFile.async('string');
+          }
+        }
+      } catch (error) {
+        logger.warn('⚠️  Failed to extract raw header.xml:', error);
+      }
+
+      // 5b. Macro stream detection (security — does NOT execute any code)
+      // ZIP-level (Scripts/*) + OLE-internal (VBA/_VBA_PROJECT/...) 모두 합산
+      let macros = null;
+      try {
+        const zipMacros = detectMacrosFromEntries(this.entries);
+        const oleMacros = detectMacrosInOleObjects(this.oleObjects);
+        macros = mergeMacroResults(zipMacros, oleMacros);
+        if (macros && macros.present) {
+          logger.warn(
+            `⚠️  Macros detected: ${macros.count} stream(s) (zip+ole), risks: ${macros.riskHints.join(', ') || 'none'}`
+          );
+        }
+      } catch (error) {
+        logger.warn('⚠️  Macro detection failed:', error);
+        macros = null;
+      }
+
+      // 6. Build document
+      const document = {
+        sections: content.sections || [],
+        images: this.images,
+        oleObjects: this.oleObjects,
+        borderFills: this.borderFills,
+        rawHeaderXml,
+        macros: macros && macros.present ? macros : null,
+        metadata: {
+          parsedAt: new Date().toISOString(),
+          sectionsCount: content.sections?.length || 0,
+          imagesCount: this.images.size,
+          oleObjectsCount: this.oleObjects.size,
+          borderFillsCount: this.borderFills.size,
+          parserVersion: '3.0.0',
+          macrosDetected: !!(macros && macros.present),
+          macroCount: macros && macros.present ? macros.count : 0,
+        },
+      };
+
+      logger.info('✅ HWPX parsed successfully');
+      logger.timeEnd('HWPX Parse');
+      return document;
+    } catch (error) {
+      logger.error('❌ HWPX parsing error:', error);
+      logger.timeEnd('HWPX Parse');
+
+      const parseError = new Error(`HWPX 파싱 실패: ${error.message}`);
+      parseError.originalError = error;
+      parseError.stack = error.stack;
+      throw parseError;
+    }
+  }
+
+  // ========================================================================
+  // ZIP Extraction
+  // ========================================================================
+
+  async unzip(buffer) {
+    logger.debug('📦 Unzipping HWPX file...');
+    const zip = new JSZip();
+    const zipData = await zip.loadAsync(buffer);
+    this.zip = zipData;
+
+    for (const [path, zipEntry] of Object.entries(zipData.files)) {
+      if (!zipEntry.dir) {
+        const data = await zipEntry.async('uint8array');
+        this.entries.set(path, data);
+      }
     }
 
-    /**
-     * HWPX 파일 파싱
-     * @param {ArrayBuffer} buffer - HWPX 파일의 ArrayBuffer
-     * @returns {Promise<Object>} 파싱된 문서 객체
-     */
-    async parse(buffer) {
-        logger.info('📄 Starting HWPX parsing (v3.0 High Performance)...');
-        logger.time('HWPX Parse');
+    logger.debug(`✅ Unzipped ${this.entries.size} files`);
+  }
 
-        try {
-            // 1. Unzip HWPX file
-            await this.unzip(buffer);
+  // ========================================================================
+  // Encryption Detection + Decryption
+  // ========================================================================
 
-            // 1.5 ★ Encryption detection + optional decryption
-            //     암호화된 HWPX 인 경우 비밀번호를 받아 각 스트림을 복호화한다.
-            //     실패하면 명확한 에러를 throw 하여 상위에서 안내한다.
-            await this._decryptIfNeeded(buffer);
+  /**
+   * 암호화된 HWPX 컨테이너인 경우 비밀번호를 입력 받아 각 스트림을 in-place
+   * 복호화한다. HWP 5.0(CFB) 컨테이너는 이 단계에서 명확한 에러를 발생시켜
+   * 변환기/뷰어가 사용자에게 안내할 수 있도록 한다.
+   *
+   * 이 단계는 다음 원칙을 따른다:
+   *   - 새 의존성 도입 금지 (Web Crypto API 사용)
+   *   - 비밀번호는 메모리(클로저)에서만 사용, 어떤 영구 저장소에도 기록하지 않음
+   *   - 평문/암호문 모두 entries Map 에만 보관 (다른 트랙 영역 미수정)
+   *
+   * @param {ArrayBuffer | Uint8Array} buffer 원본 파일 바이트 (헤더 감지용)
+   * @private
+   */
+  async _decryptIfNeeded(buffer) {
+    // manifest.xml 가 없으면 비암호화로 간주
+    const manifestBytes = this.entries.get('META-INF/manifest.xml');
+    const manifestXml = manifestBytes ? new TextDecoder('utf-8').decode(manifestBytes) : '';
 
-            // 2. Load binary data (images)
-            await this.loadBinData();
+    const info = _hwpDetectEncryption(buffer, { manifestXml });
 
-            // 3. ★ Single-pass header.xml parsing (v3.0 핵심 최적화)
-            await this.loadHeaderDefinitions();
-
-            // 4. Parse content (sections)
-            const content = await this.parseContent();
-
-            // 5. Extract raw header.xml for round-trip preservation
-            let rawHeaderXml = null;
-            try {
-                if (this.zip) {
-                    const headerFile = this.zip.file('Contents/header.xml');
-                    if (headerFile) {
-                        rawHeaderXml = await headerFile.async('string');
-                    }
-                }
-            } catch (error) {
-                logger.warn('⚠️  Failed to extract raw header.xml:', error);
-            }
-
-            // 5b. Macro stream detection (security — does NOT execute any code)
-            let macros = null;
-            try {
-                macros = detectMacrosFromEntries(this.entries);
-                if (macros && macros.present) {
-                    logger.warn(
-                        `⚠️  Macros detected: ${macros.count} stream(s), risks: ${macros.riskHints.join(', ') || 'none'}`
-                    );
-                }
-            } catch (error) {
-                logger.warn('⚠️  Macro detection failed:', error);
-                macros = null;
-            }
-
-            // 6. Build document
-            const document = {
-                sections: content.sections || [],
-                images: this.images,
-                oleObjects: this.oleObjects,
-                borderFills: this.borderFills,
-                rawHeaderXml,
-                macros: macros && macros.present ? macros : null,
-                metadata: {
-                    parsedAt: new Date().toISOString(),
-                    sectionsCount: content.sections?.length || 0,
-                    imagesCount: this.images.size,
-                    oleObjectsCount: this.oleObjects.size,
-                    borderFillsCount: this.borderFills.size,
-                    parserVersion: '3.0.0',
-                    macrosDetected: !!(macros && macros.present),
-                    macroCount: macros && macros.present ? macros.count : 0
-                }
-            };
-
-            logger.info('✅ HWPX parsed successfully');
-            logger.timeEnd('HWPX Parse');
-            return document;
-
-        } catch (error) {
-            logger.error('❌ HWPX parsing error:', error);
-            logger.timeEnd('HWPX Parse');
-
-            const parseError = new Error(`HWPX 파싱 실패: ${error.message}`);
-            parseError.originalError = error;
-            parseError.stack = error.stack;
-            throw parseError;
-        }
+    if (!info.encrypted) {
+      return; // 일반 흐름 계속
     }
 
-    // ========================================================================
-    // ZIP Extraction
-    // ========================================================================
-
-    async unzip(buffer) {
-        logger.debug('📦 Unzipping HWPX file...');
-        const zip = new JSZip();
-        const zipData = await zip.loadAsync(buffer);
-        this.zip = zipData;
-
-        for (const [path, zipEntry] of Object.entries(zipData.files)) {
-            if (!zipEntry.dir) {
-                const data = await zipEntry.async('uint8array');
-                this.entries.set(path, data);
-            }
-        }
-
-        logger.debug(`✅ Unzipped ${this.entries.size} files`);
+    // HWP 5.0 CFB 의 암호화 복호화는 별도 어댑터 라우트에서 처리되어야 한다
+    // (본 파서는 HWPX 전용). 사용자에게 명확한 안내를 제공한다.
+    if (info.format === 'hwp5') {
+      const err = new Error(
+        '암호화된 HWP 5.0 문서입니다. 먼저 한컴 오피스에서 비밀번호를 해제한 후 다시 열어 주세요.'
+      );
+      err.code = 'HWP5_ENCRYPTED';
+      err.userMessage =
+        '이 문서는 한컴 한글 자체 암호로 보호되어 있어 브라우저에서 열 수 없습니다. 한글에서 비밀번호 해제 후 .hwpx 로 다시 저장해 주세요.';
+      err.documentName = this.options.fileName || '문서';
+      throw err;
     }
 
-    // ========================================================================
-    // Encryption Detection + Decryption
-    // ========================================================================
+    logger.info('🔒 Encrypted HWPX detected — prompting for password');
 
-    /**
-     * 암호화된 HWPX 컨테이너인 경우 비밀번호를 입력 받아 각 스트림을 in-place
-     * 복호화한다. HWP 5.0(CFB) 컨테이너는 이 단계에서 명확한 에러를 발생시켜
-     * 변환기/뷰어가 사용자에게 안내할 수 있도록 한다.
-     *
-     * 이 단계는 다음 원칙을 따른다:
-     *   - 새 의존성 도입 금지 (Web Crypto API 사용)
-     *   - 비밀번호는 메모리(클로저)에서만 사용, 어떤 영구 저장소에도 기록하지 않음
-     *   - 평문/암호문 모두 entries Map 에만 보관 (다른 트랙 영역 미수정)
-     *
-     * @param {ArrayBuffer | Uint8Array} buffer 원본 파일 바이트 (헤더 감지용)
-     * @private
-     */
-    async _decryptIfNeeded(buffer) {
-        // manifest.xml 가 없으면 비암호화로 간주
-        const manifestBytes = this.entries.get('META-INF/manifest.xml');
-        const manifestXml = manifestBytes
-            ? new TextDecoder('utf-8').decode(manifestBytes)
-            : '';
+    const docName = this.options.fileName || 'HWPX 문서';
 
-        const info = _hwpDetectEncryption(buffer, { manifestXml });
+    // verify 콜백: 입력된 비밀번호로 첫 번째 암호화 스트림을 시험 복호화
+    const encFiles = Array.isArray(info.files) ? info.files : [];
+    const probePath = encFiles[0] && encFiles[0].path;
+    const probeBytes = probePath ? this.entries.get(probePath) : null;
 
-        if (!info.encrypted) {
-            return; // 일반 흐름 계속
-        }
+    // salt / iv 는 manifest 가 아니라 각 스트림의 헤더 prefix 에서 추출한다
+    // (한컴 명세 권장): [salt(16B) | iv(16B) | ciphertext...]
+    const extractSaltIv = bytes => {
+      if (!bytes || bytes.length < _HWP_SALT_SIZE + _HWP_IV_SIZE + 16) return null;
+      const salt = bytes.slice(0, _HWP_SALT_SIZE);
+      const iv = bytes.slice(_HWP_SALT_SIZE, _HWP_SALT_SIZE + _HWP_IV_SIZE);
+      const ct = bytes.slice(_HWP_SALT_SIZE + _HWP_IV_SIZE);
+      return { salt, iv, ct };
+    };
 
-        // HWP 5.0 CFB 의 암호화 복호화는 별도 어댑터 라우트에서 처리되어야 한다
-        // (본 파서는 HWPX 전용). 사용자에게 명확한 안내를 제공한다.
-        if (info.format === 'hwp5') {
-            const err = new Error(
-                '암호화된 HWP 5.0 문서입니다. 먼저 한컴 오피스에서 비밀번호를 해제한 후 다시 열어 주세요.'
+    const probe = probeBytes ? extractSaltIv(probeBytes) : null;
+
+    // 패스워드 검증 함수 (verify 콜백)
+    const verify = probe
+      ? async pwd => {
+          try {
+            const key = await _hwpDeriveKey(
+              pwd,
+              probe.salt,
+              _HWP_PBKDF2_PARAMS.iterations,
+              _HWP_PBKDF2_PARAMS.keyLength,
+              _HWP_PBKDF2_PARAMS.hash
             );
-            err.code = 'HWP5_ENCRYPTED';
-            throw err;
+            await _hwpDecryptStream(probe.ct, key, probe.iv);
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }
+      : null;
+
+    let password = null;
+    if (typeof this.options.password === 'string' && this.options.password.length > 0) {
+      // 호출자가 패스워드를 미리 주입한 경우 (UI 우회)
+      password = this.options.password;
+    } else {
+      password = await _hwpPromptPassword(docName, { verify, maxAttempts: 3 });
+    }
+
+    if (!password) {
+      const err = new Error('비밀번호가 입력되지 않아 문서를 열 수 없습니다.');
+      err.code = 'HWPX_PASSWORD_CANCELED';
+      err.userMessage = '비밀번호가 입력되지 않아 문서를 열 수 없습니다.';
+      err.documentName = docName;
+      throw err;
+    }
+
+    // 모든 암호화된 스트림을 in-place 로 복호화한다
+    let decryptedCount = 0;
+    for (const file of encFiles) {
+      const enc = this.entries.get(file.path);
+      if (!enc) continue;
+      const parts = extractSaltIv(enc);
+      if (!parts) {
+        logger.warn(`🔒 ${file.path}: payload too short, skipping`);
+        continue;
+      }
+      try {
+        const key = await _hwpDeriveKey(
+          password,
+          parts.salt,
+          _HWP_PBKDF2_PARAMS.iterations,
+          _HWP_PBKDF2_PARAMS.keyLength,
+          _HWP_PBKDF2_PARAMS.hash
+        );
+        const plain = await _hwpDecryptStream(parts.ct, key, parts.iv);
+        this.entries.set(file.path, plain);
+        decryptedCount++;
+      } catch (err) {
+        logger.error(`🔒 Failed to decrypt ${file.path}:`, err && err.message);
+        const wrap = new Error(`암호화된 스트림 복호화 실패: ${file.path}`);
+        wrap.code = 'HWPX_DECRYPT_FAILED';
+        wrap.userMessage =
+          '비밀번호로 문서를 복호화하지 못했습니다. 비밀번호가 정확한지 다시 확인해 주세요.';
+        wrap.documentName = docName;
+        wrap.cause = err;
+        throw wrap;
+      }
+    }
+
+    // 메모리에 남은 패스워드 참조 제거 (best-effort)
+    password = '';
+
+    logger.info(`🔓 Decrypted ${decryptedCount} encrypted stream(s)`);
+  }
+
+  // ========================================================================
+  // Binary Data (Images)
+  // ========================================================================
+
+  async loadBinData() {
+    if (!this.options.parseImages) return;
+
+    logger.debug('🖼️  Loading binary data...');
+    let imageCount = 0;
+    let oleCount = 0;
+
+    for (const [path, data] of this.entries) {
+      if (path.startsWith('BinData/')) {
+        const ext = path.split('.').pop().toLowerCase();
+        const filename = path.split('/').pop();
+        const id = filename.replace(/\.[^.]+$/, '');
+
+        // OLE 임베드 객체 (.ole/.olexml/.xlsx/.docx/.pptx 등) → 별도 파서
+        // 단, .emf/.wmf 는 이미지 미리보기로도 자주 쓰이므로 images 에도 함께 등록한다.
+        const isOle = isOleBinData(path);
+        const isMetafile = ext === 'emf' || ext === 'wmf';
+
+        if (isOle && !isMetafile) {
+          try {
+            const oleData = parseOle(data, filename);
+            if (oleData) {
+              // 미리보기 이미지가 있으면 이미지 Blob URL 도 생성
+              let previewUrl = null;
+              if (oleData.previewImage && oleData.previewMimeType) {
+                const blob = new Blob([oleData.previewImage], {
+                  type: oleData.previewMimeType,
+                });
+                previewUrl = URL.createObjectURL(blob);
+              }
+              this.oleObjects.set(id, {
+                id,
+                path,
+                filename,
+                size: data.length,
+                ...oleData,
+                previewUrl,
+              });
+              oleCount++;
+              continue;
+            }
+          } catch (err) {
+            logger.warn?.('⚠️  OLE parse failed:', filename, err?.message || err);
+            // OLE 파싱 실패 시 이미지로도 폴백하지 않음 (실행 위험 차단)
+            continue;
+          }
         }
 
-        logger.info('🔒 Encrypted HWPX detected — prompting for password');
-
-        const docName = this.options.fileName || 'HWPX 문서';
-
-        // verify 콜백: 입력된 비밀번호로 첫 번째 암호화 스트림을 시험 복호화
-        const encFiles = Array.isArray(info.files) ? info.files : [];
-        const probePath = encFiles[0] && encFiles[0].path;
-        const probeBytes = probePath ? this.entries.get(probePath) : null;
-
-        // salt / iv 는 manifest 가 아니라 각 스트림의 헤더 prefix 에서 추출한다
-        // (한컴 명세 권장): [salt(16B) | iv(16B) | ciphertext...]
-        const extractSaltIv = (bytes) => {
-            if (!bytes || bytes.length < _HWP_SALT_SIZE + _HWP_IV_SIZE + 16) return null;
-            const salt = bytes.slice(0, _HWP_SALT_SIZE);
-            const iv = bytes.slice(_HWP_SALT_SIZE, _HWP_SALT_SIZE + _HWP_IV_SIZE);
-            const ct = bytes.slice(_HWP_SALT_SIZE + _HWP_IV_SIZE);
-            return { salt, iv, ct };
+        const mimeTypes = {
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          gif: 'image/gif',
+          bmp: 'image/bmp',
+          svg: 'image/svg+xml',
+          webp: 'image/webp',
+          tif: 'image/tiff',
+          tiff: 'image/tiff',
+          emf: 'image/x-emf',
+          wmf: 'image/x-wmf',
         };
 
-        const probe = probeBytes ? extractSaltIv(probeBytes) : null;
+        const mimeType = mimeTypes[ext] || 'application/octet-stream';
+        const blob = new Blob([data], { type: mimeType });
+        const url = URL.createObjectURL(blob);
 
-        // 패스워드 검증 함수 (verify 콜백)
-        const verify = probe
-            ? async (pwd) => {
-                try {
-                    const key = await _hwpDeriveKey(
-                        pwd, probe.salt,
-                        _HWP_PBKDF2_PARAMS.iterations,
-                        _HWP_PBKDF2_PARAMS.keyLength,
-                        _HWP_PBKDF2_PARAMS.hash
-                    );
-                    await _hwpDecryptStream(probe.ct, key, probe.iv);
-                    return true;
-                } catch (_) {
-                    return false;
-                }
-            }
-            : null;
+        this.images.set(id, { id, url, path, mimeType, size: data.length, filename });
+        imageCount++;
+      }
+    }
 
-        let password = null;
-        if (typeof this.options.password === 'string' && this.options.password.length > 0) {
-            // 호출자가 패스워드를 미리 주입한 경우 (UI 우회)
-            password = this.options.password;
+    logger.debug(`✅ Loaded ${imageCount} images, ${oleCount} OLE objects`);
+  }
+
+  // ========================================================================
+  // ★ Single-Pass Header Definitions Loading (v3.0 핵심 최적화)
+  // ========================================================================
+
+  async loadHeaderDefinitions() {
+    logger.debug('📋 Loading all header definitions (single-pass)...');
+    logger.time('Header Parse');
+
+    const headData =
+      this.entries.get('Contents/header.xml') || this.entries.get('Contents/head.xml');
+
+    if (!headData) {
+      logger.warn('⚠️  No header.xml found');
+      return;
+    }
+
+    const headXml = new TextDecoder('utf-8').decode(headData);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(headXml, 'text/xml');
+
+    // ★ Parse ALL definitions from single DOM in one pass
+    this._parseBorderFills(doc);
+    this._parseParaProperties(doc);
+    this._parseFontFaces(doc);
+    this._parseCharProperties(doc);
+    this._parseNumberings(doc);
+    this._parseBulletDefs(doc);
+    this._parseTabDefs(doc);
+    this._parseNamedStyles(doc);
+
+    logger.timeEnd('Header Parse');
+    logger.debug(
+      `✅ Header definitions loaded: ${this.borderFills.size} borderFills, ${this.paraProperties.size} paraPr, ${this.charProperties.size} charPr, ${this.fontFaces.size} fonts, ${this.numberings.size} numberings, ${this.namedStyles.size} styles`
+    );
+  }
+
+  // ---- BorderFill Definitions ----
+
+  _parseBorderFills(doc) {
+    const borderFillElems = qsa(doc, 'borderFill');
+
+    borderFillElems.forEach(elem => {
+      const id = elem.getAttribute('id') || elem.getAttribute('itemId');
+      if (!id) return;
+
+      const borderFill = { id, borders: {}, fill: {} };
+
+      // Parse borders (left, right, top, bottom)
+      ['left', 'right', 'top', 'bottom'].forEach(side => {
+        const borderElem = elem.querySelector(
+          `${side}Border, hh\\:${side}Border, hp\\:${side}Border, ${side}, hp\\:${side}`
+        );
+        if (borderElem) {
+          const type = borderElem.getAttribute('type') || 'solid';
+          const width = borderElem.getAttribute('width') || '1';
+          const color = borderElem.getAttribute('color') || '#000000';
+          const isVisible = type.toUpperCase() !== 'NONE';
+          const widthPx = isVisible ? Math.max(0.5, parseBorderWidth(width)) : 0;
+
+          borderFill.borders[side] = {
+            type,
+            width: widthPx.toFixed(2) + 'px',
+            widthRaw: widthPx,
+            color: normalizeColor(color),
+            visible: isVisible,
+            css: isVisible
+              ? `${widthPx.toFixed(2)}px ${getBorderStyle(type)} ${normalizeColor(color)}`
+              : 'none',
+          };
+        }
+      });
+
+      // Parse diagonals
+      ['slash', 'backSlash'].forEach(diagonal => {
+        const diagonalElem = elem.querySelector(`${diagonal}, hh\\:${diagonal}, hp\\:${diagonal}`);
+        if (diagonalElem) {
+          const type = diagonalElem.getAttribute('type') || 'solid';
+          const width = diagonalElem.getAttribute('width') || '1';
+          const color = diagonalElem.getAttribute('color') || '#000000';
+          const isVisible = type.toUpperCase() !== 'NONE';
+          const widthPx = isVisible ? Math.max(0.5, parseBorderWidth(width)) : 0;
+
+          borderFill.borders[diagonal] = {
+            type,
+            width: widthPx,
+            color: normalizeColor(color),
+            visible: isVisible,
+          };
+        }
+      });
+
+      // Parse fill
+      const fillElem = elem.querySelector(
+        'fill, hp\\:fill, fillBrush, hp\\:fillBrush, hh\\:fillBrush, hc\\:fillBrush'
+      );
+      if (fillElem) {
+        this._parseFillElement(fillElem, borderFill.fill);
+      }
+
+      this.borderFills.set(id, borderFill);
+    });
+  }
+
+  _parseFillElement(fillElem, fillObj) {
+    // winBrush
+    const winBrushElem = fillElem.querySelector('winBrush, hc\\:winBrush');
+    let fillAlpha = 1.0;
+    let faceColor = null;
+
+    if (winBrushElem) {
+      faceColor = winBrushElem.getAttribute('faceColor');
+      const alpha = winBrushElem.getAttribute('alpha');
+      if (alpha) {
+        fillAlpha = 1.0 - parseInt(alpha) / 255.0;
+      }
+    }
+
+    // Solid color
+    const bgColor =
+      faceColor ||
+      fillElem.getAttribute('backgroundColor') ||
+      fillElem.getAttribute('color') ||
+      fillElem.getAttribute('rgb') ||
+      fillElem.getAttribute('bgColor') ||
+      fillElem.getAttribute('fillColor');
+
+    if (bgColor && bgColor !== 'none') {
+      fillObj.backgroundColor = normalizeColor(bgColor);
+      fillObj.opacity = fillAlpha;
+    }
+
+    // Pattern fill
+    const patternType = fillElem.getAttribute('patternType');
+    if (patternType && patternType !== 'none') {
+      fillObj.patternType = patternType;
+      const fgColor =
+        fillElem.getAttribute('patternColor') || fillElem.getAttribute('foregroundColor');
+      if (fgColor) fillObj.patternForeground = normalizeColor(fgColor);
+    }
+
+    // Gradient fill
+    const gradationElem = fillElem.querySelector('gradation, hp\\:gradation, hc\\:gradation');
+    if (gradationElem) {
+      const type = gradationElem.getAttribute('type') || 'linear';
+      const angle = gradationElem.getAttribute('angle') || '0';
+      const colors = gradationElem.getAttribute('colors') || '';
+      const colorArray = colors.split(',').map(c => normalizeColor(c.trim()));
+
+      if (type === 'linear') {
+        fillObj.gradientCSS = `linear-gradient(${angle}deg, ${colorArray.join(', ')})`;
+      } else if (type === 'radial') {
+        fillObj.gradientCSS = `radial-gradient(circle, ${colorArray.join(', ')})`;
+      }
+    }
+
+    // Image fill (imgBrush)
+    const imgBrushElem = fillElem.querySelector('imgBrush, hc\\:imgBrush');
+    if (imgBrushElem) {
+      const imgElem = imgBrushElem.querySelector('img, hc\\:img');
+      if (imgElem) {
+        const binaryItemIDRef = imgElem.getAttribute('binaryItemIDRef');
+        const mode = imgBrushElem.getAttribute('mode') || 'TILE';
+        if (binaryItemIDRef) {
+          fillObj.backgroundImage = { binaryItemIDRef, mode };
+        }
+      }
+    }
+  }
+
+  // ---- Paragraph Properties ----
+
+  _parseParaProperties(doc) {
+    const paraPrElems = qsa(doc, 'paraPr');
+
+    paraPrElems.forEach(elem => {
+      const id = elem.getAttribute('id') || elem.getAttribute('itemId');
+      if (!id) return;
+
+      const paraProp = { id };
+
+      // Alignment
+      const alignElem = qs(elem, 'align');
+      if (alignElem) {
+        const horizontal = alignElem.getAttribute('horizontal');
+        const vertical = alignElem.getAttribute('vertical');
+
+        if (horizontal) {
+          const hAlignMap = {
+            LEFT: 'left',
+            CENTER: 'center',
+            RIGHT: 'right',
+            JUSTIFY: 'justify',
+            DISTRIBUTE: 'justify',
+          };
+          paraProp.textAlign = hAlignMap[horizontal.toUpperCase()] || 'left';
+        }
+        if (vertical) {
+          const vAlignMap = {
+            TOP: 'top',
+            CENTER: 'middle',
+            MIDDLE: 'middle',
+            BOTTOM: 'bottom',
+            BASELINE: 'baseline',
+          };
+          paraProp.verticalAlign = vAlignMap[vertical.toUpperCase()] || 'baseline';
+        }
+      }
+
+      // Margins
+      const marginElem = qs(elem, 'margin');
+      if (marginElem) {
+        const left = marginElem.getAttribute('left');
+        const right = marginElem.getAttribute('right');
+        const top = marginElem.getAttribute('top');
+        const bottom = marginElem.getAttribute('bottom');
+        const indent = marginElem.getAttribute('indent');
+
+        if (left) paraProp.marginLeft = HWPXConstants.hwpuToPx(parseInt(left));
+        if (right) paraProp.marginRight = HWPXConstants.hwpuToPx(parseInt(right));
+        if (top) paraProp.marginTop = HWPXConstants.hwpuToPx(parseInt(top));
+        if (bottom) paraProp.marginBottom = HWPXConstants.hwpuToPx(parseInt(bottom));
+        if (indent) paraProp.textIndent = HWPXConstants.hwpuToPx(parseInt(indent));
+      }
+
+      // Line spacing
+      const lineSpacingElem = qs(elem, 'lineSpacing');
+      if (lineSpacingElem) {
+        const type = lineSpacingElem.getAttribute('type');
+        const value = lineSpacingElem.getAttribute('value');
+
+        if (type && value) {
+          if (type === 'PERCENT' || type === 'RATIO') {
+            paraProp.lineHeight = (parseInt(value) / 100).toFixed(2);
+          } else if (type === 'FIXED') {
+            paraProp.lineHeightPx = HWPXConstants.hwpuToPx(parseInt(value));
+          } else if (type === 'AT_LEAST') {
+            paraProp.minLineHeight = HWPXConstants.hwpuToPx(parseInt(value));
+          }
+        }
+      }
+
+      // Fallback lineHeight
+      const fontLineHeight = elem.getAttribute('fontLineHeight');
+      if (fontLineHeight === '0' && !paraProp.lineHeight) {
+        paraProp.lineHeight = '1.0';
+      }
+
+      // Heading/outline level (for TOC, heading detection)
+      const headingType = elem.getAttribute('headingType');
+      if (headingType) paraProp.headingType = headingType;
+      const outlineLvl = elem.getAttribute('outlineLvl');
+      if (outlineLvl) paraProp.outlineLevel = parseInt(outlineLvl);
+
+      // Numbering reference
+      const numPrElem = qs(elem, 'numPr');
+      if (numPrElem) {
+        const numIDRef = numPrElem.getAttribute('numIDRef') || numPrElem.getAttribute('id');
+        const levelRef = numPrElem.getAttribute('level') || numPrElem.getAttribute('lvl');
+        if (numIDRef) {
+          paraProp.numPr = {
+            numIDRef,
+            level: parseInt(levelRef) || 0,
+          };
+        }
+      }
+
+      this.paraProperties.set(id, paraProp);
+    });
+  }
+
+  // ---- Font Faces ----
+
+  _parseFontFaces(doc) {
+    const fontFaceElems = qsa(doc, 'fontFace');
+
+    fontFaceElems.forEach(ffElem => {
+      const id = ffElem.getAttribute('id');
+      if (!id) return;
+
+      const fontFace = { id };
+      const fontNames = qsa(ffElem, 'font');
+
+      fontNames.forEach(fontElem => {
+        const lang = fontElem.getAttribute('lang');
+        const name = fontElem.getAttribute('name') || fontElem.getAttribute('face');
+        if (name) {
+          if (lang === 'LATIN') fontFace.latin = name;
+          else if (lang === 'HANGUL') fontFace.hangul = name;
+          else if (lang === 'HANJA') fontFace.hanja = name;
+          else if (lang === 'JAPANESE') fontFace.japanese = name;
+          else if (lang === 'OTHER') fontFace.other = name;
+          else if (lang === 'SYMBOL') fontFace.symbol = name;
+        }
+      });
+
+      fontFace.name = fontFace.hangul || fontFace.latin || fontFace.other || 'Malgun Gothic';
+      this.fontFaces.set(id, fontFace);
+    });
+  }
+
+  // ---- Character Properties ----
+
+  _parseCharProperties(doc) {
+    const charProps = doc.querySelectorAll('charPr, hh\\:charPr');
+
+    charProps.forEach(cpElem => {
+      const id = cpElem.getAttribute('id');
+      if (!id) return;
+
+      const charProp = { id };
+
+      // Font size
+      const height = cpElem.getAttribute('height');
+      if (height) {
+        const ptSize = parseInt(height) / 100;
+        charProp.fontSize = `${ptSize}pt`;
+        charProp.fontSizePx = `${HWPXConstants.ptToPx(ptSize).toFixed(2)}px`;
+      }
+
+      // Font face reference
+      const fontId = cpElem.getAttribute('fontRef');
+      if (fontId) {
+        charProp.fontId = fontId;
+        if (this.fontFaces.has(fontId)) {
+          charProp.fontFamily = this.fontFaces.get(fontId).name || 'Malgun Gothic';
+        }
+      }
+
+      // Text color
+      const textColor = cpElem.getAttribute('textColor');
+      if (textColor && textColor !== 'auto') {
+        charProp.color = normalizeColor(textColor);
+      }
+
+      // Bold/Italic/Underline from attributes
+      if (cpElem.getAttribute('bold') === '1') charProp.bold = true;
+      if (cpElem.getAttribute('italic') === '1') charProp.italic = true;
+      if (cpElem.getAttribute('underline') === '1') charProp.underline = true;
+
+      // Bold (child element)
+      if (cpElem.querySelector('bold, hh\\:bold')) charProp.bold = true;
+      // Italic (child element)
+      if (cpElem.querySelector('italic, hh\\:italic')) charProp.italic = true;
+
+      // Underline (child with details)
+      const underlineElem = cpElem.querySelector('underline, hh\\:underline');
+      if (underlineElem) {
+        const underlineType = underlineElem.getAttribute('type');
+        if (underlineType && underlineType !== 'NONE') {
+          charProp.underline = true;
+          charProp.underlineType = underlineType;
+          const underlineColor = underlineElem.getAttribute('color');
+          if (underlineColor) charProp.underlineColor = normalizeColor(underlineColor);
+        }
+      }
+
+      // Strikeout
+      const strikeoutElem = cpElem.querySelector('strikeout, hh\\:strikeout');
+      if (strikeoutElem) {
+        const strikeoutType = strikeoutElem.getAttribute('type');
+        if (strikeoutType && strikeoutType !== 'NONE') {
+          charProp.strikethrough = true;
+          const strikeoutColor = strikeoutElem.getAttribute('color');
+          if (strikeoutColor) charProp.strikethroughColor = normalizeColor(strikeoutColor);
+        }
+      }
+
+      // Outline
+      const outlineElem = cpElem.querySelector('outline, hh\\:outline');
+      if (outlineElem) {
+        const outlineType = outlineElem.getAttribute('type');
+        if (outlineType && outlineType !== 'NONE') charProp.outline = true;
+      }
+
+      // Shadow
+      const shadowElem = cpElem.querySelector('shadow, hh\\:shadow');
+      if (shadowElem) {
+        const shadowType = shadowElem.getAttribute('type');
+        if (shadowType && shadowType !== 'NONE') {
+          charProp.textShadow = true;
+          const shadowColor = shadowElem.getAttribute('color');
+          const offsetX = shadowElem.getAttribute('offsetX');
+          const offsetY = shadowElem.getAttribute('offsetY');
+          if (shadowColor && offsetX && offsetY) {
+            const offsetXPx = (parseInt(offsetX) / 7200) * 96;
+            const offsetYPx = (parseInt(offsetY) / 7200) * 96;
+            charProp.textShadowValue = `${offsetXPx.toFixed(1)}px ${offsetYPx.toFixed(1)}px 0 ${normalizeColor(shadowColor)}`;
+          }
+        }
+      }
+
+      // Spacing (자간)
+      const spacingElem = cpElem.querySelector('spacing, hh\\:spacing');
+      if (spacingElem) {
+        const hangulSpacing = spacingElem.getAttribute('hangul');
+        if (hangulSpacing && parseInt(hangulSpacing) !== 0) {
+          charProp.letterSpacing = `${(parseInt(hangulSpacing) / 100).toFixed(2)}em`;
+        }
+      }
+
+      // Ratio (장평)
+      const ratioElem = cpElem.querySelector('ratio, hh\\:ratio');
+      if (ratioElem) {
+        const hangulRatio = ratioElem.getAttribute('hangul');
+        if (hangulRatio && parseInt(hangulRatio) !== 100) {
+          charProp.scaleX = parseInt(hangulRatio) / 100;
+        }
+      }
+
+      // Offset (super/subscript)
+      const offsetElem = cpElem.querySelector('offset, hh\\:offset');
+      if (offsetElem) {
+        const hangulOffset = offsetElem.getAttribute('hangul');
+        if (hangulOffset && parseInt(hangulOffset) !== 0) {
+          charProp.verticalAlign = parseInt(hangulOffset) > 0 ? 'super' : 'sub';
+        }
+      }
+
+      // Background color
+      const shadeColor = cpElem.getAttribute('shadeColor');
+      if (shadeColor && shadeColor !== 'none' && shadeColor !== 'auto') {
+        charProp.backgroundColor = normalizeColor(shadeColor);
+      }
+
+      // Superscript/subscript
+      const supscript = cpElem.getAttribute('supscript');
+      if (supscript === 'SUPERSCRIPT') charProp.verticalAlign = 'super';
+      if (supscript === 'SUBSCRIPT') charProp.verticalAlign = 'sub';
+
+      // ★ Emphasis mark (강조점) - symMark
+      //   HWPX 표현: <hh:symMark type="..."/> 또는 attribute symMark="..."
+      const symMarkAttr = cpElem.getAttribute('symMark');
+      const symMarkElem = cpElem.querySelector('symMark, hh\\:symMark');
+      const symMarkType =
+        symMarkAttr ||
+        (symMarkElem
+          ? symMarkElem.getAttribute('type') || symMarkElem.getAttribute('symMark')
+          : null);
+      if (symMarkType && symMarkType !== 'NONE' && symMarkType !== 'none') {
+        charProp.symMark = mapSymMarkToCss(symMarkType);
+      }
+
+      this.charProperties.set(id, charProp);
+    });
+  }
+
+  // ---- ★ Numbering Definitions (v3.0 신규) ----
+
+  _parseNumberings(doc) {
+    const numberingElems = qsa(doc, 'numbering');
+
+    numberingElems.forEach(numElem => {
+      const id = numElem.getAttribute('id') || numElem.getAttribute('itemId');
+      if (!id) return;
+
+      const numbering = { id, levels: [] };
+      const start = numElem.getAttribute('start');
+      if (start) numbering.startNum = parseInt(start);
+
+      // Parse each level
+      const paraHeadElems = qsa(numElem, 'paraHead');
+      paraHeadElems.forEach(phElem => {
+        const level = parseInt(phElem.getAttribute('level')) || 0;
+        const levelDef = {
+          level,
+          numFormat: phElem.getAttribute('numFormat') || 'DECIMAL',
+          start: parseInt(phElem.getAttribute('start')) || 1,
+          textBeforePrefix: phElem.getAttribute('textBeforePrefix') || '',
+          textAfterPrefix: phElem.getAttribute('textAfterPrefix') || '',
+          suffixType: phElem.getAttribute('suffixType') || 'NONE',
+          charPrIDRef: phElem.getAttribute('charPrIDRef'),
+        };
+
+        // Parse format string (e.g., "^1." for "1.")
+        const formatStr = phElem.textContent || '';
+        if (formatStr) levelDef.formatString = formatStr.trim();
+
+        // Indent
+        const indent = phElem.getAttribute('indent');
+        if (indent) levelDef.indent = HWPXConstants.hwpuToPx(parseInt(indent));
+
+        numbering.levels[level] = levelDef;
+      });
+
+      this.numberings.set(id, numbering);
+    });
+
+    logger.debug(`  🔢 Loaded ${this.numberings.size} numbering definitions`);
+  }
+
+  // ---- ★ Bullet Definitions (v3.0 신규) ----
+
+  _parseBulletDefs(doc) {
+    const bulletElems = qsa(doc, 'bullet');
+
+    bulletElems.forEach(bulletElem => {
+      const id = bulletElem.getAttribute('id') || bulletElem.getAttribute('itemId');
+      if (!id) return;
+
+      const bullet = {
+        id,
+        char: bulletElem.getAttribute('char') || '•',
+        checkedChar: bulletElem.getAttribute('checkedChar') || '☑',
+        useImage: bulletElem.getAttribute('useImage') === '1',
+        imgBinaryItemIDRef: null,
+      };
+
+      // Parse bullet image
+      const imgElem = qs(bulletElem, 'img');
+      if (imgElem) {
+        bullet.imgBinaryItemIDRef = imgElem.getAttribute('binaryItemIDRef');
+      }
+
+      // Parse bullet charPr
+      const charPrIDRef = bulletElem.getAttribute('charPrIDRef');
+      if (charPrIDRef) bullet.charPrIDRef = charPrIDRef;
+
+      this.bulletDefs.set(id, bullet);
+    });
+  }
+
+  // ---- ★ Tab Definitions (v3.0 신규) ----
+
+  _parseTabDefs(doc) {
+    const tabDefElems = qsa(doc, 'tabDef');
+
+    tabDefElems.forEach(tabDefElem => {
+      const id = tabDefElem.getAttribute('id') || tabDefElem.getAttribute('itemId');
+      if (!id) return;
+
+      const tabDef = { id, autoTabLeft: false, autoTabRight: false, tabs: [] };
+
+      const autoLeft = tabDefElem.getAttribute('autoTabLeft');
+      const autoRight = tabDefElem.getAttribute('autoTabRight');
+      if (autoLeft === '1') tabDef.autoTabLeft = true;
+      if (autoRight === '1') tabDef.autoTabRight = true;
+
+      // Parse tab items
+      const tabItems = qsa(tabDefElem, 'tabItem');
+      tabItems.forEach(tabItem => {
+        tabDef.tabs.push({
+          pos: HWPXConstants.hwpuToPx(parseInt(tabItem.getAttribute('pos')) || 0),
+          type: tabItem.getAttribute('type') || 'LEFT',
+          leader: tabItem.getAttribute('leader') || 'NONE',
+        });
+      });
+
+      this.tabDefs.set(id, tabDef);
+    });
+  }
+
+  // ---- ★ Named Styles (v3.0 신규) ----
+
+  _parseNamedStyles(doc) {
+    const styleElems = qsa(doc, 'style');
+
+    styleElems.forEach(styleElem => {
+      const id = styleElem.getAttribute('id') || styleElem.getAttribute('itemId');
+      if (!id) return;
+
+      const style = {
+        id,
+        name: styleElem.getAttribute('name') || styleElem.getAttribute('engName') || `Style_${id}`,
+        type: styleElem.getAttribute('type') || 'PARA',
+        paraPrIDRef: styleElem.getAttribute('paraPrIDRef'),
+        charPrIDRef: styleElem.getAttribute('charPrIDRef'),
+        nextStyleIDRef: styleElem.getAttribute('nextStyleIDRef'),
+        parentStyleIDRef:
+          styleElem.getAttribute('parentStyleIDRef') || styleElem.getAttribute('baseStyleIDRef'),
+      };
+
+      // English name
+      const engName = styleElem.getAttribute('engName');
+      if (engName) style.engName = engName;
+
+      this.namedStyles.set(id, style);
+    });
+
+    logger.debug(`  📝 Loaded ${this.namedStyles.size} named styles`);
+  }
+
+  // ========================================================================
+  // Content Parsing
+  // ========================================================================
+
+  async parseContent() {
+    logger.debug('📄 Parsing document content...');
+
+    const sections = [];
+    const sectionFiles = Array.from(this.entries.keys())
+      .filter(path => path.match(/Contents\/section\d+\.xml/))
+      .sort();
+
+    for (const sectionPath of sectionFiles) {
+      const sectionData = this.entries.get(sectionPath);
+      if (!sectionData) continue;
+
+      const sectionXml = new TextDecoder('utf-8').decode(sectionData);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(sectionXml, 'text/xml');
+
+      const section = await this.parseSection(doc);
+      if (section) sections.push(section);
+    }
+
+    return { sections };
+  }
+
+  // ========================================================================
+  // Section Parsing
+  // ========================================================================
+
+  async parseSection(doc) {
+    const section = {
+      elements: [],
+      pageSettings: {},
+      headers: { both: null, odd: null, even: null, first: null },
+      footers: { both: null, odd: null, even: null, first: null },
+      footnotes: [],
+      endnotes: [],
+      memos: [],
+      pageNum: null,
+      colPr: null,
+      pageBorder: null,
+      watermark: null,
+    };
+
+    // Capture the current section for memo collection inside parseParagraph
+    this._currentSection = section;
+
+    // Parse section properties
+    const secPrElem = qs(doc, 'secPr');
+    if (secPrElem) {
+      this._parseSectionProperties(secPrElem, section);
+      this._parseHeaderFooter(secPrElem, section);
+    }
+
+    // ★ Parse elements in document order
+    let bodyElem = doc.documentElement;
+    const possibleBody = bodyElem.querySelector('body, hh\\:body, hp\\:body, hs\\:sec');
+    if (possibleBody) bodyElem = possibleBody;
+
+    const children = Array.from(bodyElem.children);
+    let parsedCount = 0;
+
+    children.forEach(child => {
+      const tag = localName(child);
+
+      if (tag === 'header' || tag === 'footer' || tag === 'secpr') return;
+
+      if (tag === 'p') {
+        if (child.closest('tbl, hp\\:tbl, tc, hp\\:tc, container, hp\\:container')) return;
+
+        const containsTable = child.querySelector('tbl, hp\\:tbl');
+        const containsContainer = child.querySelector('container, hp\\:container');
+        const hasRuns = child.querySelectorAll('run, hp\\:run').length > 0;
+        const containsStandaloneShapes =
+          !hasRuns &&
+          child.querySelector('rect, hp\\:rect, ellipse, hp\\:ellipse, polygon, hp\\:polygon');
+
+        if (containsStandaloneShapes && !containsContainer) return;
+
+        if (containsTable) {
+          parsedCount += this._parseTableContainingParagraph(child, section);
         } else {
-            password = await _hwpPromptPassword(docName, { verify, maxAttempts: 3 });
+          const para = this.parseParagraph(child);
+          if (para) {
+            section.elements.push(para);
+            parsedCount++;
+          }
         }
-
-        if (!password) {
-            const err = new Error('비밀번호가 입력되지 않아 문서를 열 수 없습니다.');
-            err.code = 'HWPX_PASSWORD_CANCELED';
-            throw err;
+      } else if (tag === 'tbl' && this.options.parseTables) {
+        const table = this.parseTable(child);
+        if (table) {
+          section.elements.push(table);
+          parsedCount++;
         }
-
-        // 모든 암호화된 스트림을 in-place 로 복호화한다
-        let decryptedCount = 0;
-        for (const file of encFiles) {
-            const enc = this.entries.get(file.path);
-            if (!enc) continue;
-            const parts = extractSaltIv(enc);
-            if (!parts) {
-                logger.warn(`🔒 ${file.path}: payload too short, skipping`);
-                continue;
-            }
-            try {
-                const key = await _hwpDeriveKey(
-                    password, parts.salt,
-                    _HWP_PBKDF2_PARAMS.iterations,
-                    _HWP_PBKDF2_PARAMS.keyLength,
-                    _HWP_PBKDF2_PARAMS.hash
-                );
-                const plain = await _hwpDecryptStream(parts.ct, key, parts.iv);
-                this.entries.set(file.path, plain);
-                decryptedCount++;
-            } catch (err) {
-                logger.error(`🔒 Failed to decrypt ${file.path}:`, err && err.message);
-                const wrap = new Error(`암호화된 스트림 복호화 실패: ${file.path}`);
-                wrap.code = 'HWPX_DECRYPT_FAILED';
-                wrap.cause = err;
-                throw wrap;
-            }
-        }
-
-        // 메모리에 남은 패스워드 참조 제거 (best-effort)
-        password = '';
-
-        logger.info(`🔓 Decrypted ${decryptedCount} encrypted stream(s)`);
-    }
-
-    // ========================================================================
-    // Binary Data (Images)
-    // ========================================================================
-
-    async loadBinData() {
-        if (!this.options.parseImages) return;
-
-        logger.debug('🖼️  Loading binary data...');
-        let imageCount = 0;
-        let oleCount = 0;
-
-        for (const [path, data] of this.entries) {
-            if (path.startsWith('BinData/')) {
-                const ext = path.split('.').pop().toLowerCase();
-                const filename = path.split('/').pop();
-                const id = filename.replace(/\.[^.]+$/, '');
-
-                // OLE 임베드 객체 (.ole/.olexml/.xlsx/.docx/.pptx 등) → 별도 파서
-                // 단, .emf/.wmf 는 이미지 미리보기로도 자주 쓰이므로 images 에도 함께 등록한다.
-                const isOle = isOleBinData(path);
-                const isMetafile = ext === 'emf' || ext === 'wmf';
-
-                if (isOle && !isMetafile) {
-                    try {
-                        const oleData = parseOle(data, filename);
-                        if (oleData) {
-                            // 미리보기 이미지가 있으면 이미지 Blob URL 도 생성
-                            let previewUrl = null;
-                            if (oleData.previewImage && oleData.previewMimeType) {
-                                const blob = new Blob([oleData.previewImage], {
-                                    type: oleData.previewMimeType
-                                });
-                                previewUrl = URL.createObjectURL(blob);
-                            }
-                            this.oleObjects.set(id, {
-                                id,
-                                path,
-                                filename,
-                                size: data.length,
-                                ...oleData,
-                                previewUrl
-                            });
-                            oleCount++;
-                            continue;
-                        }
-                    } catch (err) {
-                        logger.warn?.('⚠️  OLE parse failed:', filename, err?.message || err);
-                        // OLE 파싱 실패 시 이미지로도 폴백하지 않음 (실행 위험 차단)
-                        continue;
-                    }
-                }
-
-                const mimeTypes = {
-                    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-                    'png': 'image/png', 'gif': 'image/gif',
-                    'bmp': 'image/bmp', 'svg': 'image/svg+xml',
-                    'webp': 'image/webp', 'tif': 'image/tiff',
-                    'tiff': 'image/tiff', 'emf': 'image/x-emf',
-                    'wmf': 'image/x-wmf'
-                };
-
-                const mimeType = mimeTypes[ext] || 'application/octet-stream';
-                const blob = new Blob([data], { type: mimeType });
-                const url = URL.createObjectURL(blob);
-
-                this.images.set(id, { id, url, path, mimeType, size: data.length, filename });
-                imageCount++;
-            }
-        }
-
-        logger.debug(`✅ Loaded ${imageCount} images, ${oleCount} OLE objects`);
-    }
-
-    // ========================================================================
-    // ★ Single-Pass Header Definitions Loading (v3.0 핵심 최적화)
-    // ========================================================================
-
-    async loadHeaderDefinitions() {
-        logger.debug('📋 Loading all header definitions (single-pass)...');
-        logger.time('Header Parse');
-
-        const headData = this.entries.get('Contents/header.xml') ||
-            this.entries.get('Contents/head.xml');
-
-        if (!headData) {
-            logger.warn('⚠️  No header.xml found');
-            return;
-        }
-
-        const headXml = new TextDecoder('utf-8').decode(headData);
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(headXml, 'text/xml');
-
-        // ★ Parse ALL definitions from single DOM in one pass
-        this._parseBorderFills(doc);
-        this._parseParaProperties(doc);
-        this._parseFontFaces(doc);
-        this._parseCharProperties(doc);
-        this._parseNumberings(doc);
-        this._parseBulletDefs(doc);
-        this._parseTabDefs(doc);
-        this._parseNamedStyles(doc);
-
-        logger.timeEnd('Header Parse');
-        logger.debug(`✅ Header definitions loaded: ${this.borderFills.size} borderFills, ${this.paraProperties.size} paraPr, ${this.charProperties.size} charPr, ${this.fontFaces.size} fonts, ${this.numberings.size} numberings, ${this.namedStyles.size} styles`);
-    }
-
-    // ---- BorderFill Definitions ----
-
-    _parseBorderFills(doc) {
-        const borderFillElems = qsa(doc, 'borderFill');
-
-        borderFillElems.forEach(elem => {
-            const id = elem.getAttribute('id') || elem.getAttribute('itemId');
-            if (!id) return;
-
-            const borderFill = { id, borders: {}, fill: {} };
-
-            // Parse borders (left, right, top, bottom)
-            ['left', 'right', 'top', 'bottom'].forEach(side => {
-                const borderElem = elem.querySelector(
-                    `${side}Border, hh\\:${side}Border, hp\\:${side}Border, ${side}, hp\\:${side}`
-                );
-                if (borderElem) {
-                    const type = borderElem.getAttribute('type') || 'solid';
-                    const width = borderElem.getAttribute('width') || '1';
-                    const color = borderElem.getAttribute('color') || '#000000';
-                    const isVisible = type.toUpperCase() !== 'NONE';
-                    const widthPx = isVisible ? Math.max(0.5, parseBorderWidth(width)) : 0;
-
-                    borderFill.borders[side] = {
-                        type, width: widthPx.toFixed(2) + 'px', widthRaw: widthPx,
-                        color: normalizeColor(color), visible: isVisible,
-                        css: isVisible
-                            ? `${widthPx.toFixed(2)}px ${getBorderStyle(type)} ${normalizeColor(color)}`
-                            : 'none'
-                    };
-                }
-            });
-
-            // Parse diagonals
-            ['slash', 'backSlash'].forEach(diagonal => {
-                const diagonalElem = elem.querySelector(
-                    `${diagonal}, hh\\:${diagonal}, hp\\:${diagonal}`
-                );
-                if (diagonalElem) {
-                    const type = diagonalElem.getAttribute('type') || 'solid';
-                    const width = diagonalElem.getAttribute('width') || '1';
-                    const color = diagonalElem.getAttribute('color') || '#000000';
-                    const isVisible = type.toUpperCase() !== 'NONE';
-                    const widthPx = isVisible ? Math.max(0.5, parseBorderWidth(width)) : 0;
-
-                    borderFill.borders[diagonal] = {
-                        type, width: widthPx, color: normalizeColor(color), visible: isVisible
-                    };
-                }
-            });
-
-            // Parse fill
-            const fillElem = elem.querySelector('fill, hp\\:fill, fillBrush, hp\\:fillBrush, hh\\:fillBrush, hc\\:fillBrush');
-            if (fillElem) {
-                this._parseFillElement(fillElem, borderFill.fill);
-            }
-
-            this.borderFills.set(id, borderFill);
+      } else if (tag === 'sublist') {
+        const parasInSubList = qsa(child, 'p');
+        parasInSubList.forEach(pElem => {
+          const para = this.parseParagraph(pElem);
+          if (para) {
+            section.elements.push(para);
+            parsedCount++;
+          }
         });
+      }
+    });
+
+    // Parse standalone images
+    if (this.options.parseImages) {
+      const allImages = qsa(doc, 'pic');
+      allImages.forEach(picElem => {
+        const parent = picElem.parentElement;
+        const parentTag = parent ? localName(parent) : '';
+        if (parentTag === 'run' || picElem.closest('p, hp\\:p, tbl, hp\\:tbl')) return;
+
+        const image = this.parseImage(picElem);
+        if (image) {
+          section.elements.push(image);
+        }
+      });
     }
 
-    _parseFillElement(fillElem, fillObj) {
-        // winBrush
-        const winBrushElem = fillElem.querySelector('winBrush, hc\\:winBrush');
-        let fillAlpha = 1.0;
-        let faceColor = null;
+    // Parse standalone shapes (not inside containers/paragraphs)
+    const shapes = doc.querySelectorAll(
+      'rect, hp\\:rect, ellipse, hp\\:ellipse, polygon, hp\\:polygon'
+    );
+    shapes.forEach(shapeElem => {
+      if (shapeElem.closest('container, hp\\:container')) return;
+      if (shapeElem.closest('run, hp\\:run')) return;
+      const shape = this.parseShape(shapeElem);
+      if (shape) section.elements.push(shape);
+    });
 
-        if (winBrushElem) {
-            faceColor = winBrushElem.getAttribute('faceColor');
-            const alpha = winBrushElem.getAttribute('alpha');
-            if (alpha) {
-                fillAlpha = 1.0 - (parseInt(alpha) / 255.0);
-            }
-        }
+    // Parse textboxes
+    const textboxes = qsa(doc, 'textbox');
+    textboxes.forEach(textboxElem => {
+      const textbox = this.parseTextBox(textboxElem);
+      if (textbox) section.elements.push(textbox);
+    });
 
-        // Solid color
-        const bgColor = faceColor ||
-            fillElem.getAttribute('backgroundColor') ||
-            fillElem.getAttribute('color') ||
-            fillElem.getAttribute('rgb') ||
-            fillElem.getAttribute('bgColor') ||
-            fillElem.getAttribute('fillColor');
+    // Parse top-level containers
+    const containers = qsa(doc, 'container');
+    containers.forEach(containerElem => {
+      const parentContainer = containerElem.parentElement?.closest('container, hp\\:container');
+      if (parentContainer && parentContainer !== containerElem) return;
+      if (containerElem.closest('run, hp\\:run')) return;
+      const container = this.parseContainer(containerElem);
+      if (container) section.elements.push(container);
+    });
 
-        if (bgColor && bgColor !== 'none') {
-            fillObj.backgroundColor = normalizeColor(bgColor);
-            fillObj.opacity = fillAlpha;
-        }
+    // ★ Parse footnotes (v3.0 신규)
+    this._parseFootnotes(doc, section);
 
-        // Pattern fill
-        const patternType = fillElem.getAttribute('patternType');
-        if (patternType && patternType !== 'none') {
-            fillObj.patternType = patternType;
-            const fgColor = fillElem.getAttribute('patternColor') || fillElem.getAttribute('foregroundColor');
-            if (fgColor) fillObj.patternForeground = normalizeColor(fgColor);
-        }
+    return section;
+  }
 
-        // Gradient fill
-        const gradationElem = fillElem.querySelector('gradation, hp\\:gradation, hc\\:gradation');
-        if (gradationElem) {
-            const type = gradationElem.getAttribute('type') || 'linear';
-            const angle = gradationElem.getAttribute('angle') || '0';
-            const colors = gradationElem.getAttribute('colors') || '';
-            const colorArray = colors.split(',').map(c => normalizeColor(c.trim()));
+  // ---- Section Properties ----
 
-            if (type === 'linear') {
-                fillObj.gradientCSS = `linear-gradient(${angle}deg, ${colorArray.join(', ')})`;
-            } else if (type === 'radial') {
-                fillObj.gradientCSS = `radial-gradient(circle, ${colorArray.join(', ')})`;
-            }
-        }
+  _parseSectionProperties(secPrElem, section) {
+    const pagePrElem = qs(secPrElem, 'pagePr');
+    if (pagePrElem) {
+      const width = pagePrElem.getAttribute('width');
+      const height = pagePrElem.getAttribute('height');
+      const landscape = pagePrElem.getAttribute('landscape');
 
-        // Image fill (imgBrush)
-        const imgBrushElem = fillElem.querySelector('imgBrush, hc\\:imgBrush');
-        if (imgBrushElem) {
-            const imgElem = imgBrushElem.querySelector('img, hc\\:img');
-            if (imgElem) {
-                const binaryItemIDRef = imgElem.getAttribute('binaryItemIDRef');
-                const mode = imgBrushElem.getAttribute('mode') || 'TILE';
-                if (binaryItemIDRef) {
-                    fillObj.backgroundImage = { binaryItemIDRef, mode };
-                }
-            }
-        }
-    }
+      if (width) {
+        const widthPx = Math.round((parseInt(width) / 7200) * 96);
+        section.pageSettings.width = `${widthPx}px`;
+        section.pageWidth = widthPx;
+      }
+      if (height) {
+        const heightPx = Math.round((parseInt(height) / 7200) * 96);
+        section.pageSettings.height = `${heightPx}px`;
+        section.pageHeight = heightPx;
+      }
+      if (landscape) section.pageSettings.landscape = landscape;
 
-    // ---- Paragraph Properties ----
-
-    _parseParaProperties(doc) {
-        const paraPrElems = qsa(doc, 'paraPr');
-
-        paraPrElems.forEach(elem => {
-            const id = elem.getAttribute('id') || elem.getAttribute('itemId');
-            if (!id) return;
-
-            const paraProp = { id };
-
-            // Alignment
-            const alignElem = qs(elem, 'align');
-            if (alignElem) {
-                const horizontal = alignElem.getAttribute('horizontal');
-                const vertical = alignElem.getAttribute('vertical');
-
-                if (horizontal) {
-                    const hAlignMap = { 'LEFT': 'left', 'CENTER': 'center', 'RIGHT': 'right', 'JUSTIFY': 'justify', 'DISTRIBUTE': 'justify' };
-                    paraProp.textAlign = hAlignMap[horizontal.toUpperCase()] || 'left';
-                }
-                if (vertical) {
-                    const vAlignMap = { 'TOP': 'top', 'CENTER': 'middle', 'MIDDLE': 'middle', 'BOTTOM': 'bottom', 'BASELINE': 'baseline' };
-                    paraProp.verticalAlign = vAlignMap[vertical.toUpperCase()] || 'baseline';
-                }
-            }
-
-            // Margins
-            const marginElem = qs(elem, 'margin');
-            if (marginElem) {
-                const left = marginElem.getAttribute('left');
-                const right = marginElem.getAttribute('right');
-                const top = marginElem.getAttribute('top');
-                const bottom = marginElem.getAttribute('bottom');
-                const indent = marginElem.getAttribute('indent');
-
-                if (left) paraProp.marginLeft = HWPXConstants.hwpuToPx(parseInt(left));
-                if (right) paraProp.marginRight = HWPXConstants.hwpuToPx(parseInt(right));
-                if (top) paraProp.marginTop = HWPXConstants.hwpuToPx(parseInt(top));
-                if (bottom) paraProp.marginBottom = HWPXConstants.hwpuToPx(parseInt(bottom));
-                if (indent) paraProp.textIndent = HWPXConstants.hwpuToPx(parseInt(indent));
-            }
-
-            // Line spacing
-            const lineSpacingElem = qs(elem, 'lineSpacing');
-            if (lineSpacingElem) {
-                const type = lineSpacingElem.getAttribute('type');
-                const value = lineSpacingElem.getAttribute('value');
-
-                if (type && value) {
-                    if (type === 'PERCENT' || type === 'RATIO') {
-                        paraProp.lineHeight = (parseInt(value) / 100).toFixed(2);
-                    } else if (type === 'FIXED') {
-                        paraProp.lineHeightPx = HWPXConstants.hwpuToPx(parseInt(value));
-                    } else if (type === 'AT_LEAST') {
-                        paraProp.minLineHeight = HWPXConstants.hwpuToPx(parseInt(value));
-                    }
-                }
-            }
-
-            // Fallback lineHeight
-            const fontLineHeight = elem.getAttribute('fontLineHeight');
-            if (fontLineHeight === '0' && !paraProp.lineHeight) {
-                paraProp.lineHeight = '1.0';
-            }
-
-            // Heading/outline level (for TOC, heading detection)
-            const headingType = elem.getAttribute('headingType');
-            if (headingType) paraProp.headingType = headingType;
-            const outlineLvl = elem.getAttribute('outlineLvl');
-            if (outlineLvl) paraProp.outlineLevel = parseInt(outlineLvl);
-
-            // Numbering reference
-            const numPrElem = qs(elem, 'numPr');
-            if (numPrElem) {
-                const numIDRef = numPrElem.getAttribute('numIDRef') || numPrElem.getAttribute('id');
-                const levelRef = numPrElem.getAttribute('level') || numPrElem.getAttribute('lvl');
-                if (numIDRef) {
-                    paraProp.numPr = {
-                        numIDRef,
-                        level: parseInt(levelRef) || 0
-                    };
-                }
-            }
-
-            this.paraProperties.set(id, paraProp);
-        });
-    }
-
-    // ---- Font Faces ----
-
-    _parseFontFaces(doc) {
-        const fontFaceElems = qsa(doc, 'fontFace');
-
-        fontFaceElems.forEach(ffElem => {
-            const id = ffElem.getAttribute('id');
-            if (!id) return;
-
-            const fontFace = { id };
-            const fontNames = qsa(ffElem, 'font');
-
-            fontNames.forEach(fontElem => {
-                const lang = fontElem.getAttribute('lang');
-                const name = fontElem.getAttribute('name') || fontElem.getAttribute('face');
-                if (name) {
-                    if (lang === 'LATIN') fontFace.latin = name;
-                    else if (lang === 'HANGUL') fontFace.hangul = name;
-                    else if (lang === 'HANJA') fontFace.hanja = name;
-                    else if (lang === 'JAPANESE') fontFace.japanese = name;
-                    else if (lang === 'OTHER') fontFace.other = name;
-                    else if (lang === 'SYMBOL') fontFace.symbol = name;
-                }
-            });
-
-            fontFace.name = fontFace.hangul || fontFace.latin || fontFace.other || 'Malgun Gothic';
-            this.fontFaces.set(id, fontFace);
-        });
-    }
-
-    // ---- Character Properties ----
-
-    _parseCharProperties(doc) {
-        const charProps = doc.querySelectorAll('charPr, hh\\:charPr');
-
-        charProps.forEach(cpElem => {
-            const id = cpElem.getAttribute('id');
-            if (!id) return;
-
-            const charProp = { id };
-
-            // Font size
-            const height = cpElem.getAttribute('height');
-            if (height) {
-                const ptSize = parseInt(height) / 100;
-                charProp.fontSize = `${ptSize}pt`;
-                charProp.fontSizePx = `${HWPXConstants.ptToPx(ptSize).toFixed(2)}px`;
-            }
-
-            // Font face reference
-            const fontId = cpElem.getAttribute('fontRef');
-            if (fontId) {
-                charProp.fontId = fontId;
-                if (this.fontFaces.has(fontId)) {
-                    charProp.fontFamily = this.fontFaces.get(fontId).name || 'Malgun Gothic';
-                }
-            }
-
-            // Text color
-            const textColor = cpElem.getAttribute('textColor');
-            if (textColor && textColor !== 'auto') {
-                charProp.color = normalizeColor(textColor);
-            }
-
-            // Bold/Italic/Underline from attributes
-            if (cpElem.getAttribute('bold') === '1') charProp.bold = true;
-            if (cpElem.getAttribute('italic') === '1') charProp.italic = true;
-            if (cpElem.getAttribute('underline') === '1') charProp.underline = true;
-
-            // Bold (child element)
-            if (cpElem.querySelector('bold, hh\\:bold')) charProp.bold = true;
-            // Italic (child element)
-            if (cpElem.querySelector('italic, hh\\:italic')) charProp.italic = true;
-
-            // Underline (child with details)
-            const underlineElem = cpElem.querySelector('underline, hh\\:underline');
-            if (underlineElem) {
-                const underlineType = underlineElem.getAttribute('type');
-                if (underlineType && underlineType !== 'NONE') {
-                    charProp.underline = true;
-                    charProp.underlineType = underlineType;
-                    const underlineColor = underlineElem.getAttribute('color');
-                    if (underlineColor) charProp.underlineColor = normalizeColor(underlineColor);
-                }
-            }
-
-            // Strikeout
-            const strikeoutElem = cpElem.querySelector('strikeout, hh\\:strikeout');
-            if (strikeoutElem) {
-                const strikeoutType = strikeoutElem.getAttribute('type');
-                if (strikeoutType && strikeoutType !== 'NONE') {
-                    charProp.strikethrough = true;
-                    const strikeoutColor = strikeoutElem.getAttribute('color');
-                    if (strikeoutColor) charProp.strikethroughColor = normalizeColor(strikeoutColor);
-                }
-            }
-
-            // Outline
-            const outlineElem = cpElem.querySelector('outline, hh\\:outline');
-            if (outlineElem) {
-                const outlineType = outlineElem.getAttribute('type');
-                if (outlineType && outlineType !== 'NONE') charProp.outline = true;
-            }
-
-            // Shadow
-            const shadowElem = cpElem.querySelector('shadow, hh\\:shadow');
-            if (shadowElem) {
-                const shadowType = shadowElem.getAttribute('type');
-                if (shadowType && shadowType !== 'NONE') {
-                    charProp.textShadow = true;
-                    const shadowColor = shadowElem.getAttribute('color');
-                    const offsetX = shadowElem.getAttribute('offsetX');
-                    const offsetY = shadowElem.getAttribute('offsetY');
-                    if (shadowColor && offsetX && offsetY) {
-                        const offsetXPx = parseInt(offsetX) / 7200 * 96;
-                        const offsetYPx = parseInt(offsetY) / 7200 * 96;
-                        charProp.textShadowValue = `${offsetXPx.toFixed(1)}px ${offsetYPx.toFixed(1)}px 0 ${normalizeColor(shadowColor)}`;
-                    }
-                }
-            }
-
-            // Spacing (자간)
-            const spacingElem = cpElem.querySelector('spacing, hh\\:spacing');
-            if (spacingElem) {
-                const hangulSpacing = spacingElem.getAttribute('hangul');
-                if (hangulSpacing && parseInt(hangulSpacing) !== 0) {
-                    charProp.letterSpacing = `${(parseInt(hangulSpacing) / 100).toFixed(2)}em`;
-                }
-            }
-
-            // Ratio (장평)
-            const ratioElem = cpElem.querySelector('ratio, hh\\:ratio');
-            if (ratioElem) {
-                const hangulRatio = ratioElem.getAttribute('hangul');
-                if (hangulRatio && parseInt(hangulRatio) !== 100) {
-                    charProp.scaleX = parseInt(hangulRatio) / 100;
-                }
-            }
-
-            // Offset (super/subscript)
-            const offsetElem = cpElem.querySelector('offset, hh\\:offset');
-            if (offsetElem) {
-                const hangulOffset = offsetElem.getAttribute('hangul');
-                if (hangulOffset && parseInt(hangulOffset) !== 0) {
-                    charProp.verticalAlign = parseInt(hangulOffset) > 0 ? 'super' : 'sub';
-                }
-            }
-
-            // Background color
-            const shadeColor = cpElem.getAttribute('shadeColor');
-            if (shadeColor && shadeColor !== 'none' && shadeColor !== 'auto') {
-                charProp.backgroundColor = normalizeColor(shadeColor);
-            }
-
-            // Superscript/subscript
-            const supscript = cpElem.getAttribute('supscript');
-            if (supscript === 'SUPERSCRIPT') charProp.verticalAlign = 'super';
-            if (supscript === 'SUBSCRIPT') charProp.verticalAlign = 'sub';
-
-            // ★ Emphasis mark (강조점) - symMark
-            //   HWPX 표현: <hh:symMark type="..."/> 또는 attribute symMark="..."
-            const symMarkAttr = cpElem.getAttribute('symMark');
-            const symMarkElem = cpElem.querySelector('symMark, hh\\:symMark');
-            const symMarkType = symMarkAttr
-                || (symMarkElem ? symMarkElem.getAttribute('type') || symMarkElem.getAttribute('symMark') : null);
-            if (symMarkType && symMarkType !== 'NONE' && symMarkType !== 'none') {
-                charProp.symMark = mapSymMarkToCss(symMarkType);
-            }
-
-            this.charProperties.set(id, charProp);
-        });
-    }
-
-    // ---- ★ Numbering Definitions (v3.0 신규) ----
-
-    _parseNumberings(doc) {
-        const numberingElems = qsa(doc, 'numbering');
-
-        numberingElems.forEach(numElem => {
-            const id = numElem.getAttribute('id') || numElem.getAttribute('itemId');
-            if (!id) return;
-
-            const numbering = { id, levels: [] };
-            const start = numElem.getAttribute('start');
-            if (start) numbering.startNum = parseInt(start);
-
-            // Parse each level
-            const paraHeadElems = qsa(numElem, 'paraHead');
-            paraHeadElems.forEach(phElem => {
-                const level = parseInt(phElem.getAttribute('level')) || 0;
-                const levelDef = {
-                    level,
-                    numFormat: phElem.getAttribute('numFormat') || 'DECIMAL',
-                    start: parseInt(phElem.getAttribute('start')) || 1,
-                    textBeforePrefix: phElem.getAttribute('textBeforePrefix') || '',
-                    textAfterPrefix: phElem.getAttribute('textAfterPrefix') || '',
-                    suffixType: phElem.getAttribute('suffixType') || 'NONE',
-                    charPrIDRef: phElem.getAttribute('charPrIDRef'),
-                };
-
-                // Parse format string (e.g., "^1." for "1.")
-                const formatStr = phElem.textContent || '';
-                if (formatStr) levelDef.formatString = formatStr.trim();
-
-                // Indent
-                const indent = phElem.getAttribute('indent');
-                if (indent) levelDef.indent = HWPXConstants.hwpuToPx(parseInt(indent));
-
-                numbering.levels[level] = levelDef;
-            });
-
-            this.numberings.set(id, numbering);
+      // Page margins
+      const marginElem = qs(pagePrElem, 'margin');
+      if (marginElem) {
+        ['left', 'right', 'top', 'bottom'].forEach(side => {
+          const val = marginElem.getAttribute(side);
+          if (val) {
+            const px = Math.round((parseInt(val) / 7200) * 96);
+            section.pageSettings[`margin${side.charAt(0).toUpperCase() + side.slice(1)}`] =
+              `${px}px`;
+            section[`margin${side.charAt(0).toUpperCase() + side.slice(1)}`] = px;
+          }
         });
 
-        logger.debug(`  🔢 Loaded ${this.numberings.size} numbering definitions`);
-    }
+        // Header/footer margins
+        const headerMargin = marginElem.getAttribute('header');
+        const footerMargin = marginElem.getAttribute('footer');
+        if (headerMargin) section.headerMargin = Math.round((parseInt(headerMargin) / 7200) * 96);
+        if (footerMargin) section.footerMargin = Math.round((parseInt(footerMargin) / 7200) * 96);
+      }
 
-    // ---- ★ Bullet Definitions (v3.0 신규) ----
-
-    _parseBulletDefs(doc) {
-        const bulletElems = qsa(doc, 'bullet');
-
-        bulletElems.forEach(bulletElem => {
-            const id = bulletElem.getAttribute('id') || bulletElem.getAttribute('itemId');
-            if (!id) return;
-
-            const bullet = {
-                id,
-                char: bulletElem.getAttribute('char') || '•',
-                checkedChar: bulletElem.getAttribute('checkedChar') || '☑',
-                useImage: bulletElem.getAttribute('useImage') === '1',
-                imgBinaryItemIDRef: null
-            };
-
-            // Parse bullet image
-            const imgElem = qs(bulletElem, 'img');
-            if (imgElem) {
-                bullet.imgBinaryItemIDRef = imgElem.getAttribute('binaryItemIDRef');
-            }
-
-            // Parse bullet charPr
-            const charPrIDRef = bulletElem.getAttribute('charPrIDRef');
-            if (charPrIDRef) bullet.charPrIDRef = charPrIDRef;
-
-            this.bulletDefs.set(id, bullet);
-        });
-    }
-
-    // ---- ★ Tab Definitions (v3.0 신규) ----
-
-    _parseTabDefs(doc) {
-        const tabDefElems = qsa(doc, 'tabDef');
-
-        tabDefElems.forEach(tabDefElem => {
-            const id = tabDefElem.getAttribute('id') || tabDefElem.getAttribute('itemId');
-            if (!id) return;
-
-            const tabDef = { id, autoTabLeft: false, autoTabRight: false, tabs: [] };
-
-            const autoLeft = tabDefElem.getAttribute('autoTabLeft');
-            const autoRight = tabDefElem.getAttribute('autoTabRight');
-            if (autoLeft === '1') tabDef.autoTabLeft = true;
-            if (autoRight === '1') tabDef.autoTabRight = true;
-
-            // Parse tab items
-            const tabItems = qsa(tabDefElem, 'tabItem');
-            tabItems.forEach(tabItem => {
-                tabDef.tabs.push({
-                    pos: HWPXConstants.hwpuToPx(parseInt(tabItem.getAttribute('pos')) || 0),
-                    type: tabItem.getAttribute('type') || 'LEFT',
-                    leader: tabItem.getAttribute('leader') || 'NONE'
-                });
-            });
-
-            this.tabDefs.set(id, tabDef);
-        });
-    }
-
-    // ---- ★ Named Styles (v3.0 신규) ----
-
-    _parseNamedStyles(doc) {
-        const styleElems = qsa(doc, 'style');
-
-        styleElems.forEach(styleElem => {
-            const id = styleElem.getAttribute('id') || styleElem.getAttribute('itemId');
-            if (!id) return;
-
-            const style = {
-                id,
-                name: styleElem.getAttribute('name') || styleElem.getAttribute('engName') || `Style_${id}`,
-                type: styleElem.getAttribute('type') || 'PARA',
-                paraPrIDRef: styleElem.getAttribute('paraPrIDRef'),
-                charPrIDRef: styleElem.getAttribute('charPrIDRef'),
-                nextStyleIDRef: styleElem.getAttribute('nextStyleIDRef'),
-                parentStyleIDRef: styleElem.getAttribute('parentStyleIDRef') || styleElem.getAttribute('baseStyleIDRef')
-            };
-
-            // English name
-            const engName = styleElem.getAttribute('engName');
-            if (engName) style.engName = engName;
-
-            this.namedStyles.set(id, style);
-        });
-
-        logger.debug(`  📝 Loaded ${this.namedStyles.size} named styles`);
-    }
-
-    // ========================================================================
-    // Content Parsing
-    // ========================================================================
-
-    async parseContent() {
-        logger.debug('📄 Parsing document content...');
-
-        const sections = [];
-        const sectionFiles = Array.from(this.entries.keys())
-            .filter(path => path.match(/Contents\/section\d+\.xml/))
-            .sort();
-
-        for (const sectionPath of sectionFiles) {
-            const sectionData = this.entries.get(sectionPath);
-            if (!sectionData) continue;
-
-            const sectionXml = new TextDecoder('utf-8').decode(sectionData);
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(sectionXml, 'text/xml');
-
-            const section = await this.parseSection(doc);
-            if (section) sections.push(section);
+      // Gutter
+      const gutterElem = qs(pagePrElem, 'gutter');
+      if (gutterElem) {
+        const gutterType = gutterElem.getAttribute('type');
+        const gutterVal = gutterElem.getAttribute('value');
+        if (gutterVal) {
+          section.gutter = {
+            type: gutterType || 'LEFT',
+            value: Math.round((parseInt(gutterVal) / 7200) * 96),
+          };
         }
-
-        return { sections };
+      }
     }
 
-    // ========================================================================
-    // Section Parsing
-    // ========================================================================
+    // Page numbering
+    const pageNumElem = qs(secPrElem, 'pageNum');
+    if (pageNumElem) {
+      section.pageNum = {
+        start: parseInt(pageNumElem.getAttribute('start')) || 1,
+        format: pageNumElem.getAttribute('format') || 'DECIMAL',
+        visible: pageNumElem.getAttribute('visible') !== '0',
+      };
+    }
 
-    async parseSection(doc) {
-        const section = {
-            elements: [],
-            pageSettings: {},
-            headers: { both: null, odd: null, even: null, first: null },
-            footers: { both: null, odd: null, even: null, first: null },
-            footnotes: [],
-            endnotes: [],
-            memos: [],
-            pageNum: null,
-            colPr: null,
-            pageBorder: null,
-            watermark: null
+    // Multi-column layout
+    const colPrElem = qs(secPrElem, 'colPr');
+    if (colPrElem) {
+      const colCount = parseInt(colPrElem.getAttribute('colCount')) || 1;
+      if (colCount > 1) {
+        // colSpacing은 HWPX unit(HWPUNIT). 픽셀 환산은 7200 -> 96
+        const rawSpacing = parseInt(colPrElem.getAttribute('colSpacing')) || 0;
+        const gapPx = rawSpacing > 0 ? Math.max(0, Math.round((rawSpacing / 7200) * 96)) : 20;
+
+        // colorLine: 단 사이 구분선 표시 여부
+        const lineAttr =
+          colPrElem.getAttribute('colLine') ||
+          colPrElem.getAttribute('lineType') ||
+          colPrElem.getAttribute('sameSz');
+
+        section.colPr = {
+          colCount,
+          colSpacing: rawSpacing,
+          columnGap: gapPx,
+          columnLine: lineAttr && /SOLID|DASH|DOT|DOUBLE/i.test(lineAttr),
+          type: colPrElem.getAttribute('type') || 'EQUAL',
         };
-
-        // Capture the current section for memo collection inside parseParagraph
-        this._currentSection = section;
-
-        // Parse section properties
-        const secPrElem = qs(doc, 'secPr');
-        if (secPrElem) {
-            this._parseSectionProperties(secPrElem, section);
-            this._parseHeaderFooter(secPrElem, section);
-        }
-
-        // ★ Parse elements in document order
-        let bodyElem = doc.documentElement;
-        const possibleBody = bodyElem.querySelector('body, hh\\:body, hp\\:body, hs\\:sec');
-        if (possibleBody) bodyElem = possibleBody;
-
-        const children = Array.from(bodyElem.children);
-        let parsedCount = 0;
-
-        children.forEach((child) => {
-            const tag = localName(child);
-
-            if (tag === 'header' || tag === 'footer' || tag === 'secpr') return;
-
-            if (tag === 'p') {
-                if (child.closest('tbl, hp\\:tbl, tc, hp\\:tc, container, hp\\:container')) return;
-
-                const containsTable = child.querySelector('tbl, hp\\:tbl');
-                const containsContainer = child.querySelector('container, hp\\:container');
-                const hasRuns = child.querySelectorAll('run, hp\\:run').length > 0;
-                const containsStandaloneShapes = !hasRuns && child.querySelector('rect, hp\\:rect, ellipse, hp\\:ellipse, polygon, hp\\:polygon');
-
-                if (containsStandaloneShapes && !containsContainer) return;
-
-                if (containsTable) {
-                    parsedCount += this._parseTableContainingParagraph(child, section);
-                } else {
-                    const para = this.parseParagraph(child);
-                    if (para) {
-                        section.elements.push(para);
-                        parsedCount++;
-                    }
-                }
-            }
-            else if (tag === 'tbl' && this.options.parseTables) {
-                const table = this.parseTable(child);
-                if (table) { section.elements.push(table); parsedCount++; }
-            }
-            else if (tag === 'sublist') {
-                const parasInSubList = qsa(child, 'p');
-                parasInSubList.forEach(pElem => {
-                    const para = this.parseParagraph(pElem);
-                    if (para) { section.elements.push(para); parsedCount++; }
-                });
-            }
-        });
-
-        // Parse standalone images
-        if (this.options.parseImages) {
-            const allImages = qsa(doc, 'pic');
-            allImages.forEach(picElem => {
-                const parent = picElem.parentElement;
-                const parentTag = parent ? localName(parent) : '';
-                if (parentTag === 'run' || picElem.closest('p, hp\\:p, tbl, hp\\:tbl')) return;
-
-                const image = this.parseImage(picElem);
-                if (image) { section.elements.push(image); }
-            });
-        }
-
-        // Parse standalone shapes (not inside containers/paragraphs)
-        const shapes = doc.querySelectorAll('rect, hp\\:rect, ellipse, hp\\:ellipse, polygon, hp\\:polygon');
-        shapes.forEach(shapeElem => {
-            if (shapeElem.closest('container, hp\\:container')) return;
-            if (shapeElem.closest('run, hp\\:run')) return;
-            const shape = this.parseShape(shapeElem);
-            if (shape) section.elements.push(shape);
-        });
-
-        // Parse textboxes
-        const textboxes = qsa(doc, 'textbox');
-        textboxes.forEach(textboxElem => {
-            const textbox = this.parseTextBox(textboxElem);
-            if (textbox) section.elements.push(textbox);
-        });
-
-        // Parse top-level containers
-        const containers = qsa(doc, 'container');
-        containers.forEach(containerElem => {
-            const parentContainer = containerElem.parentElement?.closest('container, hp\\:container');
-            if (parentContainer && parentContainer !== containerElem) return;
-            if (containerElem.closest('run, hp\\:run')) return;
-            const container = this.parseContainer(containerElem);
-            if (container) section.elements.push(container);
-        });
-
-        // ★ Parse footnotes (v3.0 신규)
-        this._parseFootnotes(doc, section);
-
-        return section;
+      }
     }
 
-    // ---- Section Properties ----
+    // Page background (pageBorderFill)
+    const pageBorderFillElems = secPrElem.querySelectorAll('pageBorderFill, hp\\:pageBorderFill');
+    if (pageBorderFillElems.length > 0) {
+      section.pageBackground = {};
+      pageBorderFillElems.forEach(pbfElem => {
+        const type = pbfElem.getAttribute('type') || 'BOTH';
+        const borderFillIDRef = pbfElem.getAttribute('borderFillIDRef');
+        const fillArea = pbfElem.getAttribute('fillArea') || 'PAPER';
 
-    _parseSectionProperties(secPrElem, section) {
-        const pagePrElem = qs(secPrElem, 'pagePr');
-        if (pagePrElem) {
-            const width = pagePrElem.getAttribute('width');
-            const height = pagePrElem.getAttribute('height');
-            const landscape = pagePrElem.getAttribute('landscape');
+        if (borderFillIDRef && this.borderFills.has(borderFillIDRef)) {
+          const borderFillDef = this.borderFills.get(borderFillIDRef);
+          const bgInfo = {
+            fillArea,
+            backgroundColor: borderFillDef.fill?.backgroundColor,
+            backgroundImage: borderFillDef.fill?.backgroundImage,
+            gradientCSS: borderFillDef.fill?.gradientCSS,
+          };
 
-            if (width) {
-                const widthPx = Math.round(parseInt(width) / 7200 * 96);
-                section.pageSettings.width = `${widthPx}px`;
-                section.pageWidth = widthPx;
-            }
-            if (height) {
-                const heightPx = Math.round(parseInt(height) / 7200 * 96);
-                section.pageSettings.height = `${heightPx}px`;
-                section.pageHeight = heightPx;
-            }
-            if (landscape) section.pageSettings.landscape = landscape;
+          if (type === 'BOTH') {
+            section.pageBackground.both = bgInfo;
+            section.pageBackground.odd = bgInfo;
+            section.pageBackground.even = bgInfo;
+          } else if (type === 'ODD') {
+            section.pageBackground.odd = bgInfo;
+          } else if (type === 'EVEN') {
+            section.pageBackground.even = bgInfo;
+          }
 
-            // Page margins
-            const marginElem = qs(pagePrElem, 'margin');
-            if (marginElem) {
-                ['left', 'right', 'top', 'bottom'].forEach(side => {
-                    const val = marginElem.getAttribute(side);
-                    if (val) {
-                        const px = Math.round(parseInt(val) / 7200 * 96);
-                        section.pageSettings[`margin${side.charAt(0).toUpperCase() + side.slice(1)}`] = `${px}px`;
-                        section[`margin${side.charAt(0).toUpperCase() + side.slice(1)}`] = px;
-                    }
-                });
+          // ★ Phase 2-6: pageBorder 추출
+          // pageBorderFill이 가리키는 borderFill에 visible 측 정보가 있으면
+          // section.pageBorder로 노출한다.
+          const sides = borderFillDef.borders || {};
+          const hasAnyVisibleBorder = ['top', 'right', 'bottom', 'left'].some(
+            s => sides[s] && sides[s].visible
+          );
+          if (hasAnyVisibleBorder && !section.pageBorder) {
+            const position = (
+              pbfElem.getAttribute('borderFillPosition') ||
+              pbfElem.getAttribute('position') ||
+              'OUTSIDE'
+            ).toUpperCase();
 
-                // Header/footer margins
-                const headerMargin = marginElem.getAttribute('header');
-                const footerMargin = marginElem.getAttribute('footer');
-                if (headerMargin) section.headerMargin = Math.round(parseInt(headerMargin) / 7200 * 96);
-                if (footerMargin) section.footerMargin = Math.round(parseInt(footerMargin) / 7200 * 96);
-            }
-
-            // Gutter
-            const gutterElem = qs(pagePrElem, 'gutter');
-            if (gutterElem) {
-                const gutterType = gutterElem.getAttribute('type');
-                const gutterVal = gutterElem.getAttribute('value');
-                if (gutterVal) {
-                    section.gutter = {
-                        type: gutterType || 'LEFT',
-                        value: Math.round(parseInt(gutterVal) / 7200 * 96)
-                    };
-                }
-            }
-        }
-
-        // Page numbering
-        const pageNumElem = qs(secPrElem, 'pageNum');
-        if (pageNumElem) {
-            section.pageNum = {
-                start: parseInt(pageNumElem.getAttribute('start')) || 1,
-                format: pageNumElem.getAttribute('format') || 'DECIMAL',
-                visible: pageNumElem.getAttribute('visible') !== '0'
+            const pickSide = side => {
+              const s = sides[side];
+              if (!s || !s.visible) return null;
+              return { type: s.type, width: s.width, color: s.color };
             };
-        }
 
-        // Multi-column layout
-        const colPrElem = qs(secPrElem, 'colPr');
-        if (colPrElem) {
-            const colCount = parseInt(colPrElem.getAttribute('colCount')) || 1;
-            if (colCount > 1) {
-                // colSpacing은 HWPX unit(HWPUNIT). 픽셀 환산은 7200 -> 96
-                const rawSpacing = parseInt(colPrElem.getAttribute('colSpacing')) || 0;
-                const gapPx = rawSpacing > 0
-                    ? Math.max(0, Math.round(rawSpacing / 7200 * 96))
-                    : 20;
-
-                // colorLine: 단 사이 구분선 표시 여부
-                const lineAttr =
-                    colPrElem.getAttribute('colLine') ||
-                    colPrElem.getAttribute('lineType') ||
-                    colPrElem.getAttribute('sameSz');
-
-                section.colPr = {
-                    colCount,
-                    colSpacing: rawSpacing,
-                    columnGap: gapPx,
-                    columnLine: lineAttr && /SOLID|DASH|DOT|DOUBLE/i.test(lineAttr),
-                    type: colPrElem.getAttribute('type') || 'EQUAL'
-                };
-            }
-        }
-
-        // Page background (pageBorderFill)
-        const pageBorderFillElems = secPrElem.querySelectorAll('pageBorderFill, hp\\:pageBorderFill');
-        if (pageBorderFillElems.length > 0) {
-            section.pageBackground = {};
-            pageBorderFillElems.forEach(pbfElem => {
-                const type = pbfElem.getAttribute('type') || 'BOTH';
-                const borderFillIDRef = pbfElem.getAttribute('borderFillIDRef');
-                const fillArea = pbfElem.getAttribute('fillArea') || 'PAPER';
-
-                if (borderFillIDRef && this.borderFills.has(borderFillIDRef)) {
-                    const borderFillDef = this.borderFills.get(borderFillIDRef);
-                    const bgInfo = {
-                        fillArea,
-                        backgroundColor: borderFillDef.fill?.backgroundColor,
-                        backgroundImage: borderFillDef.fill?.backgroundImage,
-                        gradientCSS: borderFillDef.fill?.gradientCSS
-                    };
-
-                    if (type === 'BOTH') {
-                        section.pageBackground.both = bgInfo;
-                        section.pageBackground.odd = bgInfo;
-                        section.pageBackground.even = bgInfo;
-                    } else if (type === 'ODD') {
-                        section.pageBackground.odd = bgInfo;
-                    } else if (type === 'EVEN') {
-                        section.pageBackground.even = bgInfo;
-                    }
-
-                    // ★ Phase 2-6: pageBorder 추출
-                    // pageBorderFill이 가리키는 borderFill에 visible 측 정보가 있으면
-                    // section.pageBorder로 노출한다.
-                    const sides = borderFillDef.borders || {};
-                    const hasAnyVisibleBorder = ['top', 'right', 'bottom', 'left'].some(
-                        s => sides[s] && sides[s].visible
-                    );
-                    if (hasAnyVisibleBorder && !section.pageBorder) {
-                        const position = (
-                            pbfElem.getAttribute('borderFillPosition') ||
-                            pbfElem.getAttribute('position') ||
-                            'OUTSIDE'
-                        ).toUpperCase();
-
-                        const pickSide = (side) => {
-                            const s = sides[side];
-                            if (!s || !s.visible) return null;
-                            return { type: s.type, width: s.width, color: s.color };
-                        };
-
-                        section.pageBorder = {
-                            position,
-                            top: pickSide('top'),
-                            right: pickSide('right'),
-                            bottom: pickSide('bottom'),
-                            left: pickSide('left')
-                        };
-                    }
-                }
-            });
-        }
-
-        // ★ Phase 2-6: 워터마크 (별도 secPr/watermark, 또는 background)
-        this._parsePageWatermark(secPrElem, section);
-    }
-
-    /**
-     * 페이지 워터마크 데이터 추출.
-     * HWPX는 표준 워터마크 엘리먼트를 갖지 않는 경우가 많기 때문에
-     * 다음과 같은 후보 위치를 탐색한다:
-     *   - <hp:watermark text="..." rotation="..." opacity="..."/>
-     *   - <hp:background type="image|text" .../>
-     *   - <hp:back type="image|text" .../>
-     * @private
-     */
-    _parsePageWatermark(secPrElem, section) {
-        const candidates = [
-            ...secPrElem.querySelectorAll('watermark, hp\\:watermark'),
-            ...secPrElem.querySelectorAll('background, hp\\:background'),
-            ...secPrElem.querySelectorAll('back, hp\\:back')
-        ];
-
-        for (const elem of candidates) {
-            const typeAttr = (elem.getAttribute('type') || '').toLowerCase();
-            const text = elem.getAttribute('text');
-            const binaryItemIDRef =
-                elem.getAttribute('binaryItemIDRef') ||
-                elem.getAttribute('imageRef') ||
-                elem.getAttribute('image');
-
-            if (!text && !binaryItemIDRef) continue;
-
-            const type = typeAttr === 'image' || binaryItemIDRef ? 'image' : 'text';
-            const opacityRaw = elem.getAttribute('opacity') || elem.getAttribute('alpha');
-            const rotationRaw = elem.getAttribute('rotation') || elem.getAttribute('rotate');
-
-            section.watermark = {
-                type,
-                text: text || null,
-                imageBinaryItemIDRef: binaryItemIDRef || null,
-                opacity: opacityRaw ? parseFloat(opacityRaw) : 0.3,
-                rotation: rotationRaw ? parseFloat(rotationRaw) : -30,
-                color: elem.getAttribute('color') || '#888',
-                fontSize: elem.getAttribute('fontSize')
-                    ? parseFloat(elem.getAttribute('fontSize'))
-                    : 96
+            section.pageBorder = {
+              position,
+              top: pickSide('top'),
+              right: pickSide('right'),
+              bottom: pickSide('bottom'),
+              left: pickSide('left'),
             };
-            break;
+          }
         }
+      });
     }
 
-    // ---- ★ Header/Footer Parsing (v3.0 신규) ----
+    // ★ Phase 2-6: 워터마크 (별도 secPr/watermark, 또는 background)
+    this._parsePageWatermark(secPrElem, section);
+  }
 
-    _parseHeaderFooter(secPrElem, section) {
-        // Parse headers
-        const headerElems = secPrElem.querySelectorAll('header, hp\\:header');
-        headerElems.forEach(headerElem => {
-            const type = headerElem.getAttribute('type') || 'BOTH'; // BOTH, ODD, EVEN, FIRST
-            const headerContent = this._parseHeaderFooterContent(headerElem);
-            if (headerContent) {
-                const key = type.toLowerCase();
-                section.headers[key] = headerContent;
-                if (type === 'BOTH') {
-                    section.headers.odd = headerContent;
-                    section.headers.even = headerContent;
-                }
-            }
-        });
+  /**
+   * 페이지 워터마크 데이터 추출.
+   * HWPX는 표준 워터마크 엘리먼트를 갖지 않는 경우가 많기 때문에
+   * 다음과 같은 후보 위치를 탐색한다:
+   *   - <hp:watermark text="..." rotation="..." opacity="..."/>
+   *   - <hp:background type="image|text" .../>
+   *   - <hp:back type="image|text" .../>
+   * @private
+   */
+  _parsePageWatermark(secPrElem, section) {
+    const candidates = [
+      ...secPrElem.querySelectorAll('watermark, hp\\:watermark'),
+      ...secPrElem.querySelectorAll('background, hp\\:background'),
+      ...secPrElem.querySelectorAll('back, hp\\:back'),
+    ];
 
-        // Parse footers
-        const footerElems = secPrElem.querySelectorAll('footer, hp\\:footer');
-        footerElems.forEach(footerElem => {
-            const type = footerElem.getAttribute('type') || 'BOTH';
-            const footerContent = this._parseHeaderFooterContent(footerElem);
-            if (footerContent) {
-                const key = type.toLowerCase();
-                section.footers[key] = footerContent;
-                if (type === 'BOTH') {
-                    section.footers.odd = footerContent;
-                    section.footers.even = footerContent;
-                }
-            }
-        });
+    for (const elem of candidates) {
+      const typeAttr = (elem.getAttribute('type') || '').toLowerCase();
+      const text = elem.getAttribute('text');
+      const binaryItemIDRef =
+        elem.getAttribute('binaryItemIDRef') ||
+        elem.getAttribute('imageRef') ||
+        elem.getAttribute('image');
+
+      if (!text && !binaryItemIDRef) continue;
+
+      const type = typeAttr === 'image' || binaryItemIDRef ? 'image' : 'text';
+      const opacityRaw = elem.getAttribute('opacity') || elem.getAttribute('alpha');
+      const rotationRaw = elem.getAttribute('rotation') || elem.getAttribute('rotate');
+
+      section.watermark = {
+        type,
+        text: text || null,
+        imageBinaryItemIDRef: binaryItemIDRef || null,
+        opacity: opacityRaw ? parseFloat(opacityRaw) : 0.3,
+        rotation: rotationRaw ? parseFloat(rotationRaw) : -30,
+        color: elem.getAttribute('color') || '#888',
+        fontSize: elem.getAttribute('fontSize') ? parseFloat(elem.getAttribute('fontSize')) : 96,
+      };
+      break;
     }
+  }
 
-    _parseHeaderFooterContent(elem) {
-        const paragraphs = [];
-        const subListElem = qs(elem, 'subList');
-        const target = subListElem || elem;
+  // ---- ★ Header/Footer Parsing (v3.0 신규) ----
 
-        const paraElems = qsa(target, 'p');
-        paraElems.forEach(pElem => {
-            // Avoid nested paragraphs inside tables/shapes
-            if (pElem.closest('tbl, hp\\:tbl, drawText, hp\\:drawText')) return;
-            const para = this.parseParagraph(pElem);
-            if (para) paragraphs.push(para);
+  _parseHeaderFooter(secPrElem, section) {
+    // Parse headers
+    const headerElems = secPrElem.querySelectorAll('header, hp\\:header');
+    headerElems.forEach(headerElem => {
+      const type = headerElem.getAttribute('type') || 'BOTH'; // BOTH, ODD, EVEN, FIRST
+      const headerContent = this._parseHeaderFooterContent(headerElem);
+      if (headerContent) {
+        const key = type.toLowerCase();
+        section.headers[key] = headerContent;
+        if (type === 'BOTH') {
+          section.headers.odd = headerContent;
+          section.headers.even = headerContent;
+        }
+      }
+    });
+
+    // Parse footers
+    const footerElems = secPrElem.querySelectorAll('footer, hp\\:footer');
+    footerElems.forEach(footerElem => {
+      const type = footerElem.getAttribute('type') || 'BOTH';
+      const footerContent = this._parseHeaderFooterContent(footerElem);
+      if (footerContent) {
+        const key = type.toLowerCase();
+        section.footers[key] = footerContent;
+        if (type === 'BOTH') {
+          section.footers.odd = footerContent;
+          section.footers.even = footerContent;
+        }
+      }
+    });
+  }
+
+  _parseHeaderFooterContent(elem) {
+    const paragraphs = [];
+    const subListElem = qs(elem, 'subList');
+    const target = subListElem || elem;
+
+    const paraElems = qsa(target, 'p');
+    paraElems.forEach(pElem => {
+      // Avoid nested paragraphs inside tables/shapes
+      if (pElem.closest('tbl, hp\\:tbl, drawText, hp\\:drawText')) return;
+      const para = this.parseParagraph(pElem);
+      if (para) paragraphs.push(para);
+    });
+
+    return paragraphs.length > 0 ? { paragraphs } : null;
+  }
+
+  // ---- ★ Footnotes/Endnotes (v3.0 신규) ----
+
+  _parseFootnotes(doc, section) {
+    // Footnotes
+    const footnoteElems = qsa(doc, 'footNote');
+    footnoteElems.forEach(fnElem => {
+      const footnote = this._parseNote(fnElem, 'footnote');
+      if (footnote) section.footnotes.push(footnote);
+    });
+
+    // Endnotes
+    const endnoteElems = qsa(doc, 'endNote');
+    endnoteElems.forEach(enElem => {
+      const endnote = this._parseNote(enElem, 'endnote');
+      if (endnote) section.endnotes.push(endnote);
+    });
+  }
+
+  _parseNote(noteElem, noteType) {
+    const note = {
+      type: noteType,
+      number: noteElem.getAttribute('number') || noteElem.getAttribute('num'),
+      id: noteElem.getAttribute('id'),
+      paragraphs: [],
+    };
+
+    const subListElem = qs(noteElem, 'subList');
+    const target = subListElem || noteElem;
+
+    const paraElems = target.querySelectorAll(':scope > p, :scope > hp\\:p');
+    paraElems.forEach(pElem => {
+      const para = this.parseParagraph(pElem);
+      if (para) note.paragraphs.push(para);
+    });
+
+    return note.paragraphs.length > 0 ? note : null;
+  }
+
+  // ---- Table-containing Paragraph ----
+
+  _parseTableContainingParagraph(child, section) {
+    let parsedCount = 0;
+    const runs = child.querySelectorAll(':scope > run, :scope > hp\\:run');
+    let currentTextRuns = [];
+
+    const flushTextRuns = () => {
+      if (currentTextRuns.length > 0) {
+        section.elements.push({
+          type: 'paragraph',
+          runs: currentTextRuns,
+          text: currentTextRuns.map(r => r.text).join(' '),
+          style: {},
         });
+        parsedCount++;
+        currentTextRuns = [];
+      }
+    };
 
-        return paragraphs.length > 0 ? { paragraphs } : null;
-    }
+    runs.forEach(runElem => {
+      const children = Array.from(runElem.children);
 
-    // ---- ★ Footnotes/Endnotes (v3.0 신규) ----
+      const hasShapeInRun = children.some(c => {
+        const ln = localName(c);
+        return ['rect', 'ellipse', 'polygon'].includes(ln);
+      });
 
-    _parseFootnotes(doc, section) {
-        // Footnotes
-        const footnoteElems = qsa(doc, 'footNote');
-        footnoteElems.forEach(fnElem => {
-            const footnote = this._parseNote(fnElem, 'footnote');
-            if (footnote) section.footnotes.push(footnote);
-        });
+      const hasTableInRun = children.some(c => {
+        const ln = localName(c);
+        return ln === 'tbl';
+      });
 
-        // Endnotes
-        const endnoteElems = qsa(doc, 'endNote');
-        endnoteElems.forEach(enElem => {
-            const endnote = this._parseNote(enElem, 'endnote');
-            if (endnote) section.endnotes.push(endnote);
-        });
-    }
-
-    _parseNote(noteElem, noteType) {
-        const note = {
-            type: noteType,
-            number: noteElem.getAttribute('number') || noteElem.getAttribute('num'),
-            id: noteElem.getAttribute('id'),
-            paragraphs: []
-        };
-
-        const subListElem = qs(noteElem, 'subList');
-        const target = subListElem || noteElem;
-
-        const paraElems = target.querySelectorAll(':scope > p, :scope > hp\\:p');
-        paraElems.forEach(pElem => {
-            const para = this.parseParagraph(pElem);
-            if (para) note.paragraphs.push(para);
-        });
-
-        return note.paragraphs.length > 0 ? note : null;
-    }
-
-    // ---- Table-containing Paragraph ----
-
-    _parseTableContainingParagraph(child, section) {
-        let parsedCount = 0;
-        const runs = child.querySelectorAll(':scope > run, :scope > hp\\:run');
-        let currentTextRuns = [];
-
-        const flushTextRuns = () => {
-            if (currentTextRuns.length > 0) {
-                section.elements.push({
-                    type: 'paragraph',
-                    runs: currentTextRuns,
-                    text: currentTextRuns.map(r => r.text).join(' '),
-                    style: {}
-                });
-                parsedCount++;
-                currentTextRuns = [];
-            }
-        };
-
-        runs.forEach((runElem) => {
-            const children = Array.from(runElem.children);
-
-            const hasShapeInRun = children.some(c => {
-                const ln = localName(c);
-                return ['rect', 'ellipse', 'polygon'].includes(ln);
-            });
-
-            const hasTableInRun = children.some(c => {
-                const ln = localName(c);
-                return ln === 'tbl';
-            });
-
-            if (hasShapeInRun) {
-                flushTextRuns();
-                const para = this.parseParagraph(child);
-                if (para) { section.elements.push(para); parsedCount++; }
-                return;
-            }
-
-            if (hasTableInRun && this.options.parseTables) {
-                flushTextRuns();
-                const tblElems = runElem.querySelectorAll('tbl, hp\\:tbl');
-                tblElems.forEach(tblElem => {
-                    const table = this.parseTable(tblElem);
-                    if (table) { section.elements.push(table); parsedCount++; }
-                });
-            } else {
-                const tElem = runElem.querySelector('t, hp\\:t');
-                const text = tElem ? tElem.textContent : '';
-
-                if (text.trim()) {
-                    const charPrId = runElem.getAttribute('charPrIDRef');
-                    const run = { text };
-                    run.style = (charPrId && this.charProperties.has(charPrId))
-                        ? { ...this.charProperties.get(charPrId) }
-                        : {};
-                    currentTextRuns.push(run);
-                }
-            }
-        });
-
+      if (hasShapeInRun) {
         flushTextRuns();
-        return parsedCount;
+        const para = this.parseParagraph(child);
+        if (para) {
+          section.elements.push(para);
+          parsedCount++;
+        }
+        return;
+      }
+
+      if (hasTableInRun && this.options.parseTables) {
+        flushTextRuns();
+        const tblElems = runElem.querySelectorAll('tbl, hp\\:tbl');
+        tblElems.forEach(tblElem => {
+          const table = this.parseTable(tblElem);
+          if (table) {
+            section.elements.push(table);
+            parsedCount++;
+          }
+        });
+      } else {
+        const tElem = runElem.querySelector('t, hp\\:t');
+        const text = tElem ? tElem.textContent : '';
+
+        if (text.trim()) {
+          const charPrId = runElem.getAttribute('charPrIDRef');
+          const run = { text };
+          run.style =
+            charPrId && this.charProperties.has(charPrId)
+              ? { ...this.charProperties.get(charPrId) }
+              : {};
+          currentTextRuns.push(run);
+        }
+      }
+    });
+
+    flushTextRuns();
+    return parsedCount;
+  }
+
+  // ========================================================================
+  // Paragraph Parsing
+  // ========================================================================
+
+  parseParagraph(pElem) {
+    const para = {
+      type: 'paragraph',
+      runs: [],
+      shapes: [],
+      style: {},
+    };
+
+    // Apply paragraph properties
+    const paraPrIDRef = pElem.getAttribute('paraPrIDRef');
+    if (paraPrIDRef && this.paraProperties.has(paraPrIDRef)) {
+      const paraProp = this.paraProperties.get(paraPrIDRef);
+      if (paraProp.textAlign) para.style.textAlign = paraProp.textAlign;
+      if (paraProp.verticalAlign) para.style.verticalAlign = paraProp.verticalAlign;
+      if (paraProp.lineHeight) para.style.lineHeight = paraProp.lineHeight;
+      if (paraProp.lineHeightPx) para.style.lineHeightPx = paraProp.lineHeightPx;
+      if (paraProp.marginLeft) para.style.marginLeft = paraProp.marginLeft;
+      if (paraProp.marginRight) para.style.marginRight = paraProp.marginRight;
+      if (paraProp.marginTop) para.style.marginTop = paraProp.marginTop;
+      if (paraProp.marginBottom) para.style.marginBottom = paraProp.marginBottom;
+      if (paraProp.textIndent) para.style.textIndent = paraProp.textIndent;
+
+      // ★ Numbering reference (v3.0)
+      if (paraProp.numPr) {
+        para.numPr = paraProp.numPr;
+        const numDef = this.numberings.get(paraProp.numPr.numIDRef);
+        if (numDef) {
+          para.numberingDef = numDef;
+          const levelDef = numDef.levels[paraProp.numPr.level];
+          if (levelDef) {
+            para.numberingLevel = levelDef;
+          }
+        }
+      }
     }
 
-    // ========================================================================
-    // Paragraph Parsing
-    // ========================================================================
+    // ★ Style reference (v3.0)
+    const styleIDRef = pElem.getAttribute('styleIDRef');
+    if (styleIDRef && this.namedStyles.has(styleIDRef)) {
+      para.styleRef = this.namedStyles.get(styleIDRef);
+    }
 
-    parseParagraph(pElem) {
-        const para = {
-            type: 'paragraph',
-            runs: [],
-            shapes: [],
-            style: {}
-        };
+    // Parse runs
+    const runs = pElem.querySelectorAll('run, hp\\:run');
 
-        // Apply paragraph properties
-        const paraPrIDRef = pElem.getAttribute('paraPrIDRef');
-        if (paraPrIDRef && this.paraProperties.has(paraPrIDRef)) {
-            const paraProp = this.paraProperties.get(paraPrIDRef);
-            if (paraProp.textAlign) para.style.textAlign = paraProp.textAlign;
-            if (paraProp.verticalAlign) para.style.verticalAlign = paraProp.verticalAlign;
-            if (paraProp.lineHeight) para.style.lineHeight = paraProp.lineHeight;
-            if (paraProp.lineHeightPx) para.style.lineHeightPx = paraProp.lineHeightPx;
-            if (paraProp.marginLeft) para.style.marginLeft = paraProp.marginLeft;
-            if (paraProp.marginRight) para.style.marginRight = paraProp.marginRight;
-            if (paraProp.marginTop) para.style.marginTop = paraProp.marginTop;
-            if (paraProp.marginBottom) para.style.marginBottom = paraProp.marginBottom;
-            if (paraProp.textIndent) para.style.textIndent = paraProp.textIndent;
+    if (runs.length > 0) {
+      let skipRemainingRuns = false;
 
-            // ★ Numbering reference (v3.0)
-            if (paraProp.numPr) {
-                para.numPr = paraProp.numPr;
-                const numDef = this.numberings.get(paraProp.numPr.numIDRef);
-                if (numDef) {
-                    para.numberingDef = numDef;
-                    const levelDef = numDef.levels[paraProp.numPr.level];
-                    if (levelDef) {
-                        para.numberingLevel = levelDef;
-                    }
+      runs.forEach(runElem => {
+        if (skipRemainingRuns) return;
+
+        const charPrId = runElem.getAttribute('charPrIDRef');
+        const hasInlineObject = runElem.querySelector(
+          'tbl, hp\\:tbl, pic, hp\\:pic, rect, hp\\:rect, ellipse, hp\\:ellipse, chart, hp\\:chart, chartSpace'
+        );
+
+        const children = Array.from(runElem.children || []);
+
+        children.forEach(child => {
+          const tag = localName(child);
+
+          if (tag === 'secpr') return;
+          // 'ctrl' 은 본래 무시했으나, 자식으로 양식 컨트롤(checkbox/radio/…)을
+          // 감싸는 경우가 있어 폴스루해서 자식만 검사한다.
+          if (tag === 'ctrl') {
+            const wrapped = Array.from(child.children || []);
+            wrapped.forEach(grand => {
+              const grandTag = localName(grand);
+              if (isFormControlTag(grandTag)) {
+                const fc = parseFormControl(grand, grandTag);
+                if (fc) {
+                  if (charPrId && this.charProperties.has(charPrId)) {
+                    fc.style = { ...this.charProperties.get(charPrId) };
+                  }
+                  para.runs.push(fc);
                 }
+              } else if (grandTag === 'memo') {
+                this._handleMemoElement(grand, para, charPrId);
+              }
+            });
+            return;
+          }
+
+          // ★ 메모 (hp:memo) — 본문 마커 run + section.memos 등록
+          if (tag === 'memo') {
+            this._handleMemoElement(child, para, charPrId);
+            return;
+          }
+
+          // ★ 양식 컨트롤 (checkbox/radio/combobox/textInput/button)
+          if (isFormControlTag(tag)) {
+            const fc = parseFormControl(child, tag);
+            if (fc) {
+              if (charPrId && this.charProperties.has(charPrId)) {
+                fc.style = { ...this.charProperties.get(charPrId) };
+              }
+              para.runs.push(fc);
             }
-        }
+            return;
+          }
 
-        // ★ Style reference (v3.0)
-        const styleIDRef = pElem.getAttribute('styleIDRef');
-        if (styleIDRef && this.namedStyles.has(styleIDRef)) {
-            para.styleRef = this.namedStyles.get(styleIDRef);
-        }
+          // ★ Field codes (v3.0 신규)
+          if (tag === 'fieldbegin' || tag === 'fieldstart') {
+            const fieldType = child.getAttribute('type') || child.getAttribute('fieldType');
+            const fieldDef = this._parseFieldCode(child, fieldType);
+            if (fieldDef) {
+              para.runs.push(fieldDef);
+            }
+            return;
+          }
 
-        // Parse runs
-        const runs = pElem.querySelectorAll('run, hp\\:run');
-
-        if (runs.length > 0) {
-            let skipRemainingRuns = false;
-
-            runs.forEach(runElem => {
-                if (skipRemainingRuns) return;
-
-                const charPrId = runElem.getAttribute('charPrIDRef');
-                const hasInlineObject = runElem.querySelector('tbl, hp\\:tbl, pic, hp\\:pic, rect, hp\\:rect, ellipse, hp\\:ellipse, chart, hp\\:chart, chartSpace');
-
-                const children = Array.from(runElem.children || []);
-
-                children.forEach(child => {
-                    const tag = localName(child);
-
-                    if (tag === 'secpr') return;
-                    // 'ctrl' 은 본래 무시했으나, 자식으로 양식 컨트롤(checkbox/radio/…)을
-                    // 감싸는 경우가 있어 폴스루해서 자식만 검사한다.
-                    if (tag === 'ctrl') {
-                        const wrapped = Array.from(child.children || []);
-                        wrapped.forEach(grand => {
-                            const grandTag = localName(grand);
-                            if (isFormControlTag(grandTag)) {
-                                const fc = parseFormControl(grand, grandTag);
-                                if (fc) {
-                                    if (charPrId && this.charProperties.has(charPrId)) {
-                                        fc.style = { ...this.charProperties.get(charPrId) };
-                                    }
-                                    para.runs.push(fc);
-                                }
-                            } else if (grandTag === 'memo') {
-                                this._handleMemoElement(grand, para, charPrId);
-                            }
-                        });
-                        return;
-                    }
-
-                    // ★ 메모 (hp:memo) — 본문 마커 run + section.memos 등록
-                    if (tag === 'memo') {
-                        this._handleMemoElement(child, para, charPrId);
-                        return;
-                    }
-
-                    // ★ 양식 컨트롤 (checkbox/radio/combobox/textInput/button)
-                    if (isFormControlTag(tag)) {
-                        const fc = parseFormControl(child, tag);
-                        if (fc) {
-                            if (charPrId && this.charProperties.has(charPrId)) {
-                                fc.style = { ...this.charProperties.get(charPrId) };
-                            }
-                            para.runs.push(fc);
-                        }
-                        return;
-                    }
-
-                    // ★ Field codes (v3.0 신규)
-                    if (tag === 'fieldbegin' || tag === 'fieldstart') {
-                        const fieldType = child.getAttribute('type') || child.getAttribute('fieldType');
-                        const fieldDef = this._parseFieldCode(child, fieldType);
-                        if (fieldDef) {
-                            para.runs.push(fieldDef);
-                        }
-                        return;
-                    }
-
-                    // ★ Hyperlinks (v3.0 신규)
-                    if (tag === 'hyperlink') {
-                        const href = child.getAttribute('url') || child.getAttribute('href') || child.getAttribute('target');
-                        const text = child.textContent || href || '';
-                        para.runs.push({
-                            text,
-                            hyperlink: { url: href, text },
-                            style: charPrId && this.charProperties.has(charPrId)
-                                ? { ...this.charProperties.get(charPrId) }
-                                : {}
-                        });
-                        return;
-                    }
-
-                    // ★ Bookmarks (v3.0 신규)
-                    if (tag === 'bookmark' || tag === 'markpenbegin') {
-                        const bookmarkName = child.getAttribute('name') || child.getAttribute('id');
-                        if (bookmarkName) {
-                            para.runs.push({
-                                type: 'bookmark',
-                                name: bookmarkName,
-                                text: ''
-                            });
-                        }
-                        return;
-                    }
-
-                    // ★ Footnote/Endnote references (v3.0 신규)
-                    if (tag === 'footnote' || tag === 'endnote') {
-                        const noteNum = child.getAttribute('number') || child.getAttribute('num');
-                        para.runs.push({
-                            type: tag,
-                            number: noteNum,
-                            text: noteNum ? `[${noteNum}]` : '',
-                            style: { verticalAlign: 'super', fontSize: '0.7em' }
-                        });
-                        return;
-                    }
-
-                    // ★ Ruby / Dutmal (덧말, 발음 표기) — HWPX hp:dutmal or ruby
-                    // 형태: <hp:dutmal text="읽는법">본문</hp:dutmal>
-                    // 또는: <ruby><rb>本</rb><rt>본</rt></ruby> 변형
-                    if (tag === 'dutmal' || tag === 'ruby') {
-                        const rubyRun = this._parseRubyElement(child, charPrId);
-                        if (rubyRun) {
-                            para.runs.push(rubyRun);
-                        }
-                        return;
-                    }
-
-                    // ★ Equation (수식) — Phase 5
-                    //   - <hp:equation>script</hp:equation>
-                    //   - <equation script="..."/>
-                    //   - <hp:eqedit> / <hp:eq> 변형
-                    if (tag === 'equation' || tag === 'eqedit' || tag === 'eq') {
-                        const eqRun = this._parseEquationElement(child, charPrId);
-                        if (eqRun) {
-                            para.runs.push(eqRun);
-                        }
-                        return;
-                    }
-
-                    // Inline images
-                    if (tag === 'pic') {
-                        const image = this.parseImage(child);
-                        if (image) {
-                            const hasAbsolutePosition =
-                                (image.position?.x !== undefined && image.position?.x !== 0) ||
-                                (image.position?.y !== undefined && image.position?.y !== 0);
-
-                            if (!hasAbsolutePosition && !image.position?.treatAsChar) {
-                                image.treatAsChar = true;
-                            }
-
-                            if (!para.images) para.images = [];
-                            para.images.push(image);
-                            para.runs.push({
-                                text: '', hasImage: true,
-                                imageIndex: para.images.length - 1,
-                                style: {}, charPrIDRef: charPrId
-                            });
-                        }
-                    }
-                    // Inline containers
-                    else if (tag === 'container') {
-                        const container = this.parseContainer(child);
-                        if (container) {
-                            container.treatAsChar = true;
-                            para.shapes.push(container);
-                            para.runs.push({ text: '', hasShape: true, style: {}, charPrIDRef: charPrId });
-                        }
-                    }
-                    // Inline shapes
-                    else if (['rect', 'ellipse', 'polygon'].includes(tag)) {
-                        const shape = this.parseShape(child);
-                        if (shape) {
-                            if (shape.isBackground || shape.position?.textWrap === 'BEHIND_TEXT') {
-                                if (!para.backgroundShapes) para.backgroundShapes = [];
-                                para.backgroundShapes.push(shape);
-                            } else {
-                                shape.treatAsChar = true;
-                                para.shapes.push(shape);
-                                para.runs.push({ text: '', hasShape: true, style: {}, charPrIDRef: charPrId });
-                            }
-                        }
-                    }
-                    // Inline tables
-                    else if (tag === 'tbl') {
-                        const table = this.parseTable(child);
-                        if (table) {
-                            table.treatAsChar = true;
-                            if (!para.tables) para.tables = [];
-                            para.tables.push(table);
-                            para.runs.push({
-                                text: '', hasTable: true,
-                                tableIndex: para.tables.length - 1,
-                                style: {}, charPrIDRef: charPrId
-                            });
-                        }
-                    }
-                    // ★ Phase 5: Inline charts (<hp:chart> / <chartSpace>)
-                    else if (tag === 'chart' || tag === 'chartspace') {
-                        const chartData = parseChart(child);
-                        if (chartData) {
-                            para.runs.push({
-                                type: 'chart',
-                                text: '',
-                                chartData,
-                                style: {},
-                                charPrIDRef: charPrId
-                            });
-                        }
-                    }
-                    // ★ OLE embedded objects (<hp:ole> / <ole binDataRef="..."/>)
-                    else if (tag === 'ole') {
-                        const oleRun = this._parseOleElement(child, charPrId);
-                        if (oleRun) {
-                            para.runs.push(oleRun);
-                        }
-                    }
-                    // Text
-                    else if (tag === 't') {
-                        this._parseTextElement(child, charPrId, para);
-                    }
-                    // Tab
-                    else if (tag === 'tab') {
-                        para.runs.push(this._parseTabElement(child));
-                    }
-                    // Line break
-                    else if (tag === 'linebreak') {
-                        para.runs.push({ type: 'linebreak' });
-                    }
-                    // Column break
-                    else if (tag === 'colbreak') {
-                        para.runs.push({ type: 'colbreak' });
-                    }
-                    // Page break
-                    else if (tag === 'pagebreak') {
-                        para.runs.push({ type: 'pagebreak' });
-                    }
-                });
-
-                if (hasInlineObject) {
-                    skipRemainingRuns = true;
-                }
+          // ★ Hyperlinks (v3.0 신규)
+          if (tag === 'hyperlink') {
+            const href =
+              child.getAttribute('url') ||
+              child.getAttribute('href') ||
+              child.getAttribute('target');
+            const text = child.textContent || href || '';
+            para.runs.push({
+              text,
+              hyperlink: { url: href, text },
+              style:
+                charPrId && this.charProperties.has(charPrId)
+                  ? { ...this.charProperties.get(charPrId) }
+                  : {},
             });
-        } else {
-            // Fallback: direct text elements
-            const textElems = qsa(pElem, 't');
-            textElems.forEach(tElem => {
-                const text = tElem.textContent;
-                const charPrId = tElem.getAttribute('charPrIDRef');
-                const run = { text };
-                if (charPrId && this.charProperties.has(charPrId)) {
-                    run.style = { ...this.charProperties.get(charPrId) };
-                }
-                para.runs.push(run);
+            return;
+          }
+
+          // ★ Bookmarks (v3.0 신규)
+          if (tag === 'bookmark' || tag === 'markpenbegin') {
+            const bookmarkName = child.getAttribute('name') || child.getAttribute('id');
+            if (bookmarkName) {
+              para.runs.push({
+                type: 'bookmark',
+                name: bookmarkName,
+                text: '',
+              });
+            }
+            return;
+          }
+
+          // ★ Footnote/Endnote references (v3.0 신규)
+          if (tag === 'footnote' || tag === 'endnote') {
+            const noteNum = child.getAttribute('number') || child.getAttribute('num');
+            para.runs.push({
+              type: tag,
+              number: noteNum,
+              text: noteNum ? `[${noteNum}]` : '',
+              style: { verticalAlign: 'super', fontSize: '0.7em' },
             });
-        }
+            return;
+          }
 
-        // Clean up
-        if (para.shapes.length === 0) delete para.shapes;
-        if (para.images && para.images.length === 0) delete para.images;
-        if (para.tables && para.tables.length === 0) delete para.tables;
+          // ★ Ruby / Dutmal (덧말, 발음 표기) — HWPX hp:dutmal or ruby
+          // 형태: <hp:dutmal text="읽는법">본문</hp:dutmal>
+          // 또는: <ruby><rb>本</rb><rt>본</rt></ruby> 변형
+          if (tag === 'dutmal' || tag === 'ruby') {
+            const rubyRun = this._parseRubyElement(child, charPrId);
+            if (rubyRun) {
+              para.runs.push(rubyRun);
+            }
+            return;
+          }
 
-        para.text = para.runs
-            .filter(run => run.text !== undefined && run.type !== 'tab')
-            .map(run => run.text)
-            .join('');
+          // ★ Equation (수식) — Phase 5
+          //   - <hp:equation>script</hp:equation>
+          //   - <equation script="..."/>
+          //   - <hp:eqedit> / <hp:eq> 변형
+          if (tag === 'equation' || tag === 'eqedit' || tag === 'eq') {
+            const eqRun = this._parseEquationElement(child, charPrId);
+            if (eqRun) {
+              para.runs.push(eqRun);
+            }
+            return;
+          }
 
-        return para;
-    }
+          // Inline images
+          if (tag === 'pic') {
+            const image = this.parseImage(child);
+            if (image) {
+              const hasAbsolutePosition =
+                (image.position?.x !== undefined && image.position?.x !== 0) ||
+                (image.position?.y !== undefined && image.position?.y !== 0);
 
-    // ---- Text Element Parsing ----
+              if (!hasAbsolutePosition && !image.position?.treatAsChar) {
+                image.treatAsChar = true;
+              }
 
-    _parseTextElement(child, charPrId, para) {
-        const childElements = Array.from(child.children || []);
-        const hasNestedElements = childElements.some(el => {
-            const name = localName(el);
-            return name === 'tab' || name === 'linebreak';
+              if (!para.images) para.images = [];
+              para.images.push(image);
+              para.runs.push({
+                text: '',
+                hasImage: true,
+                imageIndex: para.images.length - 1,
+                style: {},
+                charPrIDRef: charPrId,
+              });
+            }
+          }
+          // Inline containers
+          else if (tag === 'container') {
+            const container = this.parseContainer(child);
+            if (container) {
+              container.treatAsChar = true;
+              para.shapes.push(container);
+              para.runs.push({ text: '', hasShape: true, style: {}, charPrIDRef: charPrId });
+            }
+          }
+          // Inline shapes
+          else if (['rect', 'ellipse', 'polygon'].includes(tag)) {
+            const shape = this.parseShape(child);
+            if (shape) {
+              if (shape.isBackground || shape.position?.textWrap === 'BEHIND_TEXT') {
+                if (!para.backgroundShapes) para.backgroundShapes = [];
+                para.backgroundShapes.push(shape);
+              } else {
+                shape.treatAsChar = true;
+                para.shapes.push(shape);
+                para.runs.push({ text: '', hasShape: true, style: {}, charPrIDRef: charPrId });
+              }
+            }
+          }
+          // Inline tables
+          else if (tag === 'tbl') {
+            const table = this.parseTable(child);
+            if (table) {
+              table.treatAsChar = true;
+              if (!para.tables) para.tables = [];
+              para.tables.push(table);
+              para.runs.push({
+                text: '',
+                hasTable: true,
+                tableIndex: para.tables.length - 1,
+                style: {},
+                charPrIDRef: charPrId,
+              });
+            }
+          }
+          // ★ Phase 5: Inline charts (<hp:chart> / <chartSpace>)
+          else if (tag === 'chart' || tag === 'chartspace') {
+            const chartData = parseChart(child);
+            if (chartData) {
+              para.runs.push({
+                type: 'chart',
+                text: '',
+                chartData,
+                style: {},
+                charPrIDRef: charPrId,
+              });
+            }
+          }
+          // ★ OLE embedded objects (<hp:ole> / <ole binDataRef="..."/>)
+          else if (tag === 'ole') {
+            const oleRun = this._parseOleElement(child, charPrId);
+            if (oleRun) {
+              para.runs.push(oleRun);
+            }
+          }
+          // Text
+          else if (tag === 't') {
+            this._parseTextElement(child, charPrId, para);
+          }
+          // Tab
+          else if (tag === 'tab') {
+            para.runs.push(this._parseTabElement(child));
+          }
+          // Line break
+          else if (tag === 'linebreak') {
+            para.runs.push({ type: 'linebreak' });
+          }
+          // Column break
+          else if (tag === 'colbreak') {
+            para.runs.push({ type: 'colbreak' });
+          }
+          // Page break
+          else if (tag === 'pagebreak') {
+            para.runs.push({ type: 'pagebreak' });
+          }
         });
 
-        if (hasNestedElements) {
-            Array.from(child.childNodes).forEach(node => {
-                if (node.nodeType === 3) { // Text node
-                    const text = node.textContent || '';
-                    if (text.length > 0) {
-                        const run = { text, style: {} };
-                        if (charPrId) run.charPrIDRef = charPrId;
-                        if (charPrId && this.charProperties.has(charPrId)) {
-                            run.style = { ...this.charProperties.get(charPrId) };
-                        }
-                        para.runs.push(run);
-                    }
-                } else if (node.nodeType === 1) { // Element node
-                    const nodeName = localName(node);
-                    if (nodeName === 'tab') {
-                        para.runs.push(this._parseTabElement(node));
-                    } else if (nodeName === 'linebreak') {
-                        para.runs.push({ type: 'linebreak' });
-                    }
-                }
-            });
-        } else {
-            const text = child.textContent || '';
+        if (hasInlineObject) {
+          skipRemainingRuns = true;
+        }
+      });
+    } else {
+      // Fallback: direct text elements
+      const textElems = qsa(pElem, 't');
+      textElems.forEach(tElem => {
+        const text = tElem.textContent;
+        const charPrId = tElem.getAttribute('charPrIDRef');
+        const run = { text };
+        if (charPrId && this.charProperties.has(charPrId)) {
+          run.style = { ...this.charProperties.get(charPrId) };
+        }
+        para.runs.push(run);
+      });
+    }
+
+    // Clean up
+    if (para.shapes.length === 0) delete para.shapes;
+    if (para.images && para.images.length === 0) delete para.images;
+    if (para.tables && para.tables.length === 0) delete para.tables;
+
+    para.text = para.runs
+      .filter(run => run.text !== undefined && run.type !== 'tab')
+      .map(run => run.text)
+      .join('');
+
+    return para;
+  }
+
+  // ---- Text Element Parsing ----
+
+  _parseTextElement(child, charPrId, para) {
+    const childElements = Array.from(child.children || []);
+    const hasNestedElements = childElements.some(el => {
+      const name = localName(el);
+      return name === 'tab' || name === 'linebreak';
+    });
+
+    if (hasNestedElements) {
+      Array.from(child.childNodes).forEach(node => {
+        if (node.nodeType === 3) {
+          // Text node
+          const text = node.textContent || '';
+          if (text.length > 0) {
             const run = { text, style: {} };
             if (charPrId) run.charPrIDRef = charPrId;
             if (charPrId && this.charProperties.has(charPrId)) {
-                run.style = { ...this.charProperties.get(charPrId) };
+              run.style = { ...this.charProperties.get(charPrId) };
             }
             para.runs.push(run);
+          }
+        } else if (node.nodeType === 1) {
+          // Element node
+          const nodeName = localName(node);
+          if (nodeName === 'tab') {
+            para.runs.push(this._parseTabElement(node));
+          } else if (nodeName === 'linebreak') {
+            para.runs.push({ type: 'linebreak' });
+          }
         }
+      });
+    } else {
+      const text = child.textContent || '';
+      const run = { text, style: {} };
+      if (charPrId) run.charPrIDRef = charPrId;
+      if (charPrId && this.charProperties.has(charPrId)) {
+        run.style = { ...this.charProperties.get(charPrId) };
+      }
+      para.runs.push(run);
+    }
+  }
+
+  _parseTabElement(tabElem) {
+    const tab = { type: 'tab', style: {} };
+    const width = tabElem.getAttribute('width');
+    const leader = tabElem.getAttribute('leader');
+    const tabType = tabElem.getAttribute('type');
+
+    if (width) {
+      tab.widthHWPU = parseInt(width);
+      tab.widthPx = HWPXConstants.hwpuToPx(tab.widthHWPU);
+    }
+    if (leader) tab.leader = parseInt(leader);
+    if (tabType) tab.tabType = parseInt(tabType);
+
+    return tab;
+  }
+
+  /**
+   * Ruby/Dutmal (덧말, 발음 표기) 파싱
+   * HWPX 두 가지 표현 지원:
+   *   1. <hp:dutmal text="읽는법">본문</hp:dutmal>  → mainText="본문", rubyText="읽는법"
+   *   2. <ruby><rb>本</rb><rt>본</rt></ruby>        → mainText="本", rubyText="본"
+   * @param {Element} rubyElem - dutmal 또는 ruby 요소
+   * @param {string} charPrId - 부모 run 의 charPrIDRef (스타일 상속용)
+   * @returns {Object|null} ruby run 객체
+   * @private
+   */
+  _parseRubyElement(rubyElem, charPrId) {
+    const tag = localName(rubyElem);
+    let mainText = '';
+    let rubyText = '';
+
+    if (tag === 'dutmal') {
+      // dutmal 속성에 발음 표기가 들어 있음
+      rubyText =
+        rubyElem.getAttribute('text') ||
+        rubyElem.getAttribute('dutmalText') ||
+        rubyElem.getAttribute('value') ||
+        '';
+      // 본문 텍스트는 element 내부의 텍스트 (자식 t 우선)
+      const innerT = qs(rubyElem, 't');
+      mainText = (innerT ? innerT.textContent : rubyElem.textContent) || '';
+    } else {
+      // <ruby> with <rb>/<rt>
+      const rbElem = qs(rubyElem, 'rb');
+      const rtElem = qs(rubyElem, 'rt');
+      mainText = rbElem ? rbElem.textContent || '' : rubyElem.textContent || '';
+      rubyText = rtElem ? rtElem.textContent || '' : '';
+      // 만약 <rt>가 없다면 본문 텍스트만 있을 수 있음 → 일반 텍스트로 폴백
     }
 
-    _parseTabElement(tabElem) {
-        const tab = { type: 'tab', style: {} };
-        const width = tabElem.getAttribute('width');
-        const leader = tabElem.getAttribute('leader');
-        const tabType = tabElem.getAttribute('type');
+    if (!mainText && !rubyText) return null;
 
-        if (width) {
-            tab.widthHWPU = parseInt(width);
-            tab.widthPx = HWPXConstants.hwpuToPx(tab.widthHWPU);
-        }
-        if (leader) tab.leader = parseInt(leader);
-        if (tabType) tab.tabType = parseInt(tabType);
+    const run = {
+      type: 'ruby',
+      text: mainText,
+      rubyText,
+      style: {},
+    };
+    if (charPrId && this.charProperties.has(charPrId)) {
+      run.style = { ...this.charProperties.get(charPrId) };
+    }
+    return run;
+  }
 
-        return tab;
+  /**
+   * 수식(Equation) 파싱 — Phase 5
+   * 지원 형태:
+   *   1. <hp:equation script="..."/> 또는 속성 mathScript / value / src
+   *   2. <hp:equation>스크립트 텍스트</hp:equation>
+   *   3. <hp:eqedit>...</hp:eqedit>, <hp:eq>...</hp:eq>
+   *   4. <mathml><math>...</math></mathml> 또는 <math> 직접 포함
+   *
+   * 산출 run:
+   *   {
+   *     type: 'equation',
+   *     mathScript: '<한컴 표기>',
+   *     mathml:     '<math ...>...</math>',
+   *     text:       '{수식}'    // 폴백 표시 텍스트
+   *   }
+   *
+   * 한컴 → MathML 변환은 hancom-math-converter 의 hancomToMathML 사용.
+   * MathML 이 직접 임베드 된 경우는 그대로 보존하고 한컴 표기 역변환 시도.
+   */
+  _parseEquationElement(eqElem, charPrId) {
+    // 1) 한컴 스크립트 추출
+    let script =
+      eqElem.getAttribute('script') ||
+      eqElem.getAttribute('mathScript') ||
+      eqElem.getAttribute('value') ||
+      eqElem.getAttribute('src') ||
+      '';
+
+    // 자식 <hp:script> 또는 <script> 텍스트
+    if (!script) {
+      const scriptElem = qs(eqElem, 'script');
+      if (scriptElem) script = scriptElem.textContent || '';
     }
 
-    /**
-     * Ruby/Dutmal (덧말, 발음 표기) 파싱
-     * HWPX 두 가지 표현 지원:
-     *   1. <hp:dutmal text="읽는법">본문</hp:dutmal>  → mainText="본문", rubyText="읽는법"
-     *   2. <ruby><rb>本</rb><rt>본</rt></ruby>        → mainText="本", rubyText="본"
-     * @param {Element} rubyElem - dutmal 또는 ruby 요소
-     * @param {string} charPrId - 부모 run 의 charPrIDRef (스타일 상속용)
-     * @returns {Object|null} ruby run 객체
-     * @private
-     */
-    _parseRubyElement(rubyElem, charPrId) {
-        const tag = localName(rubyElem);
-        let mainText = '';
-        let rubyText = '';
-
-        if (tag === 'dutmal') {
-            // dutmal 속성에 발음 표기가 들어 있음
-            rubyText =
-                rubyElem.getAttribute('text') ||
-                rubyElem.getAttribute('dutmalText') ||
-                rubyElem.getAttribute('value') ||
-                '';
-            // 본문 텍스트는 element 내부의 텍스트 (자식 t 우선)
-            const innerT = qs(rubyElem, 't');
-            mainText = (innerT ? innerT.textContent : rubyElem.textContent) || '';
-        } else {
-            // <ruby> with <rb>/<rt>
-            const rbElem = qs(rubyElem, 'rb');
-            const rtElem = qs(rubyElem, 'rt');
-            mainText = rbElem ? (rbElem.textContent || '') : (rubyElem.textContent || '');
-            rubyText = rtElem ? (rtElem.textContent || '') : '';
-            // 만약 <rt>가 없다면 본문 텍스트만 있을 수 있음 → 일반 텍스트로 폴백
+    // 2) MathML 직접 임베드 여부 확인
+    let mathml = '';
+    const mathElem = qs(eqElem, 'math');
+    if (mathElem) {
+      try {
+        // outerHTML 우선 (jsdom 지원), 없으면 직렬화 폴백
+        mathml = mathElem.outerHTML || '';
+        if (!mathml && typeof XMLSerializer !== 'undefined') {
+          mathml = new XMLSerializer().serializeToString(mathElem);
         }
-
-        if (!mainText && !rubyText) return null;
-
-        const run = {
-            type: 'ruby',
-            text: mainText,
-            rubyText,
-            style: {}
-        };
-        if (charPrId && this.charProperties.has(charPrId)) {
-            run.style = { ...this.charProperties.get(charPrId) };
-        }
-        return run;
+      } catch {
+        mathml = '';
+      }
     }
 
-    /**
-     * 수식(Equation) 파싱 — Phase 5
-     * 지원 형태:
-     *   1. <hp:equation script="..."/> 또는 속성 mathScript / value / src
-     *   2. <hp:equation>스크립트 텍스트</hp:equation>
-     *   3. <hp:eqedit>...</hp:eqedit>, <hp:eq>...</hp:eq>
-     *   4. <mathml><math>...</math></mathml> 또는 <math> 직접 포함
-     *
-     * 산출 run:
-     *   {
-     *     type: 'equation',
-     *     mathScript: '<한컴 표기>',
-     *     mathml:     '<math ...>...</math>',
-     *     text:       '{수식}'    // 폴백 표시 텍스트
-     *   }
-     *
-     * 한컴 → MathML 변환은 hancom-math-converter 의 hancomToMathML 사용.
-     * MathML 이 직접 임베드 된 경우는 그대로 보존하고 한컴 표기 역변환 시도.
-     */
-    _parseEquationElement(eqElem, charPrId) {
-        // 1) 한컴 스크립트 추출
-        let script =
-            eqElem.getAttribute('script') ||
-            eqElem.getAttribute('mathScript') ||
-            eqElem.getAttribute('value') ||
-            eqElem.getAttribute('src') ||
-            '';
-
-        // 자식 <hp:script> 또는 <script> 텍스트
-        if (!script) {
-            const scriptElem = qs(eqElem, 'script');
-            if (scriptElem) script = scriptElem.textContent || '';
-        }
-
-        // 2) MathML 직접 임베드 여부 확인
-        let mathml = '';
-        const mathElem = qs(eqElem, 'math');
-        if (mathElem) {
-            try {
-                // outerHTML 우선 (jsdom 지원), 없으면 직렬화 폴백
-                mathml = mathElem.outerHTML || '';
-                if (!mathml && typeof XMLSerializer !== 'undefined') {
-                    mathml = new XMLSerializer().serializeToString(mathElem);
-                }
-            } catch {
-                mathml = '';
-            }
-        }
-
-        // 3) 스크립트가 없고 텍스트만 있다면 textContent 폴백
-        if (!script && !mathml) {
-            script = (eqElem.textContent || '').trim();
-        }
-
-        // 4) 한컴 스크립트 → MathML 변환 (필요한 경우)
-        if (script && !mathml) {
-            try {
-                // 동기 require 가 불가능 — lazy import 후 try/catch
-                // ESM 환경에서는 정적 import 로 대체 (아래 import 참조)
-                mathml = _convertHancomToMathML(script);
-            } catch {
-                mathml = '';
-            }
-        }
-
-        if (!script && !mathml) return null;
-
-        const run = {
-            type: 'equation',
-            mathScript: script || '',
-            mathml: mathml || '',
-            text: '{수식}',
-            style: {},
-        };
-        if (charPrId && this.charProperties.has(charPrId)) {
-            run.style = { ...this.charProperties.get(charPrId) };
-        }
-        return run;
+    // 3) 스크립트가 없고 텍스트만 있다면 textContent 폴백
+    if (!script && !mathml) {
+      script = (eqElem.textContent || '').trim();
     }
 
-    // ---- ★ Field Code Parsing (v3.0 신규) ----
-
-    _parseFieldCode(fieldElem, fieldType) {
-        const field = {
-            type: 'field',
-            fieldType: fieldType || 'UNKNOWN',
-            text: '',
-            style: {}
-        };
-
-        const upperType = (fieldType || '').toUpperCase();
-
-        // Page number field
-        if (upperType === 'PAGENUMBER' || upperType === 'PAGE_NUM' || upperType === 'PAGENUM') {
-            field.fieldType = 'PAGE_NUMBER';
-            field.text = '{페이지}';
-        }
-        // Total pages
-        else if (upperType === 'PAGECOUNT' || upperType === 'PAGE_COUNT' || upperType === 'NUMPAGES') {
-            field.fieldType = 'PAGE_COUNT';
-            field.text = '{전체페이지}';
-        }
-        // Date
-        else if (upperType === 'DATE' || upperType === 'CREATEDATE' || upperType === 'SAVEDATE') {
-            field.fieldType = 'DATE';
-            const format = fieldElem.getAttribute('format') || fieldElem.getAttribute('dateFormat') || 'yyyy-MM-dd';
-            field.dateFormat = format;
-            field.text = new Date().toLocaleDateString('ko-KR');
-        }
-        // Filename
-        else if (upperType === 'FILENAME') {
-            field.fieldType = 'FILENAME';
-            field.text = '{파일이름}';
-        }
-        // Mail merge field
-        else if (upperType === 'MAILMERGE') {
-            field.fieldType = 'MAILMERGE';
-            const fieldName = fieldElem.getAttribute('name') || fieldElem.getAttribute('fieldName') || '';
-            field.text = `«${fieldName}»`;
-            field.fieldName = fieldName;
-        }
-        // Cross-reference
-        else if (upperType === 'CROSSREF') {
-            field.fieldType = 'CROSSREF';
-            field.text = fieldElem.textContent || '{참조}';
-        }
-        // Hyperlink field
-        else if (upperType === 'HYPERLINK') {
-            field.fieldType = 'HYPERLINK';
-            const url = fieldElem.getAttribute('url') || fieldElem.getAttribute('target') || '';
-            field.hyperlink = { url };
-            field.text = fieldElem.textContent || url;
-        }
-        // Summary info
-        else if (upperType === 'SUMMARYINFO' || upperType === 'DOCPROPERTY') {
-            field.fieldType = 'SUMMARY_INFO';
-            const propName = fieldElem.getAttribute('name') || fieldElem.getAttribute('property') || '';
-            field.text = `{${propName}}`;
-        }
-        // Formula
-        else if (upperType === 'FORMULA' || upperType === 'EQUATION') {
-            field.fieldType = 'FORMULA';
-            field.text = fieldElem.textContent || '{수식}';
-        }
-        // Table of Contents marker — 렌더러가 자동 생성된 TOC 로 치환
-        else if (upperType === 'TOC' || upperType === 'TABLEOFCONTENTS') {
-            field.fieldType = 'TOC';
-            field.text = fieldElem.textContent || '{목차}';
-            field.tocTitle = fieldElem.getAttribute('title') || '목차';
-            const maxLvl = parseInt(fieldElem.getAttribute('maxLevel') || '0', 10);
-            if (Number.isFinite(maxLvl) && maxLvl > 0) field.tocMaxLevel = maxLvl;
-        }
-        // Default: just capture text
-        else {
-            field.text = fieldElem.textContent || '';
-        }
-
-        return field;
+    // 4) 한컴 스크립트 → MathML 변환 (필요한 경우)
+    if (script && !mathml) {
+      try {
+        // 동기 require 가 불가능 — lazy import 후 try/catch
+        // ESM 환경에서는 정적 import 로 대체 (아래 import 참조)
+        mathml = _convertHancomToMathML(script);
+      } catch {
+        mathml = '';
+      }
     }
 
-    /**
-     * <hp:ole> 처리 — BinData 의 OLE 객체와 연결하여 run.type='ole' 을 만든다.
-     *
-     * 처리 규칙
-     *  - binDataRef / binDataIDRef / src 어트리뷰트로 BinData id 결정
-     *  - this.oleObjects 에 해당 id 가 있으면 oleData 를 첨부
-     *  - 사이즈 (sz/width/height) 는 있을 때만 적용
-     *
-     * 보안: 본 모듈은 OLE 바이트를 읽어들이는 일 외에 절대로 실행하지 않는다.
-     * 매크로/스크립트 evaluation 은 발생하지 않으며 oleData.metadata 만 노출한다.
-     *
-     * @param {Element} oleElem
-     * @param {string|null} charPrId
-     * @returns {Object|null} run-like 객체
-     */
-    _parseOleElement(oleElem, charPrId) {
-        if (!oleElem || typeof oleElem.getAttribute !== 'function') return null;
+    if (!script && !mathml) return null;
 
-        const binDataRef =
-            oleElem.getAttribute('binDataRef') ||
-            oleElem.getAttribute('binDataIDRef') ||
-            oleElem.getAttribute('src') ||
-            oleElem.getAttribute('href') ||
-            '';
+    const run = {
+      type: 'equation',
+      mathScript: script || '',
+      mathml: mathml || '',
+      text: '{수식}',
+      style: {},
+    };
+    if (charPrId && this.charProperties.has(charPrId)) {
+      run.style = { ...this.charProperties.get(charPrId) };
+    }
+    return run;
+  }
 
-        // id 는 일반적으로 BIN0001 형태이거나 BinData/BIN0001.ole 형태
-        let id = binDataRef;
-        if (id.includes('/')) id = id.split('/').pop();
-        if (id.includes('.')) id = id.replace(/\.[^.]+$/, '');
+  // ---- ★ Field Code Parsing (v3.0 신규) ----
 
-        const oleData = (id && this.oleObjects.has(id))
-            ? this.oleObjects.get(id)
-            : null;
+  _parseFieldCode(fieldElem, fieldType) {
+    const field = {
+      type: 'field',
+      fieldType: fieldType || 'UNKNOWN',
+      text: '',
+      style: {},
+    };
 
-        // 크기 파싱 (sz/width,height)
-        const szElem = qs(oleElem, 'sz');
-        let width = 0, height = 0;
-        if (szElem) {
-            const w = parseInt(szElem.getAttribute('width'), 10);
-            const h = parseInt(szElem.getAttribute('height'), 10);
-            if (Number.isFinite(w)) width = HWPXConstants.hwpuToPxUnscaled(w);
-            if (Number.isFinite(h)) height = HWPXConstants.hwpuToPxUnscaled(h);
-        } else {
-            const w = parseInt(oleElem.getAttribute('width'), 10);
-            const h = parseInt(oleElem.getAttribute('height'), 10);
-            if (Number.isFinite(w)) width = w;
-            if (Number.isFinite(h)) height = h;
-        }
+    const upperType = (fieldType || '').toUpperCase();
 
-        const run = {
-            type: 'ole',
-            text: '',
-            binDataRef,
-            oleData: oleData || null,
-            width: width || undefined,
-            height: height || undefined,
-            style: {},
-            treatAsChar: true
-        };
-
-        if (charPrId && this.charProperties.has(charPrId)) {
-            run.style = { ...this.charProperties.get(charPrId) };
-            run.charPrIDRef = charPrId;
-        }
-
-        return run;
+    // Page number field
+    if (upperType === 'PAGENUMBER' || upperType === 'PAGE_NUM' || upperType === 'PAGENUM') {
+      field.fieldType = 'PAGE_NUMBER';
+      field.text = '{페이지}';
+    }
+    // Total pages
+    else if (upperType === 'PAGECOUNT' || upperType === 'PAGE_COUNT' || upperType === 'NUMPAGES') {
+      field.fieldType = 'PAGE_COUNT';
+      field.text = '{전체페이지}';
+    }
+    // Date
+    else if (upperType === 'DATE' || upperType === 'CREATEDATE' || upperType === 'SAVEDATE') {
+      field.fieldType = 'DATE';
+      const format =
+        fieldElem.getAttribute('format') || fieldElem.getAttribute('dateFormat') || 'yyyy-MM-dd';
+      field.dateFormat = format;
+      field.text = new Date().toLocaleDateString('ko-KR');
+    }
+    // Filename
+    else if (upperType === 'FILENAME') {
+      field.fieldType = 'FILENAME';
+      field.text = '{파일이름}';
+    }
+    // Mail merge field
+    else if (upperType === 'MAILMERGE') {
+      field.fieldType = 'MAILMERGE';
+      const fieldName = fieldElem.getAttribute('name') || fieldElem.getAttribute('fieldName') || '';
+      field.text = `«${fieldName}»`;
+      field.fieldName = fieldName;
+    }
+    // Cross-reference
+    else if (upperType === 'CROSSREF') {
+      field.fieldType = 'CROSSREF';
+      field.text = fieldElem.textContent || '{참조}';
+    }
+    // Hyperlink field
+    else if (upperType === 'HYPERLINK') {
+      field.fieldType = 'HYPERLINK';
+      const url = fieldElem.getAttribute('url') || fieldElem.getAttribute('target') || '';
+      field.hyperlink = { url };
+      field.text = fieldElem.textContent || url;
+    }
+    // Summary info
+    else if (upperType === 'SUMMARYINFO' || upperType === 'DOCPROPERTY') {
+      field.fieldType = 'SUMMARY_INFO';
+      const propName = fieldElem.getAttribute('name') || fieldElem.getAttribute('property') || '';
+      field.text = `{${propName}}`;
+    }
+    // Formula
+    else if (upperType === 'FORMULA' || upperType === 'EQUATION') {
+      field.fieldType = 'FORMULA';
+      field.text = fieldElem.textContent || '{수식}';
+    }
+    // Table of Contents marker — 렌더러가 자동 생성된 TOC 로 치환
+    else if (upperType === 'TOC' || upperType === 'TABLEOFCONTENTS') {
+      field.fieldType = 'TOC';
+      field.text = fieldElem.textContent || '{목차}';
+      field.tocTitle = fieldElem.getAttribute('title') || '목차';
+      const maxLvl = parseInt(fieldElem.getAttribute('maxLevel') || '0', 10);
+      if (Number.isFinite(maxLvl) && maxLvl > 0) field.tocMaxLevel = maxLvl;
+    }
+    // Default: just capture text
+    else {
+      field.text = fieldElem.textContent || '';
     }
 
-    /**
-     * <hp:memo> 처리:
-     *   1) 본문에는 run.type='memo' 마커를 삽입
-     *   2) section.memos[] 에 메모 본문 등록
-     */
-    _handleMemoElement(memoElem, para, charPrId) {
-        if (!memoElem) return;
-        const id = memoElem.getAttribute('id')
-            || memoElem.getAttribute('memoId')
-            || memoElem.getAttribute('name')
-            || `memo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    return field;
+  }
 
-        // 본문 텍스트(앵커가 될 부분) — 단순한 경우엔 비어 있을 수 있다
-        const anchorText = memoElem.getAttribute('text')
-            || memoElem.getAttribute('anchorText')
-            || '';
+  /**
+   * <hp:ole> 처리 — BinData 의 OLE 객체와 연결하여 run.type='ole' 을 만든다.
+   *
+   * 처리 규칙
+   *  - binDataRef / binDataIDRef / src 어트리뷰트로 BinData id 결정
+   *  - this.oleObjects 에 해당 id 가 있으면 oleData 를 첨부
+   *  - 사이즈 (sz/width/height) 는 있을 때만 적용
+   *
+   * 보안: 본 모듈은 OLE 바이트를 읽어들이는 일 외에 절대로 실행하지 않는다.
+   * 매크로/스크립트 evaluation 은 발생하지 않으며 oleData.metadata 만 노출한다.
+   *
+   * @param {Element} oleElem
+   * @param {string|null} charPrId
+   * @returns {Object|null} run-like 객체
+   */
+  _parseOleElement(oleElem, charPrId) {
+    if (!oleElem || typeof oleElem.getAttribute !== 'function') return null;
 
-        const marker = {
-            type: 'memo',
-            memoId: String(id),
-            text: anchorText,
-            style: {}
-        };
-        if (charPrId && this.charProperties.has(charPrId)) {
-            marker.style = { ...this.charProperties.get(charPrId) };
-        }
-        para.runs.push(marker);
+    const binDataRef =
+      oleElem.getAttribute('binDataRef') ||
+      oleElem.getAttribute('binDataIDRef') ||
+      oleElem.getAttribute('src') ||
+      oleElem.getAttribute('href') ||
+      '';
 
-        // 메모 본문 — <memoText>, <text> 자식 또는 textContent
-        let body = '';
-        const bodyElem = memoElem.querySelector
-            ? memoElem.querySelector('memoText, hp\\:memoText, memoBody, hp\\:memoBody, text, hp\\:text')
-            : null;
-        if (bodyElem) {
-            body = bodyElem.textContent || '';
-        } else {
-            body = memoElem.textContent || '';
-        }
-        const memoEntry = {
-            id: String(id),
-            author: memoElem.getAttribute('author') || memoElem.getAttribute('user') || '',
-            createdAt: memoElem.getAttribute('createdAt') || memoElem.getAttribute('date') || '',
-            text: (body || '').trim(),
-            anchorId: String(id),
-            resolved: false
-        };
-        if (this._currentSection && Array.isArray(this._currentSection.memos)) {
-            this._currentSection.memos.push(memoEntry);
-        }
+    // id 는 일반적으로 BIN0001 형태이거나 BinData/BIN0001.ole 형태
+    let id = binDataRef;
+    if (id.includes('/')) id = id.split('/').pop();
+    if (id.includes('.')) id = id.replace(/\.[^.]+$/, '');
+
+    const oleData = id && this.oleObjects.has(id) ? this.oleObjects.get(id) : null;
+
+    // 크기 파싱 (sz/width,height)
+    const szElem = qs(oleElem, 'sz');
+    let width = 0,
+      height = 0;
+    if (szElem) {
+      const w = parseInt(szElem.getAttribute('width'), 10);
+      const h = parseInt(szElem.getAttribute('height'), 10);
+      if (Number.isFinite(w)) width = HWPXConstants.hwpuToPxUnscaled(w);
+      if (Number.isFinite(h)) height = HWPXConstants.hwpuToPxUnscaled(h);
+    } else {
+      const w = parseInt(oleElem.getAttribute('width'), 10);
+      const h = parseInt(oleElem.getAttribute('height'), 10);
+      if (Number.isFinite(w)) width = w;
+      if (Number.isFinite(h)) height = h;
     }
 
-    // ========================================================================
-    // Table Parsing
-    // ========================================================================
+    const run = {
+      type: 'ole',
+      text: '',
+      binDataRef,
+      oleData: oleData || null,
+      width: width || undefined,
+      height: height || undefined,
+      style: {},
+      treatAsChar: true,
+    };
 
-    parseTable(tblElem) {
-        const table = {
-            type: 'table',
-            rows: [],
-            style: {},
-            widthHWPU: null,
-            heightHWPU: null,
-            repeatHeader: false,
-            caption: null
-        };
+    if (charPrId && this.charProperties.has(charPrId)) {
+      run.style = { ...this.charProperties.get(charPrId) };
+      run.charPrIDRef = charPrId;
+    }
 
-        // ================================================================
-        // 1. Table size (hp:sz)
-        // ================================================================
-        const szElem = qs(tblElem, 'sz');
-        if (szElem) {
-            const width = szElem.getAttribute('width');
-            const height = szElem.getAttribute('height');
-            const widthRelTo = szElem.getAttribute('widthRelTo');
-            const heightRelTo = szElem.getAttribute('heightRelTo');
-            const protect = szElem.getAttribute('protect');
+    return run;
+  }
 
-            if (width) {
-                table.widthHWPU = parseInt(width);
-                const widthPx = HWPXConstants.hwpuToPxUnscaled(table.widthHWPU);
-                table.style.width = widthPx.toFixed(2) + 'px';
-                table.style.widthPrecise = widthPx;
-                table.style.widthRelTo = widthRelTo || 'ABSOLUTE';
-            }
-            if (height) {
-                table.heightHWPU = parseInt(height);
-                const heightPx = HWPXConstants.hwpuToPxUnscaled(table.heightHWPU);
-                table.style.height = heightPx.toFixed(2) + 'px';
-                table.style.heightPrecise = heightPx;
-                table.style.heightRelTo = heightRelTo || 'ABSOLUTE';
-            }
-            if (protect === '1' || protect === 'true') table.style.protect = true;
-        }
+  /**
+   * <hp:memo> 처리:
+   *   1) 본문에는 run.type='memo' 마커를 삽입
+   *   2) section.memos[] 에 메모 본문 등록
+   */
+  _handleMemoElement(memoElem, para, charPrId) {
+    if (!memoElem) return;
+    const id =
+      memoElem.getAttribute('id') ||
+      memoElem.getAttribute('memoId') ||
+      memoElem.getAttribute('name') ||
+      `memo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-        // ================================================================
-        // 2. Table position (hp:pos) — floating table support
-        // ================================================================
-        const posElem = qs(tblElem, 'pos');
-        if (posElem) {
-            table.position = {};
-            const treatAsChar = posElem.getAttribute('treatAsChar');
-            table.position.treatAsChar = (treatAsChar === '1' || treatAsChar === 'true');
-            table.position.flowWithText = posElem.getAttribute('flowWithText') === '1';
-            table.position.allowOverlap = posElem.getAttribute('allowOverlap') === '1';
-            table.position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
-            table.position.horzRelTo = posElem.getAttribute('horzRelTo') || 'PARA';
-            table.position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
-            table.position.horzAlign = posElem.getAttribute('horzAlign') || 'LEFT';
-            const vertOffset = posElem.getAttribute('vertOffset');
-            const horzOffset = posElem.getAttribute('horzOffset');
-            if (vertOffset) table.position.vertOffset = HWPXConstants.hwpuToPxUnscaled(parseInt(vertOffset));
-            if (horzOffset) table.position.horzOffset = HWPXConstants.hwpuToPxUnscaled(parseInt(horzOffset));
-        }
+    // 본문 텍스트(앵커가 될 부분) — 단순한 경우엔 비어 있을 수 있다
+    const anchorText = memoElem.getAttribute('text') || memoElem.getAttribute('anchorText') || '';
 
-        // ================================================================
-        // 3. Table margins (hp:outMargin, hp:inMargin)
-        // ================================================================
-        const outMarginElem = qs(tblElem, 'outMargin');
-        if (outMarginElem) {
-            table.style.outMargin = {};
-            ['left', 'right', 'top', 'bottom'].forEach(side => {
-                const val = outMarginElem.getAttribute(side);
-                if (val) table.style.outMargin[side] = HWPXConstants.hwpuToPxUnscaled(parseInt(val));
-            });
-        }
+    const marker = {
+      type: 'memo',
+      memoId: String(id),
+      text: anchorText,
+      style: {},
+    };
+    if (charPrId && this.charProperties.has(charPrId)) {
+      marker.style = { ...this.charProperties.get(charPrId) };
+    }
+    para.runs.push(marker);
 
-        const inMarginElem = qs(tblElem, 'inMargin');
-        if (inMarginElem) {
-            table.style.inMargin = {};
-            ['left', 'right', 'top', 'bottom'].forEach(side => {
-                const val = inMarginElem.getAttribute(side);
-                if (val) table.style.inMargin[side] = HWPXConstants.hwpuToPxUnscaled(parseInt(val));
-            });
-        }
+    // 메모 본문 — <memoText>, <text> 자식 또는 textContent
+    let body = '';
+    const bodyElem = memoElem.querySelector
+      ? memoElem.querySelector('memoText, hp\\:memoText, memoBody, hp\\:memoBody, text, hp\\:text')
+      : null;
+    if (bodyElem) {
+      body = bodyElem.textContent || '';
+    } else {
+      body = memoElem.textContent || '';
+    }
+    const memoEntry = {
+      id: String(id),
+      author: memoElem.getAttribute('author') || memoElem.getAttribute('user') || '',
+      createdAt: memoElem.getAttribute('createdAt') || memoElem.getAttribute('date') || '',
+      text: (body || '').trim(),
+      anchorId: String(id),
+      resolved: false,
+    };
+    if (this._currentSection && Array.isArray(this._currentSection.memos)) {
+      this._currentSection.memos.push(memoEntry);
+    }
+  }
 
-        // ================================================================
-        // 4. Caption
-        // ================================================================
-        const captionElem = qs(tblElem, 'caption');
-        if (captionElem) {
-            const side = captionElem.getAttribute('side');
-            const gap = captionElem.getAttribute('gap');
-            const captionWidth = captionElem.getAttribute('width');
-            const subListElem = qs(captionElem, 'subList');
-            if (subListElem) {
-                const captionParas = [];
-                qsa(subListElem, 'p').forEach(pElem => {
-                    const para = this.parseParagraph(pElem);
-                    if (para) captionParas.push(para);
-                });
-                if (captionParas.length > 0) {
-                    table.caption = {
-                        side: side || 'TOP',
-                        paragraphs: captionParas,
-                        gap: gap ? HWPXConstants.hwpuToPxUnscaled(parseInt(gap)) : 0,
-                        width: captionWidth ? HWPXConstants.hwpuToPxUnscaled(parseInt(captionWidth)) : null
-                    };
-                }
-            }
-        }
+  // ========================================================================
+  // Table Parsing
+  // ========================================================================
 
-        // ================================================================
-        // 5. Table-level attributes
-        // ================================================================
-        const borderFillId = tblElem.getAttribute('borderFillIDRef') || tblElem.getAttribute('hp:borderFillIDRef');
-        if (borderFillId) table.style.borderFillId = borderFillId;
+  parseTable(tblElem) {
+    const table = {
+      type: 'table',
+      rows: [],
+      style: {},
+      widthHWPU: null,
+      heightHWPU: null,
+      repeatHeader: false,
+      caption: null,
+    };
 
-        const rowCnt = tblElem.getAttribute('rowCnt') || tblElem.getAttribute('hp:rowCnt');
-        const colCnt = tblElem.getAttribute('colCnt') || tblElem.getAttribute('hp:colCnt');
-        if (rowCnt) table.rowCount = parseInt(rowCnt);
-        if (colCnt) table.colCount = parseInt(colCnt);
+    // ================================================================
+    // 1. Table size (hp:sz)
+    // ================================================================
+    const szElem = qs(tblElem, 'sz');
+    if (szElem) {
+      const width = szElem.getAttribute('width');
+      const height = szElem.getAttribute('height');
+      const widthRelTo = szElem.getAttribute('widthRelTo');
+      const heightRelTo = szElem.getAttribute('heightRelTo');
+      const protect = szElem.getAttribute('protect');
 
-        const repeatHeader = tblElem.getAttribute('repeatHeader') || tblElem.getAttribute('hp:repeatHeader');
-        if (repeatHeader === '1' || repeatHeader === 'true') table.repeatHeader = true;
+      if (width) {
+        table.widthHWPU = parseInt(width);
+        const widthPx = HWPXConstants.hwpuToPxUnscaled(table.widthHWPU);
+        table.style.width = widthPx.toFixed(2) + 'px';
+        table.style.widthPrecise = widthPx;
+        table.style.widthRelTo = widthRelTo || 'ABSOLUTE';
+      }
+      if (height) {
+        table.heightHWPU = parseInt(height);
+        const heightPx = HWPXConstants.hwpuToPxUnscaled(table.heightHWPU);
+        table.style.height = heightPx.toFixed(2) + 'px';
+        table.style.heightPrecise = heightPx;
+        table.style.heightRelTo = heightRelTo || 'ABSOLUTE';
+      }
+      if (protect === '1' || protect === 'true') table.style.protect = true;
+    }
 
-        // cellSpacing
-        const cellSpacing = tblElem.getAttribute('cellSpacing') || tblElem.getAttribute('hp:cellSpacing');
-        if (cellSpacing) {
-            const spacingVal = parseInt(cellSpacing);
-            if (spacingVal > 0) {
-                table.style.cellSpacing = HWPXConstants.hwpuToPxUnscaled(spacingVal);
-            }
-        }
+    // ================================================================
+    // 2. Table position (hp:pos) — floating table support
+    // ================================================================
+    const posElem = qs(tblElem, 'pos');
+    if (posElem) {
+      table.position = {};
+      const treatAsChar = posElem.getAttribute('treatAsChar');
+      table.position.treatAsChar = treatAsChar === '1' || treatAsChar === 'true';
+      table.position.flowWithText = posElem.getAttribute('flowWithText') === '1';
+      table.position.allowOverlap = posElem.getAttribute('allowOverlap') === '1';
+      table.position.vertRelTo = posElem.getAttribute('vertRelTo') || 'PARA';
+      table.position.horzRelTo = posElem.getAttribute('horzRelTo') || 'PARA';
+      table.position.vertAlign = posElem.getAttribute('vertAlign') || 'TOP';
+      table.position.horzAlign = posElem.getAttribute('horzAlign') || 'LEFT';
+      const vertOffset = posElem.getAttribute('vertOffset');
+      const horzOffset = posElem.getAttribute('horzOffset');
+      if (vertOffset)
+        table.position.vertOffset = HWPXConstants.hwpuToPxUnscaled(parseInt(vertOffset));
+      if (horzOffset)
+        table.position.horzOffset = HWPXConstants.hwpuToPxUnscaled(parseInt(horzOffset));
+    }
 
-        // noAdjust — disable auto column adjustment
-        const noAdjust = tblElem.getAttribute('noAdjust') || tblElem.getAttribute('hp:noAdjust');
-        if (noAdjust === '1' || noAdjust === 'true') table.style.noAdjust = true;
+    // ================================================================
+    // 3. Table margins (hp:outMargin, hp:inMargin)
+    // ================================================================
+    const outMarginElem = qs(tblElem, 'outMargin');
+    if (outMarginElem) {
+      table.style.outMargin = {};
+      ['left', 'right', 'top', 'bottom'].forEach(side => {
+        const val = outMarginElem.getAttribute(side);
+        if (val) table.style.outMargin[side] = HWPXConstants.hwpuToPxUnscaled(parseInt(val));
+      });
+    }
 
-        // pageBreak policy
-        const pageBreak = tblElem.getAttribute('pageBreak') || tblElem.getAttribute('hp:pageBreak');
-        if (pageBreak) table.style.pageBreak = pageBreak; // CELL, NONE, TABLE
+    const inMarginElem = qs(tblElem, 'inMargin');
+    if (inMarginElem) {
+      table.style.inMargin = {};
+      ['left', 'right', 'top', 'bottom'].forEach(side => {
+        const val = inMarginElem.getAttribute(side);
+        if (val) table.style.inMargin[side] = HWPXConstants.hwpuToPxUnscaled(parseInt(val));
+      });
+    }
 
-        // Table alignment from textWrap
-        const textWrap = tblElem.getAttribute('textWrap') || tblElem.getAttribute('hp:textWrap');
-        if (textWrap) table.style.textWrap = textWrap;
-
-        // ================================================================
-        // 6. Parse rows — with full row-level attribute extraction
-        // ================================================================
-        const rows = tblElem.querySelectorAll(':scope > tr, :scope > hp\\:tr');
-        rows.forEach((trElem, rowIndex) => {
-            const row = this._parseTableRow(trElem, rowIndex, table);
-            table.rows.push(row);
+    // ================================================================
+    // 4. Caption
+    // ================================================================
+    const captionElem = qs(tblElem, 'caption');
+    if (captionElem) {
+      const side = captionElem.getAttribute('side');
+      const gap = captionElem.getAttribute('gap');
+      const captionWidth = captionElem.getAttribute('width');
+      const subListElem = qs(captionElem, 'subList');
+      if (subListElem) {
+        const captionParas = [];
+        qsa(subListElem, 'p').forEach(pElem => {
+          const para = this.parseParagraph(pElem);
+          if (para) captionParas.push(para);
         });
-
-        // ================================================================
-        // 7. Calculate column widths & build grid map
-        // ================================================================
-        if (table.rows.length > 0) {
-            this._calculateColumnWidths(table, tblElem);
+        if (captionParas.length > 0) {
+          table.caption = {
+            side: side || 'TOP',
+            paragraphs: captionParas,
+            gap: gap ? HWPXConstants.hwpuToPxUnscaled(parseInt(gap)) : 0,
+            width: captionWidth ? HWPXConstants.hwpuToPxUnscaled(parseInt(captionWidth)) : null,
+          };
         }
-        this._buildGridMap(table);
-
-        return table.rows.length > 0 ? table : null;
+      }
     }
 
-    /**
-     * Parse table row with full attribute extraction
-     * @param {Element} trElem - <hp:tr> element
-     * @param {number} rowIndex - row index
-     * @param {Object} table - parent table object
-     * @returns {Object} parsed row object
-     * @private
-     */
-    _parseTableRow(trElem, rowIndex, table) {
-        const row = { cells: [], style: {}, index: rowIndex };
+    // ================================================================
+    // 5. Table-level attributes
+    // ================================================================
+    const borderFillId =
+      tblElem.getAttribute('borderFillIDRef') || tblElem.getAttribute('hp:borderFillIDRef');
+    if (borderFillId) table.style.borderFillId = borderFillId;
 
-        // Row height (직접 속성)
-        const height = trElem.getAttribute('height') || trElem.getAttribute('hp:height');
-        if (height) {
-            const heightVal = parseInt(height);
-            if (heightVal > 0) {
-                row.style.height = HWPXConstants.hwpuToPxUnscaled(heightVal);
-                row.style.heightHWPU = heightVal;
-            }
+    const rowCnt = tblElem.getAttribute('rowCnt') || tblElem.getAttribute('hp:rowCnt');
+    const colCnt = tblElem.getAttribute('colCnt') || tblElem.getAttribute('hp:colCnt');
+    if (rowCnt) table.rowCount = parseInt(rowCnt);
+    if (colCnt) table.colCount = parseInt(colCnt);
+
+    const repeatHeader =
+      tblElem.getAttribute('repeatHeader') || tblElem.getAttribute('hp:repeatHeader');
+    if (repeatHeader === '1' || repeatHeader === 'true') table.repeatHeader = true;
+
+    // cellSpacing
+    const cellSpacing =
+      tblElem.getAttribute('cellSpacing') || tblElem.getAttribute('hp:cellSpacing');
+    if (cellSpacing) {
+      const spacingVal = parseInt(cellSpacing);
+      if (spacingVal > 0) {
+        table.style.cellSpacing = HWPXConstants.hwpuToPxUnscaled(spacingVal);
+      }
+    }
+
+    // noAdjust — disable auto column adjustment
+    const noAdjust = tblElem.getAttribute('noAdjust') || tblElem.getAttribute('hp:noAdjust');
+    if (noAdjust === '1' || noAdjust === 'true') table.style.noAdjust = true;
+
+    // pageBreak policy
+    const pageBreak = tblElem.getAttribute('pageBreak') || tblElem.getAttribute('hp:pageBreak');
+    if (pageBreak) table.style.pageBreak = pageBreak; // CELL, NONE, TABLE
+
+    // Table alignment from textWrap
+    const textWrap = tblElem.getAttribute('textWrap') || tblElem.getAttribute('hp:textWrap');
+    if (textWrap) table.style.textWrap = textWrap;
+
+    // ================================================================
+    // 6. Parse rows — with full row-level attribute extraction
+    // ================================================================
+    const rows = tblElem.querySelectorAll(':scope > tr, :scope > hp\\:tr');
+    rows.forEach((trElem, rowIndex) => {
+      const row = this._parseTableRow(trElem, rowIndex, table);
+      table.rows.push(row);
+    });
+
+    // ================================================================
+    // 7. Calculate column widths & build grid map
+    // ================================================================
+    if (table.rows.length > 0) {
+      this._calculateColumnWidths(table, tblElem);
+    }
+    this._buildGridMap(table);
+
+    return table.rows.length > 0 ? table : null;
+  }
+
+  /**
+   * Parse table row with full attribute extraction
+   * @param {Element} trElem - <hp:tr> element
+   * @param {number} rowIndex - row index
+   * @param {Object} table - parent table object
+   * @returns {Object} parsed row object
+   * @private
+   */
+  _parseTableRow(trElem, rowIndex, table) {
+    const row = { cells: [], style: {}, index: rowIndex };
+
+    // Row height (직접 속성)
+    const height = trElem.getAttribute('height') || trElem.getAttribute('hp:height');
+    if (height) {
+      const heightVal = parseInt(height);
+      if (heightVal > 0) {
+        row.style.height = HWPXConstants.hwpuToPxUnscaled(heightVal);
+        row.style.heightHWPU = heightVal;
+      }
+    }
+
+    // Row height type: FIXED (고정), MINIMUM (최소), AUTO (자동)
+    const heightType = trElem.getAttribute('heightType') || trElem.getAttribute('hp:heightType');
+    if (heightType) {
+      row.style.heightType = heightType.toUpperCase(); // FIXED, MINIMUM, AUTO
+    }
+
+    // Row header flag (반복 머리글)
+    const header = trElem.getAttribute('header') || trElem.getAttribute('hp:header');
+    if (header === '1' || header === 'true') row.style.isHeader = true;
+
+    // Row visibility
+    const hidden = trElem.getAttribute('hidden') || trElem.getAttribute('hp:hidden');
+    if (hidden === '1' || hidden === 'true') row.style.hidden = true;
+
+    // Row background from borderFillIDRef
+    const rowBorderFillId =
+      trElem.getAttribute('borderFillIDRef') || trElem.getAttribute('hp:borderFillIDRef');
+    if (rowBorderFillId && this.borderFills.has(rowBorderFillId)) {
+      const borderFillDef = this.borderFills.get(rowBorderFillId);
+      if (borderFillDef.fill.backgroundColor) {
+        row.style.backgroundColor = borderFillDef.fill.backgroundColor;
+      }
+    }
+
+    // Parse cells
+    const cells = trElem.querySelectorAll(':scope > tc, :scope > hp\\:tc');
+    cells.forEach(tcElem => {
+      const cell = this._parseTableCell(tcElem, table);
+      row.cells.push(cell);
+    });
+
+    return row;
+  }
+
+  _parseTableCell(tcElem, table) {
+    const cell = { elements: [], style: {} };
+
+    // ================================================================
+    // Cell address
+    // ================================================================
+    const cellAddrElem = qs(tcElem, 'cellAddr');
+    if (cellAddrElem) {
+      const colAddr = cellAddrElem.getAttribute('colAddr');
+      const rowAddr = cellAddrElem.getAttribute('rowAddr');
+      if (colAddr !== null) cell.colAddr = parseInt(colAddr);
+      if (rowAddr !== null) cell.rowAddr = parseInt(rowAddr);
+    }
+
+    // ================================================================
+    // Colspan/rowspan
+    // ================================================================
+    const cellSpanElem = qs(tcElem, 'cellSpan');
+    if (cellSpanElem) {
+      const colSpan = cellSpanElem.getAttribute('colSpan');
+      const rowSpan = cellSpanElem.getAttribute('rowSpan');
+      if (colSpan && parseInt(colSpan) > 1) cell.colSpan = parseInt(colSpan);
+      if (rowSpan && parseInt(rowSpan) > 1) cell.rowSpan = parseInt(rowSpan);
+    } else {
+      const colspan = tcElem.getAttribute('gridSpan') || tcElem.getAttribute('colspan');
+      const rowspan = tcElem.getAttribute('rowSpan') || tcElem.getAttribute('hp:rowSpan');
+      if (colspan && parseInt(colspan) > 1) cell.colSpan = parseInt(colspan);
+      if (rowspan && parseInt(rowspan) > 1) cell.rowSpan = parseInt(rowspan);
+    }
+
+    // ================================================================
+    // Cell-level attributes (header, protect, editable)
+    // ================================================================
+    const headerAttr = tcElem.getAttribute('header');
+    if (headerAttr === '1' || headerAttr === 'true') cell.isHeader = true;
+
+    const protectAttr = tcElem.getAttribute('protect');
+    if (protectAttr === '1' || protectAttr === 'true') cell.protect = true;
+
+    const editableAttr = tcElem.getAttribute('editable');
+    if (editableAttr === '1' || editableAttr === 'true') cell.editable = true;
+
+    // ================================================================
+    // Cell border/fill from borderFillIDRef
+    // ================================================================
+    const cellBorderFillId =
+      tcElem.getAttribute('borderFillIDRef') || tcElem.getAttribute('hp:borderFillIDRef');
+    if (cellBorderFillId && this.borderFills.has(cellBorderFillId)) {
+      cell.style.borderFillId = cellBorderFillId;
+      const borderFillDef = this.borderFills.get(cellBorderFillId);
+
+      // Apply borders
+      ['left', 'right', 'top', 'bottom'].forEach(side => {
+        if (borderFillDef.borders[side]) {
+          cell.style[`border${side.charAt(0).toUpperCase() + side.slice(1)}Def`] =
+            borderFillDef.borders[side];
         }
+      });
 
-        // Row height type: FIXED (고정), MINIMUM (최소), AUTO (자동)
-        const heightType = trElem.getAttribute('heightType') || trElem.getAttribute('hp:heightType');
-        if (heightType) {
-            row.style.heightType = heightType.toUpperCase(); // FIXED, MINIMUM, AUTO
-        }
+      // Fallback: inherit from table if cell has no visible borders
+      const hasVisibleBorder = ['left', 'right', 'top', 'bottom'].some(
+        side => borderFillDef.borders[side] && borderFillDef.borders[side].visible
+      );
 
-        // Row header flag (반복 머리글)
-        const header = trElem.getAttribute('header') || trElem.getAttribute('hp:header');
-        if (header === '1' || header === 'true') row.style.isHeader = true;
-
-        // Row visibility
-        const hidden = trElem.getAttribute('hidden') || trElem.getAttribute('hp:hidden');
-        if (hidden === '1' || hidden === 'true') row.style.hidden = true;
-
-        // Row background from borderFillIDRef
-        const rowBorderFillId = trElem.getAttribute('borderFillIDRef') || trElem.getAttribute('hp:borderFillIDRef');
-        if (rowBorderFillId && this.borderFills.has(rowBorderFillId)) {
-            const borderFillDef = this.borderFills.get(rowBorderFillId);
-            if (borderFillDef.fill.backgroundColor) {
-                row.style.backgroundColor = borderFillDef.fill.backgroundColor;
-            }
-        }
-
-        // Parse cells
-        const cells = trElem.querySelectorAll(':scope > tc, :scope > hp\\:tc');
-        cells.forEach((tcElem) => {
-            const cell = this._parseTableCell(tcElem, table);
-            row.cells.push(cell);
+      if (
+        !hasVisibleBorder &&
+        table.style.borderFillId &&
+        this.borderFills.has(table.style.borderFillId)
+      ) {
+        const tableBorderFillDef = this.borderFills.get(table.style.borderFillId);
+        ['left', 'right', 'top', 'bottom'].forEach(side => {
+          if (tableBorderFillDef.borders[side] && tableBorderFillDef.borders[side].visible) {
+            cell.style[`border${side.charAt(0).toUpperCase() + side.slice(1)}Def`] =
+              tableBorderFillDef.borders[side];
+          }
         });
+      }
 
-        return row;
+      // Diagonals
+      if (borderFillDef.borders.slash) cell.style.slashDef = borderFillDef.borders.slash;
+      if (borderFillDef.borders.backSlash)
+        cell.style.backSlashDef = borderFillDef.borders.backSlash;
+
+      // Fill
+      if (borderFillDef.fill.backgroundColor) {
+        cell.style.backgroundColor = borderFillDef.fill.backgroundColor;
+        if (borderFillDef.fill.opacity !== undefined)
+          cell.style.opacity = borderFillDef.fill.opacity;
+      }
+      if (borderFillDef.fill.gradientCSS)
+        cell.style.backgroundGradient = borderFillDef.fill.gradientCSS;
+      if (borderFillDef.fill.patternType) {
+        cell.style.patternType = borderFillDef.fill.patternType;
+        cell.style.patternForeground = borderFillDef.fill.patternForeground;
+      }
+      if (borderFillDef.fill.backgroundImage) {
+        cell.style.backgroundImage = borderFillDef.fill.backgroundImage;
+      }
     }
 
-    _parseTableCell(tcElem, table) {
-        const cell = { elements: [], style: {} };
-
-        // ================================================================
-        // Cell address
-        // ================================================================
-        const cellAddrElem = qs(tcElem, 'cellAddr');
-        if (cellAddrElem) {
-            const colAddr = cellAddrElem.getAttribute('colAddr');
-            const rowAddr = cellAddrElem.getAttribute('rowAddr');
-            if (colAddr !== null) cell.colAddr = parseInt(colAddr);
-            if (rowAddr !== null) cell.rowAddr = parseInt(rowAddr);
+    // ================================================================
+    // Inline fill (fillBrush) — overrides borderFillIDRef fill
+    // ================================================================
+    const cellFillBrushElem = tcElem.querySelector('fillBrush, hp\\:fillBrush, hc\\:fillBrush');
+    if (cellFillBrushElem) {
+      const winBrushElem = cellFillBrushElem.querySelector('winBrush, hc\\:winBrush');
+      if (winBrushElem) {
+        const faceColor = winBrushElem.getAttribute('faceColor');
+        const alpha = winBrushElem.getAttribute('alpha');
+        if (faceColor && faceColor !== 'none') {
+          cell.style.backgroundColor = normalizeColor(faceColor);
+          if (alpha) cell.style.opacity = 1.0 - parseInt(alpha) / 255.0;
         }
-
-        // ================================================================
-        // Colspan/rowspan
-        // ================================================================
-        const cellSpanElem = qs(tcElem, 'cellSpan');
-        if (cellSpanElem) {
-            const colSpan = cellSpanElem.getAttribute('colSpan');
-            const rowSpan = cellSpanElem.getAttribute('rowSpan');
-            if (colSpan && parseInt(colSpan) > 1) cell.colSpan = parseInt(colSpan);
-            if (rowSpan && parseInt(rowSpan) > 1) cell.rowSpan = parseInt(rowSpan);
-        } else {
-            const colspan = tcElem.getAttribute('gridSpan') || tcElem.getAttribute('colspan');
-            const rowspan = tcElem.getAttribute('rowSpan') || tcElem.getAttribute('hp:rowSpan');
-            if (colspan && parseInt(colspan) > 1) cell.colSpan = parseInt(colspan);
-            if (rowspan && parseInt(rowspan) > 1) cell.rowSpan = parseInt(rowspan);
-        }
-
-        // ================================================================
-        // Cell-level attributes (header, protect, editable)
-        // ================================================================
-        const headerAttr = tcElem.getAttribute('header');
-        if (headerAttr === '1' || headerAttr === 'true') cell.isHeader = true;
-
-        const protectAttr = tcElem.getAttribute('protect');
-        if (protectAttr === '1' || protectAttr === 'true') cell.protect = true;
-
-        const editableAttr = tcElem.getAttribute('editable');
-        if (editableAttr === '1' || editableAttr === 'true') cell.editable = true;
-
-        // ================================================================
-        // Cell border/fill from borderFillIDRef
-        // ================================================================
-        const cellBorderFillId = tcElem.getAttribute('borderFillIDRef') || tcElem.getAttribute('hp:borderFillIDRef');
-        if (cellBorderFillId && this.borderFills.has(cellBorderFillId)) {
-            cell.style.borderFillId = cellBorderFillId;
-            const borderFillDef = this.borderFills.get(cellBorderFillId);
-
-            // Apply borders
-            ['left', 'right', 'top', 'bottom'].forEach(side => {
-                if (borderFillDef.borders[side]) {
-                    cell.style[`border${side.charAt(0).toUpperCase() + side.slice(1)}Def`] = borderFillDef.borders[side];
-                }
-            });
-
-            // Fallback: inherit from table if cell has no visible borders
-            const hasVisibleBorder = ['left', 'right', 'top', 'bottom'].some(side =>
-                borderFillDef.borders[side] && borderFillDef.borders[side].visible
-            );
-
-            if (!hasVisibleBorder && table.style.borderFillId && this.borderFills.has(table.style.borderFillId)) {
-                const tableBorderFillDef = this.borderFills.get(table.style.borderFillId);
-                ['left', 'right', 'top', 'bottom'].forEach(side => {
-                    if (tableBorderFillDef.borders[side] && tableBorderFillDef.borders[side].visible) {
-                        cell.style[`border${side.charAt(0).toUpperCase() + side.slice(1)}Def`] = tableBorderFillDef.borders[side];
-                    }
-                });
-            }
-
-            // Diagonals
-            if (borderFillDef.borders.slash) cell.style.slashDef = borderFillDef.borders.slash;
-            if (borderFillDef.borders.backSlash) cell.style.backSlashDef = borderFillDef.borders.backSlash;
-
-            // Fill
-            if (borderFillDef.fill.backgroundColor) {
-                cell.style.backgroundColor = borderFillDef.fill.backgroundColor;
-                if (borderFillDef.fill.opacity !== undefined) cell.style.opacity = borderFillDef.fill.opacity;
-            }
-            if (borderFillDef.fill.gradientCSS) cell.style.backgroundGradient = borderFillDef.fill.gradientCSS;
-            if (borderFillDef.fill.patternType) {
-                cell.style.patternType = borderFillDef.fill.patternType;
-                cell.style.patternForeground = borderFillDef.fill.patternForeground;
-            }
-            if (borderFillDef.fill.backgroundImage) {
-                cell.style.backgroundImage = borderFillDef.fill.backgroundImage;
-            }
-        }
-
-        // ================================================================
-        // Inline fill (fillBrush) — overrides borderFillIDRef fill
-        // ================================================================
-        const cellFillBrushElem = tcElem.querySelector('fillBrush, hp\\:fillBrush, hc\\:fillBrush');
-        if (cellFillBrushElem) {
-            const winBrushElem = cellFillBrushElem.querySelector('winBrush, hc\\:winBrush');
-            if (winBrushElem) {
-                const faceColor = winBrushElem.getAttribute('faceColor');
-                const alpha = winBrushElem.getAttribute('alpha');
-                if (faceColor && faceColor !== 'none') {
-                    cell.style.backgroundColor = normalizeColor(faceColor);
-                    if (alpha) cell.style.opacity = 1.0 - (parseInt(alpha) / 255.0);
-                }
-            }
-            // Gradient fill
-            const gradationElem = cellFillBrushElem.querySelector('gradation, hc\\:gradation');
-            if (gradationElem) {
-                const type = gradationElem.getAttribute('type') || 'LINEAR';
-                const angle = parseInt(gradationElem.getAttribute('angle')) || 0;
-                const colors = [];
-                qsa(gradationElem, 'color').forEach(colorElem => {
-                    const val = colorElem.getAttribute('value') || colorElem.textContent;
-                    if (val) colors.push(normalizeColor(val));
-                });
-                if (colors.length >= 2) {
-                    if (type === 'RADIAL') {
-                        cell.style.backgroundGradient = `radial-gradient(circle, ${colors.join(', ')})`;
-                    } else {
-                        cell.style.backgroundGradient = `linear-gradient(${angle}deg, ${colors.join(', ')})`;
-                    }
-                }
-            }
-            // Image fill
-            const imgBrushElem = cellFillBrushElem.querySelector('imgBrush, hc\\:imgBrush');
-            if (imgBrushElem) {
-                const mode = imgBrushElem.getAttribute('mode') || 'TILE';
-                const binaryItemIDRef = imgBrushElem.getAttribute('binaryItemIDRef');
-                if (binaryItemIDRef) {
-                    cell.style.backgroundImage = { binaryItemIDRef, mode };
-                }
-            }
-        }
-
-        // ================================================================
-        // Cell size
-        // ================================================================
-        const cellSzElem = qs(tcElem, 'cellSz');
-        if (cellSzElem) {
-            const width = cellSzElem.getAttribute('width');
-            const height = cellSzElem.getAttribute('height');
-            if (width) {
-                cell.widthHWPU = parseInt(width);
-                if (table.widthHWPU) {
-                    cell.style.widthPercent = (cell.widthHWPU / table.widthHWPU * 100).toFixed(4) + '%';
-                }
-                cell.style.width = HWPXConstants.hwpuToPxUnscaled(cell.widthHWPU).toFixed(2) + 'px';
-                cell.style.widthPrecise = HWPXConstants.hwpuToPxUnscaled(cell.widthHWPU);
-            }
-            if (height) {
-                cell.heightHWPU = parseInt(height);
-                cell.style.height = HWPXConstants.hwpuToPxUnscaled(cell.heightHWPU).toFixed(2) + 'px';
-                cell.style.heightPrecise = HWPXConstants.hwpuToPxUnscaled(cell.heightHWPU);
-            }
-        }
-
-        // ================================================================
-        // Cell margin (→ CSS padding)
-        // ================================================================
-        const cellMarginElem = qs(tcElem, 'cellMargin');
-        if (cellMarginElem) {
-            const marginValues = {};
-            ['top', 'right', 'bottom', 'left'].forEach(side => {
-                const val = cellMarginElem.getAttribute(side);
-                marginValues[side] = val ? parseInt(val) : 0;
-            });
-            cell.style.paddingTop = HWPXConstants.hwpuToPxUnscaled(marginValues.top).toFixed(2) + 'px';
-            cell.style.paddingRight = HWPXConstants.hwpuToPxUnscaled(marginValues.right).toFixed(2) + 'px';
-            cell.style.paddingBottom = HWPXConstants.hwpuToPxUnscaled(marginValues.bottom).toFixed(2) + 'px';
-            cell.style.paddingLeft = HWPXConstants.hwpuToPxUnscaled(marginValues.left).toFixed(2) + 'px';
-            cell.style.padding = `${cell.style.paddingTop} ${cell.style.paddingRight} ${cell.style.paddingBottom} ${cell.style.paddingLeft}`;
-        }
-
-        // ================================================================
-        // Alignment — from subList and align elements
-        // ================================================================
-        const subListElem = qs(tcElem, 'subList');
-        if (subListElem) {
-            const vertAlign = subListElem.getAttribute('vertAlign');
-            if (vertAlign) {
-                const vAlignMap = { 'TOP': 'top', 'CENTER': 'middle', 'MIDDLE': 'middle', 'BOTTOM': 'bottom' };
-                cell.style.verticalAlign = vAlignMap[vertAlign.toUpperCase()] || 'top';
-            }
-
-            // Text direction from subList
-            const textDirection = subListElem.getAttribute('textDirection');
-            if (textDirection && textDirection !== 'HORIZONTAL') {
-                cell.style.textDirection = textDirection; // VERTICAL, TBRL, BTLR
-            }
-
-            // Line wrap from subList
-            const lineWrap = subListElem.getAttribute('lineWrap');
-            if (lineWrap) {
-                cell.style.lineWrap = lineWrap; // BREAK, SQUEEZE, NONE
-            }
-        }
-
-        const alignElem = qs(tcElem, 'align');
-        if (alignElem) {
-            const horizontal = alignElem.getAttribute('horizontal') || alignElem.getAttribute('hAlign');
-            const vertical = alignElem.getAttribute('vertical') || alignElem.getAttribute('vAlign');
-            if (horizontal) {
-                const hAlignMap = { 'LEFT': 'left', 'CENTER': 'center', 'RIGHT': 'right', 'JUSTIFY': 'justify' };
-                cell.style.textAlign = hAlignMap[horizontal.toUpperCase()] || 'left';
-            }
-            if (vertical) {
-                const vAlignMap = { 'TOP': 'top', 'CENTER': 'middle', 'MIDDLE': 'middle', 'BOTTOM': 'bottom' };
-                cell.style.verticalAlign = vAlignMap[vertical.toUpperCase()] || 'top';
-            }
-        }
-
-        // ================================================================
-        // ★ Cell rotation (Phase 1.6) — rotat 속성 (deg×100)
-        // ================================================================
-        const cellRot = tcElem.getAttribute('rotat')
-            ?? tcElem.getAttribute('rotation')
-            ?? (subListElem ? subListElem.getAttribute('rotat') : null);
-        if (cellRot !== null && cellRot !== undefined && cellRot !== '') {
-            const raw = parseFloat(cellRot);
-            if (!Number.isNaN(raw) && raw !== 0) {
-                let deg = raw;
-                if (Math.abs(raw) > 360) deg = raw / 100;
-                cell.style.rotation = ((deg % 360) + 360) % 360;
-            }
-        }
-
-        // ================================================================
-        // Nested tables
-        // ================================================================
-        const nestedTables = tcElem.querySelectorAll(':scope > subList > tbl, :scope > subList > hp\\:tbl, :scope > tbl, :scope > hp\\:tbl');
-        nestedTables.forEach(nestedTbl => {
-            const nestedTable = this.parseTable(nestedTbl);
-            if (nestedTable) cell.elements.push(nestedTable);
+      }
+      // Gradient fill
+      const gradationElem = cellFillBrushElem.querySelector('gradation, hc\\:gradation');
+      if (gradationElem) {
+        const type = gradationElem.getAttribute('type') || 'LINEAR';
+        const angle = parseInt(gradationElem.getAttribute('angle')) || 0;
+        const colors = [];
+        qsa(gradationElem, 'color').forEach(colorElem => {
+          const val = colorElem.getAttribute('value') || colorElem.textContent;
+          if (val) colors.push(normalizeColor(val));
         });
-
-        // ================================================================
-        // Cell paragraphs
-        // ================================================================
-        if (subListElem) {
-            const allParas = qsa(subListElem, 'p');
-            const parasToProcess = Array.from(allParas).filter(pElem => {
-                const parentTable = pElem.closest('tbl, hp\\:tbl');
-                if (parentTable && nestedTables && Array.from(nestedTables).includes(parentTable)) return false;
-                const parentDrawText = pElem.closest('drawText, hp\\:drawText');
-                if (parentDrawText && subListElem.contains(parentDrawText)) return false;
-                const parentContainer = pElem.closest('container, hp\\:container, rect, hp\\:rect, ellipse, hp\\:ellipse');
-                if (parentContainer && subListElem.contains(parentContainer)) return false;
-                return true;
-            });
-
-            parasToProcess.forEach(pElem => {
-                const para = this.parseParagraph(pElem);
-                if (para) cell.elements.push(para);
-            });
+        if (colors.length >= 2) {
+          if (type === 'RADIAL') {
+            cell.style.backgroundGradient = `radial-gradient(circle, ${colors.join(', ')})`;
+          } else {
+            cell.style.backgroundGradient = `linear-gradient(${angle}deg, ${colors.join(', ')})`;
+          }
         }
-
-        return cell;
+      }
+      // Image fill
+      const imgBrushElem = cellFillBrushElem.querySelector('imgBrush, hc\\:imgBrush');
+      if (imgBrushElem) {
+        const mode = imgBrushElem.getAttribute('mode') || 'TILE';
+        const binaryItemIDRef = imgBrushElem.getAttribute('binaryItemIDRef');
+        if (binaryItemIDRef) {
+          cell.style.backgroundImage = { binaryItemIDRef, mode };
+        }
+      }
     }
 
-    _calculateColumnWidths(table, tblElem) {
-        table.colWidths = [];
-        table.colWidthsPercent = [];
-
-        const colCnt = parseInt(tblElem.getAttribute('colCnt')) || table.colCount || table.rows[0].cells.length;
-        const colWidthsHWPU = new Array(colCnt).fill(0);
-
-        // Strategy 1: Use reference row (no colspan, matches colCount)
-        let referenceRow = null;
-        for (const row of table.rows) {
-            let hasColspan = false;
-            for (const cell of row.cells) {
-                if ((cell.colSpan || 1) > 1) { hasColspan = true; break; }
-            }
-            if (!hasColspan && row.cells.length === colCnt) {
-                referenceRow = row;
-                break;
-            }
+    // ================================================================
+    // Cell size
+    // ================================================================
+    const cellSzElem = qs(tcElem, 'cellSz');
+    if (cellSzElem) {
+      const width = cellSzElem.getAttribute('width');
+      const height = cellSzElem.getAttribute('height');
+      if (width) {
+        cell.widthHWPU = parseInt(width);
+        if (table.widthHWPU) {
+          cell.style.widthPercent = ((cell.widthHWPU / table.widthHWPU) * 100).toFixed(4) + '%';
         }
-
-        if (referenceRow) {
-            for (let i = 0; i < referenceRow.cells.length; i++) {
-                colWidthsHWPU[i] = referenceRow.cells[i].widthHWPU || 0;
-            }
-        } else {
-            // Strategy 2: Distribute colspan widths proportionally
-            const firstRow = table.rows[0];
-            let colIndex = 0;
-            for (const cell of firstRow.cells) {
-                const colspan = cell.colSpan || 1;
-                const cellWidth = cell.widthHWPU || 0;
-                const widthPerCol = cellWidth / colspan;
-                for (let span = 0; span < colspan && colIndex < colCnt; span++) {
-                    colWidthsHWPU[colIndex++] = widthPerCol;
-                }
-            }
-        }
-
-        const totalWidthHWPU = colWidthsHWPU.reduce((sum, w) => sum + w, 0);
-
-        for (let i = 0; i < colCnt; i++) {
-            const widthPx = HWPXConstants.hwpuToPx(colWidthsHWPU[i]);
-            const widthPercent = totalWidthHWPU > 0 ? (colWidthsHWPU[i] / totalWidthHWPU * 100) : 0;
-            table.colWidths.push(widthPx.toFixed(2) + 'px');
-            table.colWidthsPercent.push(widthPercent.toFixed(4) + '%');
-        }
-
-        // Store raw HWPU widths for renderer use
-        table.colWidthsHWPU = colWidthsHWPU;
+        cell.style.width = HWPXConstants.hwpuToPxUnscaled(cell.widthHWPU).toFixed(2) + 'px';
+        cell.style.widthPrecise = HWPXConstants.hwpuToPxUnscaled(cell.widthHWPU);
+      }
+      if (height) {
+        cell.heightHWPU = parseInt(height);
+        cell.style.height = HWPXConstants.hwpuToPxUnscaled(cell.heightHWPU).toFixed(2) + 'px';
+        cell.style.heightPrecise = HWPXConstants.hwpuToPxUnscaled(cell.heightHWPU);
+      }
     }
 
-    /**
-     * 테이블 그리드맵 구축 및 covered cell 마킹
-     * rowSpan/colSpan을 반영하여 논리적 그리드를 생성하고
-     * 병합으로 가려진 셀에 isCovered = true를 설정
-     * @param {Object} table - 파싱된 테이블 객체
-     * @private
-     */
-    _buildGridMap(table) {
-        const rows = table.rows || [];
-        if (rows.length === 0) return;
-
-        // 논리적 그리드: grid[row][col] = cell reference 또는 null
-        const maxCols = table.colCount || Math.max(...rows.map(r => (r.cells || []).length));
-        const maxRows = rows.length;
-        const grid = Array.from({ length: maxRows }, () => new Array(maxCols).fill(null));
-
-        rows.forEach((row, rowIdx) => {
-            let colPos = 0;
-            (row.cells || []).forEach(cell => {
-                // 이미 점유된 위치 건너뛰기 (이전 행의 rowSpan으로 점유된 경우)
-                while (colPos < maxCols && grid[rowIdx][colPos] !== null) {
-                    colPos++;
-                }
-                if (colPos >= maxCols) return;
-
-                const rs = cell.rowSpan || 1;
-                const cs = cell.colSpan || 1;
-
-                // 셀의 논리적 위치 저장
-                cell.logicalRow = rowIdx;
-                cell.logicalCol = colPos;
-
-                // 그리드에 셀 점유 영역 표시
-                for (let r = 0; r < rs && (rowIdx + r) < maxRows; r++) {
-                    for (let c = 0; c < cs && (colPos + c) < maxCols; c++) {
-                        if (r === 0 && c === 0) {
-                            grid[rowIdx + r][colPos + c] = cell;
-                        } else {
-                            grid[rowIdx + r][colPos + c] = 'covered';
-                        }
-                    }
-                }
-
-                colPos += cs;
-            });
-
-            // 이 행의 셀 중 covered 위치에 있는 셀 마킹
-            (row.cells || []).forEach(cell => {
-                if (cell.logicalRow === undefined) {
-                    // 그리드에 위치를 잡지 못한 셀 = covered
-                    cell.isCovered = true;
-                }
-            });
-        });
-
-        // covered 셀 마킹: 크기가 0인 셀도 covered로 처리
-        rows.forEach(row => {
-            (row.cells || []).forEach(cell => {
-                if (!cell.isCovered && cell.widthHWPU === 0 && cell.heightHWPU === 0) {
-                    cell.isCovered = true;
-                }
-            });
-        });
-
-        table.gridMap = grid;
+    // ================================================================
+    // Cell margin (→ CSS padding)
+    // ================================================================
+    const cellMarginElem = qs(tcElem, 'cellMargin');
+    if (cellMarginElem) {
+      const marginValues = {};
+      ['top', 'right', 'bottom', 'left'].forEach(side => {
+        const val = cellMarginElem.getAttribute(side);
+        marginValues[side] = val ? parseInt(val) : 0;
+      });
+      cell.style.paddingTop = HWPXConstants.hwpuToPxUnscaled(marginValues.top).toFixed(2) + 'px';
+      cell.style.paddingRight =
+        HWPXConstants.hwpuToPxUnscaled(marginValues.right).toFixed(2) + 'px';
+      cell.style.paddingBottom =
+        HWPXConstants.hwpuToPxUnscaled(marginValues.bottom).toFixed(2) + 'px';
+      cell.style.paddingLeft = HWPXConstants.hwpuToPxUnscaled(marginValues.left).toFixed(2) + 'px';
+      cell.style.padding = `${cell.style.paddingTop} ${cell.style.paddingRight} ${cell.style.paddingBottom} ${cell.style.paddingLeft}`;
     }
 
-    // ========================================================================
-    // Image Parsing
-    // ========================================================================
+    // ================================================================
+    // Alignment — from subList and align elements
+    // ================================================================
+    const subListElem = qs(tcElem, 'subList');
+    if (subListElem) {
+      const vertAlign = subListElem.getAttribute('vertAlign');
+      if (vertAlign) {
+        const vAlignMap = { TOP: 'top', CENTER: 'middle', MIDDLE: 'middle', BOTTOM: 'bottom' };
+        cell.style.verticalAlign = vAlignMap[vertAlign.toUpperCase()] || 'top';
+      }
 
-    parseImage(picElem) {
-        const image = {
-            type: 'image',
-            src: null,
-            width: null,
-            height: null,
-            style: {},
-            position: parsePosition(picElem)
+      // Text direction from subList
+      const textDirection = subListElem.getAttribute('textDirection');
+      if (textDirection && textDirection !== 'HORIZONTAL') {
+        cell.style.textDirection = textDirection; // VERTICAL, TBRL, BTLR
+      }
+
+      // Line wrap from subList
+      const lineWrap = subListElem.getAttribute('lineWrap');
+      if (lineWrap) {
+        cell.style.lineWrap = lineWrap; // BREAK, SQUEEZE, NONE
+      }
+    }
+
+    const alignElem = qs(tcElem, 'align');
+    if (alignElem) {
+      const horizontal = alignElem.getAttribute('horizontal') || alignElem.getAttribute('hAlign');
+      const vertical = alignElem.getAttribute('vertical') || alignElem.getAttribute('vAlign');
+      if (horizontal) {
+        const hAlignMap = { LEFT: 'left', CENTER: 'center', RIGHT: 'right', JUSTIFY: 'justify' };
+        cell.style.textAlign = hAlignMap[horizontal.toUpperCase()] || 'left';
+      }
+      if (vertical) {
+        const vAlignMap = { TOP: 'top', CENTER: 'middle', MIDDLE: 'middle', BOTTOM: 'bottom' };
+        cell.style.verticalAlign = vAlignMap[vertical.toUpperCase()] || 'top';
+      }
+    }
+
+    // ================================================================
+    // ★ Cell rotation (Phase 1.6) — rotat 속성 (deg×100)
+    // ================================================================
+    const cellRot =
+      tcElem.getAttribute('rotat') ??
+      tcElem.getAttribute('rotation') ??
+      (subListElem ? subListElem.getAttribute('rotat') : null);
+    if (cellRot !== null && cellRot !== undefined && cellRot !== '') {
+      const raw = parseFloat(cellRot);
+      if (!Number.isNaN(raw) && raw !== 0) {
+        let deg = raw;
+        if (Math.abs(raw) > 360) deg = raw / 100;
+        cell.style.rotation = ((deg % 360) + 360) % 360;
+      }
+    }
+
+    // ================================================================
+    // Nested tables
+    // ================================================================
+    const nestedTables = tcElem.querySelectorAll(
+      ':scope > subList > tbl, :scope > subList > hp\\:tbl, :scope > tbl, :scope > hp\\:tbl'
+    );
+    nestedTables.forEach(nestedTbl => {
+      const nestedTable = this.parseTable(nestedTbl);
+      if (nestedTable) cell.elements.push(nestedTable);
+    });
+
+    // ================================================================
+    // Cell paragraphs
+    // ================================================================
+    if (subListElem) {
+      const allParas = qsa(subListElem, 'p');
+      const parasToProcess = Array.from(allParas).filter(pElem => {
+        const parentTable = pElem.closest('tbl, hp\\:tbl');
+        if (parentTable && nestedTables && Array.from(nestedTables).includes(parentTable))
+          return false;
+        const parentDrawText = pElem.closest('drawText, hp\\:drawText');
+        if (parentDrawText && subListElem.contains(parentDrawText)) return false;
+        const parentContainer = pElem.closest(
+          'container, hp\\:container, rect, hp\\:rect, ellipse, hp\\:ellipse'
+        );
+        if (parentContainer && subListElem.contains(parentContainer)) return false;
+        return true;
+      });
+
+      parasToProcess.forEach(pElem => {
+        const para = this.parseParagraph(pElem);
+        if (para) cell.elements.push(para);
+      });
+    }
+
+    return cell;
+  }
+
+  _calculateColumnWidths(table, tblElem) {
+    table.colWidths = [];
+    table.colWidthsPercent = [];
+
+    const colCnt =
+      parseInt(tblElem.getAttribute('colCnt')) || table.colCount || table.rows[0].cells.length;
+    const colWidthsHWPU = new Array(colCnt).fill(0);
+
+    // Strategy 1: Use reference row (no colspan, matches colCount)
+    let referenceRow = null;
+    for (const row of table.rows) {
+      let hasColspan = false;
+      for (const cell of row.cells) {
+        if ((cell.colSpan || 1) > 1) {
+          hasColspan = true;
+          break;
+        }
+      }
+      if (!hasColspan && row.cells.length === colCnt) {
+        referenceRow = row;
+        break;
+      }
+    }
+
+    if (referenceRow) {
+      for (let i = 0; i < referenceRow.cells.length; i++) {
+        colWidthsHWPU[i] = referenceRow.cells[i].widthHWPU || 0;
+      }
+    } else {
+      // Strategy 2: Distribute colspan widths proportionally
+      const firstRow = table.rows[0];
+      let colIndex = 0;
+      for (const cell of firstRow.cells) {
+        const colspan = cell.colSpan || 1;
+        const cellWidth = cell.widthHWPU || 0;
+        const widthPerCol = cellWidth / colspan;
+        for (let span = 0; span < colspan && colIndex < colCnt; span++) {
+          colWidthsHWPU[colIndex++] = widthPerCol;
+        }
+      }
+    }
+
+    const totalWidthHWPU = colWidthsHWPU.reduce((sum, w) => sum + w, 0);
+
+    for (let i = 0; i < colCnt; i++) {
+      const widthPx = HWPXConstants.hwpuToPx(colWidthsHWPU[i]);
+      const widthPercent = totalWidthHWPU > 0 ? (colWidthsHWPU[i] / totalWidthHWPU) * 100 : 0;
+      table.colWidths.push(widthPx.toFixed(2) + 'px');
+      table.colWidthsPercent.push(widthPercent.toFixed(4) + '%');
+    }
+
+    // Store raw HWPU widths for renderer use
+    table.colWidthsHWPU = colWidthsHWPU;
+  }
+
+  /**
+   * 테이블 그리드맵 구축 및 covered cell 마킹
+   * rowSpan/colSpan을 반영하여 논리적 그리드를 생성하고
+   * 병합으로 가려진 셀에 isCovered = true를 설정
+   * @param {Object} table - 파싱된 테이블 객체
+   * @private
+   */
+  _buildGridMap(table) {
+    const rows = table.rows || [];
+    if (rows.length === 0) return;
+
+    // 논리적 그리드: grid[row][col] = cell reference 또는 null
+    const maxCols = table.colCount || Math.max(...rows.map(r => (r.cells || []).length));
+    const maxRows = rows.length;
+    const grid = Array.from({ length: maxRows }, () => new Array(maxCols).fill(null));
+
+    rows.forEach((row, rowIdx) => {
+      let colPos = 0;
+      (row.cells || []).forEach(cell => {
+        // 이미 점유된 위치 건너뛰기 (이전 행의 rowSpan으로 점유된 경우)
+        while (colPos < maxCols && grid[rowIdx][colPos] !== null) {
+          colPos++;
+        }
+        if (colPos >= maxCols) return;
+
+        const rs = cell.rowSpan || 1;
+        const cs = cell.colSpan || 1;
+
+        // 셀의 논리적 위치 저장
+        cell.logicalRow = rowIdx;
+        cell.logicalCol = colPos;
+
+        // 그리드에 셀 점유 영역 표시
+        for (let r = 0; r < rs && rowIdx + r < maxRows; r++) {
+          for (let c = 0; c < cs && colPos + c < maxCols; c++) {
+            if (r === 0 && c === 0) {
+              grid[rowIdx + r][colPos + c] = cell;
+            } else {
+              grid[rowIdx + r][colPos + c] = 'covered';
+            }
+          }
+        }
+
+        colPos += cs;
+      });
+
+      // 이 행의 셀 중 covered 위치에 있는 셀 마킹
+      (row.cells || []).forEach(cell => {
+        if (cell.logicalRow === undefined) {
+          // 그리드에 위치를 잡지 못한 셀 = covered
+          cell.isCovered = true;
+        }
+      });
+    });
+
+    // covered 셀 마킹: 크기가 0인 셀도 covered로 처리
+    rows.forEach(row => {
+      (row.cells || []).forEach(cell => {
+        if (!cell.isCovered && cell.widthHWPU === 0 && cell.heightHWPU === 0) {
+          cell.isCovered = true;
+        }
+      });
+    });
+
+    table.gridMap = grid;
+  }
+
+  // ========================================================================
+  // Image Parsing
+  // ========================================================================
+
+  parseImage(picElem) {
+    const image = {
+      type: 'image',
+      src: null,
+      width: null,
+      height: null,
+      style: {},
+      position: parsePosition(picElem),
+    };
+
+    // Image reference
+    const imgElem = picElem.querySelector('img, hp\\:img, hc\\:img');
+    if (imgElem) {
+      const binaryItemId = imgElem.getAttribute('binaryItemIDRef');
+      if (binaryItemId && this.images.has(binaryItemId)) {
+        const imageData = this.images.get(binaryItemId);
+        image.src = imageData.url;
+        image.binaryItemId = binaryItemId;
+      } else if (binaryItemId) {
+        logger.warn(`⚠️ Image reference not found: ${binaryItemId}`);
+      }
+    }
+
+    // Size (curSz/sz)
+    const size = parseSize(picElem);
+    if (size.width > 0) image.width = size.width;
+    if (size.height > 0) image.height = size.height;
+
+    // Alt text (접근성)
+    const altText = picElem.getAttribute('alt') || picElem.getAttribute('longDesc');
+    if (altText) image.alt = altText;
+
+    // ★ Effects (밝기/대비/색조/회전) — Phase 1.4 / 1.5
+    // HWPX represents these on <hp:effects> or <hp:img>:
+    //   bright="x" contrast="y" effect="GRAYSCALE|GRAY|BW|..." rotat="<deg×100>"
+    const effectsElem = picElem.querySelector('effects, hp\\:effects, hc\\:effects');
+    const effectSource = effectsElem || imgElem || picElem;
+    if (effectSource) {
+      // bright/brightness: HWPX 범위는 보통 -100..+100 (퍼센트 가산치).
+      // CSS filter brightness() 는 1.0 이 원본이므로 1 + bright/100 로 매핑한다.
+      const brightAttr =
+        effectSource.getAttribute('bright') ?? effectSource.getAttribute('brightness');
+      if (brightAttr !== null && brightAttr !== undefined && brightAttr !== '') {
+        const b = parseInt(brightAttr);
+        if (!Number.isNaN(b) && b !== 0) {
+          image.brightness = +(1 + b / 100).toFixed(3);
+        }
+      }
+      const contrastAttr = effectSource.getAttribute('contrast');
+      if (contrastAttr !== null && contrastAttr !== undefined && contrastAttr !== '') {
+        const c = parseInt(contrastAttr);
+        if (!Number.isNaN(c) && c !== 0) {
+          image.contrast = +(1 + c / 100).toFixed(3);
+        }
+      }
+      // saturation: hue/saturation; 또한 effect="GRAYSCALE" 흑백 처리도 인식
+      const satAttr = effectSource.getAttribute('saturation') ?? effectSource.getAttribute('sat');
+      if (satAttr !== null && satAttr !== undefined && satAttr !== '') {
+        const s = parseInt(satAttr);
+        if (!Number.isNaN(s) && s !== 0) {
+          image.saturation = +(1 + s / 100).toFixed(3);
+        }
+      }
+      const effectAttr = effectSource.getAttribute('effect');
+      if (effectAttr) {
+        const e = String(effectAttr).toUpperCase();
+        if (e === 'GRAYSCALE' || e === 'GRAY' || e === 'BW') {
+          image.saturation = 0;
+        }
+      }
+    }
+
+    // Rotation: HWPX rotat attribute is degrees×100 (e.g. 9000 = 90°).
+    const rotAttr =
+      picElem.getAttribute('rotat') ??
+      picElem.getAttribute('rotation') ??
+      (imgElem ? imgElem.getAttribute('rotat') : null);
+    if (rotAttr !== null && rotAttr !== undefined && rotAttr !== '') {
+      const raw = parseFloat(rotAttr);
+      if (!Number.isNaN(raw) && raw !== 0) {
+        // 7200 단위(HWPU)와 100배 단위 모두 흔하므로 휴리스틱으로 정규화한다.
+        let deg = raw;
+        if (Math.abs(raw) >= 360 * 100) deg = raw / 100;
+        else if (Math.abs(raw) > 360) deg = raw / 100;
+        image.rotation = ((deg % 360) + 360) % 360;
+      }
+    }
+
+    // Children (containers/shapes inside imgRect)
+    image.children = [];
+    const imgRectElem = picElem.querySelector('imgRect, hp\\:imgRect, hc\\:imgRect');
+    if (imgRectElem) {
+      for (let i = 0; i < imgRectElem.children.length; i++) {
+        const child = imgRectElem.children[i];
+        const tag = localName(child);
+
+        if (tag === 'container') {
+          const container = this.parseContainer(child);
+          if (container) image.children.push(container);
+        } else if (tag === 'rect' || tag === 'ellipse' || tag === 'line') {
+          const shape = this.parseShape(child);
+          if (shape) image.children.push(shape);
+        }
+      }
+    }
+
+    return image.src ? image : null;
+  }
+
+  // ========================================================================
+  // Shape Parsing
+  // ========================================================================
+
+  parseShape(shapeElem) {
+    const shape = {
+      type: 'shape',
+      shapeType: 'rectangle',
+      style: {},
+      position: {},
+      drawText: null,
+      borderRadius: 0,
+    };
+
+    // Determine shape type
+    const tagName = localName(shapeElem);
+    if (tagName === 'rect') shape.shapeType = 'rectangle';
+    else if (tagName === 'ellipse') shape.shapeType = 'ellipse';
+    else if (tagName === 'line') shape.shapeType = 'line';
+    else if (tagName === 'polygon') shape.shapeType = 'polygon';
+    else if (tagName === 'curve') shape.shapeType = 'curve';
+    else if (tagName === 'arc') shape.shapeType = 'arc';
+    else {
+      // Search for child shape elements
+      const rectElem = qs(shapeElem, 'rect');
+      const ellipseElem = qs(shapeElem, 'ellipse');
+      const lineElem = qs(shapeElem, 'line');
+      if (ellipseElem) shape.shapeType = 'ellipse';
+      else if (lineElem) shape.shapeType = 'line';
+    }
+
+    // Rounded corners
+    const ratio = parseInt(shapeElem.getAttribute('ratio')) || 0;
+    if (ratio > 0) shape.borderRadius = ratio;
+
+    // ★ Rotation (Phase 1.6) — rotat 또는 rotation 속성 (deg×100)
+    const shapeRot = shapeElem.getAttribute('rotat') ?? shapeElem.getAttribute('rotation');
+    if (shapeRot !== null && shapeRot !== undefined && shapeRot !== '') {
+      const raw = parseFloat(shapeRot);
+      if (!Number.isNaN(raw) && raw !== 0) {
+        let deg = raw;
+        if (Math.abs(raw) > 360) deg = raw / 100;
+        shape.rotation = ((deg % 360) + 360) % 360;
+      }
+    }
+
+    // Size
+    const size = parseSize(shapeElem);
+    if (size.width > 0) shape.width = size.width;
+    if (size.height > 0) shape.height = size.height;
+
+    // Position
+    shape.position = parsePosition(shapeElem);
+
+    // Background flag
+    if (shape.position.textWrap === 'BEHIND_TEXT') {
+      shape.isBackground = true;
+    }
+
+    // Border (lineShape)
+    const lineShapeElem = qs(shapeElem, 'lineShape');
+    if (lineShapeElem) {
+      const lineColor = lineShapeElem.getAttribute('color');
+      const lineWidth = lineShapeElem.getAttribute('width');
+      const lineStyle = lineShapeElem.getAttribute('style');
+
+      if (lineWidth && lineStyle !== 'NONE') {
+        const widthPx = HWPXConstants.hwpuToPx(parseInt(lineWidth));
+        if (widthPx >= 0.5) {
+          if (lineColor) shape.style.borderColor = normalizeColor(lineColor);
+          shape.style.borderWidth = `${widthPx}px`;
+          if (lineStyle === 'SOLID') shape.style.borderStyle = 'solid';
+          else if (lineStyle === 'DASH') shape.style.borderStyle = 'dashed';
+          else if (lineStyle === 'DOT') shape.style.borderStyle = 'dotted';
+          else shape.style.borderStyle = 'solid';
+        }
+      }
+    }
+
+    // Fill
+    this._parseShapeFill(shapeElem, shape);
+
+    // DrawText
+    this._parseDrawText(shapeElem, shape);
+
+    // ★ Polygon points (v3.0 신규)
+    if (shape.shapeType === 'polygon') {
+      const ptElems = qsa(shapeElem, 'pt');
+      if (ptElems.length > 0) {
+        shape.points = Array.from(ptElems).map(pt => ({
+          x: parseInt(pt.getAttribute('x')) || 0,
+          y: parseInt(pt.getAttribute('y')) || 0,
+        }));
+      }
+    }
+
+    // ★ Line endpoints (v3.0 신규)
+    if (shape.shapeType === 'line') {
+      const startPt = qs(shapeElem, 'startPt');
+      const endPt = qs(shapeElem, 'endPt');
+      if (startPt) {
+        shape.startPoint = {
+          x: parseInt(startPt.getAttribute('x')) || 0,
+          y: parseInt(startPt.getAttribute('y')) || 0,
         };
-
-        // Image reference
-        const imgElem = picElem.querySelector('img, hp\\:img, hc\\:img');
-        if (imgElem) {
-            const binaryItemId = imgElem.getAttribute('binaryItemIDRef');
-            if (binaryItemId && this.images.has(binaryItemId)) {
-                const imageData = this.images.get(binaryItemId);
-                image.src = imageData.url;
-                image.binaryItemId = binaryItemId;
-            } else if (binaryItemId) {
-                logger.warn(`⚠️ Image reference not found: ${binaryItemId}`);
-            }
-        }
-
-        // Size (curSz/sz)
-        const size = parseSize(picElem);
-        if (size.width > 0) image.width = size.width;
-        if (size.height > 0) image.height = size.height;
-
-        // Alt text (접근성)
-        const altText = picElem.getAttribute('alt') || picElem.getAttribute('longDesc');
-        if (altText) image.alt = altText;
-
-        // ★ Effects (밝기/대비/색조/회전) — Phase 1.4 / 1.5
-        // HWPX represents these on <hp:effects> or <hp:img>:
-        //   bright="x" contrast="y" effect="GRAYSCALE|GRAY|BW|..." rotat="<deg×100>"
-        const effectsElem = picElem.querySelector('effects, hp\\:effects, hc\\:effects');
-        const effectSource = effectsElem || imgElem || picElem;
-        if (effectSource) {
-            // bright/brightness: HWPX 범위는 보통 -100..+100 (퍼센트 가산치).
-            // CSS filter brightness() 는 1.0 이 원본이므로 1 + bright/100 로 매핑한다.
-            const brightAttr = effectSource.getAttribute('bright')
-                ?? effectSource.getAttribute('brightness');
-            if (brightAttr !== null && brightAttr !== undefined && brightAttr !== '') {
-                const b = parseInt(brightAttr);
-                if (!Number.isNaN(b) && b !== 0) {
-                    image.brightness = +(1 + b / 100).toFixed(3);
-                }
-            }
-            const contrastAttr = effectSource.getAttribute('contrast');
-            if (contrastAttr !== null && contrastAttr !== undefined && contrastAttr !== '') {
-                const c = parseInt(contrastAttr);
-                if (!Number.isNaN(c) && c !== 0) {
-                    image.contrast = +(1 + c / 100).toFixed(3);
-                }
-            }
-            // saturation: hue/saturation; 또한 effect="GRAYSCALE" 흑백 처리도 인식
-            const satAttr = effectSource.getAttribute('saturation')
-                ?? effectSource.getAttribute('sat');
-            if (satAttr !== null && satAttr !== undefined && satAttr !== '') {
-                const s = parseInt(satAttr);
-                if (!Number.isNaN(s) && s !== 0) {
-                    image.saturation = +(1 + s / 100).toFixed(3);
-                }
-            }
-            const effectAttr = effectSource.getAttribute('effect');
-            if (effectAttr) {
-                const e = String(effectAttr).toUpperCase();
-                if (e === 'GRAYSCALE' || e === 'GRAY' || e === 'BW') {
-                    image.saturation = 0;
-                }
-            }
-        }
-
-        // Rotation: HWPX rotat attribute is degrees×100 (e.g. 9000 = 90°).
-        const rotAttr = picElem.getAttribute('rotat')
-            ?? picElem.getAttribute('rotation')
-            ?? (imgElem ? imgElem.getAttribute('rotat') : null);
-        if (rotAttr !== null && rotAttr !== undefined && rotAttr !== '') {
-            const raw = parseFloat(rotAttr);
-            if (!Number.isNaN(raw) && raw !== 0) {
-                // 7200 단위(HWPU)와 100배 단위 모두 흔하므로 휴리스틱으로 정규화한다.
-                let deg = raw;
-                if (Math.abs(raw) >= 360 * 100) deg = raw / 100;
-                else if (Math.abs(raw) > 360) deg = raw / 100;
-                image.rotation = ((deg % 360) + 360) % 360;
-            }
-        }
-
-        // Children (containers/shapes inside imgRect)
-        image.children = [];
-        const imgRectElem = picElem.querySelector('imgRect, hp\\:imgRect, hc\\:imgRect');
-        if (imgRectElem) {
-            for (let i = 0; i < imgRectElem.children.length; i++) {
-                const child = imgRectElem.children[i];
-                const tag = localName(child);
-
-                if (tag === 'container') {
-                    const container = this.parseContainer(child);
-                    if (container) image.children.push(container);
-                } else if (tag === 'rect' || tag === 'ellipse' || tag === 'line') {
-                    const shape = this.parseShape(child);
-                    if (shape) image.children.push(shape);
-                }
-            }
-        }
-
-        return image.src ? image : null;
-    }
-
-    // ========================================================================
-    // Shape Parsing
-    // ========================================================================
-
-    parseShape(shapeElem) {
-        const shape = {
-            type: 'shape',
-            shapeType: 'rectangle',
-            style: {},
-            position: {},
-            drawText: null,
-            borderRadius: 0
+      }
+      if (endPt) {
+        shape.endPoint = {
+          x: parseInt(endPt.getAttribute('x')) || 0,
+          y: parseInt(endPt.getAttribute('y')) || 0,
         };
-
-        // Determine shape type
-        const tagName = localName(shapeElem);
-        if (tagName === 'rect') shape.shapeType = 'rectangle';
-        else if (tagName === 'ellipse') shape.shapeType = 'ellipse';
-        else if (tagName === 'line') shape.shapeType = 'line';
-        else if (tagName === 'polygon') shape.shapeType = 'polygon';
-        else if (tagName === 'curve') shape.shapeType = 'curve';
-        else if (tagName === 'arc') shape.shapeType = 'arc';
-        else {
-            // Search for child shape elements
-            const rectElem = qs(shapeElem, 'rect');
-            const ellipseElem = qs(shapeElem, 'ellipse');
-            const lineElem = qs(shapeElem, 'line');
-            if (ellipseElem) shape.shapeType = 'ellipse';
-            else if (lineElem) shape.shapeType = 'line';
-        }
-
-        // Rounded corners
-        const ratio = parseInt(shapeElem.getAttribute('ratio')) || 0;
-        if (ratio > 0) shape.borderRadius = ratio;
-
-        // ★ Rotation (Phase 1.6) — rotat 또는 rotation 속성 (deg×100)
-        const shapeRot = shapeElem.getAttribute('rotat')
-            ?? shapeElem.getAttribute('rotation');
-        if (shapeRot !== null && shapeRot !== undefined && shapeRot !== '') {
-            const raw = parseFloat(shapeRot);
-            if (!Number.isNaN(raw) && raw !== 0) {
-                let deg = raw;
-                if (Math.abs(raw) > 360) deg = raw / 100;
-                shape.rotation = ((deg % 360) + 360) % 360;
-            }
-        }
-
-        // Size
-        const size = parseSize(shapeElem);
-        if (size.width > 0) shape.width = size.width;
-        if (size.height > 0) shape.height = size.height;
-
-        // Position
-        shape.position = parsePosition(shapeElem);
-
-        // Background flag
-        if (shape.position.textWrap === 'BEHIND_TEXT') {
-            shape.isBackground = true;
-        }
-
-        // Border (lineShape)
-        const lineShapeElem = qs(shapeElem, 'lineShape');
-        if (lineShapeElem) {
-            const lineColor = lineShapeElem.getAttribute('color');
-            const lineWidth = lineShapeElem.getAttribute('width');
-            const lineStyle = lineShapeElem.getAttribute('style');
-
-            if (lineWidth && lineStyle !== 'NONE') {
-                const widthPx = HWPXConstants.hwpuToPx(parseInt(lineWidth));
-                if (widthPx >= 0.5) {
-                    if (lineColor) shape.style.borderColor = normalizeColor(lineColor);
-                    shape.style.borderWidth = `${widthPx}px`;
-                    if (lineStyle === 'SOLID') shape.style.borderStyle = 'solid';
-                    else if (lineStyle === 'DASH') shape.style.borderStyle = 'dashed';
-                    else if (lineStyle === 'DOT') shape.style.borderStyle = 'dotted';
-                    else shape.style.borderStyle = 'solid';
-                }
-            }
-        }
-
-        // Fill
-        this._parseShapeFill(shapeElem, shape);
-
-        // DrawText
-        this._parseDrawText(shapeElem, shape);
-
-        // ★ Polygon points (v3.0 신규)
-        if (shape.shapeType === 'polygon') {
-            const ptElems = qsa(shapeElem, 'pt');
-            if (ptElems.length > 0) {
-                shape.points = Array.from(ptElems).map(pt => ({
-                    x: parseInt(pt.getAttribute('x')) || 0,
-                    y: parseInt(pt.getAttribute('y')) || 0
-                }));
-            }
-        }
-
-        // ★ Line endpoints (v3.0 신규)
-        if (shape.shapeType === 'line') {
-            const startPt = qs(shapeElem, 'startPt');
-            const endPt = qs(shapeElem, 'endPt');
-            if (startPt) {
-                shape.startPoint = {
-                    x: parseInt(startPt.getAttribute('x')) || 0,
-                    y: parseInt(startPt.getAttribute('y')) || 0
-                };
-            }
-            if (endPt) {
-                shape.endPoint = {
-                    x: parseInt(endPt.getAttribute('x')) || 0,
-                    y: parseInt(endPt.getAttribute('y')) || 0
-                };
-            }
-        }
-
-        return shape;
+      }
     }
 
-    _parseShapeFill(shapeElem, shape) {
-        // 1. Direct fillColor attribute
-        let fillColor = shapeElem.getAttribute('fillColor');
-        if (fillColor && fillColor !== 'none') {
-            shape.style.backgroundColor = normalizeColor(fillColor);
-            return;
-        }
+    return shape;
+  }
 
-        // 2. borderFillIDRef
-        const borderFillIDRef = shapeElem.getAttribute('borderFillIDRef');
-        if (borderFillIDRef && this.borderFills.has(borderFillIDRef)) {
-            const borderFillDef = this.borderFills.get(borderFillIDRef);
-            if (borderFillDef.fill?.backgroundColor) {
-                shape.style.backgroundColor = borderFillDef.fill.backgroundColor;
-                if (borderFillDef.fill.opacity !== undefined) {
-                    shape.style.opacity = borderFillDef.fill.opacity;
-                }
-                return;
-            }
-        }
-
-        // 3. fillBrush child element
-        let fillBrushElem = null;
-        for (let i = 0; i < shapeElem.children.length; i++) {
-            if (localName(shapeElem.children[i]) === 'fillbrush') {
-                fillBrushElem = shapeElem.children[i];
-                break;
-            }
-        }
-
-        if (fillBrushElem) {
-            let winBrushElem = null;
-            for (let i = 0; i < fillBrushElem.children.length; i++) {
-                if (localName(fillBrushElem.children[i]) === 'winbrush') {
-                    winBrushElem = fillBrushElem.children[i];
-                    break;
-                }
-            }
-
-            if (winBrushElem) {
-                const faceColor = winBrushElem.getAttribute('faceColor');
-                const alpha = winBrushElem.getAttribute('alpha');
-                if (faceColor && faceColor !== 'none') {
-                    shape.style.backgroundColor = normalizeColor(faceColor);
-                    if (alpha) shape.style.opacity = 1.0 - (parseInt(alpha) / 255.0);
-                }
-            }
-        }
+  _parseShapeFill(shapeElem, shape) {
+    // 1. Direct fillColor attribute
+    let fillColor = shapeElem.getAttribute('fillColor');
+    if (fillColor && fillColor !== 'none') {
+      shape.style.backgroundColor = normalizeColor(fillColor);
+      return;
     }
 
-    _parseDrawText(shapeElem, shape) {
-        const drawTextElem = qs(shapeElem, 'drawText');
-        if (!drawTextElem) return;
-
-        const subListElem = qs(drawTextElem, 'subList');
-        if (!subListElem) return;
-
-        const paragraphs = subListElem.querySelectorAll(':scope > p, :scope > hp\\:p');
-        if (paragraphs.length === 0) return;
-
-        const vertAlign = subListElem.getAttribute('vertAlign');
-
-        shape.drawText = {
-            paragraphs: [],
-            vertAlign: vertAlign || 'TOP',
-            margin: {}
-        };
-
-        paragraphs.forEach(pElem => {
-            const para = this.parseParagraph(pElem);
-            if (para) shape.drawText.paragraphs.push(para);
-        });
-
-        // Text margin
-        const textMarginElem = qs(drawTextElem, 'textMargin');
-        if (textMarginElem) {
-            ['left', 'right', 'top', 'bottom'].forEach(side => {
-                const val = textMarginElem.getAttribute(side);
-                if (val) shape.drawText.margin[side] = HWPXConstants.hwpuToPx(parseInt(val));
-            });
+    // 2. borderFillIDRef
+    const borderFillIDRef = shapeElem.getAttribute('borderFillIDRef');
+    if (borderFillIDRef && this.borderFills.has(borderFillIDRef)) {
+      const borderFillDef = this.borderFills.get(borderFillIDRef);
+      if (borderFillDef.fill?.backgroundColor) {
+        shape.style.backgroundColor = borderFillDef.fill.backgroundColor;
+        if (borderFillDef.fill.opacity !== undefined) {
+          shape.style.opacity = borderFillDef.fill.opacity;
         }
+        return;
+      }
     }
 
-    // ========================================================================
-    // TextBox Parsing
-    // ========================================================================
-
-    parseTextBox(textboxElem) {
-        const textbox = {
-            type: 'textbox',
-            style: {},
-            position: parsePosition(textboxElem),
-            paragraphs: []
-        };
-
-        // Size
-        const size = parseSize(textboxElem);
-        if (size.width > 0) textbox.width = size.width;
-        if (size.height > 0) textbox.height = size.height;
-
-        // Border and background
-        const borderColor = textboxElem.getAttribute('borderColor');
-        const fillColor = textboxElem.getAttribute('fillColor');
-        if (borderColor) textbox.style.borderColor = normalizeColor(borderColor);
-        if (fillColor) textbox.style.backgroundColor = normalizeColor(fillColor);
-
-        // Paragraphs
-        qsa(textboxElem, 'p').forEach(pElem => {
-            const para = this.parseParagraph(pElem);
-            if (para) textbox.paragraphs.push(para);
-        });
-
-        return textbox.paragraphs.length > 0 ? textbox : null;
+    // 3. fillBrush child element
+    let fillBrushElem = null;
+    for (let i = 0; i < shapeElem.children.length; i++) {
+      if (localName(shapeElem.children[i]) === 'fillbrush') {
+        fillBrushElem = shapeElem.children[i];
+        break;
+      }
     }
 
-    // ========================================================================
-    // Container Parsing
-    // ========================================================================
-
-    parseContainer(containerElem) {
-        const container = {
-            type: 'container',
-            style: {},
-            position: {},
-            children: []
-        };
-
-        // Size
-        const size = parseSize(containerElem);
-        if (size.width > 0) container.width = size.width;
-        if (size.height > 0) container.height = size.height;
-
-        // Position
-        const posElem = qs(containerElem, 'pos');
-        if (posElem) {
-            container.position.treatAsChar = posElem.getAttribute('treatAsChar') === '1';
+    if (fillBrushElem) {
+      let winBrushElem = null;
+      for (let i = 0; i < fillBrushElem.children.length; i++) {
+        if (localName(fillBrushElem.children[i]) === 'winbrush') {
+          winBrushElem = fillBrushElem.children[i];
+          break;
         }
+      }
 
-        // Offset
-        const offsetElem = qs(containerElem, 'offset');
-        if (offsetElem) {
-            const x = offsetElem.getAttribute('x');
-            const y = offsetElem.getAttribute('y');
-            if (x) container.position.x = parseOffset(x);
-            if (y) {
-                const parentIsImageContainer = containerElem.parentElement?.querySelector('pic, hp\\:pic');
-                container.position.y = parentIsImageContainer ? 0 : parseOffset(y);
-            }
+      if (winBrushElem) {
+        const faceColor = winBrushElem.getAttribute('faceColor');
+        const alpha = winBrushElem.getAttribute('alpha');
+        if (faceColor && faceColor !== 'none') {
+          shape.style.backgroundColor = normalizeColor(faceColor);
+          if (alpha) shape.style.opacity = 1.0 - parseInt(alpha) / 255.0;
         }
+      }
+    }
+  }
 
-        // Child images
-        qsa(containerElem, 'pic').forEach(picElem => {
-            const image = this.parseImage(picElem);
-            if (image) container.children.push(image);
-        });
+  _parseDrawText(shapeElem, shape) {
+    const drawTextElem = qs(shapeElem, 'drawText');
+    if (!drawTextElem) return;
 
-        // Nested containers
-        const nestedContainers = containerElem.querySelectorAll(':scope > container, :scope > hp\\:container');
-        nestedContainers.forEach(nestedContainerElem => {
-            const nestedContainer = this.parseContainer(nestedContainerElem);
-            if (nestedContainer) container.children.push(nestedContainer);
-        });
+    const subListElem = qs(drawTextElem, 'subList');
+    if (!subListElem) return;
 
-        // Direct shape children
-        const directShapeChildren = [
-            ...Array.from(containerElem.querySelectorAll(':scope > rect, :scope > hp\\:rect')),
-            ...Array.from(containerElem.querySelectorAll(':scope > ellipse, :scope > hp\\:ellipse')),
-            ...Array.from(containerElem.querySelectorAll(':scope > line, :scope > hp\\:line')),
-            ...Array.from(containerElem.querySelectorAll(':scope > curve, :scope > hp\\:curve')),
-            ...Array.from(containerElem.querySelectorAll(':scope > polygon, :scope > hp\\:polygon'))
-        ];
+    const paragraphs = subListElem.querySelectorAll(':scope > p, :scope > hp\\:p');
+    if (paragraphs.length === 0) return;
 
-        directShapeChildren.forEach(shapeElem => {
-            const shape = this.parseShape(shapeElem);
-            if (shape) container.children.push(shape);
-        });
+    const vertAlign = subListElem.getAttribute('vertAlign');
 
-        return container.children.length > 0 ? container : null;
+    shape.drawText = {
+      paragraphs: [],
+      vertAlign: vertAlign || 'TOP',
+      margin: {},
+    };
+
+    paragraphs.forEach(pElem => {
+      const para = this.parseParagraph(pElem);
+      if (para) shape.drawText.paragraphs.push(para);
+    });
+
+    // Text margin
+    const textMarginElem = qs(drawTextElem, 'textMargin');
+    if (textMarginElem) {
+      ['left', 'right', 'top', 'bottom'].forEach(side => {
+        const val = textMarginElem.getAttribute(side);
+        if (val) shape.drawText.margin[side] = HWPXConstants.hwpuToPx(parseInt(val));
+      });
+    }
+  }
+
+  // ========================================================================
+  // TextBox Parsing
+  // ========================================================================
+
+  parseTextBox(textboxElem) {
+    const textbox = {
+      type: 'textbox',
+      style: {},
+      position: parsePosition(textboxElem),
+      paragraphs: [],
+    };
+
+    // Size
+    const size = parseSize(textboxElem);
+    if (size.width > 0) textbox.width = size.width;
+    if (size.height > 0) textbox.height = size.height;
+
+    // Border and background
+    const borderColor = textboxElem.getAttribute('borderColor');
+    const fillColor = textboxElem.getAttribute('fillColor');
+    if (borderColor) textbox.style.borderColor = normalizeColor(borderColor);
+    if (fillColor) textbox.style.backgroundColor = normalizeColor(fillColor);
+
+    // Paragraphs
+    qsa(textboxElem, 'p').forEach(pElem => {
+      const para = this.parseParagraph(pElem);
+      if (para) textbox.paragraphs.push(para);
+    });
+
+    return textbox.paragraphs.length > 0 ? textbox : null;
+  }
+
+  // ========================================================================
+  // Container Parsing
+  // ========================================================================
+
+  parseContainer(containerElem) {
+    const container = {
+      type: 'container',
+      style: {},
+      position: {},
+      children: [],
+    };
+
+    // Size
+    const size = parseSize(containerElem);
+    if (size.width > 0) container.width = size.width;
+    if (size.height > 0) container.height = size.height;
+
+    // Position
+    const posElem = qs(containerElem, 'pos');
+    if (posElem) {
+      container.position.treatAsChar = posElem.getAttribute('treatAsChar') === '1';
     }
 
-    // ========================================================================
-    // Utility Methods (exposed for backward compatibility)
-    // ========================================================================
-
-    normalizeColor(color) { return normalizeColor(color); }
-    getBorderStyle(type) { return getBorderStyle(type); }
-
-    parseBorderStyle(borderStr) {
-        if (!borderStr) return {};
-        const parts = borderStr.trim().split(/\s+/);
-        const result = {};
-        if (parts.length >= 1) result.width = parts[0];
-        if (parts.length >= 2) result.style = parts[1];
-        if (parts.length >= 3) result.color = parts[2];
-        return result;
+    // Offset
+    const offsetElem = qs(containerElem, 'offset');
+    if (offsetElem) {
+      const x = offsetElem.getAttribute('x');
+      const y = offsetElem.getAttribute('y');
+      if (x) container.position.x = parseOffset(x);
+      if (y) {
+        const parentIsImageContainer = containerElem.parentElement?.querySelector('pic, hp\\:pic');
+        container.position.y = parentIsImageContainer ? 0 : parseOffset(y);
+      }
     }
 
-    reset() {
-        this.entries.clear();
-        this.images.clear();
-        this.styles.clear();
-        this.borderFills.clear();
-        this.paraProperties.clear();
-        this.charProperties.clear();
-        this.fontFaces.clear();
-        this.numberings.clear();
-        this.bulletDefs.clear();
-        this.tabDefs.clear();
-        this.namedStyles.clear();
-    }
+    // Child images
+    qsa(containerElem, 'pic').forEach(picElem => {
+      const image = this.parseImage(picElem);
+      if (image) container.children.push(image);
+    });
 
-    cleanup() {
-        this.images.forEach(image => {
-            if (image.url && image.url.startsWith('blob:')) {
-                URL.revokeObjectURL(image.url);
-            }
-        });
-        this.reset();
-    }
+    // Nested containers
+    const nestedContainers = containerElem.querySelectorAll(
+      ':scope > container, :scope > hp\\:container'
+    );
+    nestedContainers.forEach(nestedContainerElem => {
+      const nestedContainer = this.parseContainer(nestedContainerElem);
+      if (nestedContainer) container.children.push(nestedContainer);
+    });
+
+    // Direct shape children
+    const directShapeChildren = [
+      ...Array.from(containerElem.querySelectorAll(':scope > rect, :scope > hp\\:rect')),
+      ...Array.from(containerElem.querySelectorAll(':scope > ellipse, :scope > hp\\:ellipse')),
+      ...Array.from(containerElem.querySelectorAll(':scope > line, :scope > hp\\:line')),
+      ...Array.from(containerElem.querySelectorAll(':scope > curve, :scope > hp\\:curve')),
+      ...Array.from(containerElem.querySelectorAll(':scope > polygon, :scope > hp\\:polygon')),
+    ];
+
+    directShapeChildren.forEach(shapeElem => {
+      const shape = this.parseShape(shapeElem);
+      if (shape) container.children.push(shape);
+    });
+
+    return container.children.length > 0 ? container : null;
+  }
+
+  // ========================================================================
+  // Utility Methods (exposed for backward compatibility)
+  // ========================================================================
+
+  normalizeColor(color) {
+    return normalizeColor(color);
+  }
+  getBorderStyle(type) {
+    return getBorderStyle(type);
+  }
+
+  parseBorderStyle(borderStr) {
+    if (!borderStr) return {};
+    const parts = borderStr.trim().split(/\s+/);
+    const result = {};
+    if (parts.length >= 1) result.width = parts[0];
+    if (parts.length >= 2) result.style = parts[1];
+    if (parts.length >= 3) result.color = parts[2];
+    return result;
+  }
+
+  reset() {
+    this.entries.clear();
+    this.images.clear();
+    this.styles.clear();
+    this.borderFills.clear();
+    this.paraProperties.clear();
+    this.charProperties.clear();
+    this.fontFaces.clear();
+    this.numberings.clear();
+    this.bulletDefs.clear();
+    this.tabDefs.clear();
+    this.namedStyles.clear();
+  }
+
+  cleanup() {
+    this.images.forEach(image => {
+      if (image.url && image.url.startsWith('blob:')) {
+        URL.revokeObjectURL(image.url);
+      }
+    });
+    this.reset();
+  }
 }
 
 export default SimpleHWPXParser;

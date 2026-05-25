@@ -26,12 +26,12 @@
  * @type {Array<{pattern: RegExp, language: string}>}
  */
 const MACRO_PATH_PATTERNS = [
-    { pattern: /(^|\/)Scripts\/DefaultJScript$/i, language: 'jscript' },
-    { pattern: /(^|\/)Scripts\/JScriptVersion$/i, language: 'jscript' },
-    { pattern: /(^|\/)Scripts\/DefaultBeanShell$/i, language: 'beanshell' },
-    { pattern: /(^|\/)Scripts\/BeanShellVersion$/i, language: 'beanshell' },
-    { pattern: /(^|\/)Scripts\/[^/]+$/i, language: 'unknown' },
-    { pattern: /(^|\/)scripts\.xml$/i, language: 'unknown' },
+  { pattern: /(^|\/)Scripts\/DefaultJScript$/i, language: 'jscript' },
+  { pattern: /(^|\/)Scripts\/JScriptVersion$/i, language: 'jscript' },
+  { pattern: /(^|\/)Scripts\/DefaultBeanShell$/i, language: 'beanshell' },
+  { pattern: /(^|\/)Scripts\/BeanShellVersion$/i, language: 'beanshell' },
+  { pattern: /(^|\/)Scripts\/[^/]+$/i, language: 'unknown' },
+  { pattern: /(^|\/)scripts\.xml$/i, language: 'unknown' },
 ];
 
 /**
@@ -51,15 +51,21 @@ const MACRO_PATH_PATTERNS = [
  * @type {Record<string, RegExp>}
  */
 const RISK_KEYWORDS = {
-    'file-io': /\b(FileSystemObject|OpenTextFile|ReadAll|WriteFile|fopen|fread|fwrite|java\.io\.(File|FileInputStream|FileOutputStream)|new\s+File\s*\()\b/i,
-    'network': /\b(XMLHttpRequest|MSXML2\.XMLHTTP|WinHttp\.WinHttpRequest|URLDownloadToFile|java\.net\.(URL|HttpURLConnection|Socket)|Net\.Sockets|InternetOpen|Msxml2)\b/i,
-    'shell-exec': /\b(WScript\.Shell|Shell\.Application|shell\.Run|cmd\.exe|powershell|Runtime\.getRuntime|exec\s*\(|ProcessBuilder|java\.lang\.Runtime)\b/i,
-    'registry': /\b(RegRead|RegWrite|RegDelete|HKEY_(LOCAL_MACHINE|CURRENT_USER|CLASSES_ROOT)|Wscript\.Shell.{0,40}Reg)\b/i,
-    'wscript': /\b(WScript\.(CreateObject|Echo|Sleep|Quit|Arguments)|WSH)\b/i,
-    'activex': /\b(ActiveXObject|CreateObject\s*\(|new\s+ActiveXObject)\b/i,
-    'obfuscation': /\b(eval\s*\(|unescape\s*\(|fromCharCode|atob\s*\(|btoa\s*\(|String\.fromCharCode|decodeURIComponent\s*\(|Base64)\b/i,
-    'dynamic-eval': /\b(eval\s*\(|new\s+Function\s*\(|setTimeout\s*\(\s*['"]|setInterval\s*\(\s*['"])\b/,
-    'hancom-api': /\b(HwpCtrl|HAction|HParameterSet|HEAD\s*Ctrl|HwpAutomation|XHwpDocuments)\b/i,
+  'file-io':
+    /\b(FileSystemObject|OpenTextFile|ReadAll|WriteFile|fopen|fread|fwrite|java\.io\.(File|FileInputStream|FileOutputStream)|new\s+File\s*\()\b/i,
+  network:
+    /\b(XMLHttpRequest|MSXML2\.XMLHTTP|WinHttp\.WinHttpRequest|URLDownloadToFile|java\.net\.(URL|HttpURLConnection|Socket)|Net\.Sockets|InternetOpen|Msxml2)\b/i,
+  'shell-exec':
+    /\b(WScript\.Shell|Shell\.Application|shell\.Run|cmd\.exe|powershell|Runtime\.getRuntime|exec\s*\(|ProcessBuilder|java\.lang\.Runtime)\b/i,
+  registry:
+    /\b(RegRead|RegWrite|RegDelete|HKEY_(LOCAL_MACHINE|CURRENT_USER|CLASSES_ROOT)|Wscript\.Shell.{0,40}Reg)\b/i,
+  wscript: /\b(WScript\.(CreateObject|Echo|Sleep|Quit|Arguments)|WSH)\b/i,
+  activex: /\b(ActiveXObject|CreateObject\s*\(|new\s+ActiveXObject)\b/i,
+  obfuscation:
+    /\b(eval\s*\(|unescape\s*\(|fromCharCode|atob\s*\(|btoa\s*\(|String\.fromCharCode|decodeURIComponent\s*\(|Base64)\b/i,
+  'dynamic-eval':
+    /\b(eval\s*\(|new\s+Function\s*\(|setTimeout\s*\(\s*['"]|setInterval\s*\(\s*['"])\b/,
+  'hancom-api': /\b(HwpCtrl|HAction|HParameterSet|HEAD\s*Ctrl|HwpAutomation|XHwpDocuments)\b/i,
 };
 
 /**
@@ -70,13 +76,13 @@ const RISK_KEYWORDS = {
  * @returns {string}
  */
 export function escapeHtml(text) {
-    if (typeof text !== 'string') return '';
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -86,26 +92,28 @@ export function escapeHtml(text) {
  * @returns {string}
  */
 function toText(input) {
-    if (input == null) return '';
-    if (typeof input === 'string') return input;
-    try {
-        // ArrayBufferView (Uint8Array 등 — 다른 realm 의 인스턴스도 포함)
-        if (ArrayBuffer.isView(input)) {
-            return new TextDecoder('utf-8', { fatal: false }).decode(input);
-        }
-        // 순수 ArrayBuffer
-        if (input instanceof ArrayBuffer ||
-            Object.prototype.toString.call(input) === '[object ArrayBuffer]') {
-            return new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(input));
-        }
-        // 일반 배열 (byte 배열)
-        if (Array.isArray(input)) {
-            return new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(input));
-        }
-    } catch {
-        return '';
+  if (input == null) return '';
+  if (typeof input === 'string') return input;
+  try {
+    // ArrayBufferView (Uint8Array 등 — 다른 realm 의 인스턴스도 포함)
+    if (ArrayBuffer.isView(input)) {
+      return new TextDecoder('utf-8', { fatal: false }).decode(input);
     }
+    // 순수 ArrayBuffer
+    if (
+      input instanceof ArrayBuffer ||
+      Object.prototype.toString.call(input) === '[object ArrayBuffer]'
+    ) {
+      return new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(input));
+    }
+    // 일반 배열 (byte 배열)
+    if (Array.isArray(input)) {
+      return new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(input));
+    }
+  } catch {
     return '';
+  }
+  return '';
 }
 
 /**
@@ -115,11 +123,11 @@ function toText(input) {
  * @returns {'jscript' | 'beanshell' | 'unknown' | null}
  */
 function detectLanguageFromPath(path) {
-    if (!path || typeof path !== 'string') return null;
-    for (const { pattern, language } of MACRO_PATH_PATTERNS) {
-        if (pattern.test(path)) return language;
-    }
-    return null;
+  if (!path || typeof path !== 'string') return null;
+  for (const { pattern, language } of MACRO_PATH_PATTERNS) {
+    if (pattern.test(path)) return language;
+  }
+  return null;
 }
 
 /**
@@ -129,16 +137,16 @@ function detectLanguageFromPath(path) {
  * @returns {'jscript' | 'beanshell' | 'unknown'}
  */
 function detectLanguageFromCode(code) {
-    if (!code) return 'unknown';
-    // BeanShell 은 Java 문법: `import java.`, `System.out.println` 등이 자주 등장
-    if (/\b(import\s+java\.|System\.out\.println|public\s+(class|static\s+void))\b/.test(code)) {
-        return 'beanshell';
-    }
-    // JScript 는 var / function / WScript / ActiveXObject 등
-    if (/\b(var\s+\w+\s*=|function\s+\w+\s*\(|WScript|ActiveXObject)\b/.test(code)) {
-        return 'jscript';
-    }
-    return 'unknown';
+  if (!code) return 'unknown';
+  // BeanShell 은 Java 문법: `import java.`, `System.out.println` 등이 자주 등장
+  if (/\b(import\s+java\.|System\.out\.println|public\s+(class|static\s+void))\b/.test(code)) {
+    return 'beanshell';
+  }
+  // JScript 는 var / function / WScript / ActiveXObject 등
+  if (/\b(var\s+\w+\s*=|function\s+\w+\s*\(|WScript|ActiveXObject)\b/.test(code)) {
+    return 'jscript';
+  }
+  return 'unknown';
 }
 
 /**
@@ -150,18 +158,18 @@ function detectLanguageFromCode(code) {
  * @returns {string[]} 매칭된 위험 카테고리 배열 (중복 제거 / 정렬됨)
  */
 export function scanRiskHints(code) {
-    if (!code || typeof code !== 'string') return [];
-    const hits = new Set();
-    for (const [tag, regex] of Object.entries(RISK_KEYWORDS)) {
-        try {
-            if (regex.test(code)) {
-                hits.add(tag);
-            }
-        } catch {
-            // 정규식 실행은 결정적이지만, 방어적으로 try/catch.
-        }
+  if (!code || typeof code !== 'string') return [];
+  const hits = new Set();
+  for (const [tag, regex] of Object.entries(RISK_KEYWORDS)) {
+    try {
+      if (regex.test(code)) {
+        hits.add(tag);
+      }
+    } catch {
+      // 정규식 실행은 결정적이지만, 방어적으로 try/catch.
     }
-    return Array.from(hits).sort();
+  }
+  return Array.from(hits).sort();
 }
 
 /**
@@ -188,36 +196,33 @@ export function scanRiskHints(code) {
  * }}
  */
 export function extractMacroEntryMetadata(entry, options = {}) {
-    const { keepCode = false, maxCodeLength = 20000 } = options;
-    const path = entry?.path || '';
-    const code = entry?.code != null ? String(entry.code) : toText(entry?.data);
-    const length = code.length;
+  const { keepCode = false, maxCodeLength = 20000 } = options;
+  const path = entry?.path || '';
+  const code = entry?.code != null ? String(entry.code) : toText(entry?.data);
+  const length = code.length;
 
-    const languageHint =
-        entry?.language ||
-        detectLanguageFromPath(path) ||
-        detectLanguageFromCode(code) ||
-        'unknown';
+  const languageHint =
+    entry?.language || detectLanguageFromPath(path) || detectLanguageFromCode(code) || 'unknown';
 
-    const language =
-        languageHint === 'jscript' || languageHint === 'beanshell' ? languageHint : 'unknown';
+  const language =
+    languageHint === 'jscript' || languageHint === 'beanshell' ? languageHint : 'unknown';
 
-    const result = {
-        present: true,
-        path,
-        language,
-        version: entry?.version ? String(entry.version) : '',
-        length,
-        riskHints: scanRiskHints(code),
-    };
+  const result = {
+    present: true,
+    path,
+    language,
+    version: entry?.version ? String(entry.version) : '',
+    length,
+    riskHints: scanRiskHints(code),
+  };
 
-    if (keepCode && code) {
-        const slice = length > maxCodeLength ? code.slice(0, maxCodeLength) : code;
-        result.sanitizedCode = escapeHtml(slice);
-        result.truncated = length > maxCodeLength;
-    }
+  if (keepCode && code) {
+    const slice = length > maxCodeLength ? code.slice(0, maxCodeLength) : code;
+    result.sanitizedCode = escapeHtml(slice);
+    result.truncated = length > maxCodeLength;
+  }
 
-    return result;
+  return result;
 }
 
 /**
@@ -238,41 +243,37 @@ export function extractMacroEntryMetadata(entry, options = {}) {
  * }}
  */
 export function detectMacrosFromEntries(entries, options = {}) {
-    const details = [];
-    const seen = new Set();
+  const details = [];
+  const seen = new Set();
 
-    const visit = (path, data) => {
-        if (!path || seen.has(path)) return;
-        if (!detectLanguageFromPath(path)) return;
-        seen.add(path);
-        details.push(
-            extractMacroEntryMetadata({ path, data }, options)
-        );
-    };
+  const visit = (path, data) => {
+    if (!path || seen.has(path)) return;
+    if (!detectLanguageFromPath(path)) return;
+    seen.add(path);
+    details.push(extractMacroEntryMetadata({ path, data }, options));
+  };
 
-    if (entries instanceof Map) {
-        for (const [path, data] of entries.entries()) {
-            visit(path, data);
-        }
-    } else if (entries && typeof entries === 'object') {
-        for (const [path, data] of Object.entries(entries)) {
-            visit(path, data);
-        }
+  if (entries instanceof Map) {
+    for (const [path, data] of entries.entries()) {
+      visit(path, data);
     }
+  } else if (entries && typeof entries === 'object') {
+    for (const [path, data] of Object.entries(entries)) {
+      visit(path, data);
+    }
+  }
 
-    const languages = Array.from(new Set(details.map(d => d.language))).sort();
-    const riskHints = Array.from(
-        new Set(details.flatMap(d => d.riskHints))
-    ).sort();
+  const languages = Array.from(new Set(details.map(d => d.language))).sort();
+  const riskHints = Array.from(new Set(details.flatMap(d => d.riskHints))).sort();
 
-    return {
-        present: details.length > 0,
-        detected: details.length > 0,
-        count: details.length,
-        details,
-        languages,
-        riskHints,
-    };
+  return {
+    present: details.length > 0,
+    detected: details.length > 0,
+    count: details.length,
+    details,
+    languages,
+    riskHints,
+  };
 }
 
 /**
@@ -284,63 +285,61 @@ export function detectMacrosFromEntries(entries, options = {}) {
  * @returns {ReturnType<typeof detectMacrosFromEntries>}
  */
 export function detectMacrosFromXml(xmlDoc, options = {}) {
-    const details = [];
-    if (!xmlDoc || typeof xmlDoc.querySelectorAll !== 'function') {
-        return {
-            present: false,
-            detected: false,
-            count: 0,
-            details: [],
-            languages: [],
-            riskHints: [],
-        };
-    }
-
-    let nodes;
-    try {
-        nodes = xmlDoc.querySelectorAll(
-            'script, hp\\:script, scriptCode, hp\\:scriptCode'
-        );
-    } catch {
-        nodes = [];
-    }
-
-    nodes.forEach((node, idx) => {
-        const text = node.textContent || '';
-        // 수식 스크립트(MathML 변환용) 와 매크로 스크립트를 구분: 매크로 스크립트는
-        // 보통 길거나 변수/함수 정의를 포함. 너무 짧은 토큰은 수식 후보로 간주.
-        if (!text || text.length < 8) return;
-        // 부모가 equation 인 경우는 수식 스크립트이므로 제외
-        const parent = node.parentElement;
-        const parentName = parent ? (parent.localName || parent.tagName || '').toLowerCase() : '';
-        if (parentName.endsWith('equation')) return;
-
-        details.push(
-            extractMacroEntryMetadata(
-                {
-                    path: `inline:script[${idx}]`,
-                    code: text,
-                    language:
-                        node.getAttribute && node.getAttribute('type')
-                            ? mapMimeToLanguage(node.getAttribute('type'))
-                            : undefined,
-                },
-                options
-            )
-        );
-    });
-
-    const languages = Array.from(new Set(details.map(d => d.language))).sort();
-    const riskHints = Array.from(new Set(details.flatMap(d => d.riskHints))).sort();
-
+  const details = [];
+  if (!xmlDoc || typeof xmlDoc.querySelectorAll !== 'function') {
     return {
-        present: details.length > 0,
-        detected: details.length > 0,
-        count: details.length,
-        details,
-        languages,
-        riskHints,
+      present: false,
+      detected: false,
+      count: 0,
+      details: [],
+      languages: [],
+      riskHints: [],
     };
+  }
+
+  let nodes;
+  try {
+    nodes = xmlDoc.querySelectorAll('script, hp\\:script, scriptCode, hp\\:scriptCode');
+  } catch {
+    nodes = [];
+  }
+
+  nodes.forEach((node, idx) => {
+    const text = node.textContent || '';
+    // 수식 스크립트(MathML 변환용) 와 매크로 스크립트를 구분: 매크로 스크립트는
+    // 보통 길거나 변수/함수 정의를 포함. 너무 짧은 토큰은 수식 후보로 간주.
+    if (!text || text.length < 8) return;
+    // 부모가 equation 인 경우는 수식 스크립트이므로 제외
+    const parent = node.parentElement;
+    const parentName = parent ? (parent.localName || parent.tagName || '').toLowerCase() : '';
+    if (parentName.endsWith('equation')) return;
+
+    details.push(
+      extractMacroEntryMetadata(
+        {
+          path: `inline:script[${idx}]`,
+          code: text,
+          language:
+            node.getAttribute && node.getAttribute('type')
+              ? mapMimeToLanguage(node.getAttribute('type'))
+              : undefined,
+        },
+        options
+      )
+    );
+  });
+
+  const languages = Array.from(new Set(details.map(d => d.language))).sort();
+  const riskHints = Array.from(new Set(details.flatMap(d => d.riskHints))).sort();
+
+  return {
+    present: details.length > 0,
+    detected: details.length > 0,
+    count: details.length,
+    details,
+    languages,
+    riskHints,
+  };
 }
 
 /**
@@ -350,11 +349,67 @@ export function detectMacrosFromXml(xmlDoc, options = {}) {
  * @returns {'jscript' | 'beanshell' | 'unknown'}
  */
 function mapMimeToLanguage(type) {
-    if (!type) return 'unknown';
-    const t = String(type).toLowerCase();
-    if (t.includes('jscript') || t.includes('javascript')) return 'jscript';
-    if (t.includes('beanshell') || t.includes('bsh')) return 'beanshell';
-    return 'unknown';
+  if (!type) return 'unknown';
+  const t = String(type).toLowerCase();
+  if (t.includes('jscript') || t.includes('javascript')) return 'jscript';
+  if (t.includes('beanshell') || t.includes('bsh')) return 'beanshell';
+  return 'unknown';
+}
+
+/**
+ * OLE 객체들의 `macroInfo` 를 매크로 감지 결과 형식으로 변환.
+ *
+ * 입력은 `parseOle()` 가 만드는 객체들의 Map 또는 배열.
+ * 각 OLE 의 매크로 스트림은 *코드 디코딩 없이* 경로만 보고 감지된 것이므로
+ * details[i].length 는 -1 (unknown) 로 두고, riskHints 는 OLE indicator 카탈로그로 채운다.
+ *
+ * @param {Map<string, object> | Array<object> | object | null | undefined} oleObjects
+ * @returns {ReturnType<typeof detectMacrosFromEntries>}
+ */
+export function detectMacrosInOleObjects(oleObjects) {
+  const details = [];
+
+  const visit = (key, ole) => {
+    if (!ole || !ole.macroInfo || !ole.macroInfo.present) return;
+    const streams = Array.isArray(ole.macroInfo.streams) ? ole.macroInfo.streams : [];
+    const indicators = Array.isArray(ole.macroInfo.indicators) ? ole.macroInfo.indicators : [];
+    const oleClassName = ole.metadata && ole.metadata.className ? ole.metadata.className : '';
+    const oleOriginalName =
+      ole.metadata && ole.metadata.originalName ? ole.metadata.originalName : key;
+
+    for (const path of streams) {
+      details.push({
+        path: `ole:${oleOriginalName || key}#${path}`,
+        language: 'unknown',
+        version: '',
+        length: -1,
+        riskHints: indicators.slice(),
+        sanitizedCode: null,
+        source: 'ole',
+        oleClassName,
+      });
+    }
+  };
+
+  if (oleObjects instanceof Map) {
+    for (const [key, ole] of oleObjects.entries()) visit(key, ole);
+  } else if (Array.isArray(oleObjects)) {
+    oleObjects.forEach((ole, i) => visit(`ole[${i}]`, ole));
+  } else if (oleObjects && typeof oleObjects === 'object') {
+    for (const [key, ole] of Object.entries(oleObjects)) visit(key, ole);
+  }
+
+  const languages = Array.from(new Set(details.map(d => d.language))).sort();
+  const riskHints = Array.from(new Set(details.flatMap(d => d.riskHints))).sort();
+
+  return {
+    present: details.length > 0,
+    detected: details.length > 0,
+    count: details.length,
+    details,
+    languages,
+    riskHints,
+  };
 }
 
 /**
@@ -364,22 +419,22 @@ function mapMimeToLanguage(type) {
  * @returns {ReturnType<typeof detectMacrosFromEntries>}
  */
 export function mergeMacroResults(...parts) {
-    const details = [];
-    for (const part of parts) {
-        if (part && Array.isArray(part.details)) {
-            details.push(...part.details);
-        }
+  const details = [];
+  for (const part of parts) {
+    if (part && Array.isArray(part.details)) {
+      details.push(...part.details);
     }
-    const languages = Array.from(new Set(details.map(d => d.language))).sort();
-    const riskHints = Array.from(new Set(details.flatMap(d => d.riskHints))).sort();
-    return {
-        present: details.length > 0,
-        detected: details.length > 0,
-        count: details.length,
-        details,
-        languages,
-        riskHints,
-    };
+  }
+  const languages = Array.from(new Set(details.map(d => d.language))).sort();
+  const riskHints = Array.from(new Set(details.flatMap(d => d.riskHints))).sort();
+  return {
+    present: details.length > 0,
+    detected: details.length > 0,
+    count: details.length,
+    details,
+    languages,
+    riskHints,
+  };
 }
 
 /**
@@ -388,15 +443,15 @@ export function mergeMacroResults(...parts) {
  * @returns {string[]}
  */
 export function listRiskCategories() {
-    return Object.keys(RISK_KEYWORDS).sort();
+  return Object.keys(RISK_KEYWORDS).sort();
 }
 
 export default {
-    detectMacrosFromEntries,
-    detectMacrosFromXml,
-    extractMacroEntryMetadata,
-    scanRiskHints,
-    escapeHtml,
-    mergeMacroResults,
-    listRiskCategories,
+  detectMacrosFromEntries,
+  detectMacrosFromXml,
+  extractMacroEntryMetadata,
+  scanRiskHints,
+  escapeHtml,
+  mergeMacroResults,
+  listRiskCategories,
 };
