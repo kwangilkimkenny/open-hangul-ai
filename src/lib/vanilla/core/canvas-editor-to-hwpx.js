@@ -5,10 +5,16 @@
  * matches the shape parser.js emits, so that downstream HWPX writers /
  * AI pipelines / serializers can keep using their existing entry points.
  *
- * The output is intentionally lossy compared to the original HWPX:
- * canvas-editor does not retain HWPX-specific concepts (paraPrIDRef,
- * borderFills, named styles). Anything not representable in canvas-editor
- * is dropped on the round trip.
+ * Phase 2 보강:
+ *   - 트레일링 newline 의 `_meta.numbering` → para.numPr / numberingDef / numberingLevel
+ *   - `hwpxNote` 엘리먼트 → footnote / endnote 런 + 섹션 레벨 note body 복원
+ *   - `hwpxField` 엘리먼트 → field 런 (`type: 'field', fieldType, ...`) 복원
+ *   - data._sectionMeta → 섹션 헤더/푸터/페이지 설정/노트 복원
+ *
+ * 여전히 lossy 한 영역:
+ *   - canvas-editor 가 모르는 paraPrIDRef / borderFills / named styles
+ *   - 복잡한 floating object positioning
+ *   - OLE / encryption / 매크로
  */
 
 const ROW_FLEX_TO_TEXT_ALIGN = {
@@ -67,15 +73,22 @@ function appendChar(buffer, runs, ch, style) {
   buffer.text += ch;
 }
 
-function elementsToCellOrSection(elementList) {
+function elementsToCellOrSection(elementList, collectedNotes) {
   const out = [];
   let para = newParagraph();
   const buffer = { text: '', style: {}, signature: '' };
 
-  const finishParagraph = rowFlex => {
+  const finishParagraph = (rowFlex, meta) => {
     flushTextBuffer(buffer, para.runs);
     if (rowFlex && ROW_FLEX_TO_TEXT_ALIGN[rowFlex]) {
       para.style.textAlign = ROW_FLEX_TO_TEXT_ALIGN[rowFlex];
+    }
+    // Phase 2: trailing newline 의 _meta 에 numbering 이 실려 있으면 복원.
+    if (meta?.numbering) {
+      const n = meta.numbering;
+      if (n.numPr) para.numPr = { ...n.numPr };
+      if (n.numberingDef) para.numberingDef = n.numberingDef;
+      if (n.numberingLevel) para.numberingLevel = n.numberingLevel;
     }
     para.text = para.runs
       .filter(r => r.text !== undefined && r.type !== 'tab')
@@ -96,6 +109,47 @@ function elementsToCellOrSection(elementList) {
         width: el.width,
         height: el.height,
         style: {},
+      });
+      continue;
+    }
+
+    // Phase 2: footnote / endnote 복원
+    if (el.type === 'hwpxNote') {
+      flushTextBuffer(buffer, para.runs);
+      const meta = el._meta?.footnote || {};
+      const kind = meta.kind === 'endnote' ? 'endnote' : 'footnote';
+      const run = {
+        type: kind,
+        number: meta.number || null,
+        text: el.value || (meta.number ? `[${meta.number}]` : ''),
+        style: elementStyleToRunStyle(el),
+      };
+      para.runs.push(run);
+      if (collectedNotes && meta.number) {
+        const bucket = kind === 'endnote' ? collectedNotes.endnotes : collectedNotes.footnotes;
+        // 컨텐츠 본문이 있다면 보존 (round-trip 입력에 _meta.body 가 있을 때만)
+        bucket.push({
+          type: kind,
+          number: meta.number,
+          id: meta.id || null,
+          paragraphs: meta.paragraphs || [],
+        });
+      }
+      continue;
+    }
+
+    // Phase 2: field 런 복원
+    if (el.type === 'hwpxField') {
+      flushTextBuffer(buffer, para.runs);
+      const meta = el._meta?.field || {};
+      para.runs.push({
+        type: 'field',
+        fieldType: meta.fieldType || 'UNKNOWN',
+        text: el.value || '',
+        style: elementStyleToRunStyle(el),
+        ...(meta.dateFormat ? { dateFormat: meta.dateFormat } : {}),
+        ...(meta.fieldName ? { fieldName: meta.fieldName } : {}),
+        ...(meta.hyperlink ? { hyperlink: meta.hyperlink } : {}),
       });
       continue;
     }
@@ -162,7 +216,7 @@ function elementsToCellOrSection(elementList) {
       const style = elementStyleToRunStyle(el);
       for (const ch of value) {
         if (ch === '\n') {
-          finishParagraph(el.rowFlex);
+          finishParagraph(el.rowFlex, el._meta);
         } else {
           appendChar(buffer, para.runs, ch, style);
         }
@@ -210,24 +264,41 @@ function canvasTableToHwpxTable(tableEl) {
 /**
  * Convert canvas-editor IEditorData back to a HWPX-shaped document.
  *
- * @param {{ main: object[], header?: object[], footer?: object[] }} data
- * @returns {{ sections: Array<{ elements: object[], pageSettings: object, headers: object, footers: object }> }}
+ * @param {{ main: object[], header?: object[], footer?: object[], _sectionMeta?: object[] }} data
+ * @returns {{ sections: Array<{ elements: object[], pageSettings: object, headers: object, footers: object, footnotes: object[], endnotes: object[] }> }}
  */
 export function canvasEditorToHwpx(data) {
   const main = data?.main || [];
-  const elements = elementsToCellOrSection(main);
+  const collected = { footnotes: [], endnotes: [] };
+  const elements = elementsToCellOrSection(main, collected);
+
+  // Phase 2: _sectionMeta 가 있으면 그대로 흡수 (hwpxToCanvasEditor 가 채움).
+  // 없으면 호환을 위해 기존 빈 객체 유지.
+  const sectionMeta =
+    Array.isArray(data?._sectionMeta) && data._sectionMeta.length > 0 ? data._sectionMeta[0] : null;
+
+  // 노트 본문: _sectionMeta 의 footnotes/endnotes (원본 파라그래프 포함)
+  // 가 우선이며, 없으면 본문 안 hwpxNote 마커에서 수집한 stub 을 사용.
+  const footnotes =
+    sectionMeta?.footnotes && sectionMeta.footnotes.length > 0
+      ? sectionMeta.footnotes
+      : collected.footnotes;
+  const endnotes =
+    sectionMeta?.endnotes && sectionMeta.endnotes.length > 0
+      ? sectionMeta.endnotes
+      : collected.endnotes;
 
   return {
     sections: [
       {
         elements,
-        pageSettings: {},
-        headers: { both: null, odd: null, even: null },
-        footers: { both: null, odd: null, even: null },
-        footnotes: [],
-        endnotes: [],
-        pageNum: null,
-        colPr: null,
+        pageSettings: sectionMeta?.pageSettings || {},
+        headers: sectionMeta?.headers || { both: null, odd: null, even: null },
+        footers: sectionMeta?.footers || { both: null, odd: null, even: null },
+        footnotes,
+        endnotes,
+        pageNum: sectionMeta?.pageNum || null,
+        colPr: sectionMeta?.colPr || null,
       },
     ],
   };
