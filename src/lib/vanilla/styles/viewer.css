@@ -526,6 +526,51 @@
             transform: translateX(-50%) scale(1.05);
         }
 
+        /* ===== Phase 2: Page-level features ===== */
+        /* Header/Footer (page-header-footer.js) */
+        .hwp-page-header,
+        .hwp-page-footer {
+            font-size: 9pt;
+            color: #555;
+            background: transparent;
+            z-index: 1;
+        }
+        .hwp-page-header { border-bottom: 1px solid transparent; }
+        .hwp-page-footer { border-top: 1px solid transparent; }
+
+        /* Watermark (page-decoration.js) */
+        .hwp-page-watermark {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .hwp-page-watermark > * {
+            text-align: center;
+            line-height: 1;
+        }
+
+        /* Page border marker (page-decoration.js) */
+        .hwp-page-container[data-page-border="true"] {
+            box-sizing: border-box;
+        }
+
+        /* Multi-column layout markers */
+        .hwp-page-container[data-column-count] > .hwp-page-header,
+        .hwp-page-container[data-column-count] > .hwp-page-footer,
+        .hwp-page-container[data-column-count] > .hwp-page-watermark,
+        .hwp-page-container[data-column-count] > .hwp-page-number {
+            /* Page-level overlays should ignore the column flow */
+            column-span: all;
+            -webkit-column-span: all;
+        }
+
+        /* Column-break markers (applied by applyColumnBreaks) */
+        .hwp-colbreak,
+        [data-colbreak="true"],
+        [data-run-type="colbreak"] {
+            break-after: column;
+            -webkit-column-break-after: column;
+        }
+
         /* Page Separator */
         .hwp-page-container:not(:last-child)::after {
             content: '';

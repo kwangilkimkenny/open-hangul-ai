@@ -943,12 +943,14 @@ export class SimpleHWPXParser {
         const section = {
             elements: [],
             pageSettings: {},
-            headers: { both: null, odd: null, even: null },
-            footers: { both: null, odd: null, even: null },
+            headers: { both: null, odd: null, even: null, first: null },
+            footers: { both: null, odd: null, even: null, first: null },
             footnotes: [],
             endnotes: [],
             pageNum: null,
-            colPr: null
+            colPr: null,
+            pageBorder: null,
+            watermark: null
         };
 
         // Parse section properties
@@ -1118,9 +1120,23 @@ export class SimpleHWPXParser {
         if (colPrElem) {
             const colCount = parseInt(colPrElem.getAttribute('colCount')) || 1;
             if (colCount > 1) {
+                // colSpacing은 HWPX unit(HWPUNIT). 픽셀 환산은 7200 -> 96
+                const rawSpacing = parseInt(colPrElem.getAttribute('colSpacing')) || 0;
+                const gapPx = rawSpacing > 0
+                    ? Math.max(0, Math.round(rawSpacing / 7200 * 96))
+                    : 20;
+
+                // colorLine: 단 사이 구분선 표시 여부
+                const lineAttr =
+                    colPrElem.getAttribute('colLine') ||
+                    colPrElem.getAttribute('lineType') ||
+                    colPrElem.getAttribute('sameSz');
+
                 section.colPr = {
                     colCount,
-                    colSpacing: parseInt(colPrElem.getAttribute('colSpacing')) || 0,
+                    colSpacing: rawSpacing,
+                    columnGap: gapPx,
+                    columnLine: lineAttr && /SOLID|DASH|DOT|DOUBLE/i.test(lineAttr),
                     type: colPrElem.getAttribute('type') || 'EQUAL'
                 };
             }
@@ -1153,8 +1169,85 @@ export class SimpleHWPXParser {
                     } else if (type === 'EVEN') {
                         section.pageBackground.even = bgInfo;
                     }
+
+                    // ★ Phase 2-6: pageBorder 추출
+                    // pageBorderFill이 가리키는 borderFill에 visible 측 정보가 있으면
+                    // section.pageBorder로 노출한다.
+                    const sides = borderFillDef.borders || {};
+                    const hasAnyVisibleBorder = ['top', 'right', 'bottom', 'left'].some(
+                        s => sides[s] && sides[s].visible
+                    );
+                    if (hasAnyVisibleBorder && !section.pageBorder) {
+                        const position = (
+                            pbfElem.getAttribute('borderFillPosition') ||
+                            pbfElem.getAttribute('position') ||
+                            'OUTSIDE'
+                        ).toUpperCase();
+
+                        const pickSide = (side) => {
+                            const s = sides[side];
+                            if (!s || !s.visible) return null;
+                            return { type: s.type, width: s.width, color: s.color };
+                        };
+
+                        section.pageBorder = {
+                            position,
+                            top: pickSide('top'),
+                            right: pickSide('right'),
+                            bottom: pickSide('bottom'),
+                            left: pickSide('left')
+                        };
+                    }
                 }
             });
+        }
+
+        // ★ Phase 2-6: 워터마크 (별도 secPr/watermark, 또는 background)
+        this._parsePageWatermark(secPrElem, section);
+    }
+
+    /**
+     * 페이지 워터마크 데이터 추출.
+     * HWPX는 표준 워터마크 엘리먼트를 갖지 않는 경우가 많기 때문에
+     * 다음과 같은 후보 위치를 탐색한다:
+     *   - <hp:watermark text="..." rotation="..." opacity="..."/>
+     *   - <hp:background type="image|text" .../>
+     *   - <hp:back type="image|text" .../>
+     * @private
+     */
+    _parsePageWatermark(secPrElem, section) {
+        const candidates = [
+            ...secPrElem.querySelectorAll('watermark, hp\\:watermark'),
+            ...secPrElem.querySelectorAll('background, hp\\:background'),
+            ...secPrElem.querySelectorAll('back, hp\\:back')
+        ];
+
+        for (const elem of candidates) {
+            const typeAttr = (elem.getAttribute('type') || '').toLowerCase();
+            const text = elem.getAttribute('text');
+            const binaryItemIDRef =
+                elem.getAttribute('binaryItemIDRef') ||
+                elem.getAttribute('imageRef') ||
+                elem.getAttribute('image');
+
+            if (!text && !binaryItemIDRef) continue;
+
+            const type = typeAttr === 'image' || binaryItemIDRef ? 'image' : 'text';
+            const opacityRaw = elem.getAttribute('opacity') || elem.getAttribute('alpha');
+            const rotationRaw = elem.getAttribute('rotation') || elem.getAttribute('rotate');
+
+            section.watermark = {
+                type,
+                text: text || null,
+                imageBinaryItemIDRef: binaryItemIDRef || null,
+                opacity: opacityRaw ? parseFloat(opacityRaw) : 0.3,
+                rotation: rotationRaw ? parseFloat(rotationRaw) : -30,
+                color: elem.getAttribute('color') || '#888',
+                fontSize: elem.getAttribute('fontSize')
+                    ? parseFloat(elem.getAttribute('fontSize'))
+                    : 96
+            };
+            break;
         }
     }
 
@@ -1164,7 +1257,7 @@ export class SimpleHWPXParser {
         // Parse headers
         const headerElems = secPrElem.querySelectorAll('header, hp\\:header');
         headerElems.forEach(headerElem => {
-            const type = headerElem.getAttribute('type') || 'BOTH'; // BOTH, ODD, EVEN
+            const type = headerElem.getAttribute('type') || 'BOTH'; // BOTH, ODD, EVEN, FIRST
             const headerContent = this._parseHeaderFooterContent(headerElem);
             if (headerContent) {
                 const key = type.toLowerCase();
