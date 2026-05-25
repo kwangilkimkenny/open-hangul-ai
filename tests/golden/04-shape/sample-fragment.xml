@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:p xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:run>
+    <hp:rect id="shp1" zOrder="2">
+      <hp:offset x="100" y="100"/>
+      <hp:orgSz width="800" height="400"/>
+      <hp:curSz width="800" height="400"/>
+      <hp:rotationInfo angle="0" centerX="400" centerY="200"/>
+      <hp:fillBrush><hp:winBrush faceColor="#FFC000" hatchColor="#000000" hatchStyle="NONE"/></hp:fillBrush>
+    </hp:rect>
+    <hp:ellipse id="shp2" zOrder="3">
+      <hp:offset x="500" y="200"/>
+      <hp:orgSz width="600" height="400"/>
+      <hp:curSz width="600" height="400"/>
+      <hp:rotationInfo angle="30" centerX="300" centerY="200"/>
+      <hp:fillBrush><hp:gradation type="LINEAR" angle="45" centerX="0" centerY="0" step="2"/></hp:fillBrush>
+    </hp:ellipse>
+  </hp:run>
+</hp:p>

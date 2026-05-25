@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- HWPX section fragment · paragraph features -->
+<hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+        xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section">
+  <hp:p id="p1" paraPrIDRef="0" styleIDRef="0">
+    <hp:run charPrIDRef="0">
+      <hp:t>가운데 정렬 굵게</hp:t>
+    </hp:run>
+  </hp:p>
+  <hp:p id="p2" paraPrIDRef="1" styleIDRef="0">
+    <hp:run charPrIDRef="0">
+      <hp:t>양쪽 정렬, 첫 줄 들여쓰기 20pt, 줄간격 더블입니다. </hp:t>
+      <hp:t>두 번째 줄로 줄 바꿈됩니다.</hp:t>
+    </hp:run>
+  </hp:p>
+  <hp:p id="p3" paraPrIDRef="0" styleIDRef="0">
+    <hp:run charPrIDRef="2"><hp:t>빨강 12pt</hp:t></hp:run>
+    <hp:run charPrIDRef="3"><hp:t> 굴림 14pt</hp:t></hp:run>
+  </hp:p>
+</hs:sec>

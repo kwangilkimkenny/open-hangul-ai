@@ -1,0 +1,145 @@
+# ============================================================
+# HWPX Conformance CI
+# ------------------------------------------------------------
+# PR 이 열리거나 main 으로 push 될 때마다:
+#   1) tests/conformance.yaml 을 검사
+#   2) scripts/conformance-report.mjs 로 JSON + markdown 리포트 생성
+#   3) main 의 baseline 리포트와 비교 후 PR 코멘트로 변화량 알림
+#
+# 모든 토큰은 GitHub Actions 의 ${{ secrets.GITHUB_TOKEN }} 을 사용한다.
+# 별도 PAT 가 필요하면 secrets.CONFORMANCE_BOT_TOKEN 으로 대체.
+# ============================================================
+
+name: HWPX Conformance Report
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/conformance.yaml'
+      - 'tests/golden/**'
+      - 'scripts/conformance-report.mjs'
+      - 'src/lib/**'
+      - '.github/workflows/conformance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/conformance.yaml'
+      - 'scripts/conformance-report.mjs'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  conformance:
+    name: Generate & compare conformance report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate current report (JSON)
+        id: current
+        run: |
+          mkdir -p .conformance
+          node scripts/conformance-report.mjs --json > .conformance/current.json
+          echo "Report rows: $(node -e 'console.log(JSON.parse(require("fs").readFileSync(".conformance/current.json","utf8")).items.length)')"
+
+      - name: Render markdown report (for artifact)
+        run: |
+          node scripts/conformance-report.mjs --md || true
+          if [ -f docs/CONFORMANCE_REPORT.md ]; then
+            cp docs/CONFORMANCE_REPORT.md .conformance/current.md
+          fi
+
+      - name: Fetch baseline from main
+        id: baseline
+        if: github.event_name == 'pull_request'
+        run: |
+          set +e
+          git fetch origin main --depth=1
+          git show origin/main:tests/conformance.yaml > .conformance/main-conformance.yaml 2>/dev/null
+          if [ $? -eq 0 ]; then
+            # Temporarily swap conformance.yaml to main's version, run report, then restore.
+            cp tests/conformance.yaml .conformance/pr-conformance.yaml
+            cp .conformance/main-conformance.yaml tests/conformance.yaml
+            node scripts/conformance-report.mjs --json > .conformance/baseline.json
+            cp .conformance/pr-conformance.yaml tests/conformance.yaml
+            echo "baseline=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "baseline=false" >> "$GITHUB_OUTPUT"
+          fi
+          set -e
+
+      - name: Compute delta
+        id: delta
+        if: github.event_name == 'pull_request' && steps.baseline.outputs.baseline == 'true'
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const cur = JSON.parse(fs.readFileSync('.conformance/current.json', 'utf8'));
+          const base = JSON.parse(fs.readFileSync('.conformance/baseline.json', 'utf8'));
+          const fmt = (n) => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+          const dims = ['parser', 'renderer', 'roundtrip', 'overall'];
+          const rows = dims.map((d) => {
+            const a = cur.summary[d].pct;
+            const b = base.summary[d].pct;
+            return { dim: d, base: b, cur: a, delta: a - b };
+          });
+          let md = `### HWPX Conformance Δ\n\n`;
+          md += `| Dimension | Base | PR | Δ |\n| --- | ---: | ---: | ---: |\n`;
+          for (const r of rows) {
+            md += `| ${r.dim} | ${r.base.toFixed(1)}% | ${r.cur.toFixed(1)}% | ${fmt(r.delta)} |\n`;
+          }
+          md += `\n_features: ${base.items.length} → ${cur.items.length}_\n`;
+          fs.writeFileSync('.conformance/delta.md', md);
+          NODE
+
+      - name: Comment on PR with delta
+        if: github.event_name == 'pull_request' && steps.baseline.outputs.baseline == 'true'
+        uses: actions/github-script@v7
+        with:
+          # NOTE: GITHUB_TOKEN is provided automatically. Replace with a
+          # PAT (secrets.CONFORMANCE_BOT_TOKEN) if forked-PR commenting needed.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs');
+            const body = fs.readFileSync('.conformance/delta.md', 'utf8');
+            const marker = '<!-- conformance-report-bot -->';
+            const issue_number = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            const finalBody = `${marker}\n${body}`;
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body: finalBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number, body: finalBody,
+              });
+            }
+
+      - name: Upload conformance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-report
+          path: |
+            .conformance/current.json
+            .conformance/current.md
+            .conformance/delta.md
+          if-no-files-found: warn
+          retention-days: 30

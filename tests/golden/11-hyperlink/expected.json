@@ -1,0 +1,6 @@
+{
+  "feature": "hyperlink",
+  "hyperlinks": [
+    { "href": "https://yatavent.com", "text": "홈으로", "tooltip": "홈" }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "feature": "bookmark",
+  "bookmarks": [
+    { "name": "bm1", "paragraphId": "p1", "offset": 0 }
+  ]
+}

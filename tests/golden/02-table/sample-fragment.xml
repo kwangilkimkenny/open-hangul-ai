@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:tbl xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+        rowCnt="3" colCnt="3">
+  <hp:tr>
+    <hp:tc colSpan="2" rowSpan="1"><hp:subList><hp:p><hp:run><hp:t>병합</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+    <hp:tc><hp:subList><hp:p><hp:run><hp:t>C</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+  </hp:tr>
+  <hp:tr>
+    <hp:tc><hp:subList><hp:p><hp:run><hp:t>A2</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+    <hp:tc><hp:subList><hp:p><hp:run><hp:t>B2</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+    <hp:tc colSpan="1" rowSpan="2"><hp:subList><hp:p><hp:run><hp:t>세로병합</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+  </hp:tr>
+  <hp:tr>
+    <hp:tc><hp:subList><hp:p><hp:run><hp:t>A3</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+    <hp:tc><hp:subList><hp:p><hp:run><hp:t>B3</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+  </hp:tr>
+</hp:tbl>

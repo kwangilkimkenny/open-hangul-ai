@@ -1,0 +1,6 @@
+{
+  "feature": "ruby",
+  "rubies": [
+    { "base": "人", "text": "사람", "align": "center", "sizeRatio": 0.5 }
+  ]
+}

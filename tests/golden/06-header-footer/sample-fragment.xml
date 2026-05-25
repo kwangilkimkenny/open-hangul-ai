@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:secPr xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:header applyPageType="BOTH">
+    <hp:subList><hp:p><hp:run><hp:t>문서제목</hp:t></hp:run></hp:p></hp:subList>
+  </hp:header>
+  <hp:footer applyPageType="ODD">
+    <hp:subList><hp:p><hp:run><hp:t>쪽 </hp:t><hp:pageNum/></hp:run></hp:p></hp:subList>
+  </hp:footer>
+  <hp:footer applyPageType="EVEN">
+    <hp:subList><hp:p><hp:run><hp:pageNum/><hp:t> 쪽</hp:t></hp:run></hp:p></hp:subList>
+  </hp:footer>
+</hp:secPr>
