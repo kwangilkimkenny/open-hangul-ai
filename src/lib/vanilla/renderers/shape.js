@@ -47,7 +47,8 @@ function shouldDelegateToSVG(shape) {
 
   if (shape.fill?.gradientCSS || shape.style?.gradientCSS || shape.gradientCSS) return true;
   if (shape.shadow) return true;
-  if (shape.rotation || shape.style?.rotation) return true;
+  // 회전만 있는 단순 도형(rect/ellipse)은 CSS transform 으로 처리해도 충분하므로
+  // SVG 위임은 다른 고급 효과(gradient/shadow/bevel/wrap/children)가 동반될 때만.
   if (shape.effect?.bevel || shape.bevel) return true;
   if (Array.isArray(shape.children) && shape.children.length > 0) return true;
 

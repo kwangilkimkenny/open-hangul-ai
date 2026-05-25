@@ -162,7 +162,7 @@ export function Header({ className }: HeaderProps) {
     setIsSavingMd(true);
     try {
       const { exportToMarkdown } = await import('../../lib/markdown/parser');
-      const md = exportToMarkdown(document as Parameters<typeof exportToMarkdown>[0]);
+      const md = exportToMarkdown(document as unknown as Parameters<typeof exportToMarkdown>[0]);
       const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = window.document.createElement('a');
