@@ -15,7 +15,7 @@
 # ============================================================
 
 version: 1
-generated_at: "2026-05-22"
+generated_at: "2026-05-25"
 spec: "KS X 6101 + HWPML 2011 (Hancom)"
 
 items:
@@ -24,7 +24,7 @@ items:
     feature: Plain paragraph
     parser: supported
     renderer: supported
-    roundtrip: partial
+    roundtrip: supported
     priority: P0
     golden: 01-paragraph
 
@@ -32,23 +32,23 @@ items:
     feature: Paragraph alignment (left/center/right/justify/distribute)
     parser: supported
     renderer: supported
-    roundtrip: partial
+    roundtrip: supported
     priority: P0
     golden: 01-paragraph
 
   - category: Text
     feature: Paragraph indent & spacing
-    parser: partial
-    renderer: partial
+    parser: supported
+    renderer: supported
     roundtrip: partial
     priority: P0
     golden: 01-paragraph
 
   - category: Text
     feature: Line height / line spacing
-    parser: partial
+    parser: supported
     renderer: partial
-    roundtrip: missing
+    roundtrip: partial
     priority: P1
     golden: 01-paragraph
 
@@ -56,7 +56,7 @@ items:
     feature: Inline run formatting (bold/italic/underline/strike)
     parser: supported
     renderer: supported
-    roundtrip: partial
+    roundtrip: supported
     priority: P0
     golden: 01-paragraph
 
@@ -64,13 +64,13 @@ items:
     feature: Font color & highlight
     parser: supported
     renderer: supported
-    roundtrip: partial
+    roundtrip: supported
     priority: P0
     golden: 01-paragraph
 
   - category: Text
     feature: Font family & size (한글/영문 별도)
-    parser: partial
+    parser: supported
     renderer: partial
     roundtrip: partial
     priority: P1
@@ -78,15 +78,15 @@ items:
 
   - category: Text
     feature: Superscript / subscript
-    parser: partial
-    renderer: partial
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P2
 
   - category: Text
     feature: Tab stops (정의 + 정렬)
-    parser: missing
-    renderer: missing
+    parser: partial
+    renderer: partial
     roundtrip: missing
     priority: P2
 
@@ -101,45 +101,45 @@ items:
   - category: Layout
     feature: Page size / orientation / margins
     parser: supported
-    renderer: partial
+    renderer: supported
     roundtrip: partial
     priority: P0
 
   - category: Layout
     feature: Multi-column layout
-    parser: partial
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 08-multi-column
 
   - category: Layout
     feature: Header / footer (odd/even/first split)
-    parser: partial
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 06-header-footer
 
   - category: Layout
     feature: Section break / different section properties
-    parser: partial
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: partial
+    roundtrip: partial
     priority: P1
 
   - category: Layout
     feature: Page numbering field
-    parser: partial
-    renderer: partial
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 07-field
 
   - category: Layout
     feature: Watermark
-    parser: missing
-    renderer: missing
+    parser: supported
+    renderer: partial
     roundtrip: missing
     priority: P3
 
@@ -147,77 +147,77 @@ items:
   - category: Object
     feature: Table (rows/cols, merge)
     parser: supported
-    renderer: partial
+    renderer: supported
     roundtrip: partial
     priority: P0
     golden: 02-table
 
   - category: Object
     feature: Table header repeat across pages
-    parser: missing
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: partial
+    roundtrip: partial
     priority: P2
     golden: 02-table
 
   - category: Object
     feature: Table cell borders / shading
-    parser: partial
-    renderer: partial
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 02-table
 
   - category: Object
     feature: Image inline & floating + wrap
-    parser: partial
-    renderer: partial
+    parser: supported
+    renderer: supported
     roundtrip: partial
     priority: P0
     golden: 03-image
 
   - category: Object
     feature: Image rotation / flip / crop
-    parser: missing
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P2
     golden: 03-image
 
   - category: Object
     feature: Shape (rect/ellipse/line/freeform)
-    parser: partial
-    renderer: partial
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 04-shape
 
   - category: Object
     feature: Shape gradient / shadow
-    parser: missing
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P2
     golden: 04-shape
 
   - category: Object
     feature: Shape grouping (z-order)
-    parser: missing
-    renderer: missing
+    parser: partial
+    renderer: partial
     roundtrip: missing
     priority: P2
     golden: 04-shape
 
   - category: Object
     feature: Text box (도형 내 텍스트)
-    parser: partial
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
 
   - category: Object
     feature: Math equation (수식)
-    parser: missing
+    parser: partial
     renderer: missing
     roundtrip: missing
     priority: P2
@@ -239,56 +239,56 @@ items:
   # ---------- Reference ----------
   - category: Reference
     feature: Footnote / endnote
-    parser: missing
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 05-footnote
 
   - category: Reference
     feature: Hyperlink (external / mailto / internal)
-    parser: partial
-    renderer: partial
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 11-hyperlink
 
   - category: Reference
     feature: Bookmark
-    parser: missing
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 12-bookmark
 
   - category: Reference
     feature: Cross-reference
-    parser: missing
-    renderer: missing
+    parser: partial
+    renderer: partial
     roundtrip: missing
     priority: P2
     golden: 12-bookmark
 
   - category: Reference
     feature: Table of contents (목차)
-    parser: missing
+    parser: partial
     renderer: missing
     roundtrip: missing
     priority: P2
 
   - category: Reference
     feature: Numbered / bulleted lists (다단계)
-    parser: partial
-    renderer: partial
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P1
     golden: 09-numbering
 
   - category: Reference
     feature: Ruby (한자 음/훈 표시)
-    parser: missing
-    renderer: missing
-    roundtrip: missing
+    parser: supported
+    renderer: supported
+    roundtrip: partial
     priority: P2
     golden: 10-ruby
 
@@ -304,14 +304,14 @@ items:
     feature: Document metadata (title/author/keywords)
     parser: supported
     renderer: supported
-    roundtrip: partial
+    roundtrip: supported
     priority: P0
 
   - category: Document
     feature: Custom styles & character styles
-    parser: partial
+    parser: supported
     renderer: partial
-    roundtrip: missing
+    roundtrip: partial
     priority: P1
 
   - category: Document
@@ -323,9 +323,9 @@ items:
 
   - category: Document
     feature: Comments / annotations (메모)
-    parser: partial
+    parser: supported
     renderer: partial
-    roundtrip: missing
+    roundtrip: partial
     priority: P2
 
   - category: Document
