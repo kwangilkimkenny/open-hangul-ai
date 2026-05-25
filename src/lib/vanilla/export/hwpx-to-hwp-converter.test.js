@@ -17,8 +17,31 @@ import {
   RecordStreamWriter,
   buildDocInfoStream,
   buildSectionStream,
+  collectBinData,
   Hwpx2Hwp,
 } from './hwpx-to-hwp-converter.js';
+
+// 레코드 스트림을 순회하며 모든 TagID 를 모은다.
+function collectTagIds(bytes) {
+  const out = [];
+  let off = 0;
+  while (off + 4 <= bytes.length) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset + off, 4);
+    const header = view.getUint32(0, true);
+    const tagId = header & 0x3ff;
+    const sizeField = (header >> 20) & 0xfff;
+    out.push(tagId);
+    let recSize = sizeField;
+    let headerLen = 4;
+    if (sizeField === 0xfff) {
+      const ext = new DataView(bytes.buffer, bytes.byteOffset + off + 4, 4);
+      recSize = ext.getUint32(0, true);
+      headerLen = 8;
+    }
+    off += headerLen + recSize;
+  }
+  return out;
+}
 
 const simpleDoc = {
   sections: [
@@ -293,5 +316,326 @@ describe('Hwpx2Hwp 멀티 섹션 지원', () => {
     const parsed = CFB.read(data, { type: 'array' });
     expect(CFB.find(parsed, '/BodyText/Section0')).toBeTruthy();
     expect(CFB.find(parsed, '/BodyText/Section1')).toBeTruthy();
+  });
+});
+
+// ============================================================================
+// Step 2 — 표 직렬화
+// ============================================================================
+
+describe('Step 2 — 표 직렬화', () => {
+  const docWithTable = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [
+              { text: '표:', style: {} },
+              { hasTable: true, tableIndex: 0, style: {} },
+            ],
+            tables: [
+              {
+                type: 'table',
+                rowCount: 2,
+                colCount: 2,
+                style: { borderFillId: 1 },
+                rows: [
+                  {
+                    cells: [
+                      {
+                        colAddr: 0, rowAddr: 0, widthHWPU: 5000, heightHWPU: 1000,
+                        elements: [
+                          { type: 'paragraph', style: {}, runs: [{ text: 'A1', style: {} }] },
+                        ],
+                      },
+                      {
+                        colAddr: 1, rowAddr: 0, widthHWPU: 5000, heightHWPU: 1000, colSpan: 1,
+                        elements: [
+                          { type: 'paragraph', style: {}, runs: [{ text: 'B1', style: {} }] },
+                        ],
+                      },
+                    ],
+                  },
+                  {
+                    cells: [
+                      {
+                        colAddr: 0, rowAddr: 1, widthHWPU: 10000, heightHWPU: 1000, colSpan: 2,
+                        elements: [
+                          { type: 'paragraph', style: {}, runs: [{ text: '병합 셀', style: { bold: true } }] },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it('표가 있는 단락은 PARA_HEADER 컨트롤 마스크에 0x800 비트와 INLINE_OBJ(0x18) 문자를 갖는다', () => {
+    const { charStyles } = buildDocInfoStream(docWithTable);
+    const bytes = buildSectionStream(docWithTable.sections[0], charStyles);
+    // 첫 레코드 PARA_HEADER 의 컨트롤 마스크 (offset 4-7) 검사
+    const view = new DataView(bytes.buffer, bytes.byteOffset);
+    const charCount = view.getUint32(4, true); // PARA_HEADER 데이터 오프셋 0 = charCount
+    const ctrlMask = view.getUint32(8, true); // 오프셋 4 = ctrlMask
+    expect(charCount).toBeGreaterThan(2); // '표:' + INLINE_OBJ + PARA_BREAK
+    expect(ctrlMask & 0x800).toBe(0x800);
+
+    // PARA_TEXT(67) 안에 0x18 코드가 등장해야 한다
+    let foundInlineObj = false;
+    let off = 0;
+    while (off + 4 <= bytes.length) {
+      const h = view.getUint32(off, true);
+      const tag = h & 0x3ff;
+      const sf = (h >> 20) & 0xfff;
+      let recSize = sf;
+      let hl = 4;
+      if (sf === 0xfff) {
+        recSize = view.getUint32(off + 4, true);
+        hl = 8;
+      }
+      if (tag === 67) {
+        for (let i = 0; i < recSize; i += 2) {
+          const code = view.getUint16(off + hl + i, true);
+          if (code === 0x18) { foundInlineObj = true; break; }
+        }
+      }
+      off += hl + recSize;
+    }
+    expect(foundInlineObj).toBe(true);
+  });
+
+  it('CTRL_HEADER(71) + TABLE(77) + 셀별 LIST_HEADER(72) 시퀀스를 emit', () => {
+    const { charStyles } = buildDocInfoStream(docWithTable);
+    const bytes = buildSectionStream(docWithTable.sections[0], charStyles);
+    const tags = collectTagIds(bytes);
+    expect(tags).toContain(71); // CTRL_HEADER
+    expect(tags).toContain(77); // TABLE
+    expect(tags).toContain(72); // LIST_HEADER
+    // 셀 3개 (2+1 병합) → LIST_HEADER 3개
+    const listHeaderCount = tags.filter(t => t === 72).length;
+    expect(listHeaderCount).toBe(3);
+  });
+
+  it('표 셀 내 단락의 글자 스타일이 DocInfo CharShape 풀에 수집된다', () => {
+    const { charStyles } = buildDocInfoStream(docWithTable);
+    // 기본 + bold 두 가지
+    expect(charStyles.length).toBeGreaterThanOrEqual(2);
+    const hasBold = charStyles.some(s => s.bold);
+    expect(hasBold).toBe(true);
+  });
+
+  it('Hwpx2Hwp.convert() 가 표 포함 문서를 CFB 로 잘 묶는다', async () => {
+    const { data, stats } = await Hwpx2Hwp.convert(docWithTable);
+    expect(stats.sectionCount).toBe(1);
+    const parsed = CFB.read(data, { type: 'array' });
+    const sec = CFB.find(parsed, '/BodyText/Section0');
+    const inflated = pako.inflateRaw(new Uint8Array(sec.content));
+    expect(collectTagIds(inflated)).toContain(77); // TABLE
+  });
+});
+
+// ============================================================================
+// Step 3 — 이미지 + 도형 직렬화
+// ============================================================================
+
+describe('Step 3 — 이미지 + 도형 직렬화', () => {
+  // 1x1 PNG (transparent)
+  const tinyPng = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41,
+    0x54, 0x78, 0x9c, 0x63, 0xfa, 0xcf, 0x00, 0x00,
+    0x00, 0x02, 0x00, 0x01, 0xe5, 0x27, 0xde, 0xfc,
+    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44,
+    0xae, 0x42, 0x60, 0x82,
+  ]);
+
+  const docWithImage = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [{ hasImage: true, imageIndex: 0, style: {} }],
+            images: [
+              {
+                type: 'image',
+                binaryItemId: 'image1',
+                width: 100,
+                height: 50,
+                filename: 'image1.png',
+                mimeType: 'image/png',
+                bytes: tinyPng,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const docWithShapes = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [
+              { hasShape: true, style: {} },
+              { hasShape: true, style: {} },
+            ],
+            shapes: [
+              { type: 'shape', shapeType: 'rectangle', width: 200, height: 100, borderRadius: 5 },
+              { type: 'shape', shapeType: 'ellipse', width: 80, height: 80 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it('collectBinData() 가 이미지 한 개를 수집한다', () => {
+    const list = collectBinData(docWithImage);
+    expect(list.length).toBe(1);
+    expect(list[0].key).toBe('image1');
+    expect(list[0].ext).toBe('png');
+    expect(list[0].bytes).toBeInstanceOf(Uint8Array);
+  });
+
+  it('DocInfo 에 BIN_DATA(18) 레코드와 ID_MAPPINGS.binData 카운트가 반영된다', () => {
+    const { bytes } = buildDocInfoStream(docWithImage);
+    const tags = collectTagIds(bytes);
+    expect(tags).toContain(18); // BIN_DATA
+    // ID_MAPPINGS(17) 첫 4바이트 = binData 카운트
+    const view = new DataView(bytes.buffer, bytes.byteOffset);
+    // DOCUMENT_PROPERTIES(16) 가 첫 레코드 → 그 뒤 ID_MAPPINGS(17)
+    let off = 0;
+    let binDataCount = -1;
+    while (off + 4 <= bytes.length) {
+      const h = view.getUint32(off, true);
+      const tag = h & 0x3ff;
+      const sf = (h >> 20) & 0xfff;
+      let recSize = sf;
+      let hl = 4;
+      if (sf === 0xfff) {
+        recSize = view.getUint32(off + 4, true);
+        hl = 8;
+      }
+      if (tag === 17) {
+        binDataCount = view.getInt32(off + hl, true);
+        break;
+      }
+      off += hl + recSize;
+    }
+    expect(binDataCount).toBe(1);
+  });
+
+  it('이미지 포함 단락은 PARA_HEADER ctrlMask=0x800, DRAWING_OBJ(0x0B) 삽입, SHAPE_COMPONENT_PICTURE(85) emit', () => {
+    const { charStyles } = buildDocInfoStream(docWithImage);
+    const binIndex = { image1: 0 };
+    const bytes = buildSectionStream(docWithImage.sections[0], charStyles, binIndex);
+    const tags = collectTagIds(bytes);
+    expect(tags).toContain(71); // CTRL_HEADER (gso)
+    expect(tags).toContain(76); // SHAPE_COMPONENT
+    expect(tags).toContain(85); // SHAPE_COMPONENT_PICTURE
+
+    // PARA_HEADER ctrlMask
+    const view = new DataView(bytes.buffer, bytes.byteOffset);
+    const ctrlMask = view.getUint32(8, true);
+    expect(ctrlMask & 0x800).toBe(0x800);
+
+    // PARA_TEXT 에 0x0B 가 있어야 함
+    let foundDrawing = false;
+    let off = 0;
+    while (off + 4 <= bytes.length) {
+      const h = view.getUint32(off, true);
+      const tag = h & 0x3ff;
+      const sf = (h >> 20) & 0xfff;
+      let recSize = sf;
+      let hl = 4;
+      if (sf === 0xfff) {
+        recSize = view.getUint32(off + 4, true);
+        hl = 8;
+      }
+      if (tag === 67) {
+        for (let i = 0; i < recSize; i += 2) {
+          const code = view.getUint16(off + hl + i, true);
+          if (code === 0x0b) { foundDrawing = true; break; }
+        }
+      }
+      off += hl + recSize;
+    }
+    expect(foundDrawing).toBe(true);
+  });
+
+  it('도형(사각형/타원) 단락은 SHAPE_COMPONENT_RECTANGLE(79) + SHAPE_COMPONENT_ELLIPSE(80) emit', () => {
+    const { charStyles } = buildDocInfoStream(docWithShapes);
+    const bytes = buildSectionStream(docWithShapes.sections[0], charStyles, {});
+    const tags = collectTagIds(bytes);
+    expect(tags).toContain(76); // SHAPE_COMPONENT
+    expect(tags).toContain(79); // SHAPE_COMPONENT_RECTANGLE
+    expect(tags).toContain(80); // SHAPE_COMPONENT_ELLIPSE
+  });
+
+  it('Hwpx2Hwp.convert() 가 이미지 raw 바이트를 /BinData/BIN0001.png 스트림으로 저장', async () => {
+    const { data, stats } = await Hwpx2Hwp.convert(docWithImage);
+    expect(stats.binDataCount).toBe(1);
+    const parsed = CFB.read(data, { type: 'array' });
+    const bin = CFB.find(parsed, '/BinData/BIN0001.png');
+    expect(bin).toBeTruthy();
+    // 압축 해제 후 PNG 시그니처 확인
+    const inflated = pako.inflateRaw(new Uint8Array(bin.content));
+    expect(inflated[0]).toBe(0x89);
+    expect(inflated[1]).toBe(0x50);
+    expect(inflated[2]).toBe(0x4e);
+    expect(inflated[3]).toBe(0x47);
+  });
+
+  it('options.binData 로 외부 raw 바이트 주입 시에도 BinData 스트림이 생성된다', async () => {
+    const docNoBytes = {
+      sections: [
+        {
+          elements: [
+            {
+              type: 'paragraph',
+              style: {},
+              runs: [{ hasImage: true, imageIndex: 0, style: {} }],
+              images: [{ type: 'image', binaryItemId: 'img42', width: 10, height: 10 }],
+            },
+          ],
+        },
+      ],
+    };
+    const { data, stats } = await Hwpx2Hwp.convert(docNoBytes, {
+      binData: { img42: { bytes: tinyPng, ext: 'png' } },
+    });
+    expect(stats.binDataCount).toBe(1);
+    const parsed = CFB.read(data, { type: 'array' });
+    expect(CFB.find(parsed, '/BinData/BIN0001.png')).toBeTruthy();
+  });
+
+  it('이미지 없는 단순 문서는 BinData 스트림을 만들지 않는다 (회귀 방지)', async () => {
+    const simple = {
+      sections: [
+        { elements: [{ type: 'paragraph', style: {}, runs: [{ text: '안녕', style: {} }] }] },
+      ],
+    };
+    const { data, stats } = await Hwpx2Hwp.convert(simple);
+    expect(stats.binDataCount).toBe(0);
+    const parsed = CFB.read(data, { type: 'array' });
+    // /BinData/* 경로가 등장하지 않아야 함
+    const paths = parsed.FullPaths || [];
+    expect(paths.some(p => p && p.includes('/BinData/'))).toBe(false);
   });
 });
