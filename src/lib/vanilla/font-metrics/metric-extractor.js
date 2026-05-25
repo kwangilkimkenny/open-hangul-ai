@@ -49,7 +49,6 @@
  * @returns {Promise<any>}
  */
 async function loadOpenType() {
-  // eslint-disable-next-line import/no-unresolved
   const mod = await import('opentype.js');
   return mod && mod.default ? mod.default : mod;
 }
