@@ -1097,21 +1097,17 @@ function computeRowSpans(rows: RowData[], tblRows: globalThis.Element[]): void {
           matched = true;
           const vMerge = tcPr ? getElement(tcPr, 'vMerge') : null;
           const vVal = vMerge ? getAttr(vMerge, 'val') : null;
-          if (vMerge && vVal === 'restart') {
-            // 이전 체인이 남아있으면 종결 (보통 없음, 안전장치)
-            if (mergeStart >= 0 && rowIdx > mergeStart) {
-              setRowSpanForCell(rows, mergeStart, col, rowIdx - mergeStart);
-            }
-            mergeStart = rowIdx;
-          } else if (vMerge && (vVal === null || vVal === 'continue')) {
-            // 체인 유지 — 시작 셀의 rowSpan 은 마지막에 한 번에 설정
-          } else {
-            // vMerge 없음 — 진행 중이던 체인이 있었다면 종결
-            if (mergeStart >= 0 && rowIdx > mergeStart) {
-              setRowSpanForCell(rows, mergeStart, col, rowIdx - mergeStart);
-            }
-            mergeStart = -1;
+          // 3-state 평탄화: 'restart' | 'continue' | 'none' (없음)
+          // restart/none 둘 다 진행 중 체인이 있으면 종결한다 — continue 만 chain 유지.
+          const state: 'restart' | 'continue' | 'none' =
+            vMerge ? (vVal === 'restart' ? 'restart' : 'continue') : 'none';
+
+          if (state !== 'continue' && mergeStart >= 0 && rowIdx > mergeStart) {
+            setRowSpanForCell(rows, mergeStart, col, rowIdx - mergeStart);
           }
+          if (state === 'restart') mergeStart = rowIdx;
+          else if (state === 'none') mergeStart = -1;
+          // 'continue' 는 mergeStart 그대로 유지
           break;
         }
         currentCol += span;

@@ -26,6 +26,14 @@ import { SimpleHWPXParser } from '../vanilla/core/parser.js';
 let _domPolyfillReady = false;
 
 /**
+ * 테스트 전용 — 폴리필 캐시를 초기화한다.
+ * 다중 테스트가 mock 을 갈아끼울 때 cross-talk 방지.
+ */
+export function _resetPolyfillForTesting() {
+  _domPolyfillReady = false;
+}
+
+/**
  * Node 환경 감지.
  * @returns {boolean}
  */

@@ -77,6 +77,24 @@ export function isHangulSyllable(ch) {
  * @param {CheckOptions} [options]
  * @returns {Array<SpellIssue>}
  */
+// 핫패스 최적화 — categories/severities 필터 조합별 사전 필터링된 규칙 배열 캐시.
+// 키 입력마다 checkText 가 호출되면 120 규칙 × 두 번의 Set 조회를 매번 반복하던 비용 제거.
+const _filteredRulesCache = new Map();
+
+function _getFilteredRules(catFilter, sevFilter) {
+  const key = `${catFilter ? [...catFilter].sort().join(',') : '*'}|${sevFilter ? [...sevFilter].sort().join(',') : '*'}`;
+  let rules = _filteredRulesCache.get(key);
+  if (rules) return rules;
+  rules = getAllRules().filter(rule => {
+    if (!(rule.pattern instanceof RegExp)) return false;
+    if (catFilter && !catFilter.has(rule.category)) return false;
+    if (sevFilter && !sevFilter.has(rule.severity)) return false;
+    return true;
+  });
+  _filteredRulesCache.set(key, rules);
+  return rules;
+}
+
 export function checkText(text, options = {}) {
   if (typeof text !== 'string' || text.length === 0) return [];
 
@@ -99,10 +117,7 @@ export function checkText(text, options = {}) {
   const issues = [];
   const occupied = new Set(); // 같은 start 위치의 중복 매칭 방지
 
-  for (const rule of getAllRules()) {
-    if (catFilter && !catFilter.has(rule.category)) continue;
-    if (sevFilter && !sevFilter.has(rule.severity)) continue;
-    if (!(rule.pattern instanceof RegExp)) continue;
+  for (const rule of _getFilteredRules(catFilter, sevFilter)) {
 
     // global 플래그가 없는 패턴은 단발성으로만 검사. 카탈로그는 g 플래그를 표준으로 한다.
     // 안전을 위해 매번 lastIndex 를 0으로 리셋한다.

@@ -16,20 +16,11 @@
  * @module lib/headless/html-exporter
  */
 
-// HTML 특수 문자 이스케이프
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+import { escapeHtml, escapeAttr as _escapeAttrBase } from '../utils/html-escape.js';
 
-// CSS 속성값 이스케이프 (URL 등에서 따옴표 제거)
+// 줄바꿈을 공백으로 변환하는 속성값 escape (HTML 속성에 개행 들어가면 안 됨)
 function escapeAttr(s) {
-  return escapeHtml(s).replace(/\n/g, ' ');
+  return _escapeAttrBase(s).replace(/\n/g, ' ');
 }
 
 /**
@@ -59,11 +50,20 @@ const NON_CSS_STYLE_KEYS = new Set([
   'styleRef',
 ]);
 
+// 핫패스 — exportHtml 은 문서 단락마다 styleToCss 를 호출하므로 같은 style 객체에
+// 대해 결과를 캐시한다. 키는 직렬화된 JSON (작고 빠름).
+const _styleCssCache = new Map();
+const KEBAB_RE = /[A-Z]/g;
+const KEBAB_REPL = m => '-' + m.toLowerCase();
+
 function styleToCss(style) {
   if (!style || typeof style !== 'object') return '';
-  const parts = [];
-  const kebab = k => k.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
 
+  const cacheKey = JSON.stringify(style);
+  const cached = _styleCssCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const parts = [];
   for (const [k, v] of Object.entries(style)) {
     if (v == null || v === '') continue;
     if (typeof v === 'object') continue; // outMargin/inMargin 등 객체는 skip
@@ -74,9 +74,11 @@ function styleToCss(style) {
     if (typeof v === 'number' && /(width|height|margin|indent|padding|lineHeight)/i.test(k)) {
       val = v + 'px';
     }
-    parts.push(`${kebab(k)}: ${escapeAttr(val)}`);
+    parts.push(`${k.replace(KEBAB_RE, KEBAB_REPL)}: ${escapeAttr(val)}`);
   }
-  return parts.join('; ');
+  const result = parts.join('; ');
+  _styleCssCache.set(cacheKey, result);
+  return result;
 }
 
 /**

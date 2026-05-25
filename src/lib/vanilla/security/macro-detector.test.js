@@ -28,10 +28,10 @@ describe('macro-detector', () => {
             expect(out).toContain('&amp;');
         });
 
-        it('returns empty string for non-string input', () => {
+        it('handles non-string input safely (null/undefined → empty, others stringified)', () => {
             expect(escapeHtml(null)).toBe('');
             expect(escapeHtml(undefined)).toBe('');
-            expect(escapeHtml(123)).toBe('');
+            expect(escapeHtml(123)).toBe('123');
         });
     });
 

@@ -17,6 +17,10 @@
  * @module security/macro-detector
  */
 
+import { escapeHtml as _escapeHtml } from '../../utils/html-escape.js';
+// re-export 로 기존 호출자(macro-warning 등) 와의 호환성 유지.
+export { escapeHtml } from '../../utils/html-escape.js';
+
 /**
  * 매크로가 들어있을 수 있는 ZIP 엔트리 경로 패턴.
  * HWP (OLE / Compound Document) 의 스트림은 ZIP 으로 풀렸을 때 보통 아래 경로로
@@ -68,22 +72,8 @@ const RISK_KEYWORDS = {
   'hancom-api': /\b(HwpCtrl|HAction|HParameterSet|HEAD\s*Ctrl|HwpAutomation|XHwpDocuments)\b/i,
 };
 
-/**
- * HTML 안전 이스케이프.
- * 매크로 코드를 모달에 노출할 때 사용 (`<script>` / `on*` 주입 차단).
- *
- * @param {string} text
- * @returns {string}
- */
-export function escapeHtml(text) {
-  if (typeof text !== 'string') return '';
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+// HTML escape 는 공유 유틸로 통합 (매크로 코드를 모달에 노출할 때 사용).
+// re-export 로 기존 호출자(macro-warning 등) 와의 호환성 유지.
 
 /**
  * 바이트 / 텍스트 입력을 UTF-8 문자열로 정규화.
@@ -218,7 +208,7 @@ export function extractMacroEntryMetadata(entry, options = {}) {
 
   if (keepCode && code) {
     const slice = length > maxCodeLength ? code.slice(0, maxCodeLength) : code;
-    result.sanitizedCode = escapeHtml(slice);
+    result.sanitizedCode = _escapeHtml(slice);
     result.truncated = length > maxCodeLength;
   }
 
@@ -451,7 +441,7 @@ export default {
   detectMacrosFromXml,
   extractMacroEntryMetadata,
   scanRiskHints,
-  escapeHtml,
+  escapeHtml: _escapeHtml,
   mergeMacroResults,
   listRiskCategories,
 };

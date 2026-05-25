@@ -939,13 +939,22 @@ export const PARTICLE_RULES = [
   },
 ];
 
+// 핫패스 최적화 — 모든 규칙을 모듈 로드 시 한 번만 평탄화.
+// getAllRules 가 매 호출마다 4 배열을 spread 하던 비용 제거.
+const ALL_RULES = Object.freeze([
+  ...SPELLING_RULES,
+  ...SPACING_RULES,
+  ...FOREIGN_RULES,
+  ...PARTICLE_RULES,
+]);
+const RULES_BY_ID = new Map(ALL_RULES.map(r => [r.id, r]));
+
 /**
- * 모든 규칙을 단일 배열로 반환.
- * 호출자가 정렬·필터링·통계 등을 자유롭게 할 수 있도록 한다.
- * @returns {Array<SpellRule>}
+ * 모든 규칙을 단일 배열로 반환 (불변).
+ * @returns {ReadonlyArray<SpellRule>}
  */
 export function getAllRules() {
-  return [...SPELLING_RULES, ...SPACING_RULES, ...FOREIGN_RULES, ...PARTICLE_RULES];
+  return ALL_RULES;
 }
 
 /**
@@ -983,12 +992,12 @@ export function getRulesByCategory(category) {
 }
 
 /**
- * ID로 규칙 단건 조회 (디버깅·테스트용).
+ * ID로 규칙 단건 조회. O(1) Map lookup.
  * @param {string} id
  * @returns {SpellRule | null}
  */
 export function findRuleById(id) {
-  return getAllRules().find((r) => r.id === id) || null;
+  return RULES_BY_ID.get(id) || null;
 }
 
 export default {

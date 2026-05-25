@@ -104,12 +104,11 @@ function saveSnapshot(snap) {
 export function addWord(word) {
   if (typeof word !== 'string' || word.length === 0) return false;
   const snap = loadSnapshot();
-  const before = snap.custom.length;
+  if (snap.custom.includes(word)) return false; // 이미 존재
   snap.custom.push(word);
-  snap.ignored.push(word);
+  if (!snap.ignored.includes(word)) snap.ignored.push(word);
   saveSnapshot(snap);
-  const after = loadSnapshot().custom.length;
-  return after > before;
+  return true;
 }
 
 /**
@@ -120,11 +119,10 @@ export function addWord(word) {
 export function ignoreWord(word) {
   if (typeof word !== 'string' || word.length === 0) return false;
   const snap = loadSnapshot();
-  const before = snap.ignored.length;
+  if (snap.ignored.includes(word)) return false;
   snap.ignored.push(word);
   saveSnapshot(snap);
-  const after = loadSnapshot().ignored.length;
-  return after > before;
+  return true;
 }
 
 /**
