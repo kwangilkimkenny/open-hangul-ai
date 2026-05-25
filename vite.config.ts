@@ -229,7 +229,13 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
-      include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+      include: [
+        'src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+        // tests/ tree only — explicitly list vitest folders so the Playwright
+        // e2e specs (tests/e2e/**/*.spec.js) stay out of the vitest run.
+        'tests/roundtrip/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      ],
+      exclude: ['node_modules', 'dist', 'tests/e2e/**', '.idea', '.git', '.cache'],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html'],

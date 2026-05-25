@@ -9,5 +9,12 @@
         { "level": 3, "start": 1, "format": "hangul-syllable", "template": "%3) " }
       ]
     }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 3,
+    "headerNumberingId": "1",
+    "headerNumberingLevels": 3,
+    "textSamples": ["레벨1 항목", "레벨2 항목", "레벨3 항목"]
+  }
 }

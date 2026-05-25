@@ -1,5 +1,11 @@
 {
   "feature": "paragraph",
   "paragraphs": [],
-  "notes": "TBD: 파서가 안정화되면 paragraphs[]에 align/indent/lineHeight/runs 채울 것"
+  "notes": "3 paragraphs with mixed alignments (center, justify) and char styles (default, red, gulim 14pt).",
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 3,
+    "tableCount": 0,
+    "textSamples": ["가운데 정렬 굵게", "양쪽 정렬", "빨강 12pt"]
+  }
 }

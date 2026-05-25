@@ -4,5 +4,14 @@
   "footers": [
     { "applyTo": "odd", "text": "쪽 [pageNum]" },
     { "applyTo": "even", "text": "[pageNum] 쪽" }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "hasHeaderBoth": true,
+    "hasFooterOdd": true,
+    "hasFooterEven": true,
+    "headerText": "문서제목",
+    "footerOddTextIncludes": "쪽",
+    "footerEvenTextIncludes": "쪽"
+  }
 }

@@ -2,5 +2,12 @@
   "feature": "ruby",
   "rubies": [
     { "base": "人", "text": "사람", "align": "center", "sizeRatio": 0.5 }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 1,
+    "bodyTextIncludes": ["이라는 한자"],
+    "rubyMainTextInRawXml": "人",
+    "rubyRubyTextInRawXml": "사람"
+  }
 }

@@ -83,7 +83,8 @@
     "test:e2e:mobile": "playwright test --project=mobile-chrome --project=mobile-safari",
     "test:e2e:report": "playwright show-report",
     "prepare": "husky",
-    "security:check": "node scripts/security-check.mjs"
+    "security:check": "node scripts/security-check.mjs",
+    "build:fixtures": "node scripts/build-golden-fixtures.mjs"
   },
   "dependencies": {
     "@hufe921/canvas-editor": "^0.9.131",

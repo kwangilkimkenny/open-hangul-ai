@@ -2,5 +2,12 @@
   "feature": "hyperlink",
   "hyperlinks": [
     { "href": "https://yatavent.com", "text": "홈으로", "tooltip": "홈" }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 1,
+    "hyperlinkCount": 1,
+    "hyperlinkUrl": "https://yatavent.com",
+    "hyperlinkText": "홈으로"
+  }
 }

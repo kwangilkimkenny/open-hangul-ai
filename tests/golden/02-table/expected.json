@@ -6,5 +6,11 @@
     { "row": 0, "col": 0, "rowSpan": 1, "colSpan": 2 },
     { "row": 1, "col": 2, "rowSpan": 2, "colSpan": 1 }
   ],
-  "cells": []
+  "cells": [],
+  "parserAssertions": {
+    "sections": 1,
+    "tableCount": 1,
+    "rowCount": 3,
+    "cellTextSamples": ["병합", "C", "A2", "B2", "세로병합", "A3", "B3"]
+  }
 }
