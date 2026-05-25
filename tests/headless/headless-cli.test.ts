@@ -104,9 +104,16 @@ describe('hwpx-cli', { timeout: 60000 }, () => {
   });
 
   it('잘못된 --to 값은 종료코드 2 (변환 실패)', async () => {
-    const r = await runCli(['convert', FIXTURE, '--to', 'pdf']);
+    const r = await runCli(['convert', FIXTURE, '--to', 'docx']);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain('지원하지 않는');
+  });
+
+  it('--to pdf 는 --output 이 누락되면 종료코드 2', async () => {
+    // PDF 는 바이너리이므로 stdout 출력을 거부한다.
+    const r = await runCli(['convert', FIXTURE, '--to', 'pdf']);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/--output|pdf/);
   });
 
   it('존재하지 않는 파일은 종료코드 2', async () => {

@@ -6,17 +6,22 @@
  *   hwpx-cli convert <input.hwpx> --to html  [--output out.html] [--inline] [--embed-images]
  *   hwpx-cli convert <input.hwpx> --to text  [--output out.txt]
  *   hwpx-cli convert <input.hwpx> --to json  [--output out.json]
+ *   hwpx-cli convert <input.hwpx> --to pdf   --output out.pdf [--pdf-format A4] [--pdf-landscape]
  *   hwpx-cli info <input.hwpx>
  *   hwpx-cli --help
  *
  * 옵션:
- *   --to <format>      html | text | json (필수, convert 명령)
- *   --output, -o       출력 파일 경로 (생략 시 stdout)
+ *   --to <format>      html | text | json | pdf (필수, convert 명령)
+ *   --output, -o       출력 파일 경로 (생략 시 stdout, pdf 는 필수)
  *   --password         암호화된 HWPX 비밀번호
  *   --inline           HTML 출력 시 CSS 를 inline 으로
  *   --embed-images     HTML 출력 시 이미지 base64 인라인
  *   --no-page-breaks   섹션 사이 page-break div 비활성화
  *   --pretty           JSON 출력 시 2-space pretty-print
+ *   --pdf-format       PDF 페이지 포맷 (A4, Letter, Legal …) 기본 A4
+ *   --pdf-landscape    PDF 가로 모드
+ *   --pdf-margin       PDF 여백 CSS 값 (top:right:bottom:left, 예: 20mm:15mm:20mm:15mm)
+ *   --pdf-no-fonts     한글 Google Fonts 자동 주입 비활성
  *   --help, -h
  *   --version, -v
  *
@@ -79,19 +84,24 @@ Usage:
   hwpx-cli convert <input.hwpx> --to html [--output out.html] [--inline] [--embed-images]
   hwpx-cli convert <input.hwpx> --to text [--output out.txt]
   hwpx-cli convert <input.hwpx> --to json [--output out.json] [--pretty]
+  hwpx-cli convert <input.hwpx> --to pdf  --output out.pdf [--pdf-format A4] [--pdf-landscape]
   hwpx-cli info <input.hwpx>
   hwpx-cli --help
 
 Options:
-  --to <html|text|json>   Target format (required for convert)
-  --output, -o <path>     Output file (default: stdout)
-  --password <pw>         Password for encrypted HWPX
-  --inline                Inline CSS into elements (html only)
-  --embed-images          Inline images as base64 (html only)
-  --no-page-breaks        Disable page-break divs between sections (html only)
-  --pretty                Pretty-print JSON output
-  --help, -h              Show this help
-  --version, -v           Show version
+  --to <html|text|json|pdf>  Target format (required for convert)
+  --output, -o <path>        Output file (default: stdout; required for pdf)
+  --password <pw>            Password for encrypted HWPX
+  --inline                   Inline CSS into elements (html only)
+  --embed-images             Inline images as base64 (html/pdf)
+  --no-page-breaks           Disable page-break divs between sections
+  --pretty                   Pretty-print JSON output
+  --pdf-format <fmt>         PDF page format (A4|Letter|Legal …, default A4)
+  --pdf-landscape            PDF landscape orientation
+  --pdf-margin <t:r:b:l>     PDF margins, CSS units (default 20mm:15mm:20mm:15mm)
+  --pdf-no-fonts             Skip Google Fonts (Noto Sans/Serif KR) injection
+  --help, -h                 Show this help
+  --version, -v              Show version
 `;
 
 function parseArgs(argv) {
@@ -107,6 +117,11 @@ function parseArgs(argv) {
     pretty: false,
     help: false,
     version: false,
+    // PDF-only options
+    pdfFormat: null,
+    pdfLandscape: false,
+    pdfMargin: null,
+    pdfNoFonts: false,
   };
 
   const rest = argv.slice(2);
@@ -143,6 +158,18 @@ function parseArgs(argv) {
       case '--pretty':
         args.pretty = true;
         break;
+      case '--pdf-format':
+        args.pdfFormat = rest[++i];
+        break;
+      case '--pdf-landscape':
+        args.pdfLandscape = true;
+        break;
+      case '--pdf-margin':
+        args.pdfMargin = rest[++i];
+        break;
+      case '--pdf-no-fonts':
+        args.pdfNoFonts = true;
+        break;
       default:
         if (!args.command) args.command = a;
         else if (!args.input) args.input = a;
@@ -169,6 +196,33 @@ async function writeOutput(content, path) {
     return;
   }
   await writeFile(resolve(process.cwd(), path), content, 'utf8');
+}
+
+/**
+ * 바이너리(Uint8Array/Buffer) 를 파일에 기록한다. stdout 출력은 지원하지 않는다.
+ */
+async function writeBinaryOutput(bytes, path) {
+  if (!path) {
+    throw new Error('바이너리 출력에는 --output FILE 이 필요합니다.');
+  }
+  await writeFile(resolve(process.cwd(), path), bytes);
+}
+
+/**
+ * "20mm:15mm:20mm:15mm" 형식의 margin 인자를 파싱한다.
+ */
+function parsePdfMargin(spec) {
+  if (!spec) return undefined;
+  const parts = String(spec).split(':').map(s => s.trim()).filter(Boolean);
+  if (parts.length === 1) {
+    return { top: parts[0], right: parts[0], bottom: parts[0], left: parts[0] };
+  }
+  if (parts.length === 4) {
+    return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[3] };
+  }
+  throw new Error(
+    `--pdf-margin 형식이 잘못되었습니다: "${spec}" (예: "20mm" 또는 "20mm:15mm:20mm:15mm")`
+  );
 }
 
 /**
@@ -227,9 +281,54 @@ function makeJsonSafe(value, seen = new WeakSet()) {
 
 async function runConvert(args, mod) {
   if (!args.input) throw new Error('입력 파일 경로가 필요합니다.');
-  if (!args.to) throw new Error('--to <html|text|json> 옵션이 필요합니다.');
-  if (!['html', 'text', 'json'].includes(args.to)) {
-    throw new Error(`지원하지 않는 형식: ${args.to} (html|text|json)`);
+  if (!args.to) throw new Error('--to <html|text|json|pdf> 옵션이 필요합니다.');
+  if (!['html', 'text', 'json', 'pdf'].includes(args.to)) {
+    throw new Error(`지원하지 않는 형식: ${args.to} (html|text|json|pdf)`);
+  }
+
+  // PDF 는 별도 경로 — puppeteer 가 필요하므로 동적 import
+  if (args.to === 'pdf') {
+    if (!args.output) {
+      throw new Error('--to pdf 는 --output FILE.pdf 가 필요합니다.');
+    }
+    const buf = await readFile(resolve(process.cwd(), args.input));
+    let renderer;
+    try {
+      // server/pdf-renderer.js 는 dev/installed 양쪽 위치에서 시도
+      const candidates = [
+        resolve(__dirname, '../server/pdf-renderer.js'),
+        resolve(__dirname, '../dist/server/pdf-renderer.js'),
+      ];
+      let lastErr;
+      for (const p of candidates) {
+        try {
+          renderer = await import(p);
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (!renderer) throw lastErr || new Error('pdf-renderer 를 찾을 수 없습니다.');
+    } catch (e) {
+      throw new Error(
+        'PDF 변환 모듈 로드 실패: ' +
+          ((e && e.message) || e) +
+          '\n(puppeteer 가 설치되어 있는지 확인하세요: `npm install --save-dev puppeteer`)'
+      );
+    }
+    const pdfBytes = await renderer.renderHwpxToPdf(buf, {
+      password: args.password || undefined,
+      fileName: args.input,
+      title: args.input,
+      embedImages: args.embedImages || true,
+      pageBreaks: args.pageBreaks,
+      format: args.pdfFormat || 'A4',
+      landscape: args.pdfLandscape,
+      margin: parsePdfMargin(args.pdfMargin),
+      skipFontInjection: args.pdfNoFonts,
+    });
+    await writeBinaryOutput(pdfBytes, args.output);
+    return;
   }
 
   const buf = await readFile(resolve(process.cwd(), args.input));
