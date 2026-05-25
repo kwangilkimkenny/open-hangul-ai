@@ -11,6 +11,12 @@ export { renderImage, applyImageOptimizations, clearImageCache } from './image.j
 export { renderTable } from './table.js';
 export { renderShape } from './shape.js';
 export { renderContainer } from './container.js';
+export {
+    renderFootnoteArea,
+    renderEndnoteArea,
+    renderNoteEntry,
+    FOOTNOTE_AREA_RESERVE_PX,
+} from './footnote.js';
 
 // Default export (모든 렌더러 포함)
 export default {
@@ -18,6 +24,7 @@ export default {
     image: require('./image.js'),
     table: require('./table.js'),
     shape: require('./shape.js'),
-    container: require('./container.js')
+    container: require('./container.js'),
+    footnote: require('./footnote.js'),
 };
 

@@ -399,6 +399,14 @@ export function renderParagraph(para) {
                 anchor.style.flexShrink = '0';
             }
             targetContainer.appendChild(anchor);
+        } else if (run.type === 'footnote' || run.type === 'endnote') {
+            // ✅ Phase 2-2: Footnote/Endnote reference → <sup><a href="#fn-N">[N]</a></sup>
+            const sup = renderNoteReference(run);
+            targetContainer.appendChild(sup);
+        } else if (run.type === 'ruby') {
+            // ✅ Phase 2-4: Ruby (덧말/발음 표기) → <ruby>본문<rt>읽는법</rt></ruby>
+            const rubyEl = renderRuby(run);
+            targetContainer.appendChild(rubyEl);
         } else {
             // Text run
             const span = document.createElement('span');
@@ -671,6 +679,69 @@ function renderTabStop(para, run, runIndex) {
     }
 
     return tabSpan;
+}
+
+/**
+ * ✅ Phase 2-2: 각주/미주 참조 마크업 생성
+ * 본문에서 `[N]` 위첨자로 표시되며, 클릭 시 해당 ID 로 점프
+ * @param {Object} run - footnote/endnote run 객체
+ * @returns {HTMLElement} <sup> 요소
+ * @private
+ */
+function renderNoteReference(run) {
+    const sup = document.createElement('sup');
+    const isFootnote = run.type === 'footnote';
+    sup.className = isFootnote ? 'hwp-fn-ref' : 'hwp-en-ref';
+
+    const num = run.number != null && run.number !== '' ? String(run.number) : '';
+    const label = run.text || (num ? `[${num}]` : '[*]');
+    const idPrefix = isFootnote ? 'fn' : 'en';
+
+    const anchor = document.createElement('a');
+    if (num) {
+        anchor.href = `#${idPrefix}-${num}`;
+        anchor.id = `${idPrefix}ref-${num}`;
+    }
+    anchor.textContent = label;
+    anchor.style.textDecoration = 'none';
+    anchor.style.color = '#0645ad';
+    sup.appendChild(anchor);
+
+    // 위첨자 크기 조정 (이미 sup 태그로 vertical-align 적용)
+    sup.style.fontSize = '0.75em';
+    sup.style.lineHeight = '1';
+
+    return sup;
+}
+
+/**
+ * ✅ Phase 2-4: Ruby (덧말/발음 표기) 마크업 생성
+ * @param {Object} run - ruby run 객체 (text, rubyText)
+ * @returns {HTMLElement} <ruby> 요소
+ * @private
+ */
+function renderRuby(run) {
+    const ruby = document.createElement('ruby');
+    ruby.className = 'hwp-ruby';
+
+    // 본문 텍스트
+    const base = document.createTextNode(run.text || '');
+    ruby.appendChild(base);
+
+    // 읽는법 (rt)
+    if (run.rubyText) {
+        const rt = document.createElement('rt');
+        rt.className = 'hwp-ruby-rt';
+        rt.textContent = run.rubyText;
+        ruby.appendChild(rt);
+    }
+
+    // 런 스타일 상속 (있다면)
+    if (run.style) {
+        applyRunStyle(ruby, run.style);
+    }
+
+    return ruby;
 }
 
 /**

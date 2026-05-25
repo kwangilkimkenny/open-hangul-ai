@@ -359,6 +359,58 @@ describe('renderParagraph', () => {
     });
   });
 
+  // ─── Footnote / Endnote refs (Phase 2-2) ──────────────────
+
+  describe('footnote / endnote references', () => {
+    it('should render footnote reference as <sup><a href="#fn-N">', () => {
+      const para = makePara([{ type: 'footnote', number: '1', text: '[1]' }]);
+      const el = renderParagraph(para);
+      const sup = el.querySelector('sup.hwp-fn-ref');
+      expect(sup).not.toBeNull();
+      const a = sup.querySelector('a');
+      expect(a).not.toBeNull();
+      expect(a.getAttribute('href')).toBe('#fn-1');
+      expect(a.id).toBe('fnref-1');
+      expect(a.textContent).toBe('[1]');
+    });
+
+    it('should render endnote reference with en- id prefix', () => {
+      const para = makePara([{ type: 'endnote', number: '3', text: '[3]' }]);
+      const el = renderParagraph(para);
+      const sup = el.querySelector('sup.hwp-en-ref');
+      expect(sup).not.toBeNull();
+      const a = sup.querySelector('a');
+      expect(a.getAttribute('href')).toBe('#en-3');
+      expect(a.id).toBe('enref-3');
+    });
+  });
+
+  // ─── Ruby / Dutmal (Phase 2-4) ────────────────────────────
+
+  describe('ruby (덧말 / 발음 표기)', () => {
+    it('should render <ruby><rt>...</rt></ruby> for ruby run', () => {
+      const para = makePara([
+        { type: 'ruby', text: '本', rubyText: '본' },
+      ]);
+      const el = renderParagraph(para);
+      const ruby = el.querySelector('ruby.hwp-ruby');
+      expect(ruby).not.toBeNull();
+      expect(ruby.textContent).toContain('本');
+      const rt = ruby.querySelector('rt.hwp-ruby-rt');
+      expect(rt).not.toBeNull();
+      expect(rt.textContent).toBe('본');
+    });
+
+    it('should still render base text when rubyText is missing', () => {
+      const para = makePara([{ type: 'ruby', text: '한자' }]);
+      const el = renderParagraph(para);
+      const ruby = el.querySelector('ruby.hwp-ruby');
+      expect(ruby).not.toBeNull();
+      expect(ruby.textContent).toBe('한자');
+      expect(ruby.querySelector('rt')).toBeNull();
+    });
+  });
+
   // ─── Background shapes ───────────────────────────────────
 
   describe('background shapes', () => {

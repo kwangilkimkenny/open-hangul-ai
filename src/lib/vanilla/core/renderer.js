@@ -28,6 +28,11 @@ import {
   applyPageBorder,
   renderWatermark,
 } from '../renderers/page-decoration.js';
+import {
+  renderFootnoteArea,
+  renderEndnoteArea,
+  FOOTNOTE_AREA_RESERVE_PX,
+} from '../renderers/footnote.js';
 
 // Numbering helpers
 import { toRoman, toLetter } from '../utils/numbering.js';
@@ -150,8 +155,13 @@ export class DocumentRenderer {
 
       this.pageNumber = 1;
 
+      // ✅ Phase 2-2: 미주 수집 (문서 말미 단일 영역에 표시)
+      const allEndnotes = [];
+
       // Render each section
       for (const section of hwpxDoc.sections) {
+        const sectionStartPage = this.pageNumber;
+
         const pageDiv = this.createPageContainer(section, this.pageNumber);
 
         // 페이지 설정 적용
@@ -196,6 +206,17 @@ export class DocumentRenderer {
           this.pageNumber += createdPages;
         }
 
+        // ✅ Phase 2-2: 섹션 페이지들에 각주 영역 주입
+        // 이 시점에서 sectionStartPage..this.pageNumber 가 이 섹션이 차지한 페이지 범위.
+        if (section.footnotes && section.footnotes.length > 0) {
+          this._attachFootnoteAreasForSection(section, sectionStartPage, this.pageNumber + 1);
+        }
+
+        // ✅ Phase 2-2: 미주 누적
+        if (section.endnotes && section.endnotes.length > 0) {
+          allEndnotes.push(...section.endnotes);
+        }
+
         // 테이블 디버그 (개발 모드)
         this.debugTables(pageDiv);
 
@@ -204,7 +225,22 @@ export class DocumentRenderer {
 
       this.totalPages = this.pageNumber - 1;
 
+      // ✅ Phase 2-2: 문서 말미에 미주 영역 한 번만 추가
+      if (allEndnotes.length > 0) {
+        const endnoteArea = renderEndnoteArea(allEndnotes);
+        if (endnoteArea) {
+          const pages = this.container.querySelectorAll('.hwp-page-container');
+          const lastPage = pages[pages.length - 1];
+          if (lastPage) {
+            lastPage.appendChild(endnoteArea);
+          } else {
+            this.container.appendChild(endnoteArea);
+          }
+        }
+      }
+
       // ✅ Phase 1.3: 페이지 번호 마커(span.hwp-field) 동적 치환
+      // 각주/미주 영역 추가 뒤에 호출해 그 안의 페이지 마커도 함께 치환된다.
       this.resolvePageFields();
 
       logger.timeEnd('Document Render');
@@ -914,6 +950,72 @@ export class DocumentRenderer {
   }
 
   /**
+   * ✅ Phase 2-2: 섹션의 페이지들에 각주 영역을 주입
+   * 각 페이지에서 참조된 footnote 번호만 모아서 그 페이지 하단에 표시.
+   * 어떤 페이지에도 매칭되지 않은(번호 누락 등) 각주는 섹션 마지막 페이지에 폴백.
+   * @param {Object} section - 섹션 객체 (footnotes 포함)
+   * @param {number} startPageNum - 섹션 시작 페이지 번호
+   * @param {number} endPageNumExclusive - 섹션 종료 페이지 번호 (다음 섹션 시작)
+   * @private
+   */
+  _attachFootnoteAreasForSection(section, startPageNum, endPageNumExclusive) {
+    if (!section?.footnotes || section.footnotes.length === 0) return;
+
+    // 번호 → 각주 객체 맵
+    const noteByNumber = new Map();
+    const noteByIndex = [];
+    section.footnotes.forEach((note, idx) => {
+      noteByIndex.push(note);
+      const key = note.number != null && note.number !== '' ? String(note.number) : null;
+      if (key && !noteByNumber.has(key)) {
+        noteByNumber.set(key, note);
+      }
+    });
+    const used = new Set();
+
+    // 섹션 페이지 순회 (현재 페이지 번호 미만까지)
+    for (let p = startPageNum; p < endPageNumExclusive; p++) {
+      const pageDiv = this.container.querySelector(`.hwp-page-container[data-page-number="${p}"]`);
+      if (!pageDiv) continue;
+
+      // 페이지에서 참조된 각주 번호 추출
+      const refs = pageDiv.querySelectorAll('.hwp-fn-ref a');
+      if (refs.length === 0) continue;
+
+      const pageNotes = [];
+      const seenOnPage = new Set();
+      refs.forEach(a => {
+        // id 는 fnref-N 형식
+        const id = a.id || '';
+        const match = id.match(/^fnref-(.+)$/);
+        const num = match ? match[1] : null;
+        if (num && !seenOnPage.has(num) && noteByNumber.has(num)) {
+          pageNotes.push(noteByNumber.get(num));
+          seenOnPage.add(num);
+          used.add(noteByNumber.get(num));
+        }
+      });
+
+      if (pageNotes.length > 0) {
+        const area = renderFootnoteArea(pageNotes);
+        if (area) pageDiv.appendChild(area);
+      }
+    }
+
+    // 매칭되지 않은 각주는 섹션 마지막 페이지에 폴백
+    const leftover = noteByIndex.filter(n => !used.has(n));
+    if (leftover.length > 0) {
+      const lastPage = this.container.querySelector(
+        `.hwp-page-container[data-page-number="${endPageNumExclusive - 1}"]`
+      );
+      if (lastPage) {
+        const area = renderFootnoteArea(leftover);
+        if (area) lastPage.appendChild(area);
+      }
+    }
+  }
+
+  /**
    * 페이지보다 큰 표를 행 단위로 분할
    * ✅ Phase 3: 큰 표를 여러 페이지로 자동 분할
    * @param {HTMLElement} tableWrapper - 표 래퍼 요소
@@ -949,37 +1051,87 @@ export class DocumentRenderer {
       .reduce((sum, el) => sum + this._getElementTotalHeight(el, measureCache), 0);
     let remainingHeight = maxHeight - usedHeight;
 
-    // 표 헤더 감지 (첫 행에 <th>가 있으면 헤더로 간주)
-    const headerRow = rows[0].querySelector('th') ? rows[0] : null;
-    const headerHeight = headerRow ? rowHeights[0] : 0;
+    // ✅ Phase 2-5: 다중 헤더 행 감지
+    //   - <thead> 안의 행 또는 data-header-row="true" / <th> 셀이 있는 행을
+    //     모두 헤더로 간주하고, 새 페이지마다 반복 삽입한다.
+    //   - 헤더 행은 표의 첫 부분에서만 연속적으로 수집한다.
+    const headerRows = [];
+    const headerHeights = [];
+    let headerEndIndex = 0;
+    const thead = table.querySelector('thead');
+    if (thead) {
+      const theadRows = Array.from(thead.querySelectorAll('tr'));
+      theadRows.forEach(tr => {
+        const idx = rows.indexOf(tr);
+        if (idx !== -1) {
+          headerRows.push(tr);
+          headerHeights.push(rowHeights[idx]);
+        }
+      });
+      headerEndIndex = theadRows.length;
+    } else {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.getAttribute('data-header-row') === 'true' || r.querySelector('th')) {
+          headerRows.push(r);
+          headerHeights.push(rowHeights[i]);
+          headerEndIndex = i + 1;
+        } else {
+          break;
+        }
+      }
+    }
+    const totalHeaderHeight = headerHeights.reduce((s, h) => s + h, 0);
 
     // ✅ Perf (B): 빈 골격(table 자체) + 헤더 행 클론을 1회만 만들고 재사용
     // 매 페이지마다 table.cloneNode + headerRow.cloneNode를 반복하지 않는다.
     const skeletonTable = table.cloneNode(false);
     skeletonTable.innerHTML = '';
-    const headerClonePrototype = headerRow ? headerRow.cloneNode(true) : null;
+    const headerClonePrototypes = headerRows.map(r => r.cloneNode(true));
     const wrapperSkeleton = tableWrapper.cloneNode(false);
 
-    // 새 표 생성 함수 (캐시된 골격/헤더 재사용)
-    const createTableClone = () => {
+    // 새 표 생성 함수 (캐시된 골격/헤더 재사용).
+    // - 원본 페이지에서는 헤더가 이미 본문에 포함되어 있으므로 다시 넣지 않음.
+    // - 분할 페이지에서는 thead 를 만들고 헤더 행을 모두 복제 삽입.
+    const createTableClone = isSplitPage => {
       const newTable = skeletonTable.cloneNode(false);
-
-      // 두 번째 페이지부터는 헤더 복사 (프로토타입을 다시 cloneNode)
-      if (headerClonePrototype && currentTablePage !== currentPage) {
-        newTable.appendChild(headerClonePrototype.cloneNode(true));
+      if (isSplitPage && headerClonePrototypes.length > 0) {
+        const newThead = document.createElement('thead');
+        headerClonePrototypes.forEach(proto => {
+          newThead.appendChild(proto.cloneNode(true));
+        });
+        newTable.appendChild(newThead);
+        // 본문 행을 받을 tbody 생성
+        const newTbody = document.createElement('tbody');
+        newTable.appendChild(newTbody);
+      } else {
+        // 본문 데이터를 받을 tbody (분할 첫 페이지)
+        const newTbody = document.createElement('tbody');
+        newTable.appendChild(newTbody);
       }
-
       return newTable;
     };
 
-    let currentClone = createTableClone();
+    // 분할 첫 표는 헤더가 이미 본문에 들어있는 currentPage 위치에 그대로 둘 수 없으므로,
+    // 동일한 구조로 새로 만들면서 헤더+데이터를 함께 채운다.
+    let currentClone = createTableClone(false);
     const newWrapper = wrapperSkeleton.cloneNode(false);
     newWrapper.appendChild(currentClone);
     currentTablePage.appendChild(newWrapper);
 
-    let currentTableHeight = headerRow && currentTablePage === currentPage ? headerHeight : 0;
-    const dataRows = headerRow ? rows.slice(1) : rows;
-    const dataRowHeights = headerRow ? rowHeights.slice(1) : rowHeights;
+    // 첫 페이지에도 헤더 행은 표시되어야 한다 → thead 만들어서 복제 삽입
+    if (headerClonePrototypes.length > 0) {
+      const firstThead = document.createElement('thead');
+      headerClonePrototypes.forEach(proto => firstThead.appendChild(proto.cloneNode(true)));
+      // tbody 앞에 삽입
+      currentClone.insertBefore(firstThead, currentClone.firstChild);
+    }
+
+    let currentTableHeight = totalHeaderHeight;
+    const dataRows = rows.slice(headerEndIndex);
+    const dataRowHeights = rowHeights.slice(headerEndIndex);
+
+    const getTbody = tbl => tbl.querySelector('tbody') || tbl;
 
     dataRows.forEach((row, index) => {
       // ✅ Perf: 사전 측정값 사용 (offsetHeight 재호출 없음)
@@ -1006,27 +1158,27 @@ export class DocumentRenderer {
 
         currentTablePage.parentElement.insertBefore(newPage, currentTablePage.nextSibling);
 
-        // 새 표 시작 - ✅ Perf (B): wrapperSkeleton 재사용 (얕은 clone)
-        // ※ 기존 동작 보존: createTableClone 호출 시점의 currentTablePage 상태가
-        //   원본 코드와 동일하도록 currentTablePage 갱신은 클론 이후에 수행.
-        currentClone = createTableClone();
+        // 새 표 시작 - ✅ Phase 2-5: 분할 페이지마다 헤더 복제 (다중 헤더 행 지원)
+        currentClone = createTableClone(true);
         const newTableWrapper = wrapperSkeleton.cloneNode(false);
         newTableWrapper.appendChild(currentClone);
         newPage.appendChild(newTableWrapper);
 
         currentTablePage = newPage;
-        currentTableHeight = headerHeight; // 헤더 높이부터 시작
+        currentTableHeight = totalHeaderHeight; // 헤더 높이부터 시작
         remainingHeight = maxHeight;
         createdPages++;
       }
 
-      // 행 추가
+      // 행 추가 (tbody 안으로)
       const rowClone = row.cloneNode(true);
-      currentClone.appendChild(rowClone);
+      getTbody(currentClone).appendChild(rowClone);
       currentTableHeight += rowHeight;
     });
 
-    logger.info(`✅ Table split into ${createdPages + 1} pages`);
+    logger.info(
+      `✅ Table split into ${createdPages + 1} pages (header rows: ${headerRows.length})`
+    );
 
     // 원본 tableWrapper 제거
     tableWrapper.remove();
@@ -1064,7 +1216,12 @@ export class DocumentRenderer {
     const computed = window.getComputedStyle(pageDiv);
     const paddingTop = parseFloat(computed.paddingTop) || 0;
     const paddingBottom = parseFloat(computed.paddingBottom) || 0;
-    const maxContentHeight = pageDiv.clientHeight - paddingTop - paddingBottom;
+    let maxContentHeight = pageDiv.clientHeight - paddingTop - paddingBottom;
+
+    // ✅ Phase 2-2: 섹션에 각주가 있다면 각주 영역 공간을 미리 예약
+    if (section?.footnotes && section.footnotes.length > 0) {
+      maxContentHeight = Math.max(0, maxContentHeight - FOOTNOTE_AREA_RESERVE_PX);
+    }
 
     logger.debug(
       `📐 Auto-pagination: clientHeight=${pageDiv.clientHeight}px, padding=${paddingTop + paddingBottom}px, maxContent=${maxContentHeight}px`

@@ -1519,6 +1519,17 @@ export class SimpleHWPXParser {
                         return;
                     }
 
+                    // ★ Ruby / Dutmal (덧말, 발음 표기) — HWPX hp:dutmal or ruby
+                    // 형태: <hp:dutmal text="읽는법">본문</hp:dutmal>
+                    // 또는: <ruby><rb>本</rb><rt>본</rt></ruby> 변형
+                    if (tag === 'dutmal' || tag === 'ruby') {
+                        const rubyRun = this._parseRubyElement(child, charPrId);
+                        if (rubyRun) {
+                            para.runs.push(rubyRun);
+                        }
+                        return;
+                    }
+
                     // Inline images
                     if (tag === 'pic') {
                         const image = this.parseImage(child);
@@ -1685,6 +1696,54 @@ export class SimpleHWPXParser {
         if (tabType) tab.tabType = parseInt(tabType);
 
         return tab;
+    }
+
+    /**
+     * Ruby/Dutmal (덧말, 발음 표기) 파싱
+     * HWPX 두 가지 표현 지원:
+     *   1. <hp:dutmal text="읽는법">본문</hp:dutmal>  → mainText="본문", rubyText="읽는법"
+     *   2. <ruby><rb>本</rb><rt>본</rt></ruby>        → mainText="本", rubyText="본"
+     * @param {Element} rubyElem - dutmal 또는 ruby 요소
+     * @param {string} charPrId - 부모 run 의 charPrIDRef (스타일 상속용)
+     * @returns {Object|null} ruby run 객체
+     * @private
+     */
+    _parseRubyElement(rubyElem, charPrId) {
+        const tag = localName(rubyElem);
+        let mainText = '';
+        let rubyText = '';
+
+        if (tag === 'dutmal') {
+            // dutmal 속성에 발음 표기가 들어 있음
+            rubyText =
+                rubyElem.getAttribute('text') ||
+                rubyElem.getAttribute('dutmalText') ||
+                rubyElem.getAttribute('value') ||
+                '';
+            // 본문 텍스트는 element 내부의 텍스트 (자식 t 우선)
+            const innerT = qs(rubyElem, 't');
+            mainText = (innerT ? innerT.textContent : rubyElem.textContent) || '';
+        } else {
+            // <ruby> with <rb>/<rt>
+            const rbElem = qs(rubyElem, 'rb');
+            const rtElem = qs(rubyElem, 'rt');
+            mainText = rbElem ? (rbElem.textContent || '') : (rubyElem.textContent || '');
+            rubyText = rtElem ? (rtElem.textContent || '') : '';
+            // 만약 <rt>가 없다면 본문 텍스트만 있을 수 있음 → 일반 텍스트로 폴백
+        }
+
+        if (!mainText && !rubyText) return null;
+
+        const run = {
+            type: 'ruby',
+            text: mainText,
+            rubyText,
+            style: {}
+        };
+        if (charPrId && this.charProperties.has(charPrId)) {
+            run.style = { ...this.charProperties.get(charPrId) };
+        }
+        return run;
     }
 
     // ---- ★ Field Code Parsing (v3.0 신규) ----
