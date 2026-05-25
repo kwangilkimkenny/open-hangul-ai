@@ -115,6 +115,8 @@
     "react-router-dom": "^7.14.0",
     "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
