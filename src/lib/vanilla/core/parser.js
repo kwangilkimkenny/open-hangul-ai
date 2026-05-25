@@ -21,6 +21,7 @@ import { getLogger } from '../utils/logger.js';
 import { HWPXConstants } from './constants.js';
 import { hancomToMathML as _convertHancomToMathML } from '../math/hancom-math-converter.js';
 import { parseChart } from '../chart/chart-parser.js';
+import { parseFormControl, isFormControlTag } from '../features/form-controls.js';
 
 const logger = getLogger();
 
@@ -949,11 +950,15 @@ export class SimpleHWPXParser {
             footers: { both: null, odd: null, even: null, first: null },
             footnotes: [],
             endnotes: [],
+            memos: [],
             pageNum: null,
             colPr: null,
             pageBorder: null,
             watermark: null
         };
+
+        // Capture the current section for memo collection inside parseParagraph
+        this._currentSection = section;
 
         // Parse section properties
         const secPrElem = qs(doc, 'secPr');
@@ -1470,7 +1475,45 @@ export class SimpleHWPXParser {
                 children.forEach(child => {
                     const tag = localName(child);
 
-                    if (tag === 'secpr' || tag === 'ctrl') return;
+                    if (tag === 'secpr') return;
+                    // 'ctrl' 은 본래 무시했으나, 자식으로 양식 컨트롤(checkbox/radio/…)을
+                    // 감싸는 경우가 있어 폴스루해서 자식만 검사한다.
+                    if (tag === 'ctrl') {
+                        const wrapped = Array.from(child.children || []);
+                        wrapped.forEach(grand => {
+                            const grandTag = localName(grand);
+                            if (isFormControlTag(grandTag)) {
+                                const fc = parseFormControl(grand, grandTag);
+                                if (fc) {
+                                    if (charPrId && this.charProperties.has(charPrId)) {
+                                        fc.style = { ...this.charProperties.get(charPrId) };
+                                    }
+                                    para.runs.push(fc);
+                                }
+                            } else if (grandTag === 'memo') {
+                                this._handleMemoElement(grand, para, charPrId);
+                            }
+                        });
+                        return;
+                    }
+
+                    // ★ 메모 (hp:memo) — 본문 마커 run + section.memos 등록
+                    if (tag === 'memo') {
+                        this._handleMemoElement(child, para, charPrId);
+                        return;
+                    }
+
+                    // ★ 양식 컨트롤 (checkbox/radio/combobox/textInput/button)
+                    if (isFormControlTag(tag)) {
+                        const fc = parseFormControl(child, tag);
+                        if (fc) {
+                            if (charPrId && this.charProperties.has(charPrId)) {
+                                fc.style = { ...this.charProperties.get(charPrId) };
+                            }
+                            para.runs.push(fc);
+                        }
+                        return;
+                    }
 
                     // ★ Field codes (v3.0 신규)
                     if (tag === 'fieldbegin' || tag === 'fieldstart') {
@@ -1917,12 +1960,71 @@ export class SimpleHWPXParser {
             field.fieldType = 'FORMULA';
             field.text = fieldElem.textContent || '{수식}';
         }
+        // Table of Contents marker — 렌더러가 자동 생성된 TOC 로 치환
+        else if (upperType === 'TOC' || upperType === 'TABLEOFCONTENTS') {
+            field.fieldType = 'TOC';
+            field.text = fieldElem.textContent || '{목차}';
+            field.tocTitle = fieldElem.getAttribute('title') || '목차';
+            const maxLvl = parseInt(fieldElem.getAttribute('maxLevel') || '0', 10);
+            if (Number.isFinite(maxLvl) && maxLvl > 0) field.tocMaxLevel = maxLvl;
+        }
         // Default: just capture text
         else {
             field.text = fieldElem.textContent || '';
         }
 
         return field;
+    }
+
+    /**
+     * <hp:memo> 처리:
+     *   1) 본문에는 run.type='memo' 마커를 삽입
+     *   2) section.memos[] 에 메모 본문 등록
+     */
+    _handleMemoElement(memoElem, para, charPrId) {
+        if (!memoElem) return;
+        const id = memoElem.getAttribute('id')
+            || memoElem.getAttribute('memoId')
+            || memoElem.getAttribute('name')
+            || `memo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+        // 본문 텍스트(앵커가 될 부분) — 단순한 경우엔 비어 있을 수 있다
+        const anchorText = memoElem.getAttribute('text')
+            || memoElem.getAttribute('anchorText')
+            || '';
+
+        const marker = {
+            type: 'memo',
+            memoId: String(id),
+            text: anchorText,
+            style: {}
+        };
+        if (charPrId && this.charProperties.has(charPrId)) {
+            marker.style = { ...this.charProperties.get(charPrId) };
+        }
+        para.runs.push(marker);
+
+        // 메모 본문 — <memoText>, <text> 자식 또는 textContent
+        let body = '';
+        const bodyElem = memoElem.querySelector
+            ? memoElem.querySelector('memoText, hp\\:memoText, memoBody, hp\\:memoBody, text, hp\\:text')
+            : null;
+        if (bodyElem) {
+            body = bodyElem.textContent || '';
+        } else {
+            body = memoElem.textContent || '';
+        }
+        const memoEntry = {
+            id: String(id),
+            author: memoElem.getAttribute('author') || memoElem.getAttribute('user') || '',
+            createdAt: memoElem.getAttribute('createdAt') || memoElem.getAttribute('date') || '',
+            text: (body || '').trim(),
+            anchorId: String(id),
+            resolved: false
+        };
+        if (this._currentSection && Array.isArray(this._currentSection.memos)) {
+            this._currentSection.memos.push(memoEntry);
+        }
     }
 
     // ========================================================================

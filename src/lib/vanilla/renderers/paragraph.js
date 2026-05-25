@@ -23,6 +23,8 @@ import { renderContainer } from './container.js';
 import { renderTable } from './table.js';
 import { applyImageOptimizations, applyImageEffects } from './image.js';
 import { renderChart } from '../chart/chart-renderer.js';
+import { renderFormControl } from '../features/form-controls.js';
+import { generateTOC, renderTOC } from '../features/toc-generator.js';
 
 const logger = getLogger();
 
@@ -428,6 +430,63 @@ export function renderParagraph(para) {
                 wrapper.textContent = '[차트 렌더 실패]';
             }
             targetContainer.appendChild(wrapper);
+        } else if (run.type === 'memo') {
+            // ✅ Phase 5: 메모 마커 — 본문에 작은 아이콘과 함께 노출
+            const marker = document.createElement('span');
+            marker.className = 'hwp-memo-marker';
+            if (run.memoId) marker.setAttribute('data-memo-id', String(run.memoId));
+            marker.setAttribute('role', 'button');
+            marker.setAttribute('tabindex', '0');
+            marker.setAttribute('aria-label', '메모');
+            marker.style.cursor = 'pointer';
+            if (run.text) {
+                const txt = document.createElement('span');
+                txt.className = 'hwp-memo-marker__text';
+                txt.textContent = run.text;
+                marker.appendChild(txt);
+            }
+            const icon = document.createElement('span');
+            icon.className = 'hwp-memo-marker__icon';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = '💬';
+            icon.style.marginLeft = '2px';
+            icon.style.fontSize = '0.85em';
+            marker.appendChild(icon);
+            if (run.style) applyRunStyle(marker, run.style);
+            targetContainer.appendChild(marker);
+        } else if (
+            run.type === 'checkbox' ||
+            run.type === 'radio' ||
+            run.type === 'combobox' ||
+            run.type === 'textInput' ||
+            run.type === 'button'
+        ) {
+            // ✅ Phase 5: 양식 컨트롤 → 표준 HTML input
+            const fc = renderFormControl(run, { editable: !!para._editable });
+            if (fc) {
+                if (run.style) applyRunStyle(fc, run.style);
+                targetContainer.appendChild(fc);
+            }
+        } else if (run.type === 'field' && run.fieldType === 'TOC') {
+            // ✅ Phase 5: 자동 생성 TOC — 문서 전체 outline 기반
+            const sections = para._documentSections || (para._document && para._document.sections) || null;
+            if (sections && Array.isArray(sections)) {
+                const { tree } = generateTOC(sections);
+                const tocEl = renderTOC(tree, {
+                    title: run.tocTitle || '목차',
+                    showPageNumbers: true
+                });
+                tocEl.classList.add('hwp-field-toc');
+                targetContainer.appendChild(tocEl);
+            } else {
+                // 폴백 — 문서 컨텍스트가 없을 때 placeholder
+                const ph = document.createElement('span');
+                ph.className = 'hwp-field hwp-field-toc-placeholder';
+                ph.setAttribute('data-field', 'toc');
+                ph.textContent = run.text || '{목차}';
+                if (run.style) applyRunStyle(ph, run.style);
+                targetContainer.appendChild(ph);
+            }
         } else {
             // Text run
             const span = document.createElement('span');
