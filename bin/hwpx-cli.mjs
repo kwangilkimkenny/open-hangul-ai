@@ -7,11 +7,12 @@
  *   hwpx-cli convert <input.hwpx> --to text  [--output out.txt]
  *   hwpx-cli convert <input.hwpx> --to json  [--output out.json]
  *   hwpx-cli convert <input.hwpx> --to pdf   --output out.pdf [--pdf-format A4] [--pdf-landscape]
+ *   hwpx-cli convert <input.hwpx> --to print-pdf --output out.pdf [--bleed 3mm] [--no-crop-marks] [--no-color-bar]
  *   hwpx-cli info <input.hwpx>
  *   hwpx-cli --help
  *
  * 옵션:
- *   --to <format>      html | text | json | pdf (필수, convert 명령)
+ *   --to <format>      html | text | json | pdf | print-pdf (필수, convert 명령)
  *   --output, -o       출력 파일 경로 (생략 시 stdout, pdf 는 필수)
  *   --password         암호화된 HWPX 비밀번호
  *   --inline           HTML 출력 시 CSS 를 inline 으로
@@ -22,6 +23,11 @@
  *   --pdf-landscape    PDF 가로 모드
  *   --pdf-margin       PDF 여백 CSS 값 (top:right:bottom:left, 예: 20mm:15mm:20mm:15mm)
  *   --pdf-no-fonts     한글 Google Fonts 자동 주입 비활성
+ *   --bleed <Nmm>      print-pdf: 도련 (기본 3mm)
+ *   --no-crop-marks    print-pdf: 크롭마크 비활성
+ *   --no-registration-marks  print-pdf: 레지스트레이션 마크 비활성
+ *   --no-color-bar     print-pdf: 컬러바 비활성
+ *   --no-page-info     print-pdf: 페이지 정보 텍스트 비활성
  *   --help, -h
  *   --version, -v
  *
@@ -85,11 +91,12 @@ Usage:
   hwpx-cli convert <input.hwpx> --to text [--output out.txt]
   hwpx-cli convert <input.hwpx> --to json [--output out.json] [--pretty]
   hwpx-cli convert <input.hwpx> --to pdf  --output out.pdf [--pdf-format A4] [--pdf-landscape]
+  hwpx-cli convert <input.hwpx> --to print-pdf --output out.pdf [--bleed 3mm] [--no-crop-marks]
   hwpx-cli info <input.hwpx>
   hwpx-cli --help
 
 Options:
-  --to <html|text|json|pdf>  Target format (required for convert)
+  --to <html|text|json|pdf|print-pdf>  Target format (required for convert)
   --output, -o <path>        Output file (default: stdout; required for pdf)
   --password <pw>            Password for encrypted HWPX
   --inline                   Inline CSS into elements (html only)
@@ -100,6 +107,11 @@ Options:
   --pdf-landscape            PDF landscape orientation
   --pdf-margin <t:r:b:l>     PDF margins, CSS units (default 20mm:15mm:20mm:15mm)
   --pdf-no-fonts             Skip Google Fonts (Noto Sans/Serif KR) injection
+  --bleed <Nmm>              print-pdf: bleed (default 3mm)
+  --no-crop-marks            print-pdf: disable crop marks
+  --no-registration-marks    print-pdf: disable registration marks
+  --no-color-bar             print-pdf: disable color bar
+  --no-page-info             print-pdf: disable page info text
   --help, -h                 Show this help
   --version, -v              Show version
 `;
@@ -122,6 +134,12 @@ function parseArgs(argv) {
     pdfLandscape: false,
     pdfMargin: null,
     pdfNoFonts: false,
+    // print-pdf options
+    bleed: null,
+    cropMarks: true,
+    registrationMarks: true,
+    colorBar: true,
+    pageInfo: true,
   };
 
   const rest = argv.slice(2);
@@ -169,6 +187,21 @@ function parseArgs(argv) {
         break;
       case '--pdf-no-fonts':
         args.pdfNoFonts = true;
+        break;
+      case '--bleed':
+        args.bleed = rest[++i];
+        break;
+      case '--no-crop-marks':
+        args.cropMarks = false;
+        break;
+      case '--no-registration-marks':
+        args.registrationMarks = false;
+        break;
+      case '--no-color-bar':
+        args.colorBar = false;
+        break;
+      case '--no-page-info':
+        args.pageInfo = false;
         break;
       default:
         if (!args.command) args.command = a;
@@ -223,6 +256,20 @@ function parsePdfMargin(spec) {
   throw new Error(
     `--pdf-margin 형식이 잘못되었습니다: "${spec}" (예: "20mm" 또는 "20mm:15mm:20mm:15mm")`
   );
+}
+
+/**
+ * "3mm" / "3" 형태의 bleed 값을 mm 숫자로 파싱한다.
+ * @param {string|null} spec
+ * @returns {number|undefined}
+ */
+function parseBleedMm(spec) {
+  if (!spec) return undefined;
+  const m = String(spec).trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*mm?$/i);
+  if (!m) {
+    throw new Error(`--bleed 형식이 잘못되었습니다: "${spec}" (예: "3mm")`);
+  }
+  return Number(m[1]);
 }
 
 /**
@@ -281,9 +328,9 @@ function makeJsonSafe(value, seen = new WeakSet()) {
 
 async function runConvert(args, mod) {
   if (!args.input) throw new Error('입력 파일 경로가 필요합니다.');
-  if (!args.to) throw new Error('--to <html|text|json|pdf> 옵션이 필요합니다.');
-  if (!['html', 'text', 'json', 'pdf'].includes(args.to)) {
-    throw new Error(`지원하지 않는 형식: ${args.to} (html|text|json|pdf)`);
+  if (!args.to) throw new Error('--to <html|text|json|pdf|print-pdf> 옵션이 필요합니다.');
+  if (!['html', 'text', 'json', 'pdf', 'print-pdf'].includes(args.to)) {
+    throw new Error(`지원하지 않는 형식: ${args.to} (html|text|json|pdf|print-pdf)`);
   }
 
   // PDF 는 별도 경로 — puppeteer 가 필요하므로 동적 import
@@ -326,6 +373,58 @@ async function runConvert(args, mod) {
       landscape: args.pdfLandscape,
       margin: parsePdfMargin(args.pdfMargin),
       skipFontInjection: args.pdfNoFonts,
+    });
+    await writeBinaryOutput(pdfBytes, args.output);
+    return;
+  }
+
+  // print-pdf — CMYK/출판용 PDF (트랙 BB RGB PDF 위에 인쇄 마크 + 메타 합성)
+  if (args.to === 'print-pdf') {
+    if (!args.output) {
+      throw new Error('--to print-pdf 는 --output FILE.pdf 가 필요합니다.');
+    }
+    const buf = await readFile(resolve(process.cwd(), args.input));
+    let cmykMod;
+    try {
+      const candidates = [
+        resolve(__dirname, '../src/lib/vanilla/cmyk-pdf/index.js'),
+        resolve(__dirname, '../dist/cmyk-pdf/index.js'),
+      ];
+      let lastErr;
+      for (const p of candidates) {
+        try {
+          cmykMod = await import(p);
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (!cmykMod) throw lastErr || new Error('cmyk-pdf 모듈을 찾을 수 없습니다.');
+    } catch (e) {
+      throw new Error(
+        'print-pdf 모듈 로드 실패: ' +
+          ((e && e.message) || e) +
+          '\n(pdf-lib 가 설치되어 있는지 확인하세요: `npm install pdf-lib`)'
+      );
+    }
+    const bleedMm = parseBleedMm(args.bleed) ?? 3;
+    const pdfBytes = await cmykMod.generatePrintReadyPdf(buf, {
+      fileName: args.input,
+      title: args.input,
+      bleedMm,
+      cropMarks: args.cropMarks,
+      registrationMarks: args.registrationMarks,
+      colorBar: args.colorBar,
+      pageInfo: args.pageInfo,
+      renderOptions: {
+        password: args.password || undefined,
+        format: args.pdfFormat || 'A4',
+        landscape: args.pdfLandscape,
+        margin: parsePdfMargin(args.pdfMargin),
+        skipFontInjection: args.pdfNoFonts,
+        embedImages: true,
+        pageBreaks: args.pageBreaks,
+      },
     });
     await writeBinaryOutput(pdfBytes, args.output);
     return;
