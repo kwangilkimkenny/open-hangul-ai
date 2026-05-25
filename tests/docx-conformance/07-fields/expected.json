@@ -1,0 +1,6 @@
+{
+  "description": "페이지번호 / 날짜 필드",
+  "parserAssertions": {
+    "minParagraphs": 3
+  }
+}

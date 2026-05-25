@@ -1,0 +1,7 @@
+{
+  "description": "탭 leader (목차)",
+  "parserAssertions": {
+    "hasTab": true,
+    "minParagraphs": 5
+  }
+}

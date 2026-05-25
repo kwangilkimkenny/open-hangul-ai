@@ -1,0 +1,8 @@
+{
+  "description": "direct formatting (bold/italic/strike) 우선",
+  "parserAssertions": {
+    "hasBold": true,
+    "hasItalic": true,
+    "hasStrikethrough": true
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "가/나/다 + ㄱ/ㄴ/ㄷ 한국어식 번호",
+  "parserAssertions": {
+    "hasNumbering": true,
+    "numberingFormats": [
+      "GANADA",
+      "CHOSUNG"
+    ],
+    "minNumberedItems": 5
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "한국어/영어/한자/숫자 혼용 + eastAsia 폰트",
+  "parserAssertions": {
+    "hasMultipleFonts": true,
+    "hasKoreanText": true,
+    "hasLatinText": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "단락 스타일 5종 (Title, Heading 1..3, Body)",
+  "parserAssertions": {
+    "minElements": 5,
+    "hasHeading": true,
+    "firstParagraphHasText": "대한민국"
+  }
+}

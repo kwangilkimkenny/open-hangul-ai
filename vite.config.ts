@@ -237,6 +237,8 @@ export default defineConfig(({ mode }) => {
         'tests/integration/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
         // Headless Node 모드 — B2B 변환 API
         'tests/headless/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+        // DOCX conformance — 한컴 호환 정밀도 픽스처 (parser/exporter round-trip)
+        'tests/docx-conformance/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       ],
       exclude: ['node_modules', 'dist', 'tests/e2e/**', '.idea', '.git', '.cache'],
       coverage: {

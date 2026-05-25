@@ -1,0 +1,17 @@
+{
+  "description": "짝/홀/첫 페이지 머리말/꼬리말 분기",
+  "parserAssertions": {
+    "headers": {
+      "hasFirstPage": true,
+      "hasEven": true,
+      "hasDefault": true
+    },
+    "footers": {
+      "hasFirstPage": true,
+      "hasEven": true,
+      "hasDefault": true
+    },
+    "titlePg": true,
+    "evenAndOdd": true
+  }
+}

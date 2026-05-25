@@ -1,0 +1,9 @@
+{
+  "description": "가로/세로 병합 + 중첩 표",
+  "parserAssertions": {
+    "hasTable": true,
+    "hasColSpan": true,
+    "hasRowSpan": true,
+    "hasNestedTable": true
+  }
+}

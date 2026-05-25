@@ -6,8 +6,17 @@
  * 쓰기: docx 패키지
  *
  * @module lib/docx/parser
- * @version 1.0.0
+ * @version 1.1.0
  */
+
+import {
+  hwpxToDocxNumFormat,
+  docxToHwpxNumFormat,
+  previewNumberGlyph,
+  normalizeKoreanFont,
+  type HwpxNumFormatCode,
+  type DocxNumFormatCode,
+} from './korean-numbering';
 
 // =============================================
 // Types (HWPXDocument 호환)
@@ -44,6 +53,22 @@ interface Element {
   width?: number | string;
   height?: number | string;
   alt?: string;
+  // 번호 매기기 (목록) — exporter 가 다시 DOCX numFmt 로 변환할 때 사용
+  numbering?: {
+    /** HWPX 호환 코드: GANADA, CHOSUNG, KOREAN_COUNTING, … */
+    format: string;
+    /** 0-based indent level */
+    level: number;
+    /** 표시용 텍스트 (예: "가.", "ㄱ)") — exporter 가 fallback 으로 prepend */
+    text?: string;
+  };
+}
+
+interface HeaderFooterContent {
+  /** 머리말/꼬리말의 본문 elements — paragraph/table 등이 들어간다. */
+  elements: Element[];
+  /** raw XML (디버그/라운드트립 fidelity 보존용). */
+  rawXml?: string;
 }
 
 interface Section {
@@ -51,8 +76,31 @@ interface Section {
   pageSettings: Record<string, string>;
   pageWidth: number;
   pageHeight: number;
-  headers: { both: null; odd: null; even: null };
-  footers: { both: null; odd: null; even: null };
+  /**
+   * 머리말 분기:
+   *   - default → `w:headerReference` (type 미지정 또는 'default') — 홀수 페이지에도 사용
+   *   - even → `w:headerReference w:type="even"` — `<w:evenAndOddHeaders/>` 일 때만
+   *   - firstPage → `w:headerReference w:type="first"` — `<w:titlePg/>` 일 때만
+   * `odd` 는 backward-compat alias 로 `default` 와 동일하게 채워진다.
+   */
+  headers: {
+    default: HeaderFooterContent | null;
+    odd: HeaderFooterContent | null;
+    even: HeaderFooterContent | null;
+    firstPage: HeaderFooterContent | null;
+    /** `<w:titlePg/>` 플래그 - 첫 페이지 별도 사용 여부 */
+    titlePg?: boolean;
+    /** `<w:evenAndOddHeaders/>` 플래그 - 짝/홀 분기 활성 여부 */
+    evenAndOdd?: boolean;
+  };
+  footers: {
+    default: HeaderFooterContent | null;
+    odd: HeaderFooterContent | null;
+    even: HeaderFooterContent | null;
+    firstPage: HeaderFooterContent | null;
+    titlePg?: boolean;
+    evenAndOdd?: boolean;
+  };
 }
 
 interface DocumentData {
@@ -169,6 +217,243 @@ function emuToPx(emu: number): number {
   return Math.round(emu / 914400 * 96);
 }
 
+/**
+ * jsdom 환경에서는 `Blob.arrayBuffer` 가 누락된 경우가 있어 FileReader 로
+ * 우회한다. 브라우저 + 일반 Node 환경에서는 native 메서드를 그대로 사용.
+ */
+async function safeBlobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  const maybe = blob as Blob & { arrayBuffer?: () => Promise<ArrayBuffer> };
+  if (typeof maybe.arrayBuffer === 'function') {
+    return await maybe.arrayBuffer();
+  }
+  if (typeof FileReader !== 'undefined') {
+    return await new Promise<ArrayBuffer>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as ArrayBuffer);
+      fr.onerror = () => reject(fr.error);
+      fr.readAsArrayBuffer(blob);
+    });
+  }
+  throw new Error('Blob → ArrayBuffer 변환 불가');
+}
+
+// =============================================
+// Numbering catalog (word/numbering.xml)
+// =============================================
+
+interface NumberingLevel {
+  numFmt: DocxNumFormatCode;
+  /** %1, %2 패턴이 포함된 표시 형식 — DOCX 의 `w:lvlText`. */
+  lvlText: string;
+  start: number;
+}
+
+interface NumberingEntry {
+  /** abstractNumId — 같은 abstract 를 공유하는 num 들의 식별자. */
+  abstractNumId: number;
+  /** level index (0..8) → 형식 정의 */
+  levels: Record<number, NumberingLevel>;
+  /** 파싱 중 카운터 — 같은 num 의 누적 위치 (1-based). */
+  counter: Record<number, number>;
+}
+
+type NumberingCatalog = Map<number, NumberingEntry>;
+
+/**
+ * `word/numbering.xml` 파싱 → `numId` → level → numFmt 카탈로그.
+ *
+ * 두 단계로 처리한다:
+ *   1) `<w:abstractNum>` 의 level 정의 (numFmt, lvlText) 를 모은다.
+ *   2) `<w:num>` 가 abstractNumId 를 참조하므로 둘을 결합.
+ *
+ * 한국어식 번호 (`ganada`, `chosung`, `koreanCounting`…) 도 그대로 보존된다.
+ */
+function parseNumberingXml(xml: string, parser: DOMParser): NumberingCatalog {
+  const catalog: NumberingCatalog = new Map();
+  let doc: Document;
+  try {
+    doc = parser.parseFromString(xml, 'application/xml');
+  } catch {
+    return catalog;
+  }
+
+  const abstractMap = new Map<number, Record<number, NumberingLevel>>();
+  const all = doc.getElementsByTagName('*');
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (getLocalName(el) === 'abstractNum') {
+      const idStr = getAttr(el, 'abstractNumId');
+      if (!idStr) continue;
+      const id = parseInt(idStr, 10);
+      const levels: Record<number, NumberingLevel> = {};
+      for (let j = 0; j < el.children.length; j++) {
+        const lvl = el.children[j];
+        if (getLocalName(lvl) !== 'lvl') continue;
+        const lvlIdx = parseInt(getAttr(lvl, 'ilvl') || '0', 10);
+        const fmtEl = getElement(lvl, 'numFmt');
+        const textEl = getElement(lvl, 'lvlText');
+        const startEl = getElement(lvl, 'start');
+        const numFmtRaw = fmtEl ? getAttr(fmtEl, 'val') : null;
+        levels[lvlIdx] = {
+          numFmt: (numFmtRaw as DocxNumFormatCode) || 'decimal',
+          lvlText: textEl ? getAttr(textEl, 'val') || `%${lvlIdx + 1}.` : `%${lvlIdx + 1}.`,
+          start: startEl ? parseInt(getAttr(startEl, 'val') || '1', 10) : 1,
+        };
+      }
+      abstractMap.set(id, levels);
+    }
+  }
+
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (getLocalName(el) === 'num') {
+      const numIdStr = getAttr(el, 'numId');
+      if (!numIdStr) continue;
+      const numId = parseInt(numIdStr, 10);
+      const absRef = getElement(el, 'abstractNumId');
+      const absId = absRef ? parseInt(getAttr(absRef, 'val') || '-1', 10) : -1;
+      if (absId < 0 || !abstractMap.has(absId)) continue;
+      catalog.set(numId, {
+        abstractNumId: absId,
+        levels: abstractMap.get(absId)!,
+        counter: {},
+      });
+    }
+  }
+
+  return catalog;
+}
+
+// =============================================
+// Headers / Footers (first / even / default)
+// =============================================
+
+interface HeaderFooterParts {
+  /** rels 의 Target → 파싱된 콘텐츠. */
+  headers: Map<string, HeaderFooterContent>;
+  footers: Map<string, HeaderFooterContent>;
+}
+
+interface JSZipFile {
+  async(type: 'string'): Promise<string>;
+}
+interface JSZipLike {
+  file(path: string): JSZipFile | null;
+}
+
+async function loadHeadersFooters(
+  zip: JSZipLike,
+  relsMap: Map<string, string>,
+  styleMap: Map<string, Record<string, unknown>>,
+  // images / cellElements 호환을 위해 unknown 유지 — 실제 dispatch 는 parseParagraph/parseTable
+  images: Map<string, unknown>,
+  parser: DOMParser,
+): Promise<HeaderFooterParts> {
+  const headers = new Map<string, HeaderFooterContent>();
+  const footers = new Map<string, HeaderFooterContent>();
+
+  for (const [, target] of relsMap) {
+    const lower = target.toLowerCase();
+    if (!/header\d*\.xml$|footer\d*\.xml$/.test(lower)) continue;
+    const path = target.startsWith('/') ? target.substring(1) : `word/${target}`;
+    const entry = zip.file(path);
+    if (!entry) continue;
+    let raw: string;
+    try {
+      raw = await entry.async('string');
+    } catch {
+      continue;
+    }
+    let dom: Document;
+    try {
+      dom = parser.parseFromString(raw, 'application/xml');
+    } catch {
+      continue;
+    }
+    const root = dom.documentElement;
+    if (!root) continue;
+    const els: Element[] = [];
+    for (let i = 0; i < root.children.length; i++) {
+      const child = root.children[i];
+      const lname = getLocalName(child);
+      if (lname === 'p') {
+        els.push(...parseParagraph(child, styleMap, images, relsMap));
+      } else if (lname === 'tbl') {
+        const tbl = parseTable(child, styleMap, images, relsMap);
+        if (tbl) els.push(tbl);
+      }
+    }
+    const content: HeaderFooterContent = { elements: els, rawXml: raw };
+    if (/header/.test(lower)) headers.set(target, content);
+    else footers.set(target, content);
+  }
+
+  return { headers, footers };
+}
+
+/**
+ * `<w:sectPr>` 에서 머리말/꼬리말 참조와 titlePg / evenAndOddHeaders 를 해석한다.
+ *
+ * - `<w:titlePg/>` → firstPage 분기 활성
+ * - `<w:evenAndOddHeaders/>` (settings.xml 또는 sectPr) → even 분기 활성
+ * - `<w:headerReference w:type="first|even|default" r:id="rIdX"/>`
+ */
+function resolveSectionHeadersFooters(
+  sectPr: globalThis.Element | undefined,
+  hfMap: HeaderFooterParts,
+  relsMap: Map<string, string>,
+): { headers: Section['headers']; footers: Section['footers'] } {
+  const headers: Section['headers'] = {
+    default: null, odd: null, even: null, firstPage: null,
+    titlePg: false, evenAndOdd: false,
+  };
+  const footers: Section['footers'] = {
+    default: null, odd: null, even: null, firstPage: null,
+    titlePg: false, evenAndOdd: false,
+  };
+  if (!sectPr) return { headers, footers };
+
+  const titlePg = getElement(sectPr, 'titlePg');
+  if (titlePg) {
+    headers.titlePg = true;
+    footers.titlePg = true;
+  }
+
+  const pickContent = (
+    map: Map<string, HeaderFooterContent>,
+    rId: string | null,
+  ): HeaderFooterContent | null => {
+    if (!rId) return null;
+    const target = relsMap.get(rId);
+    if (!target) return null;
+    return map.get(target) ?? null;
+  };
+
+  for (let i = 0; i < sectPr.children.length; i++) {
+    const child = sectPr.children[i];
+    const lname = getLocalName(child);
+    if (lname === 'headerReference' || lname === 'footerReference') {
+      const type = (getAttr(child, 'type') || 'default').toLowerCase();
+      const rId = child.getAttribute('r:id') || child.getAttributeNS(NS.r, 'id');
+      const target = lname === 'headerReference' ? headers : footers;
+      const map = lname === 'headerReference' ? hfMap.headers : hfMap.footers;
+      const content = pickContent(map, rId);
+      if (!content) continue;
+      if (type === 'first') target.firstPage = content;
+      else if (type === 'even') {
+        target.even = content;
+        target.evenAndOdd = true;
+      } else {
+        // default — 홀수 페이지 (또는 모든 페이지) 와 동일
+        target.default = content;
+        target.odd = content;
+      }
+    }
+  }
+
+  return { headers, footers };
+}
+
 // =============================================
 // DOCX Parser (읽기)
 // =============================================
@@ -242,6 +527,14 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
     }
   }
 
+  // 4b. numbering.xml — 한국어식 번호 (가/나/다, ㄱ/ㄴ/ㄷ, 一/二/三) 추출
+  //     w:num/w:abstractNumId 체인을 따라 level → numFmt 로 매핑한다.
+  const numberingXml = await zip.file('word/numbering.xml')?.async('string');
+  const numCatalog = numberingXml ? parseNumberingXml(numberingXml, parser) : new Map();
+
+  // 4c. headers/footers — first/even/default 분기 매핑
+  const hfMap = await loadHeadersFooters(zip, _relsMap, styleMap, images, parser);
+
   // 5. body 파싱
   const body = doc.getElementsByTagName('w:body')[0] || doc.getElementsByTagNameNS(NS.w, 'body')[0];
   if (!body) throw new Error('DOCX body를 찾을 수 없습니다');
@@ -253,19 +546,20 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
     const name = getLocalName(node);
 
     if (name === 'p') {
-      const paras = parseParagraph(node, styleMap, images, _relsMap);
+      const paras = parseParagraph(node, styleMap, images, _relsMap, numCatalog);
       elements.push(...paras);
     } else if (name === 'tbl') {
-      const table = parseTable(node, styleMap, images, _relsMap);
+      const table = parseTable(node, styleMap, images, _relsMap, numCatalog);
       if (table) elements.push(table);
     } else if (name === 'sectPr') {
       // 섹션 속성 — 페이지 설정용 (마지막에 처리)
     }
   }
 
-  // 6. 페이지 설정 추출
+  // 6. 페이지 설정 + 머리말/꼬리말 분기 추출
   const sectPr = body.getElementsByTagName('w:sectPr')[0] || body.getElementsByTagNameNS(NS.w, 'sectPr')[0];
   const pageSettings = parsePageSettings(sectPr);
+  const { headers, footers } = resolveSectionHeadersFooters(sectPr, hfMap, _relsMap);
 
   return {
     sections: [{
@@ -273,8 +567,8 @@ export async function parseDocx(buffer: ArrayBuffer, fileName: string): Promise<
       pageSettings: pageSettings.css,
       pageWidth: pageSettings.widthPx,
       pageHeight: pageSettings.heightPx,
-      headers: { both: null, odd: null, even: null },
-      footers: { both: null, odd: null, even: null },
+      headers,
+      footers,
     }],
     images,
     borderFills: new Map(),
@@ -327,8 +621,19 @@ function parseRunProperties(rPr: globalThis.Element): Record<string, any> {
 
   const rFonts = getElement(rPr, 'rFonts');
   if (rFonts) {
-    const fontName = getAttr(rFonts, 'ascii') || getAttr(rFonts, 'eastAsia') || getAttr(rFonts, 'hAnsi');
-    if (fontName) style.fontFamily = fontName;
+    // 한국어 우선 — eastAsia 가 있으면 우선 사용 (함초롬바탕 등)
+    const eastAsia = getAttr(rFonts, 'eastAsia');
+    const ascii = getAttr(rFonts, 'ascii');
+    const hAnsi = getAttr(rFonts, 'hAnsi');
+    const cs = getAttr(rFonts, 'cs');
+    if (eastAsia) {
+      style.fontFamily = normalizeKoreanFont(eastAsia);
+      style.fontFamilyAscii = ascii || hAnsi || undefined;
+      style.fontFamilyEastAsia = eastAsia;
+    } else if (ascii || hAnsi || cs) {
+      const picked = ascii || hAnsi || cs || '';
+      style.fontFamily = normalizeKoreanFont(picked);
+    }
   }
 
   const highlight = getElement(rPr, 'highlight');
@@ -371,6 +676,7 @@ function parseParagraph(
   styleMap: Map<string, Record<string, any>>,
   images: Map<string, any>,
   _relsMap: Map<string, string>,
+  numCatalog?: NumberingCatalog,
 ): Element[] {
   const runs: Run[] = [];
   const resultElements: Element[] = [];
@@ -427,17 +733,53 @@ function parseParagraph(
       }
     }
 
-    // 번호 매기기 (목록)
+    // 번호 매기기 (목록) — numbering.xml 카탈로그가 있으면 한국어식 번호 매핑
     const numPr = getElement(pPr, 'numPr');
     if (numPr) {
       const ilvl = getElement(numPr, 'ilvl');
+      const numIdEl = getElement(numPr, 'numId');
       const level = ilvl ? parseInt(getAttr(ilvl, 'val') || '0', 10) : 0;
-      const bullets = ['●', '○', '■', '▪'];
-      const bullet = bullets[Math.min(level, bullets.length - 1)];
-      runs.push({ text: `${bullet} `, inlineStyle: { color: '#333' } });
+      const numIdStr = numIdEl ? getAttr(numIdEl, 'val') : null;
+
+      let format: HwpxNumFormatCode = 'BULLET';
+      let glyphText = '';
+
+      if (numCatalog && numIdStr) {
+        const numId = parseInt(numIdStr, 10);
+        const numEntry = numCatalog.get(numId);
+        if (numEntry) {
+          const lvl = numEntry.levels[level] || numEntry.levels[0];
+          if (lvl) {
+            format = docxToHwpxNumFormat(lvl.numFmt);
+            // numEntry.counter 가 nth 위치(1-based) 추적용
+            const idx = (numEntry.counter[level] ?? 0) + 1;
+            numEntry.counter[level] = idx;
+            // 상위 레벨이 증가하면 하위 카운터 리셋
+            for (const k of Object.keys(numEntry.counter)) {
+              const klvl = parseInt(k, 10);
+              if (klvl > level) delete numEntry.counter[klvl];
+            }
+            const glyph = previewNumberGlyph(format, idx);
+            glyphText = (lvl.lvlText || '%' + (level + 1) + '.')
+              .replace(/%(\d+)/g, (_m, n) => (parseInt(n, 10) === level + 1 ? glyph : glyph));
+          }
+        }
+      }
+
+      if (!glyphText) {
+        const bullets = ['●', '○', '■', '▪'];
+        glyphText = (bullets[Math.min(level, bullets.length - 1)] ?? '•') + ' ';
+      } else if (!glyphText.endsWith(' ')) {
+        glyphText += ' ';
+      }
+
+      runs.push({ text: glyphText, inlineStyle: { color: '#333' } });
       if (!paraStyle.paddingLeft) {
         paraStyle.paddingLeft = `${20 + level * 20}px`;
       }
+
+      // exporter 가 다시 numFmt 로 살릴 수 있게 메타데이터를 paragraph 에 보존
+      paraStyle._numbering = { format, level, text: glyphText.trimEnd() };
     }
   }
 
@@ -519,20 +861,24 @@ function parseParagraph(
     }
   }
 
-  // _headingSize, _baseRunStyle 제거 (내부용)
+  // _headingSize, _baseRunStyle, _numbering 제거 (내부용은 element 로 옮긴다)
   delete paraStyle._headingSize;
   delete paraStyle._baseRunStyle;
+  const numberingMeta = paraStyle._numbering as Element['numbering'] | undefined;
+  delete paraStyle._numbering;
 
   // 남은 runs가 있거나 이미지만 있는 경우에도 paragraph 추가
   if (runs.length > 0 || resultElements.length === 0) {
     if (runs.length === 0) {
       runs.push({ text: '' });
     }
-    resultElements.push({
+    const para: Element = {
       type: 'paragraph',
       runs,
       style: Object.keys(paraStyle).length > 0 ? paraStyle : undefined,
-    });
+    };
+    if (numberingMeta) para.numbering = numberingMeta;
+    resultElements.push(para);
   }
 
   return resultElements;
@@ -586,6 +932,7 @@ function parseTable(
   styleMap: Map<string, Record<string, any>>,
   images: Map<string, any>,
   _relsMap: Map<string, string>,
+  numCatalog?: NumberingCatalog,
 ): Element {
   const rows: RowData[] = [];
   const tblRows = getElements(tblNode, 'tr');
@@ -675,12 +1022,16 @@ function parseTable(
 
       if (isCovered) continue; // 병합 계속 셀 스킵
 
-      // 셀 내용 파싱
+      // 셀 내용 파싱 — 중첩 표(w:tbl)도 정확하게 추출
       const cellElements: any[] = [];
       for (let i = 0; i < tc.children.length; i++) {
         const child = tc.children[i];
-        if (getLocalName(child) === 'p') {
-          cellElements.push(...parseParagraph(child, styleMap, images, _relsMap));
+        const cName = getLocalName(child);
+        if (cName === 'p') {
+          cellElements.push(...parseParagraph(child, styleMap, images, _relsMap, numCatalog));
+        } else if (cName === 'tbl') {
+          const nestedTable = parseTable(child, styleMap, images, _relsMap, numCatalog);
+          if (nestedTable) cellElements.push(nestedTable);
         }
       }
 
@@ -712,10 +1063,17 @@ function parseTable(
 
 /**
  * vMerge의 rowSpan 계산
- * DOCX는 vMerge restart/continue 패턴을 사용하므로 후처리 필요
+ * DOCX는 vMerge restart/continue 패턴을 사용:
+ *   - `<w:vMerge w:val="restart"/>` 가 병합 시작
+ *   - `<w:vMerge/>` 또는 `<w:vMerge w:val="continue"/>` 가 이어짐
+ *   - vMerge 없음 = 병합 없음 (또는 종료)
+ *
+ * 각 열 위치(grid column index)별로 끊김 없이 이어지는 vMerge 체인을
+ * 추적하여 시작 셀의 rowSpan 을 설정한다. `gridSpan` 으로 가로 병합된
+ * 셀은 시작 grid col 만 매치한다.
  */
 function computeRowSpans(rows: RowData[], tblRows: globalThis.Element[]): void {
-  // 각 열 위치별로 vMerge 추적
+  // 가장 넓은 행의 cell 수 (colSpan 포함) 를 사용해 grid column 개수 산출.
   const colCount = Math.max(...rows.map(r => {
     let count = 0;
     r.cells.forEach(c => count += (c.colSpan || 1));
@@ -729,18 +1087,26 @@ function computeRowSpans(rows: RowData[], tblRows: globalThis.Element[]): void {
       const tcs = getElements(tr, 'tc');
 
       let currentCol = 0;
+      let matched = false;
       for (const tc of tcs) {
         const tcPr = getElement(tc, 'tcPr');
         const gridSpan = tcPr ? getElement(tcPr, 'gridSpan') : null;
         const span = gridSpan ? parseInt(getAttr(gridSpan, 'val') || '1', 10) : 1;
 
         if (currentCol === col) {
+          matched = true;
           const vMerge = tcPr ? getElement(tcPr, 'vMerge') : null;
-          if (vMerge && getAttr(vMerge, 'val') === 'restart') {
+          const vVal = vMerge ? getAttr(vMerge, 'val') : null;
+          if (vMerge && vVal === 'restart') {
+            // 이전 체인이 남아있으면 종결 (보통 없음, 안전장치)
+            if (mergeStart >= 0 && rowIdx > mergeStart) {
+              setRowSpanForCell(rows, mergeStart, col, rowIdx - mergeStart);
+            }
             mergeStart = rowIdx;
-          } else if (vMerge && mergeStart >= 0) {
-            // continue — mergeStart 행의 해당 셀에 rowSpan 증가
+          } else if (vMerge && (vVal === null || vVal === 'continue')) {
+            // 체인 유지 — 시작 셀의 rowSpan 은 마지막에 한 번에 설정
           } else {
+            // vMerge 없음 — 진행 중이던 체인이 있었다면 종결
             if (mergeStart >= 0 && rowIdx > mergeStart) {
               setRowSpanForCell(rows, mergeStart, col, rowIdx - mergeStart);
             }
@@ -750,6 +1116,8 @@ function computeRowSpans(rows: RowData[], tblRows: globalThis.Element[]): void {
         }
         currentCol += span;
       }
+      // 이 행에 해당 col 자리에 셀이 없으면(앞 행의 vMerge로 덮인 위치) 무시
+      void matched;
     }
     // 마지막 행까지 병합이 이어진 경우
     if (mergeStart >= 0) {
@@ -856,16 +1224,29 @@ function parsePageSettings(sectPr: globalThis.Element | undefined): {
 
 /**
  * HWPXDocument를 DOCX Blob으로 내보내기
+ *
+ * v1.1: 한국어식 번호(ganada/chosung/koreanCounting…), titlePg/evenAndOdd
+ * 머리말/꼬리말 분기, 함초롬바탕 등 한글 폰트의 eastAsia 매핑 지원.
  */
 export async function exportToDocx(doc: DocumentData): Promise<Blob> {
   const docxLib = await import('docx');
   const {
     Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell,
     WidthType, AlignmentType, BorderStyle, HeadingLevel,
-    VerticalAlign, ShadingType, PageOrientation,
-  } = docxLib;
+    VerticalAlign, ShadingType, PageOrientation, Header, Footer,
+    LevelFormat, AlignmentType: _AlignType,
+  } = docxLib as unknown as Record<string, unknown> & {
+    Document: new (opts: Record<string, unknown>) => unknown;
+    Packer: { toBlob: (doc: unknown) => Promise<Blob> };
+    LevelFormat: Record<string, string>;
+    PageOrientation: { LANDSCAPE: string; PORTRAIT: string };
+  };
+  void _AlignType;
 
-  const children: any[] = [];
+  // 1) 문서를 한 번 훑어 사용된 한국어식 번호 포맷 → numbering config 생성
+  const numberingConfig = collectNumberingConfig(doc, LevelFormat);
+
+  const children: unknown[] = [];
 
   for (const section of doc.sections) {
     for (const el of section.elements) {
@@ -893,7 +1274,19 @@ export async function exportToDocx(doc: DocumentData): Promise<Blob> {
   const pxToTwip = (px: number) => Math.round(px * 1440 / 96);
   const parsePx = (s: string | undefined) => parseInt(s || '0', 10);
 
-  const sectionProps: any = {
+  // 머리말/꼬리말 (default / first / even)
+  const headersOpt = buildDocxHeadersFooters(
+    firstSection?.headers,
+    { Paragraph, TextRun, Header, Footer, AlignmentType, HeadingLevel, ShadingType },
+    'header',
+  );
+  const footersOpt = buildDocxHeadersFooters(
+    firstSection?.footers,
+    { Paragraph, TextRun, Header, Footer, AlignmentType, HeadingLevel, ShadingType },
+    'footer',
+  );
+
+  const sectionProps: Record<string, unknown> = {
     children,
     properties: {
       page: {
@@ -908,15 +1301,137 @@ export async function exportToDocx(doc: DocumentData): Promise<Blob> {
           bottom: pxToTwip(parsePx(ps.marginBottom)),
           left: pxToTwip(parsePx(ps.marginLeft)),
         },
+        titlePage: firstSection?.headers?.titlePg || firstSection?.footers?.titlePg || false,
       },
     },
   };
+  if (headersOpt) sectionProps.headers = headersOpt;
+  if (footersOpt) sectionProps.footers = footersOpt;
 
-  const document = new Document({
-    sections: [sectionProps],
-  });
+  const docOpts: Record<string, unknown> = { sections: [sectionProps] };
+  if (numberingConfig) docOpts.numbering = numberingConfig;
+  // evenAndOddHeaders 플래그 (settings.xml) — docx 라이브러리는 evenAndOddHeaderAndFooters 옵션 제공
+  if (firstSection?.headers?.evenAndOdd || firstSection?.footers?.evenAndOdd) {
+    docOpts.evenAndOddHeaderAndFooters = true;
+  }
+
+  const document = new Document(docOpts);
 
   return await Packer.toBlob(document);
+}
+
+/**
+ * 문서 내 paragraph 의 numbering 메타데이터를 모아 docx Document `numbering`
+ * 옵션으로 변환한다. format 별로 reference 한 개만 등록한다.
+ */
+function collectNumberingConfig(doc: DocumentData, LevelFormat: Record<string, string>): { config: unknown[] } | null {
+  const formats = new Set<string>();
+  const walk = (el: Element) => {
+    if (el.numbering?.format) formats.add(el.numbering.format);
+    if (el.rows) {
+      for (const row of el.rows) {
+        for (const cell of row.cells) {
+          for (const inner of cell.elements || []) walk(inner as Element);
+        }
+      }
+    }
+  };
+  for (const section of doc.sections) {
+    for (const el of section.elements) walk(el);
+  }
+  if (formats.size === 0) return null;
+
+  const lvlFormatMap: Record<string, string> = {
+    GANADA: LevelFormat.GANADA,
+    CHOSUNG: LevelFormat.CHOSUNG,
+    KOREAN_DIGITAL: LevelFormat.KOREAN_DIGITAL,
+    KOREAN_COUNTING: LevelFormat.KOREAN_COUNTING,
+    KOREAN_LEGAL: LevelFormat.KOREAN_LEGAL,
+    HANGUL_SYLLABLE: LevelFormat.KOREAN_COUNTING,
+    IDEOGRAPH: LevelFormat.IDEOGRAPH__DIGITAL ?? LevelFormat.IDEOGRAPH_DIGITAL ?? 'ideographDigital',
+    DECIMAL: LevelFormat.DECIMAL,
+    UPPER_ROMAN: LevelFormat.UPPER_ROMAN,
+    LOWER_ROMAN: LevelFormat.LOWER_ROMAN,
+    UPPER_LETTER: LevelFormat.UPPER_LETTER,
+    LOWER_LETTER: LevelFormat.LOWER_LETTER,
+    IROHA: LevelFormat.IROHA,
+    BULLET: LevelFormat.BULLET,
+  };
+
+  const configs: unknown[] = [];
+  for (const fmt of formats) {
+    const reference = `ohai-${fmt.toLowerCase()}`;
+    const lvlFmt = lvlFormatMap[fmt] || LevelFormat.DECIMAL;
+    configs.push({
+      reference,
+      levels: [
+        {
+          level: 0,
+          format: lvlFmt,
+          text: '%1.',
+          alignment: 'start',
+        },
+        {
+          level: 1,
+          format: lvlFmt,
+          text: '%2)',
+          alignment: 'start',
+        },
+      ],
+    });
+  }
+  return { config: configs };
+}
+
+/**
+ * Section.headers / Section.footers → docx 라이브러리의 `headers`/`footers` 옵션.
+ *
+ * docx 라이브러리는 `default`, `first`, `even` 키를 사용한다.
+ */
+function buildDocxHeadersFooters(
+  hf: Section['headers'] | Section['footers'] | undefined,
+  lib: Record<string, unknown>,
+  kind: 'header' | 'footer',
+): { default?: unknown; first?: unknown; even?: unknown } | null {
+  if (!hf) return null;
+  const Paragraph = lib.Paragraph as new (opts: Record<string, unknown>) => unknown;
+  const TextRun = lib.TextRun as new (text: string | Record<string, unknown>) => unknown;
+  const Header = lib.Header as new (opts: Record<string, unknown>) => unknown;
+  const Footer = lib.Footer as new (opts: Record<string, unknown>) => unknown;
+  const Ctor = kind === 'header' ? Header : Footer;
+
+  const make = (content: HeaderFooterContent | null): unknown => {
+    if (!content) return null;
+    const paras: unknown[] = [];
+    for (const el of content.elements) {
+      if (el.type === 'paragraph' && el.runs) {
+        paras.push(buildDocxParagraph(el, lib));
+      }
+    }
+    if (paras.length === 0) {
+      paras.push(new Paragraph({ children: [new TextRun('')] }));
+    }
+    return new Ctor({ children: paras });
+  };
+
+  const out: { default?: unknown; first?: unknown; even?: unknown } = {};
+  if (hf.default) {
+    const d = make(hf.default);
+    if (d) out.default = d;
+  } else if (hf.odd) {
+    const d = make(hf.odd);
+    if (d) out.default = d;
+  }
+  if (hf.firstPage) {
+    const f = make(hf.firstPage);
+    if (f) out.first = f;
+  }
+  if (hf.even) {
+    const e = make(hf.even);
+    if (e) out.even = e;
+  }
+  if (!out.default && !out.first && !out.even) return null;
+  return out;
 }
 
 /**
@@ -962,7 +1477,15 @@ function buildDocxParagraph(el: Element, lib: any): any {
 
     const colorHex = toDocxHex(s.color);
     if (colorHex) opts.color = colorHex;
-    if (s.fontFamily) opts.font = s.fontFamily;
+    // 한국어 폰트는 eastAsia 에 매핑해야 함초롬바탕 같은 한글 폰트가 적용됨
+    if (s.fontFamilyEastAsia || s.fontFamily) {
+      const ea = s.fontFamilyEastAsia || s.fontFamily;
+      const ascii = s.fontFamilyAscii || s.fontFamily;
+      opts.font = {
+        name: ascii,
+        eastAsia: ea,
+      };
+    }
     const bgHex = toDocxHex(s.backgroundColor);
     if (bgHex) {
       opts.shading = { fill: bgHex, type: 'clear' as any };
@@ -988,6 +1511,25 @@ function buildDocxParagraph(el: Element, lib: any): any {
     paraOpts.heading = headingLevel;
   }
 
+  // 한국어식 번호 (ganada / chosung / koreanCounting…) — exporter 측 매핑
+  if (el.numbering?.format && el.numbering.format !== 'NONE') {
+    paraOpts.numbering = {
+      reference: `ohai-${el.numbering.format.toLowerCase()}`,
+      level: el.numbering.level || 0,
+    };
+    // 번호 prefix run 은 docx 가 자동 생성 — 이미 paragraph 의 첫 run 에
+    // glyph 가 포함되어 있을 수 있으므로, 첫 텍스트 run 이 정확히 prefix 만
+    // 담고 있다면 제거한다. (parseParagraph 가 prefix 를 별도 run 으로 push)
+    const prefixText = (el.numbering.text || '').trim();
+    if (prefixText && textRuns.length > 0) {
+      const first = textRuns[0];
+      const firstText = (first?.options?.text ?? first?.text ?? '').toString().trim();
+      if (firstText === prefixText || firstText === prefixText + '.') {
+        textRuns.shift();
+      }
+    }
+  }
+
   return new Paragraph(paraOpts);
 }
 
@@ -1008,10 +1550,13 @@ function buildDocxTable(el: Element, lib: any): any {
     for (const cellData of (row.cells || [])) {
       const cellChildren: any[] = [];
 
-      // 셀 내 elements → docx paragraphs
+      // 셀 내 elements → docx paragraphs (+ 중첩 표)
       for (const ce of (cellData.elements || [])) {
         if (ce.type === 'paragraph' && ce.runs) {
           cellChildren.push(buildDocxParagraph(ce, { Paragraph, TextRun, AlignmentType, HeadingLevel: {} }));
+        } else if (ce.type === 'table' && ce.rows) {
+          const nested = buildDocxTable(ce, lib);
+          if (nested) cellChildren.push(nested);
         }
       }
 
@@ -1109,7 +1654,7 @@ async function buildDocxImage(el: Element, images: Map<string, any>, lib: any): 
     for (const [, img] of images) {
       if (img.src === el.src && img.data) {
         const blob = img.data instanceof Blob ? img.data : new Blob([img.data]);
-        const buffer = await blob.arrayBuffer();
+        const buffer = await safeBlobToArrayBuffer(blob);
         imageData = new Uint8Array(buffer);
         break;
       }
@@ -1160,5 +1705,11 @@ export async function downloadDocx(doc: DocumentData, fileName: string = '문서
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+export {
+  hwpxToDocxNumFormat,
+  docxToHwpxNumFormat,
+  normalizeKoreanFont,
+};
 
 export default { parseDocx, exportToDocx, downloadDocx };

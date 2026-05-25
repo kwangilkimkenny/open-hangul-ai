@@ -1,0 +1,7 @@
+{
+  "description": "이미지 anchor + inline",
+  "parserAssertions": {
+    "hasImage": true,
+    "minImages": 1
+  }
+}

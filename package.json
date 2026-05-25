@@ -93,6 +93,7 @@
     "prepare": "husky",
     "security:check": "node scripts/security-check.mjs",
     "build:fixtures": "node scripts/build-golden-fixtures.mjs",
+    "build:docx-fixtures": "node scripts/build-docx-fixtures.mjs",
     "hwpx-cli": "node bin/hwpx-cli.mjs"
   },
   "dependencies": {

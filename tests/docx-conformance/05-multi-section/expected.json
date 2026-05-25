@@ -1,0 +1,8 @@
+{
+  "description": "섹션별 페이지 설정 — 가로/세로 혼합",
+  "parserAssertions": {
+    "pageWidth": {
+      "min": 600
+    }
+  }
+}
