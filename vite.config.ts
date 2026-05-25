@@ -235,6 +235,8 @@ export default defineConfig(({ mode }) => {
         // e2e specs (tests/e2e/**/*.spec.js) stay out of the vitest run.
         'tests/roundtrip/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
         'tests/integration/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+        // Headless Node 모드 — B2B 변환 API
+        'tests/headless/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       ],
       exclude: ['node_modules', 'dist', 'tests/e2e/**', '.idea', '.git', '.cache'],
       coverage: {

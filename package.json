@@ -40,17 +40,25 @@
   "type": "module",
   "files": [
     "dist",
+    "bin",
+    "src/lib/headless",
     "README.md",
     "LICENSE"
   ],
   "main": "./dist/open-hangul-ai.umd.js",
   "module": "./dist/open-hangul-ai.es.js",
   "types": "./dist/open-hangul-ai.es.d.ts",
+  "bin": {
+    "hwpx-cli": "./bin/hwpx-cli.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/open-hangul-ai.es.d.ts",
       "import": "./dist/open-hangul-ai.es.js",
       "require": "./dist/open-hangul-ai.umd.js"
+    },
+    "./headless": {
+      "import": "./src/lib/headless/index.js"
     },
     "./dist/open-hangul-ai.css": "./dist/open-hangul-ai.css"
   },
@@ -84,7 +92,8 @@
     "test:e2e:report": "playwright show-report",
     "prepare": "husky",
     "security:check": "node scripts/security-check.mjs",
-    "build:fixtures": "node scripts/build-golden-fixtures.mjs"
+    "build:fixtures": "node scripts/build-golden-fixtures.mjs",
+    "hwpx-cli": "node bin/hwpx-cli.mjs"
   },
   "dependencies": {
     "@hufe921/canvas-editor": "^0.9.131",
