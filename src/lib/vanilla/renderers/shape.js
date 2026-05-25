@@ -336,6 +336,13 @@ export function renderShape(shape, images = null) {
         wrapper.appendChild(textContainer);
     }
 
+    // ✅ Phase 1.6: 도형 회전 (rotation)
+    // 90/180/270 등 임의 각도를 단순 transform 으로 처리한다.
+    if (typeof shape.rotation === 'number' && shape.rotation !== 0) {
+        wrapper.style.transform = `rotate(${shape.rotation}deg)`;
+        wrapper.style.transformOrigin = 'center center';
+    }
+
     // ✅ v2.2.14: FINAL enforcement of width/height at the very end
     // This ensures no subsequent operations override the critical dimensions
     if (shape.width && shape.width < 500) {
@@ -360,11 +367,16 @@ export function renderShape(shape, images = null) {
         const borderRadius = wrapper.style.borderRadius;
         const textAlign = wrapper.style.textAlign;
         const border = wrapper.style.border;
+        const transform = wrapper.style.transform;
+        const transformOrigin = wrapper.style.transformOrigin;
 
         if (bgColor) styleProps.push(`background-color: ${bgColor}`);
         if (borderRadius) styleProps.push(`border-radius: ${borderRadius}`);
         if (textAlign) styleProps.push(`text-align: ${textAlign}`);
         if (border) styleProps.push(`border: ${border}`);
+        // ✅ Phase 1.6: rotation 보존
+        if (transform) styleProps.push(`transform: ${transform}`);
+        if (transformOrigin) styleProps.push(`transform-origin: ${transformOrigin}`);
 
         // Set the final style attribute
         wrapper.setAttribute('style', styleProps.join('; '));

@@ -308,6 +308,9 @@ export function renderImage(image) {
     // Use 'cover' only if we want to fill and potentially crop
     img.style.objectFit = 'contain'; // Fit within wrapper, maintain aspect ratio
 
+    // ✅ Phase 1.4 / 1.5: 밝기·대비·채도·회전 효과
+    applyImageEffects(img, image);
+
     wrapper.appendChild(img);
 
     // ✅ Render children (shapes/containers overlaid on the image)
@@ -331,6 +334,42 @@ export function renderImage(image) {
     }
 
     return wrapper;
+}
+
+/**
+ * Apply CSS effects (brightness/contrast/saturation) and rotation
+ * to an image wrapper. — Phase 1.4 / 1.5
+ *
+ * 효과는 wrapper 가 아니라 <img> 자체에 적용해야 filter/transform 의
+ * 변경이 인접 텍스트 박스에 영향을 주지 않는다.
+ *
+ * @param {HTMLImageElement} imgElem
+ * @param {Object} image - 파서가 만든 image 객체
+ */
+export function applyImageEffects(imgElem, image) {
+    if (!imgElem || !image) return;
+
+    // CSS filter 조합: brightness contrast saturate
+    const filters = [];
+    if (typeof image.brightness === 'number' && image.brightness !== 1) {
+        filters.push(`brightness(${image.brightness})`);
+    }
+    if (typeof image.contrast === 'number' && image.contrast !== 1) {
+        filters.push(`contrast(${image.contrast})`);
+    }
+    if (typeof image.saturation === 'number' && image.saturation !== 1) {
+        // 0 도 의도된 값(흑백)이므로 그대로 적용
+        filters.push(`saturate(${image.saturation})`);
+    }
+    if (filters.length > 0) {
+        imgElem.style.filter = filters.join(' ');
+    }
+
+    // Rotation — 단순 transform 만 적용 (bounding box 보정은 후속 작업)
+    if (typeof image.rotation === 'number' && image.rotation !== 0) {
+        imgElem.style.transform = `rotate(${image.rotation}deg)`;
+        imgElem.style.transformOrigin = 'center center';
+    }
 }
 
 /**
@@ -383,4 +422,4 @@ export function clearImageCache() {
     logger.debug('[Image Renderer] Image cache cleared');
 }
 
-export default { renderImage, applyImageOptimizations, clearImageCache };
+export default { renderImage, applyImageOptimizations, applyImageEffects, clearImageCache };
