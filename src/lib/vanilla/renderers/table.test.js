@@ -253,6 +253,54 @@ describe('renderTable', () => {
     });
   });
 
+  // ─── Header rows (Phase 2-5) ──────────────────────────────
+
+  describe('header row routing to thead', () => {
+    it('should place row.header=true rows in <thead> as <th> cells', () => {
+      const headerRow = { cells: [makeCell('이름'), makeCell('점수')], header: true };
+      const dataRow = makeRow([makeCell('홍길동'), makeCell('90')]);
+      const el = renderTable(makeTable([headerRow, dataRow]), new Map());
+      const table = el.querySelector('.hwp-table');
+      const thead = table.querySelector('thead');
+      const tbody = table.querySelector('tbody');
+      expect(thead).not.toBeNull();
+      expect(tbody).not.toBeNull();
+      expect(thead.querySelectorAll('tr').length).toBe(1);
+      expect(thead.querySelectorAll('th').length).toBe(2);
+      expect(tbody.querySelectorAll('tr').length).toBe(1);
+    });
+
+    it('should support multiple consecutive header rows', () => {
+      const h1 = { cells: [makeCell('상위')], header: true };
+      const h2 = { cells: [makeCell('하위')], header: true };
+      const data = makeRow([makeCell('값')]);
+      const el = renderTable(makeTable([h1, h2, data]), new Map());
+      const thead = el.querySelector('.hwp-table thead');
+      expect(thead).not.toBeNull();
+      expect(thead.querySelectorAll('tr').length).toBe(2);
+      // 모든 헤더 셀은 <th>
+      expect(thead.querySelectorAll('th').length).toBe(2);
+      expect(thead.querySelectorAll('td').length).toBe(0);
+    });
+
+    it('should honor table.repeatHeader=true for the first row', () => {
+      const r1 = makeRow([makeCell('H')]);
+      const r2 = makeRow([makeCell('D')]);
+      const el = renderTable(makeTable([r1, r2], { repeatHeader: true }), new Map());
+      const thead = el.querySelector('.hwp-table thead');
+      expect(thead).not.toBeNull();
+      expect(thead.querySelectorAll('tr').length).toBe(1);
+      expect(thead.querySelector('th')).not.toBeNull();
+    });
+
+    it('should mark header rows with data-header-row attribute', () => {
+      const headerRow = { cells: [makeCell('H')], header: true };
+      const el = renderTable(makeTable([headerRow, makeRow([makeCell('D')])]), new Map());
+      const tr = el.querySelector('thead tr');
+      expect(tr.getAttribute('data-header-row')).toBe('true');
+    });
+  });
+
   // ─── Empty table ──────────────────────────────────────────
 
   describe('empty table', () => {

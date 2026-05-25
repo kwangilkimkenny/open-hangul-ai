@@ -146,6 +146,31 @@ export function renderTable(table, images) {
     let thead = null;
     let tbody = document.createElement('tbody');
 
+    // ✅ Phase 2-5: Pre-compute which rows are headers so multi-row
+    // headers are routed to <thead> contiguously. A row is a header if:
+    //   - row.header / row.isHeader / row.style.isHeader is truthy
+    //   - OR (table.repeatHeader === true AND it is part of the leading
+    //         contiguous header block) — default first row only when
+    //         no explicit header flags exist
+    const rowIsHeader = new Array(table.rows ? table.rows.length : 0).fill(false);
+    if (table.rows && table.rows.length > 0) {
+        const anyExplicitHeader = table.rows.some(
+            r => r && (r.header || r.isHeader || r.style?.isHeader)
+        );
+        table.rows.forEach((row, idx) => {
+            if (!row) return;
+            if (row.header || row.isHeader || row.style?.isHeader) {
+                rowIsHeader[idx] = true;
+            } else if (
+                !anyExplicitHeader &&
+                table.repeatHeader &&
+                idx === 0
+            ) {
+                rowIsHeader[idx] = true;
+            }
+        });
+    }
+
     if (table.rows && table.rows.length > 0) {
         table.rows.forEach((row, rowIndex) => {
             // Hidden rows — skip rendering
@@ -153,6 +178,10 @@ export function renderTable(table, images) {
 
             const tr = document.createElement('tr');
             tr.className = 'hwp-table-row';
+            const isHeaderRow = rowIsHeader[rowIndex];
+            if (isHeaderRow) {
+                tr.setAttribute('data-header-row', 'true');
+            }
 
             // --------------------------------------------------------
             // Row height — use explicit row height or calculate from cells
@@ -199,12 +228,17 @@ export function renderTable(table, images) {
                     // Skip covered cells (merged region)
                     if (cell.isCovered) return;
 
-                    const td = document.createElement('td');
+                    // ✅ Phase 2-5: 헤더 행은 <th> 의미론 사용
+                    const useThTag = isHeaderRow || cell.isHeader;
+                    const td = document.createElement(useThTag ? 'th' : 'td');
                     td.className = 'hwp-table-cell';
                     td.setAttribute('lang', 'ko');
+                    if (useThTag) {
+                        td.setAttribute('scope', isHeaderRow ? 'col' : 'row');
+                    }
 
                     // Header cell — use <th> semantics via attribute
-                    if (cell.isHeader || row.style?.isHeader) {
+                    if (cell.isHeader || row.style?.isHeader || isHeaderRow) {
                         td.setAttribute('data-header', 'true');
                     }
 
@@ -417,11 +451,10 @@ export function renderTable(table, images) {
                 });
             }
 
-            // Append row to thead or tbody
-            if ((row.style?.isHeader || (table.repeatHeader && rowIndex === 0)) && !thead) {
-                thead = document.createElement('thead');
-                thead.appendChild(tr);
-            } else if (thead && row.style?.isHeader) {
+            // ✅ Phase 2-5: 헤더 행은 thead 로 모으고 다중 헤더 지원
+            // (사전 계산된 rowIsHeader 결과 사용)
+            if (isHeaderRow) {
+                if (!thead) thead = document.createElement('thead');
                 thead.appendChild(tr);
             } else {
                 tbody.appendChild(tr);

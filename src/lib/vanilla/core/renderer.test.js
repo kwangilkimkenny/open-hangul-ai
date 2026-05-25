@@ -320,6 +320,73 @@ describe('DocumentRenderer', () => {
     });
   });
 
+  // ─── Footnotes / Endnotes (Phase 2-2) ───────────────────────
+
+  describe('footnote / endnote areas', () => {
+    it('should attach .hwp-footnotes area to a page that references a footnote', async () => {
+      renderer.options.enableAutoPagination = false;
+
+      // Mock renderParagraph to inject a footnote reference into the page
+      renderParagraph.mockImplementationOnce(() => {
+        const d = document.createElement('div');
+        const sup = document.createElement('sup');
+        sup.className = 'hwp-fn-ref';
+        const a = document.createElement('a');
+        a.href = '#fn-1';
+        a.id = 'fnref-1';
+        a.textContent = '[1]';
+        sup.appendChild(a);
+        d.appendChild(sup);
+        return d;
+      });
+
+      const section = {
+        elements: [{ type: 'paragraph' }],
+        pageSettings: {},
+        footnotes: [
+          {
+            type: 'footnote',
+            number: '1',
+            paragraphs: [{ type: 'paragraph', runs: [{ text: '각주 본문' }] }],
+          },
+        ],
+        endnotes: [],
+      };
+
+      await renderer.render(createDoc([section]));
+
+      const page = container.querySelector('.hwp-page-container');
+      expect(page).not.toBeNull();
+      const fnArea = page.querySelector('.hwp-footnotes');
+      expect(fnArea).not.toBeNull();
+      const entry = fnArea.querySelector('.hwp-footnote-entry');
+      expect(entry).not.toBeNull();
+      expect(entry.id).toBe('fn-1');
+    });
+
+    it('should append a single .hwp-endnotes area to the last page', async () => {
+      renderer.options.enableAutoPagination = false;
+      const section = {
+        elements: [{ type: 'paragraph' }],
+        pageSettings: {},
+        footnotes: [],
+        endnotes: [
+          {
+            type: 'endnote',
+            number: '1',
+            paragraphs: [{ type: 'paragraph', runs: [{ text: '미주 본문' }] }],
+          },
+        ],
+      };
+      await renderer.render(createDoc([section]));
+      const enAreas = container.querySelectorAll('.hwp-endnotes');
+      expect(enAreas.length).toBe(1);
+      const entry = enAreas[0].querySelector('.hwp-endnote-entry');
+      expect(entry).not.toBeNull();
+      expect(entry.id).toBe('en-1');
+    });
+  });
+
   // ─── totalPages ─────────────────────────────────────────────
 
   describe('totalPages', () => {
