@@ -1,0 +1,5 @@
+{
+  "feature": "paragraph",
+  "paragraphs": [],
+  "notes": "TBD: 파서가 안정화되면 paragraphs[]에 align/indent/lineHeight/runs 채울 것"
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hh:numbering xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" id="1">
+  <hh:paraHead level="1" start="1" numFormat="Arabic" formatStr="%1." indent="400"/>
+  <hh:paraHead level="2" start="1" numFormat="Arabic" formatStr="%1.%2" indent="800"/>
+  <hh:paraHead level="3" start="1" numFormat="HangulSyllable"
+              formatStr="%3) " indent="1200"/>
+</hh:numbering>

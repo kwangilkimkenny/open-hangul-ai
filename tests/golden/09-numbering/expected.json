@@ -1,0 +1,13 @@
+{
+  "feature": "numbering",
+  "numberings": [
+    {
+      "id": "1",
+      "levels": [
+        { "level": 1, "start": 1, "format": "arabic", "template": "%1." },
+        { "level": 2, "start": 1, "format": "arabic", "template": "%1.%2" },
+        { "level": 3, "start": 1, "format": "hangul-syllable", "template": "%3) " }
+      ]
+    }
+  ]
+}

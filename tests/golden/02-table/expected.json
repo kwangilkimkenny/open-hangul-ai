@@ -1,0 +1,10 @@
+{
+  "feature": "table",
+  "rowCount": 3,
+  "colCount": 3,
+  "merges": [
+    { "row": 0, "col": 0, "rowSpan": 1, "colSpan": 2 },
+    { "row": 1, "col": 2, "rowSpan": 2, "colSpan": 1 }
+  ],
+  "cells": []
+}

@@ -1,0 +1,7 @@
+{
+  "feature": "field",
+  "fields": [
+    { "type": "DATE", "format": "yyyy-MM-dd", "display": "2026-05-22" },
+    { "type": "PAGE_NUM", "display": "1" }
+  ]
+}

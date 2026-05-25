@@ -1,0 +1,13 @@
+{
+  "feature": "multi-column",
+  "columnDef": {
+    "count": 3,
+    "equalWidth": false,
+    "lineBetween": { "width": 1.0, "color": "#000000" },
+    "columns": [
+      { "width": 3200, "gap": 200 },
+      { "width": 2400, "gap": 200 },
+      { "width": 2400, "gap": 0 }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:p xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:run>
+    <hp:t>본문 텍스트</hp:t>
+    <hp:fn id="fn1" numberingType="DIGIT">
+      <hp:subList>
+        <hp:p><hp:run><hp:t>이것은 각주입니다.</hp:t></hp:run></hp:p>
+      </hp:subList>
+    </hp:fn>
+    <hp:t>계속.</hp:t>
+  </hp:run>
+</hp:p>

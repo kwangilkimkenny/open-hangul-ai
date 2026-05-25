@@ -1,0 +1,14 @@
+{
+  "feature": "image",
+  "images": [
+    {
+      "id": "img1",
+      "anchor": "para",
+      "wrap": "square",
+      "originalSize": { "w": 2000, "h": 1500 },
+      "currentSize": { "w": 1000, "h": 750 },
+      "rotation": 0,
+      "binaryRef": "image1"
+    }
+  ]
+}

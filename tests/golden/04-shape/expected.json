@@ -1,0 +1,7 @@
+{
+  "feature": "shape",
+  "shapes": [
+    { "id": "shp1", "type": "rect", "rotation": 0, "fill": { "kind": "solid", "color": "#FFC000" } },
+    { "id": "shp2", "type": "ellipse", "rotation": 30, "fill": { "kind": "gradient", "gradientType": "linear" } }
+  ]
+}

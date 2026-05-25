@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:secPr xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:cols type="NEWSPAPER" layout="LEFT" colCount="3"
+           sameSz="0" sameGap="0">
+    <hp:col width="3200" gap="200"/>
+    <hp:col width="2400" gap="200"/>
+    <hp:col width="2400" gap="0"/>
+    <hp:lineBetween type="SOLID" width="1.0" color="#000000"/>
+  </hp:cols>
+</hp:secPr>

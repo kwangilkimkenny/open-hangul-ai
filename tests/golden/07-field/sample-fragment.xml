@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:p xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:run>
+    <hp:fieldBegin type="DATE" format="yyyy-MM-dd"/>
+    <hp:t>2026-05-22</hp:t>
+    <hp:fieldEnd/>
+    <hp:t> · 페이지 </hp:t>
+    <hp:fieldBegin type="PAGE_NUM"/>
+    <hp:t>1</hp:t>
+    <hp:fieldEnd/>
+  </hp:run>
+</hp:p>

@@ -1,0 +1,6 @@
+{
+  "feature": "footnote",
+  "footnotes": [
+    { "id": "fn1", "kind": "footnote", "marker": "1", "text": "이것은 각주입니다." }
+  ]
+}

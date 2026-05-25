@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:p xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:run>
+    <hp:pic id="img1" zOrder="1" numberingType="PICTURE"
+            textWrap="SQUARE" textFlow="BOTH_SIDES">
+      <hp:offset x="0" y="0"/>
+      <hp:orgSz width="2000" height="1500"/>
+      <hp:curSz width="1000" height="750"/>
+      <hp:flip horizontal="0" vertical="0"/>
+      <hp:rotationInfo angle="0" centerX="500" centerY="375"/>
+      <hp:img binaryItemIDRef="image1" alpha="0"/>
+    </hp:pic>
+  </hp:run>
+</hp:p>

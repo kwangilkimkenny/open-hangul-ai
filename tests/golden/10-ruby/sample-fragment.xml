@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hp:p xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:run>
+    <hp:ruby align="CENTER" sizeRatio="50">
+      <hp:rubyBase><hp:t>人</hp:t></hp:rubyBase>
+      <hp:rubyText><hp:t>사람</hp:t></hp:rubyText>
+    </hp:ruby>
+    <hp:t>이라는 한자.</hp:t>
+  </hp:run>
+</hp:p>

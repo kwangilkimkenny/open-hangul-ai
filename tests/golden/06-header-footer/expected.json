@@ -1,0 +1,8 @@
+{
+  "feature": "header-footer",
+  "headers": [{ "applyTo": "all", "text": "문서제목" }],
+  "footers": [
+    { "applyTo": "odd", "text": "쪽 [pageNum]" },
+    { "applyTo": "even", "text": "[pageNum] 쪽" }
+  ]
+}
