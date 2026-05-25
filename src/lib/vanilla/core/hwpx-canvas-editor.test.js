@@ -232,3 +232,315 @@ describe('shape round-trip', () => {
     expect(inlineShape.treatAsChar).toBe(true);
   });
 });
+
+describe('Phase 2 round-trip (numbering / footnotes / fields)', () => {
+  const numberedDoc = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [{ text: '첫번째 항목', style: {} }],
+            numPr: { numIDRef: 'num1', level: 0 },
+            numberingDef: {
+              id: 'num1',
+              levels: [
+                {
+                  level: 0,
+                  numFormat: 'DECIMAL',
+                  start: 1,
+                  formatString: '^1.',
+                },
+              ],
+            },
+            numberingLevel: { level: 0, numFormat: 'DECIMAL', start: 1, formatString: '^1.' },
+          },
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [{ text: '두번째 항목', style: {} }],
+            numPr: { numIDRef: 'num1', level: 0 },
+            numberingDef: {
+              id: 'num1',
+              levels: [{ level: 0, numFormat: 'DECIMAL', start: 1, formatString: '^1.' }],
+            },
+            numberingLevel: { level: 0, numFormat: 'DECIMAL', start: 1, formatString: '^1.' },
+          },
+        ],
+      },
+    ],
+  };
+
+  const fieldDoc = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [
+              { text: '오늘은 ', style: {} },
+              {
+                type: 'field',
+                fieldType: 'DATE',
+                dateFormat: 'yyyy-MM-dd',
+                text: '2026-05-22',
+                style: {},
+              },
+              { text: ' 입니다', style: {} },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const noteDoc = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [
+              { text: '본문 텍스트', style: {} },
+              { type: 'footnote', number: '1', text: '[1]', style: {} },
+            ],
+          },
+        ],
+        footnotes: [
+          {
+            type: 'footnote',
+            number: '1',
+            id: 'fn1',
+            paragraphs: [
+              { type: 'paragraph', style: {}, runs: [{ text: '각주 본문', style: {} }] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it('preserves numbering meta on trailing newline element', () => {
+    const data = hwpxToCanvasEditor(numberedDoc);
+    const taggedNewlines = data.main.filter(el => el.value === '\n' && el._meta?.numbering);
+    expect(taggedNewlines.length).toBe(2);
+    expect(taggedNewlines[0]._meta.numbering.numPr.numIDRef).toBe('num1');
+    expect(taggedNewlines[0]._meta.list).toEqual({ listType: 'ol', listStyle: 'decimal' });
+  });
+
+  it('round-trips numbering back into para.numPr / numberingDef', () => {
+    const data = hwpxToCanvasEditor(numberedDoc);
+    const hwpx = canvasEditorToHwpx(data);
+    const paras = hwpx.sections[0].elements.filter(e => e.type === 'paragraph');
+    expect(paras.length).toBe(2);
+    expect(paras[0].numPr).toEqual({ numIDRef: 'num1', level: 0 });
+    expect(paras[0].numberingLevel.numFormat).toBe('DECIMAL');
+    expect(paras[1].numPr.numIDRef).toBe('num1');
+  });
+
+  it('converts field run → hwpxField element with _meta.field', () => {
+    const data = hwpxToCanvasEditor(fieldDoc);
+    const fieldEl = data.main.find(el => el.type === 'hwpxField');
+    expect(fieldEl).toBeDefined();
+    expect(fieldEl.value).toBe('2026-05-22');
+    expect(fieldEl._meta.field.fieldType).toBe('DATE');
+    expect(fieldEl._meta.field.dateFormat).toBe('yyyy-MM-dd');
+  });
+
+  it('round-trips field run back into a paragraph run', () => {
+    const data = hwpxToCanvasEditor(fieldDoc);
+    const hwpx = canvasEditorToHwpx(data);
+    const para = hwpx.sections[0].elements.find(e => e.type === 'paragraph');
+    expect(para).toBeDefined();
+    const fieldRun = para.runs.find(r => r.type === 'field');
+    expect(fieldRun).toBeDefined();
+    expect(fieldRun.fieldType).toBe('DATE');
+    expect(fieldRun.dateFormat).toBe('yyyy-MM-dd');
+    expect(fieldRun.text).toBe('2026-05-22');
+  });
+
+  it('converts footnote run → hwpxNote element with _meta.footnote', () => {
+    const data = hwpxToCanvasEditor(noteDoc);
+    const noteEl = data.main.find(el => el.type === 'hwpxNote');
+    expect(noteEl).toBeDefined();
+    expect(noteEl._meta.footnote.kind).toBe('footnote');
+    expect(noteEl._meta.footnote.number).toBe('1');
+  });
+
+  it('round-trips footnote: paragraph run + section-level note body', () => {
+    const data = hwpxToCanvasEditor(noteDoc);
+    expect(data._sectionMeta).toBeDefined();
+    expect(data._sectionMeta[0].footnotes.length).toBe(1);
+
+    const hwpx = canvasEditorToHwpx(data);
+    const para = hwpx.sections[0].elements.find(e => e.type === 'paragraph');
+    const noteRun = para.runs.find(r => r.type === 'footnote');
+    expect(noteRun).toBeDefined();
+    expect(noteRun.number).toBe('1');
+
+    // 섹션 레벨 footnote 본문이 그대로 보존되어야 한다.
+    expect(hwpx.sections[0].footnotes.length).toBe(1);
+    expect(hwpx.sections[0].footnotes[0].paragraphs[0].runs[0].text).toBe('각주 본문');
+  });
+});
+
+/**
+ * 라운드트립 손실률 측정:
+ *  - 입력 HWPXDocument 의 핵심 신호(텍스트, 정렬, 기울기, 굵기, 노트, 필드,
+ *    번호 매기기) 가 round-trip 후 보존되는지 카운팅.
+ *  - Phase 1 의 약속: 손실률 10% 이하.
+ */
+describe('round-trip loss measurement', () => {
+  function buildExpectedSignals(doc) {
+    const signals = [];
+    for (const section of doc.sections) {
+      for (const el of section.elements) {
+        if (el.type !== 'paragraph') continue;
+        if (el.numPr) signals.push({ kind: 'numbering', key: el.numPr.numIDRef });
+        if (el.style?.textAlign) signals.push({ kind: 'align', key: el.style.textAlign });
+        for (const run of el.runs) {
+          if (run.type === 'field') signals.push({ kind: 'field', key: run.fieldType });
+          if (run.type === 'footnote' || run.type === 'endnote') {
+            signals.push({ kind: 'note', key: `${run.type}:${run.number}` });
+          }
+          if (run.style?.bold) signals.push({ kind: 'bold' });
+          if (run.style?.italic) signals.push({ kind: 'italic' });
+          if (run.text) signals.push({ kind: 'text', key: run.text });
+        }
+      }
+    }
+    return signals;
+  }
+
+  function buildActualSignals(doc) {
+    const signals = [];
+    for (const section of doc.sections) {
+      for (const el of section.elements) {
+        if (el.type !== 'paragraph') continue;
+        if (el.numPr) signals.push({ kind: 'numbering', key: el.numPr.numIDRef });
+        if (el.style?.textAlign) signals.push({ kind: 'align', key: el.style.textAlign });
+        for (const run of el.runs) {
+          if (run.type === 'field') signals.push({ kind: 'field', key: run.fieldType });
+          if (run.type === 'footnote' || run.type === 'endnote') {
+            signals.push({ kind: 'note', key: `${run.type}:${run.number}` });
+          }
+          if (run.style?.bold) signals.push({ kind: 'bold' });
+          if (run.style?.italic) signals.push({ kind: 'italic' });
+          if (run.text) signals.push({ kind: 'text', key: run.text });
+        }
+      }
+    }
+    return signals;
+  }
+
+  const corpus = {
+    sections: [
+      {
+        elements: [
+          {
+            type: 'paragraph',
+            style: { textAlign: 'center' },
+            runs: [{ text: '제목', style: { bold: true, fontSize: '14pt' } }],
+          },
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [
+              { text: '본문 ', style: {} },
+              { text: '강조', style: { italic: true } },
+              { text: ' 입니다.', style: {} },
+            ],
+          },
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [{ text: '첫째 항목', style: {} }],
+            numPr: { numIDRef: 'L1', level: 0 },
+            numberingDef: {
+              id: 'L1',
+              levels: [{ level: 0, numFormat: 'DECIMAL', start: 1 }],
+            },
+            numberingLevel: { level: 0, numFormat: 'DECIMAL', start: 1 },
+          },
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [{ text: '둘째 항목', style: {} }],
+            numPr: { numIDRef: 'L1', level: 0 },
+            numberingDef: {
+              id: 'L1',
+              levels: [{ level: 0, numFormat: 'DECIMAL', start: 1 }],
+            },
+            numberingLevel: { level: 0, numFormat: 'DECIMAL', start: 1 },
+          },
+          {
+            type: 'paragraph',
+            style: {},
+            runs: [
+              { text: '날짜:', style: {} },
+              { type: 'field', fieldType: 'DATE', text: '2026-05-22', style: {} },
+              { type: 'footnote', number: '1', text: '[1]', style: {} },
+            ],
+          },
+        ],
+        footnotes: [
+          {
+            type: 'footnote',
+            number: '1',
+            paragraphs: [{ type: 'paragraph', style: {}, runs: [{ text: '비고', style: {} }] }],
+          },
+        ],
+      },
+    ],
+  };
+
+  /**
+   * Phase 1 시뮬레이션: numbering/footnote/field 메타를 모두 떨궈서
+   * 손실률 베이스라인을 측정.
+   */
+  function simulatePhase1Loss(doc) {
+    const expected = buildExpectedSignals(doc);
+    // Phase 1 컨버터는 numbering/field/footnote 신호를 보존하지 못한다고 가정.
+    const phase1Lost = expected.filter(
+      s => s.kind === 'numbering' || s.kind === 'field' || s.kind === 'note'
+    ).length;
+    return phase1Lost / expected.length;
+  }
+
+  it('Phase 1 baseline loss (simulated) is high — establishes regression target', () => {
+    const baseline = simulatePhase1Loss(corpus);
+    // 코퍼스에는 numbering 2개, field 1개, note 1개 = 4 신호가 Phase 1 에서 손실.
+    // 기대치는 약 28%.
+    expect(baseline).toBeGreaterThan(0.2);
+  });
+
+  it('Phase 2 round-trip loss is below 10% of expected signals', () => {
+    const expected = buildExpectedSignals(corpus);
+    const ce = hwpxToCanvasEditor(corpus);
+    const restored = canvasEditorToHwpx(ce);
+    const actual = buildActualSignals(restored);
+
+    // 손실 카운트 = 기대치 multiset 중 actual 에 없는 항목
+    const actualMap = new Map();
+    for (const s of actual) {
+      const k = `${s.kind}|${s.key || ''}`;
+      actualMap.set(k, (actualMap.get(k) || 0) + 1);
+    }
+    let missing = 0;
+    for (const s of expected) {
+      const k = `${s.kind}|${s.key || ''}`;
+      const remaining = actualMap.get(k) || 0;
+      if (remaining > 0) {
+        actualMap.set(k, remaining - 1);
+      } else {
+        missing++;
+      }
+    }
+    const lossRatio = missing / expected.length;
+    // 기대치: 손실률 ≤ 10%
+    expect(lossRatio).toBeLessThanOrEqual(0.1);
+  });
+});

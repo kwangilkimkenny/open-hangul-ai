@@ -6,17 +6,28 @@
  * to the canvas-editor IEditorData shape
  *   { main: IElement[], header?: IElement[], footer?: IElement[] }
  *
- * Phase 1 scope:
+ * Phase 1 scope (initial):
  *   - paragraphs with text runs (font / size / bold / italic / underline / color / highlight / strikeout)
  *   - paragraph-level horizontal alignment via RowFlex on the trailing newline
  *   - inline tab / linebreak / pagebreak runs
  *   - inline hyperlinks
  *   - tables (basic colgroup + trList; cell content recursively converted)
  *   - inline + standalone images
+ *   - shapes (round-tripped through `_shape` meta on a custom element)
  *
- * Out of scope for Phase 1 (rendered as best-effort placeholders or skipped):
- *   list numbering, footnotes, fields, shapes, complex floating positions,
- *   header / footer round-trip.
+ * Phase 2 (round-trip lossless 보강):
+ *   - list numbering: para.numPr / numberingDef → `_meta.numbering` on the
+ *     trailing newline, plus canvas-editor `listType` hint when possible.
+ *   - footnotes / endnotes: footnote run → custom `hwpxNote` element with
+ *     `_meta.footnote = { kind, number, paragraphs }` so writers can restore
+ *     the original section-level note bodies.
+ *   - fields: field run → `hwpxField` element holding the original
+ *     `_meta.field = { fieldType, ... }` payload (plain rendered text as value)
+ *   - section-level header / footer / footnote / endnote payloads survive on
+ *     `_sectionMeta` (returned as a sibling of `main`).
+ *
+ * Still out of scope:
+ *   complex floating positions, OLE objects, encryption.
  */
 
 const ROW_FLEX_MAP = {
@@ -59,6 +70,36 @@ function styleToElementAttrs(style) {
 function paragraphRowFlex(para) {
   if (!para?.style?.textAlign) return undefined;
   return ROW_FLEX_MAP[String(para.style.textAlign).toLowerCase()];
+}
+
+/**
+ * Phase 2: 문단 단위로 보존되는 메타데이터.
+ * numbering(번호 매기기) 정의/레벨이 있으면 객체로 반환하고,
+ * 없으면 undefined.
+ */
+function paragraphNumberingMeta(para) {
+  if (!para) return undefined;
+  if (!para.numPr && !para.numberingDef && !para.numberingLevel) return undefined;
+  const meta = {};
+  if (para.numPr) meta.numPr = { ...para.numPr };
+  if (para.numberingDef) meta.numberingDef = para.numberingDef;
+  if (para.numberingLevel) meta.numberingLevel = para.numberingLevel;
+  return meta;
+}
+
+/**
+ * canvas-editor 의 표준 list 타입 추정.
+ * HWPX numFormat (DECIMAL/HANGUL/UPPER_ROMAN ...) → canvas-editor (ol/ul) 매핑은
+ * 1:1 이 아니지만, 라운드트립 손실 최소화를 위해 가능한 한 hint 만 남긴다.
+ */
+function inferListHint(numbering) {
+  if (!numbering?.numberingLevel) return undefined;
+  const fmt = String(numbering.numberingLevel.numFormat || '').toUpperCase();
+  if (!fmt) return undefined;
+  if (fmt === 'BULLET' || fmt === 'NONE') {
+    return { listType: 'ul', listStyle: 'disc' };
+  }
+  return { listType: 'ol', listStyle: 'decimal' };
 }
 
 function imageToElement(image) {
@@ -107,9 +148,63 @@ function pushHyperlinkRun(out, run) {
   });
 }
 
+/**
+ * Phase 2: footnote / endnote 런 → custom hwpxNote 엘리먼트.
+ * canvas-editor 가 hwpxNote 를 모르더라도 우리 컨버터 페어가
+ * `_meta.footnote` 를 통해 원본 노트 본문을 복원할 수 있다.
+ */
+function noteRunToElement(run) {
+  const baseAttrs = styleToElementAttrs(run.style);
+  const text = run.text || (run.number ? `[${run.number}]` : '[note]');
+  return {
+    type: 'hwpxNote',
+    value: text,
+    ...baseAttrs,
+    _meta: {
+      footnote: {
+        kind: run.type, // 'footnote' | 'endnote'
+        number: run.number || null,
+      },
+    },
+  };
+}
+
+/**
+ * Phase 2: field 런 → custom hwpxField 엘리먼트.
+ * canvas-editor 는 field 타입을 모르므로 rendered text 만 노출하되
+ * `_meta.field` 에 원본을 보존한다.
+ */
+function fieldRunToElement(run) {
+  const baseAttrs = styleToElementAttrs(run.style);
+  const text = run.text || `{${run.fieldType || 'FIELD'}}`;
+  return {
+    type: 'hwpxField',
+    value: text,
+    ...baseAttrs,
+    _meta: {
+      field: {
+        fieldType: run.fieldType || 'UNKNOWN',
+        ...(run.dateFormat ? { dateFormat: run.dateFormat } : {}),
+        ...(run.fieldName ? { fieldName: run.fieldName } : {}),
+        ...(run.hyperlink ? { hyperlink: run.hyperlink } : {}),
+      },
+    },
+  };
+}
+
 function pushParagraph(out, para) {
   const flex = paragraphRowFlex(para);
+  const numbering = paragraphNumberingMeta(para);
+  const listHint = inferListHint(numbering);
   const breakAttrs = flex ? { rowFlex: flex } : {};
+  // 마지막 newline 에 메타를 부착하면 round-trip 시 같은 문단으로 묶이는 키 역할.
+  const tailAttrs = { ...breakAttrs };
+  if (numbering || listHint) {
+    tailAttrs._meta = {
+      ...(numbering ? { numbering } : {}),
+      ...(listHint ? { list: listHint } : {}),
+    };
+  }
 
   const runs = para.runs || [];
   // parser.js 는 hasShape 런에 shapeIndex 를 달지 않고 등장 순서대로 para.shapes 에 push 한다.
@@ -131,6 +226,16 @@ function pushParagraph(out, para) {
       continue;
     }
     if (run.type === 'bookmark') {
+      continue;
+    }
+    // Phase 2: footnote / endnote 런
+    if (run.type === 'footnote' || run.type === 'endnote') {
+      out.push(noteRunToElement(run));
+      continue;
+    }
+    // Phase 2: field 런 (parser._parseFieldCode 결과)
+    if (run.type === 'field') {
+      out.push(fieldRunToElement(run));
       continue;
     }
 
@@ -162,7 +267,7 @@ function pushParagraph(out, para) {
     }
   }
 
-  out.push({ value: '\n', ...breakAttrs });
+  out.push({ value: '\n', ...tailAttrs });
 }
 
 function cellElements(cell) {
@@ -232,10 +337,40 @@ function tableToElement(table) {
 }
 
 /**
+ * Phase 2: section-level meta (footnotes / endnotes / header / footer / pageSettings)
+ * 를 canvas-editor IEditorData 의 `_sectionMeta` 로 전달한다.
+ *
+ * canvas-editor 는 이 키를 모르지만, canvas-editor-to-hwpx 가 다시 HWPX 로
+ * 직렬화할 때 그대로 복원할 수 있도록 보존한다.
+ */
+function collectSectionMeta(section) {
+  if (!section) return null;
+  const meta = {};
+  if (Array.isArray(section.footnotes) && section.footnotes.length > 0) {
+    meta.footnotes = section.footnotes;
+  }
+  if (Array.isArray(section.endnotes) && section.endnotes.length > 0) {
+    meta.endnotes = section.endnotes;
+  }
+  if (section.headers && Object.values(section.headers).some(v => v)) {
+    meta.headers = section.headers;
+  }
+  if (section.footers && Object.values(section.footers).some(v => v)) {
+    meta.footers = section.footers;
+  }
+  if (section.pageSettings && Object.keys(section.pageSettings).length > 0) {
+    meta.pageSettings = section.pageSettings;
+  }
+  if (section.pageNum) meta.pageNum = section.pageNum;
+  if (section.colPr) meta.colPr = section.colPr;
+  return Object.keys(meta).length > 0 ? meta : null;
+}
+
+/**
  * Convert a parsed HWPXDocument (parser.js output) to canvas-editor IEditorData.
  *
  * @param {object} doc HWPXDocument with { sections: [...] }
- * @returns {{ main: object[] }}
+ * @returns {{ main: object[], _sectionMeta?: object[] }}
  */
 export function hwpxToCanvasEditor(doc) {
   const main = [];
@@ -244,6 +379,7 @@ export function hwpxToCanvasEditor(doc) {
     return { main };
   }
 
+  const sectionMetas = [];
   for (const section of doc.sections) {
     for (const elem of section.elements || []) {
       if (!elem) continue;
@@ -261,10 +397,14 @@ export function hwpxToCanvasEditor(doc) {
         main.push({ value: '\n' });
       }
     }
+    const meta = collectSectionMeta(section);
+    if (meta) sectionMetas.push(meta);
   }
 
   if (main.length === 0) main.push({ value: '\n' });
-  return { main };
+  const result = { main };
+  if (sectionMetas.length > 0) result._sectionMeta = sectionMetas;
+  return result;
 }
 
 export default hwpxToCanvasEditor;
