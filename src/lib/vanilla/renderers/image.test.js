@@ -9,7 +9,7 @@ vi.mock('../utils/logger.js', () => ({
 vi.mock('./shape.js', () => ({ renderShape: vi.fn(() => document.createElement('div')) }));
 vi.mock('./container.js', () => ({ renderContainer: vi.fn(() => document.createElement('div')) }));
 
-import { renderImage, applyImageOptimizations, clearImageCache } from './image.js';
+import { renderImage, applyImageOptimizations, applyImageEffects, clearImageCache } from './image.js';
 import { renderShape } from './shape.js';
 import { renderContainer } from './container.js';
 
@@ -172,5 +172,36 @@ describe('applyImageOptimizations', () => {
 
   it('should return early when imgElem is falsy', () => {
     expect(() => applyImageOptimizations(null, 'src.png', null)).not.toThrow();
+  });
+});
+
+// ─── Phase 1.4 / 1.5: image effects (filter & rotation) ─────
+describe('applyImageEffects', () => {
+  it('should compose CSS filter from brightness/contrast/saturation', () => {
+    const img = document.createElement('img');
+    applyImageEffects(img, { brightness: 1.2, contrast: 0.9, saturation: 0.5 });
+    expect(img.style.filter).toContain('brightness(1.2)');
+    expect(img.style.filter).toContain('contrast(0.9)');
+    expect(img.style.filter).toContain('saturate(0.5)');
+  });
+
+  it('should apply rotate() transform when rotation is set', () => {
+    const img = document.createElement('img');
+    applyImageEffects(img, { rotation: 90 });
+    expect(img.style.transform).toBe('rotate(90deg)');
+    expect(img.style.transformOrigin).toBe('center center');
+  });
+
+  it('should leave filter/transform unset when no effect values are provided', () => {
+    const img = document.createElement('img');
+    applyImageEffects(img, {});
+    expect(img.style.filter).toBe('');
+    expect(img.style.transform).toBe('');
+  });
+
+  it('should ignore identity values (brightness=1, contrast=1)', () => {
+    const img = document.createElement('img');
+    applyImageEffects(img, { brightness: 1, contrast: 1 });
+    expect(img.style.filter).toBe('');
   });
 });

@@ -187,6 +187,9 @@ export class DocumentRenderer {
 
       this.totalPages = this.pageNumber - 1;
 
+      // ✅ Phase 1.3: 페이지 번호 마커(span.hwp-field) 동적 치환
+      this.resolvePageFields();
+
       logger.timeEnd('Document Render');
       logger.info(`✅ Document rendering completed: ${this.totalPages} pages`);
 
@@ -1219,6 +1222,42 @@ export class DocumentRenderer {
         });
       });
     }
+  }
+
+  /**
+   * ✅ Phase 1.3: 페이지 번호/총 페이지 수 마커를 실제 숫자로 치환.
+   * paragraph.js 에서 `<span class="hwp-field" data-field="page-number">` 형식으로
+   * 마커를 만들고, 페이지네이션이 끝난 뒤 이 함수가 자신이 속한
+   * `.hwp-page-container[data-page-number]` 의 번호를 읽어 채운다.
+   *
+   * 헤더/푸터 등 페이지 컨테이너 밖에 있는 마커는 모든 페이지에 복제되지 않고
+   * "그 페이지의 번호"를 알 수 없으므로 현재는 마커가 자리한 페이지 기준만
+   * 처리한다. (별도 헤더 템플릿 시스템은 후속 과제)
+   *
+   * @returns {number} 치환된 마커 개수
+   */
+  resolvePageFields() {
+    if (!this.container || !this.container.querySelectorAll) return 0;
+    const totalPages = this.totalPages || 0;
+    const fields = this.container.querySelectorAll('.hwp-field[data-field]');
+    let replaced = 0;
+    fields.forEach((el) => {
+      const kind = el.getAttribute('data-field');
+      if (kind === 'page-count') {
+        el.textContent = String(totalPages);
+        replaced++;
+      } else if (kind === 'page-number') {
+        // 가장 가까운 페이지 컨테이너를 찾아 번호 추출
+        const page = el.closest && el.closest('.hwp-page-container[data-page-number]');
+        const num = page ? parseInt(page.getAttribute('data-page-number'), 10) : NaN;
+        el.textContent = Number.isFinite(num) ? String(num) : '1';
+        replaced++;
+      }
+    });
+    if (replaced > 0) {
+      logger.debug(`📄 Resolved ${replaced} page field marker(s)`);
+    }
+    return replaced;
   }
 
   /**

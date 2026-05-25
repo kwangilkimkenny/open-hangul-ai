@@ -372,4 +372,24 @@ describe('renderTable', () => {
       expect(td._cellData).toBe(cell);
     });
   });
+
+  // ─── Phase 1.6: cell rotation ─────────────────────────────
+  describe('cell rotation', () => {
+    it('should wrap cell content with a rotation div when cell.style.rotation is set', () => {
+      const cell = makeCell('rotated', { rotation: 90 });
+      const el = renderTable(makeTable([makeRow([cell])]), new Map());
+      const td = el.querySelector('.hwp-table-cell');
+      const rot = td.querySelector('.hwp-cell-rotation');
+      expect(rot).not.toBeNull();
+      expect(rot.style.transform).toBe('rotate(90deg)');
+      expect(td.getAttribute('data-rotation')).toBe('90');
+    });
+
+    it('should NOT add rotation wrapper when rotation is 0 or absent', () => {
+      const cell = makeCell('plain', { rotation: 0 });
+      const el = renderTable(makeTable([makeRow([cell])]), new Map());
+      const td = el.querySelector('.hwp-table-cell');
+      expect(td.querySelector('.hwp-cell-rotation')).toBeNull();
+    });
+  });
 });

@@ -362,4 +362,54 @@ describe('DocumentRenderer', () => {
       expect(container.innerHTML).toContain('Detailed failure info');
     });
   });
+
+  // ─── Phase 1.3: page field marker resolution ─────────────
+  describe('resolvePageFields()', () => {
+    it('should replace .hwp-field[data-field=page-count] with totalPages', () => {
+      renderer.totalPages = 7;
+      const fieldSpan = document.createElement('span');
+      fieldSpan.className = 'hwp-field';
+      fieldSpan.setAttribute('data-field', 'page-count');
+      fieldSpan.textContent = '?';
+      container.appendChild(fieldSpan);
+
+      const replaced = renderer.resolvePageFields();
+      expect(replaced).toBe(1);
+      expect(fieldSpan.textContent).toBe('7');
+    });
+
+    it('should replace page-number markers with the enclosing page-container number', () => {
+      const page = document.createElement('div');
+      page.className = 'hwp-page-container';
+      page.setAttribute('data-page-number', '3');
+
+      const fieldSpan = document.createElement('span');
+      fieldSpan.className = 'hwp-field';
+      fieldSpan.setAttribute('data-field', 'page-number');
+      fieldSpan.textContent = '#';
+
+      page.appendChild(fieldSpan);
+      container.appendChild(page);
+
+      renderer.totalPages = 5;
+      renderer.resolvePageFields();
+      expect(fieldSpan.textContent).toBe('3');
+    });
+
+    it('should default to 1 when a page-number marker has no enclosing page container', () => {
+      const fieldSpan = document.createElement('span');
+      fieldSpan.className = 'hwp-field';
+      fieldSpan.setAttribute('data-field', 'page-number');
+      fieldSpan.textContent = '#';
+      container.appendChild(fieldSpan);
+
+      renderer.totalPages = 4;
+      renderer.resolvePageFields();
+      expect(fieldSpan.textContent).toBe('1');
+    });
+
+    it('should return 0 when there are no markers in the document', () => {
+      expect(renderer.resolvePageFields()).toBe(0);
+    });
+  });
 });

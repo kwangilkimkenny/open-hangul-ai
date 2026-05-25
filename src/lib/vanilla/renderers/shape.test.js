@@ -178,4 +178,24 @@ describe('renderShape', () => {
     expect(lineElem.getAttribute('stroke')).toBe('#ff0000');
     expect(lineElem.getAttribute('stroke-width')).toBe('3');
   });
+
+  // ─── Phase 1.6: shape rotation ─────────────────────────────
+  it('should apply rotate() transform when shape.rotation is set', () => {
+    const result = renderShape({
+      shapeType: 'rect',
+      width: 600, height: 100,
+      rotation: 90,
+    });
+    // 큰(>=500) 도형은 final-style override 가 적용되지 않으므로 wrapper.style 그대로 검증 가능
+    expect(result.getAttribute('style') || '').toMatch(/rotate\(90deg\)/);
+  });
+
+  it('should preserve rotation for small shapes (<500px) through final style enforcement', () => {
+    const result = renderShape({
+      shapeType: 'rect',
+      width: 100, height: 50,
+      rotation: 45,
+    });
+    expect(result.getAttribute('style') || '').toMatch(/rotate\(45deg\)/);
+  });
 });

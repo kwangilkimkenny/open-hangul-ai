@@ -21,7 +21,7 @@ import {
 import { renderShape } from './shape.js';
 import { renderContainer } from './container.js';
 import { renderTable } from './table.js';
-import { applyImageOptimizations } from './image.js';
+import { applyImageOptimizations, applyImageEffects } from './image.js';
 
 const logger = getLogger();
 
@@ -290,6 +290,9 @@ export function renderParagraph(para) {
                 const imgSrc = image.src || image.url;
                 applyImageOptimizations(imgElem, imgSrc, imgWrapper);
 
+                // ✅ Phase 1.4 / 1.5: 밝기·대비·채도·회전 효과 (인라인 이미지)
+                applyImageEffects(imgElem, image);
+
                 imgWrapper.appendChild(imgElem);
                 targetContainer.appendChild(imgWrapper);
             }
@@ -352,6 +355,50 @@ export function renderParagraph(para) {
         } else if (run.type === 'linebreak') {
             // Line break
             targetContainer.appendChild(document.createElement('br'));
+        } else if (run.type === 'bookmark') {
+            // ✅ Phase 1.2: 책갈피 anchor — 화면에는 보이지 않지만 scroll target 으로 사용
+            const anchor = document.createElement('span');
+            anchor.className = 'hwp-bookmark';
+            if (run.name) {
+                anchor.id = `bookmark-${run.name}`;
+                anchor.setAttribute('data-bookmark', run.name);
+            }
+            // 레이아웃에 영향 주지 않도록 0 크기 인라인 요소
+            anchor.style.display = 'inline-block';
+            anchor.style.width = '0';
+            anchor.style.height = '0';
+            anchor.style.overflow = 'hidden';
+            targetContainer.appendChild(anchor);
+        } else if (run.type === 'field' && (run.fieldType === 'PAGE_NUMBER' || run.fieldType === 'PAGE_COUNT')) {
+            // ✅ Phase 1.3: 페이지 번호/총 페이지 마커
+            // 페이지네이션 종료 후 renderer.js 가 실제 번호로 치환한다.
+            const fieldSpan = document.createElement('span');
+            fieldSpan.className = 'hwp-field';
+            fieldSpan.setAttribute(
+                'data-field',
+                run.fieldType === 'PAGE_NUMBER' ? 'page-number' : 'page-count'
+            );
+            // 폴백 텍스트 — 페이지네이션 전(또는 단위테스트 환경) 임시 표시값
+            fieldSpan.textContent = run.fieldType === 'PAGE_NUMBER' ? '#' : '?';
+            if (run.style) applyRunStyle(fieldSpan, run.style);
+            targetContainer.appendChild(fieldSpan);
+        } else if (run.hyperlink && run.hyperlink.url) {
+            // ✅ Phase 1.1: 하이퍼링크 — <a> 로 렌더링
+            const anchor = document.createElement('a');
+            anchor.className = 'hwp-run hwp-hyperlink';
+            const url = run.hyperlink.url;
+            anchor.href = url;
+            // 같은 문서 내 책갈피(#bookmark-xxx)는 같은 탭에서, 외부는 새 탭
+            if (typeof url === 'string' && !url.startsWith('#')) {
+                anchor.target = '_blank';
+                anchor.rel = 'noopener noreferrer';
+            }
+            anchor.textContent = run.text || url;
+            if (run.style) applyRunStyle(anchor, run.style);
+            if (paraDiv.style.display === 'flex') {
+                anchor.style.flexShrink = '0';
+            }
+            targetContainer.appendChild(anchor);
         } else {
             // Text run
             const span = document.createElement('span');
@@ -691,15 +738,32 @@ function applyRunStyle(element, style) {
         }
     }
 
-    // Outline (외곽선)
+    // Outline (외곽선) — Phase 1.8
+    // 굵기는 1px 로 키워 가시성을 확보하되, 색상 지정이 있으면 사용한다.
     if (style.outline) {
-        element.style.webkitTextStroke = '0.5px currentColor';
+        const outlineColor = style.outlineColor || style.color || 'currentColor';
+        element.style.webkitTextStroke = `1px ${outlineColor}`;
         element.style.paintOrder = 'stroke fill';
     }
 
-    // Text shadow (그림자)
+    // Text shadow (그림자) — Phase 1.8
+    // 파서가 textShadowValue 를 만들었으면 우선 사용,
+    // 그렇지 않고 boolean shadow=true 만 있으면 기본 그림자를 적용한다.
     if (style.textShadowValue) {
         element.style.textShadow = style.textShadowValue;
+    } else if (style.textShadow || style.shadow) {
+        element.style.textShadow = '1px 1px 2px rgba(0,0,0,0.45)';
+    }
+
+    // Emphasis mark (강조점) — Phase 1.7
+    if (style.symMark) {
+        // CSS Text Module Level 3
+        element.style.textEmphasisStyle = style.symMark;
+        element.style.webkitTextEmphasisStyle = style.symMark;
+        if (style.color) {
+            element.style.textEmphasisColor = style.color;
+            element.style.webkitTextEmphasisColor = style.color;
+        }
     }
 
     // Letter spacing (자간)

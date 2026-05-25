@@ -400,6 +400,111 @@ describe('renderParagraph', () => {
       expect(renderContainer).toHaveBeenCalled();
     });
   });
+
+  // ─── Phase 1.1: hyperlink runs ─────────────────────────────
+  describe('hyperlink runs', () => {
+    it('should render hyperlink runs as <a> with target=_blank for external URLs', () => {
+      const para = makePara([
+        { text: 'Click', hyperlink: { url: 'https://example.com' } },
+      ]);
+      const el = renderParagraph(para);
+      const a = el.querySelector('a.hwp-hyperlink');
+      expect(a).not.toBeNull();
+      expect(a.getAttribute('href')).toBe('https://example.com');
+      expect(a.getAttribute('target')).toBe('_blank');
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+      expect(a.textContent).toBe('Click');
+    });
+
+    it('should keep bookmark-fragment links in the same tab (no target=_blank)', () => {
+      const para = makePara([
+        { text: 'jump', hyperlink: { url: '#bookmark-foo' } },
+      ]);
+      const el = renderParagraph(para);
+      const a = el.querySelector('a.hwp-hyperlink');
+      expect(a.getAttribute('href')).toBe('#bookmark-foo');
+      expect(a.getAttribute('target')).toBeNull();
+    });
+  });
+
+  // ─── Phase 1.2: bookmark anchors ───────────────────────────
+  describe('bookmark anchors', () => {
+    it('should render a bookmark run as a zero-size span with id=bookmark-{name}', () => {
+      const para = makePara([
+        { type: 'bookmark', name: 'foo' },
+        { text: 'after' },
+      ]);
+      const el = renderParagraph(para);
+      const anchor = el.querySelector('#bookmark-foo');
+      expect(anchor).not.toBeNull();
+      expect(anchor.classList.contains('hwp-bookmark')).toBe(true);
+      expect(anchor.getAttribute('data-bookmark')).toBe('foo');
+      expect(anchor.style.width).toBe('0px');
+    });
+  });
+
+  // ─── Phase 1.3: page-number/page-count field markers ──────
+  describe('page field markers', () => {
+    it('should emit a hwp-field marker for PAGE_NUMBER field runs', () => {
+      const para = makePara([
+        { type: 'field', fieldType: 'PAGE_NUMBER', text: '{페이지}' },
+      ]);
+      const el = renderParagraph(para);
+      const marker = el.querySelector('.hwp-field[data-field="page-number"]');
+      expect(marker).not.toBeNull();
+    });
+
+    it('should emit a hwp-field marker for PAGE_COUNT field runs', () => {
+      const para = makePara([
+        { type: 'field', fieldType: 'PAGE_COUNT', text: '{전체페이지}' },
+      ]);
+      const el = renderParagraph(para);
+      const marker = el.querySelector('.hwp-field[data-field="page-count"]');
+      expect(marker).not.toBeNull();
+    });
+  });
+
+  // ─── Phase 1.7: emphasis mark (symMark) ────────────────────
+  describe('emphasis marks (symMark)', () => {
+    it('should apply text-emphasis-style when run.style.symMark is set', () => {
+      const para = makePara([
+        makeRun('강조', { symMark: 'dot', color: '#ff0000' }),
+      ]);
+      const el = renderParagraph(para);
+      const span = el.querySelector('.hwp-run');
+      expect(span.style.textEmphasisStyle || span.style.webkitTextEmphasisStyle).toBe('dot');
+    });
+  });
+
+  // ─── Phase 1.8: outline / shadow ───────────────────────────
+  describe('outline and shadow text styles', () => {
+    it('should apply webkitTextStroke when run.style.outline is true', () => {
+      const para = makePara([
+        makeRun('외곽선', { outline: true, color: '#000000' }),
+      ]);
+      const el = renderParagraph(para);
+      const span = el.querySelector('.hwp-run');
+      expect(span.style.webkitTextStroke).toContain('1px');
+    });
+
+    it('should apply default textShadow when run.style.shadow is true', () => {
+      const para = makePara([
+        makeRun('그림자', { shadow: true }),
+      ]);
+      const el = renderParagraph(para);
+      const span = el.querySelector('.hwp-run');
+      expect(span.style.textShadow).not.toBe('');
+    });
+
+    it('should preserve custom textShadowValue when provided', () => {
+      const para = makePara([
+        makeRun('맞춤그림자', { textShadowValue: '2px 2px 3px #888888' }),
+      ]);
+      const el = renderParagraph(para);
+      const span = el.querySelector('.hwp-run');
+      expect(span.style.textShadow).toContain('2px 2px 3px');
+    });
+  });
 });
 
 // ─── renderParagraphs ───────────────────────────────────────

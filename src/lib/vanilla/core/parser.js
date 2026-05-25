@@ -148,6 +148,32 @@ function normalizeColor(color) {
 }
 
 /**
+ * Map HWPX symMark (emphasis mark) type → CSS text-emphasis-style value.
+ * HWPX uses: DOT / CIRCLE / FILLED_CIRCLE / FILLED_DOT / TRIANGLE / ...
+ * CSS supports: dot, circle, double-circle, triangle, sesame (+ filled/open)
+ */
+function mapSymMarkToCss(type) {
+    if (!type) return null;
+    const t = String(type).toUpperCase();
+    const table = {
+        DOT: 'dot',
+        FILLED_DOT: 'filled dot',
+        OPEN_DOT: 'open dot',
+        CIRCLE: 'circle',
+        FILLED_CIRCLE: 'filled circle',
+        OPEN_CIRCLE: 'open circle',
+        DOUBLE_CIRCLE: 'double-circle',
+        TRIANGLE: 'triangle',
+        FILLED_TRIANGLE: 'filled triangle',
+        OPEN_TRIANGLE: 'open triangle',
+        SESAME: 'sesame',
+        FILLED_SESAME: 'filled sesame',
+        OPEN_SESAME: 'open sesame'
+    };
+    return table[t] || 'dot';
+}
+
+/**
  * Map HWPX border type to CSS border-style
  */
 function getBorderStyle(type) {
@@ -733,6 +759,16 @@ export class SimpleHWPXParser {
             const supscript = cpElem.getAttribute('supscript');
             if (supscript === 'SUPERSCRIPT') charProp.verticalAlign = 'super';
             if (supscript === 'SUBSCRIPT') charProp.verticalAlign = 'sub';
+
+            // ★ Emphasis mark (강조점) - symMark
+            //   HWPX 표현: <hh:symMark type="..."/> 또는 attribute symMark="..."
+            const symMarkAttr = cpElem.getAttribute('symMark');
+            const symMarkElem = cpElem.querySelector('symMark, hh\\:symMark');
+            const symMarkType = symMarkAttr
+                || (symMarkElem ? symMarkElem.getAttribute('type') || symMarkElem.getAttribute('symMark') : null);
+            if (symMarkType && symMarkType !== 'NONE' && symMarkType !== 'none') {
+                charProp.symMark = mapSymMarkToCss(symMarkType);
+            }
 
             this.charProperties.set(id, charProp);
         });
@@ -2060,6 +2096,21 @@ export class SimpleHWPXParser {
         }
 
         // ================================================================
+        // ★ Cell rotation (Phase 1.6) — rotat 속성 (deg×100)
+        // ================================================================
+        const cellRot = tcElem.getAttribute('rotat')
+            ?? tcElem.getAttribute('rotation')
+            ?? (subListElem ? subListElem.getAttribute('rotat') : null);
+        if (cellRot !== null && cellRot !== undefined && cellRot !== '') {
+            const raw = parseFloat(cellRot);
+            if (!Number.isNaN(raw) && raw !== 0) {
+                let deg = raw;
+                if (Math.abs(raw) > 360) deg = raw / 100;
+                cell.style.rotation = ((deg % 360) + 360) % 360;
+            }
+        }
+
+        // ================================================================
         // Nested tables
         // ================================================================
         const nestedTables = tcElem.querySelectorAll(':scope > subList > tbl, :scope > subList > hp\\:tbl, :scope > tbl, :scope > hp\\:tbl');
@@ -2246,6 +2297,62 @@ export class SimpleHWPXParser {
         const altText = picElem.getAttribute('alt') || picElem.getAttribute('longDesc');
         if (altText) image.alt = altText;
 
+        // ★ Effects (밝기/대비/색조/회전) — Phase 1.4 / 1.5
+        // HWPX represents these on <hp:effects> or <hp:img>:
+        //   bright="x" contrast="y" effect="GRAYSCALE|GRAY|BW|..." rotat="<deg×100>"
+        const effectsElem = picElem.querySelector('effects, hp\\:effects, hc\\:effects');
+        const effectSource = effectsElem || imgElem || picElem;
+        if (effectSource) {
+            // bright/brightness: HWPX 범위는 보통 -100..+100 (퍼센트 가산치).
+            // CSS filter brightness() 는 1.0 이 원본이므로 1 + bright/100 로 매핑한다.
+            const brightAttr = effectSource.getAttribute('bright')
+                ?? effectSource.getAttribute('brightness');
+            if (brightAttr !== null && brightAttr !== undefined && brightAttr !== '') {
+                const b = parseInt(brightAttr);
+                if (!Number.isNaN(b) && b !== 0) {
+                    image.brightness = +(1 + b / 100).toFixed(3);
+                }
+            }
+            const contrastAttr = effectSource.getAttribute('contrast');
+            if (contrastAttr !== null && contrastAttr !== undefined && contrastAttr !== '') {
+                const c = parseInt(contrastAttr);
+                if (!Number.isNaN(c) && c !== 0) {
+                    image.contrast = +(1 + c / 100).toFixed(3);
+                }
+            }
+            // saturation: hue/saturation; 또한 effect="GRAYSCALE" 흑백 처리도 인식
+            const satAttr = effectSource.getAttribute('saturation')
+                ?? effectSource.getAttribute('sat');
+            if (satAttr !== null && satAttr !== undefined && satAttr !== '') {
+                const s = parseInt(satAttr);
+                if (!Number.isNaN(s) && s !== 0) {
+                    image.saturation = +(1 + s / 100).toFixed(3);
+                }
+            }
+            const effectAttr = effectSource.getAttribute('effect');
+            if (effectAttr) {
+                const e = String(effectAttr).toUpperCase();
+                if (e === 'GRAYSCALE' || e === 'GRAY' || e === 'BW') {
+                    image.saturation = 0;
+                }
+            }
+        }
+
+        // Rotation: HWPX rotat attribute is degrees×100 (e.g. 9000 = 90°).
+        const rotAttr = picElem.getAttribute('rotat')
+            ?? picElem.getAttribute('rotation')
+            ?? (imgElem ? imgElem.getAttribute('rotat') : null);
+        if (rotAttr !== null && rotAttr !== undefined && rotAttr !== '') {
+            const raw = parseFloat(rotAttr);
+            if (!Number.isNaN(raw) && raw !== 0) {
+                // 7200 단위(HWPU)와 100배 단위 모두 흔하므로 휴리스틱으로 정규화한다.
+                let deg = raw;
+                if (Math.abs(raw) >= 360 * 100) deg = raw / 100;
+                else if (Math.abs(raw) > 360) deg = raw / 100;
+                image.rotation = ((deg % 360) + 360) % 360;
+            }
+        }
+
         // Children (containers/shapes inside imgRect)
         image.children = [];
         const imgRectElem = picElem.querySelector('imgRect, hp\\:imgRect, hc\\:imgRect');
@@ -2301,6 +2408,18 @@ export class SimpleHWPXParser {
         // Rounded corners
         const ratio = parseInt(shapeElem.getAttribute('ratio')) || 0;
         if (ratio > 0) shape.borderRadius = ratio;
+
+        // ★ Rotation (Phase 1.6) — rotat 또는 rotation 속성 (deg×100)
+        const shapeRot = shapeElem.getAttribute('rotat')
+            ?? shapeElem.getAttribute('rotation');
+        if (shapeRot !== null && shapeRot !== undefined && shapeRot !== '') {
+            const raw = parseFloat(shapeRot);
+            if (!Number.isNaN(raw) && raw !== 0) {
+                let deg = raw;
+                if (Math.abs(raw) > 360) deg = raw / 100;
+                shape.rotation = ((deg % 360) + 360) % 360;
+            }
+        }
 
         // Size
         const size = parseSize(shapeElem);

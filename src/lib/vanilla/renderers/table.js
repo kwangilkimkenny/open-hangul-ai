@@ -270,6 +270,7 @@ export function renderTable(table, images) {
                             }
                         }
 
+
                         // ====================================================
                         // Line wrap policy
                         // ====================================================
@@ -411,6 +412,22 @@ export function renderTable(table, images) {
                                 para.style.marginTop = '0';
                             }
                         });
+                    }
+
+                    // ====================================================
+                    // ✅ Phase 1.6: 셀 회전 (cell.style.rotation)
+                    // 90/180/270 등 임의 각도. 셀 자체 회전은 표 레이아웃을
+                    // 망가뜨릴 수 있으므로 내부 wrapper 에 transform 만 적용한다.
+                    // ====================================================
+                    if (cell && cell.style && typeof cell.style.rotation === 'number' && cell.style.rotation !== 0) {
+                        const rotWrap = document.createElement('div');
+                        rotWrap.className = 'hwp-cell-rotation';
+                        rotWrap.style.display = 'inline-block';
+                        rotWrap.style.transform = `rotate(${cell.style.rotation}deg)`;
+                        rotWrap.style.transformOrigin = 'center center';
+                        while (td.firstChild) rotWrap.appendChild(td.firstChild);
+                        td.appendChild(rotWrap);
+                        td.setAttribute('data-rotation', String(cell.style.rotation));
                     }
 
                     tr.appendChild(td);
