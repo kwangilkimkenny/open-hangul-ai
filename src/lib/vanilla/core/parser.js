@@ -22,6 +22,15 @@ import { HWPXConstants } from './constants.js';
 import { hancomToMathML as _convertHancomToMathML } from '../math/hancom-math-converter.js';
 import { parseChart } from '../chart/chart-parser.js';
 import { parseFormControl, isFormControlTag } from '../features/form-controls.js';
+import {
+    detectEncryption as _hwpDetectEncryption,
+    decryptHwpxStream as _hwpDecryptStream,
+    derivePbkdf2Key as _hwpDeriveKey,
+    SALT_SIZE as _HWP_SALT_SIZE,
+    IV_SIZE as _HWP_IV_SIZE,
+    DEFAULT_PBKDF2_PARAMS as _HWP_PBKDF2_PARAMS
+} from '../security/hwp-crypto.js';
+import { promptPassword as _hwpPromptPassword } from '../security/password-dialog.js';
 
 const logger = getLogger();
 
@@ -248,6 +257,11 @@ export class SimpleHWPXParser {
             // 1. Unzip HWPX file
             await this.unzip(buffer);
 
+            // 1.5 ★ Encryption detection + optional decryption
+            //     암호화된 HWPX 인 경우 비밀번호를 받아 각 스트림을 복호화한다.
+            //     실패하면 명확한 에러를 throw 하여 상위에서 안내한다.
+            await this._decryptIfNeeded(buffer);
+
             // 2. Load binary data (images)
             await this.loadBinData();
 
@@ -318,6 +332,134 @@ export class SimpleHWPXParser {
         }
 
         logger.debug(`✅ Unzipped ${this.entries.size} files`);
+    }
+
+    // ========================================================================
+    // Encryption Detection + Decryption
+    // ========================================================================
+
+    /**
+     * 암호화된 HWPX 컨테이너인 경우 비밀번호를 입력 받아 각 스트림을 in-place
+     * 복호화한다. HWP 5.0(CFB) 컨테이너는 이 단계에서 명확한 에러를 발생시켜
+     * 변환기/뷰어가 사용자에게 안내할 수 있도록 한다.
+     *
+     * 이 단계는 다음 원칙을 따른다:
+     *   - 새 의존성 도입 금지 (Web Crypto API 사용)
+     *   - 비밀번호는 메모리(클로저)에서만 사용, 어떤 영구 저장소에도 기록하지 않음
+     *   - 평문/암호문 모두 entries Map 에만 보관 (다른 트랙 영역 미수정)
+     *
+     * @param {ArrayBuffer | Uint8Array} buffer 원본 파일 바이트 (헤더 감지용)
+     * @private
+     */
+    async _decryptIfNeeded(buffer) {
+        // manifest.xml 가 없으면 비암호화로 간주
+        const manifestBytes = this.entries.get('META-INF/manifest.xml');
+        const manifestXml = manifestBytes
+            ? new TextDecoder('utf-8').decode(manifestBytes)
+            : '';
+
+        const info = _hwpDetectEncryption(buffer, { manifestXml });
+
+        if (!info.encrypted) {
+            return; // 일반 흐름 계속
+        }
+
+        // HWP 5.0 CFB 의 암호화 복호화는 별도 어댑터 라우트에서 처리되어야 한다
+        // (본 파서는 HWPX 전용). 사용자에게 명확한 안내를 제공한다.
+        if (info.format === 'hwp5') {
+            const err = new Error(
+                '암호화된 HWP 5.0 문서입니다. 먼저 한컴 오피스에서 비밀번호를 해제한 후 다시 열어 주세요.'
+            );
+            err.code = 'HWP5_ENCRYPTED';
+            throw err;
+        }
+
+        logger.info('🔒 Encrypted HWPX detected — prompting for password');
+
+        const docName = this.options.fileName || 'HWPX 문서';
+
+        // verify 콜백: 입력된 비밀번호로 첫 번째 암호화 스트림을 시험 복호화
+        const encFiles = Array.isArray(info.files) ? info.files : [];
+        const probePath = encFiles[0] && encFiles[0].path;
+        const probeBytes = probePath ? this.entries.get(probePath) : null;
+
+        // salt / iv 는 manifest 가 아니라 각 스트림의 헤더 prefix 에서 추출한다
+        // (한컴 명세 권장): [salt(16B) | iv(16B) | ciphertext...]
+        const extractSaltIv = (bytes) => {
+            if (!bytes || bytes.length < _HWP_SALT_SIZE + _HWP_IV_SIZE + 16) return null;
+            const salt = bytes.slice(0, _HWP_SALT_SIZE);
+            const iv = bytes.slice(_HWP_SALT_SIZE, _HWP_SALT_SIZE + _HWP_IV_SIZE);
+            const ct = bytes.slice(_HWP_SALT_SIZE + _HWP_IV_SIZE);
+            return { salt, iv, ct };
+        };
+
+        const probe = probeBytes ? extractSaltIv(probeBytes) : null;
+
+        // 패스워드 검증 함수 (verify 콜백)
+        const verify = probe
+            ? async (pwd) => {
+                try {
+                    const key = await _hwpDeriveKey(
+                        pwd, probe.salt,
+                        _HWP_PBKDF2_PARAMS.iterations,
+                        _HWP_PBKDF2_PARAMS.keyLength,
+                        _HWP_PBKDF2_PARAMS.hash
+                    );
+                    await _hwpDecryptStream(probe.ct, key, probe.iv);
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            }
+            : null;
+
+        let password = null;
+        if (typeof this.options.password === 'string' && this.options.password.length > 0) {
+            // 호출자가 패스워드를 미리 주입한 경우 (UI 우회)
+            password = this.options.password;
+        } else {
+            password = await _hwpPromptPassword(docName, { verify, maxAttempts: 3 });
+        }
+
+        if (!password) {
+            const err = new Error('비밀번호가 입력되지 않아 문서를 열 수 없습니다.');
+            err.code = 'HWPX_PASSWORD_CANCELED';
+            throw err;
+        }
+
+        // 모든 암호화된 스트림을 in-place 로 복호화한다
+        let decryptedCount = 0;
+        for (const file of encFiles) {
+            const enc = this.entries.get(file.path);
+            if (!enc) continue;
+            const parts = extractSaltIv(enc);
+            if (!parts) {
+                logger.warn(`🔒 ${file.path}: payload too short, skipping`);
+                continue;
+            }
+            try {
+                const key = await _hwpDeriveKey(
+                    password, parts.salt,
+                    _HWP_PBKDF2_PARAMS.iterations,
+                    _HWP_PBKDF2_PARAMS.keyLength,
+                    _HWP_PBKDF2_PARAMS.hash
+                );
+                const plain = await _hwpDecryptStream(parts.ct, key, parts.iv);
+                this.entries.set(file.path, plain);
+                decryptedCount++;
+            } catch (err) {
+                logger.error(`🔒 Failed to decrypt ${file.path}:`, err && err.message);
+                const wrap = new Error(`암호화된 스트림 복호화 실패: ${file.path}`);
+                wrap.code = 'HWPX_DECRYPT_FAILED';
+                wrap.cause = err;
+                throw wrap;
+            }
+        }
+
+        // 메모리에 남은 패스워드 참조 제거 (best-effort)
+        password = '';
+
+        logger.info(`🔓 Decrypted ${decryptedCount} encrypted stream(s)`);
     }
 
     // ========================================================================
