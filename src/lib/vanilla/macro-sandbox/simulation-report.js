@@ -15,6 +15,7 @@ import {
   groupDetailsByType,
   getPermissionMeta,
 } from './permission-analyzer.js';
+import { Permission, SEVERITY_ORDER } from './permission-types.js';
 
 const RISK_LABEL = {
   low: '낮음',
@@ -45,23 +46,23 @@ function describePermission(permId, entries) {
     .join(', ');
 
   switch (permId) {
-    case 'file-io':
+    case Permission.FILE_IO:
       return `로컬 파일 시스템 접근을 ${count}회 시도합니다 (파일 읽기/쓰기 가능). 호출 위치: ${firstLines}.`;
-    case 'network':
+    case Permission.NETWORK:
       return `외부 네트워크 통신을 ${count}회 시도합니다 (데이터 유출 또는 추가 페이로드 다운로드 가능). 호출 위치: ${firstLines}.`;
-    case 'shell':
+    case Permission.SHELL:
       return `운영체제 명령(셸)을 ${count}회 실행하려 합니다 (랜섬웨어/드로퍼 패턴). 호출 위치: ${firstLines}.`;
-    case 'registry':
+    case Permission.REGISTRY:
       return `Windows 레지스트리에 ${count}회 접근합니다 (영구 변경 또는 자동 실행 등록 가능). 호출 위치: ${firstLines}.`;
-    case 'wscript':
+    case Permission.WSCRIPT:
       return `Windows Script Host 를 ${count}회 호출합니다. 호출 위치: ${firstLines}.`;
-    case 'activex':
+    case Permission.ACTIVEX:
       return `ActiveX / COM 객체를 ${count}회 생성합니다 (외부 모듈 로딩). 호출 위치: ${firstLines}.`;
-    case 'dom':
+    case Permission.DOM:
       return `브라우저 DOM API 를 ${count}회 호출합니다. 호출 위치: ${firstLines}.`;
-    case 'hancom-api':
+    case Permission.HANCOM_API:
       return `한컴 자동화 API 를 ${count}회 호출합니다 (문서 자동 조작). 호출 위치: ${firstLines}.`;
-    case 'dynamic-eval':
+    case Permission.DYNAMIC_EVAL:
       return `동적 코드 실행(eval/Function 등)을 ${count}회 시도합니다 (난독화/우회 패턴). 호출 위치: ${firstLines}.`;
     default: {
       const meta = getPermissionMeta(permId);
@@ -100,12 +101,13 @@ export function generateReport(input) {
   const riskLabel = RISK_LABEL[riskLevel] || riskLevel;
   const groups = groupDetailsByType(details);
 
-  // 권한을 severity 순으로 정렬 (critical → high → medium → low)
-  const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  // 권한을 severity 순으로 정렬 (critical → high → medium → low).
+  // SEVERITY_ORDER 는 (low=0 … critical=3) 이므로 critical 이 먼저 오려면
+  // 역순 정렬 — 즉 큰 값이 앞으로 와야 합니다.
   const sortedPerms = Array.from(permissionsSet).sort((a, b) => {
-    const sa = sevOrder[PERMISSION_CATALOG[a]?.severity] ?? 9;
-    const sb = sevOrder[PERMISSION_CATALOG[b]?.severity] ?? 9;
-    if (sa !== sb) return sa - sb;
+    const sa = SEVERITY_ORDER[PERMISSION_CATALOG[a]?.severity] ?? -1;
+    const sb = SEVERITY_ORDER[PERMISSION_CATALOG[b]?.severity] ?? -1;
+    if (sa !== sb) return sb - sa;
     return a.localeCompare(b);
   });
 
