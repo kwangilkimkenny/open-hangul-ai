@@ -10,5 +10,11 @@
       "rotation": 0,
       "binaryRef": "image1"
     }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 1,
+    "imagesCount": 1,
+    "imageIds": ["image1"]
+  }
 }

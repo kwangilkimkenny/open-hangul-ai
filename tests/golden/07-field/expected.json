@@ -3,5 +3,12 @@
   "fields": [
     { "type": "DATE", "format": "yyyy-MM-dd", "display": "2026-05-22" },
     { "type": "PAGE_NUM", "display": "1" }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 1,
+    "fieldCount": 2,
+    "fieldTypes": ["DATE", "PAGE_NUMBER"],
+    "bodyTextIncludes": ["페이지", "2026-05-22"]
+  }
 }

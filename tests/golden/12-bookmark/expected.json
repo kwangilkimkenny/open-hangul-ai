@@ -2,5 +2,12 @@
   "feature": "bookmark",
   "bookmarks": [
     { "name": "bm1", "paragraphId": "p1", "offset": 0 }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 1,
+    "bookmarkCount": 1,
+    "bookmarkName": "bm1",
+    "bodyTextIncludes": ["여기가 책갈피 위치"]
+  }
 }

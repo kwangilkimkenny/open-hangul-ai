@@ -2,5 +2,12 @@
   "feature": "footnote",
   "footnotes": [
     { "id": "fn1", "kind": "footnote", "marker": "1", "text": "이것은 각주입니다." }
-  ]
+  ],
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 1,
+    "footnoteCount": 1,
+    "footnoteText": "이것은 각주입니다.",
+    "bodyTextIncludes": ["본문 텍스트", "계속."]
+  }
 }

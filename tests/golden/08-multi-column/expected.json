@@ -9,5 +9,11 @@
       { "width": 2400, "gap": 200 },
       { "width": 2400, "gap": 0 }
     ]
+  },
+  "parserAssertions": {
+    "sections": 1,
+    "paragraphCount": 1,
+    "columnCountInRawXml": 3,
+    "notes": "secPr ships 3 hp:col entries plus hp:lineBetween. Parser may project this onto colPr; we only check that the section parses cleanly and exposes raw header xml."
   }
 }
